@@ -352,6 +352,21 @@ pub fn imported_profile(
   object.insert("password_protected".to_string(), serde_json::json!(false));
   object.insert("temporary".to_string(), serde_json::json!(false));
   object.insert("sync_mode".to_string(), serde_json::json!("Disabled"));
+  let source_os = object
+    .get("host_os")
+    .and_then(|v| v.as_str())
+    .filter(|os| crate::profile::types::is_host_os(os))
+    .map(str::to_string);
+  if let (Some(source_os), Some(config)) = (
+    source_os,
+    object
+      .get_mut("wayfern_config")
+      .and_then(|v| v.as_object_mut()),
+  ) {
+    if config.get("os").is_none_or(|os| os.is_null()) {
+      config.insert("os".to_string(), serde_json::json!(source_os));
+    }
+  }
   object.insert(
     "host_os".to_string(),
     serde_json::json!(crate::profile::types::get_host_os()),

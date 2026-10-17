@@ -9,8 +9,8 @@
 use crate::events;
 use crate::profile::encryption::{
   cache_key, decrypt_profile_dir, drop_cached_key, encrypt_profile_dir, fresh_salt, get_cached_key,
-  has_cached_key, has_changes, reencrypt_changed_files, rekey_profile_dir, sealed_stamp,
-  unlock as unlock_dir, verify_key_against_dir, Baseline, FileStamp, PasswordError,
+  has_cached_key, has_changes, reencrypt_changed_files, rekey_profile_dir, restore_key_material,
+  sealed_stamp, unlock as unlock_dir, verify_key_against_dir, Baseline, FileStamp, PasswordError,
   BASELINE_FILE_NAME, SEALED_EXCLUDE_PATTERNS,
 };
 use crate::profile::ProfileManager;
@@ -837,6 +837,15 @@ pub fn prepare_for_launch(profile: &crate::profile::BrowserProfile) -> Result<Pa
         Err(e) => {
           log::error!("Profile re-encryption before launch failed profile={id} err=\"{e}\"")
         }
+      }
+      // A key file the copy lost while it waited would otherwise start the
+      // browser without the profile's key.
+      match restore_key_material(&key, &store, &dir) {
+        Ok(0) => {}
+        Ok(restored) => {
+          log::warn!("Key files put back into the decrypted copy profile={id} count={restored}")
+        }
+        Err(e) => log::error!("Key file restore failed profile={id} err=\"{e}\""),
       }
       return Ok(dir);
     }

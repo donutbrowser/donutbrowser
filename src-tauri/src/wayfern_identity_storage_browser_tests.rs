@@ -69,6 +69,21 @@ async fn stored_profiles_convert_through_a_real_browser() {
     };
     let first_answer = answer(&before, token).await;
 
+    if token.is_none() && first_answer["withheld"] == json!(true) {
+      let launched = convert_for_launch(&before)
+        .await
+        .unwrap_or_else(|e| panic!("profile {} did not launch: {e}", before.id));
+      assert!(!needs_conversion(&launched));
+      let on_disk = read_profile(&before.id).expect("the stored profile is on disk");
+      assert_eq!(
+        config_value(&on_disk),
+        config_value(&before),
+        "profile {} keeps its stored config while the plan is unknown",
+        before.id
+      );
+      continue;
+    }
+
     let converted = match token {
       Some(token) => {
         let session = session_for(&before, Some(token)).await;

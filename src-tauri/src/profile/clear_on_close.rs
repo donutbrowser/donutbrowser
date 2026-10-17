@@ -32,7 +32,9 @@ const PROFILE_KEEP: &[&str] = &[
 ];
 
 /// Entries kept at the user-data-dir top level (outside profile subdirs).
-const TOP_KEEP: &[&str] = &["Local State", "First Run"];
+/// `os_crypt_key` and `Local State` hold the key the kept extension data is
+/// encrypted with; without them that data cannot be read.
+const TOP_KEEP: &[&str] = &["Local State", "os_crypt_key", "First Run"];
 
 fn is_kept(name: &str) -> bool {
   PROFILE_KEEP.contains(&name) || TOP_KEEP.contains(&name)
@@ -89,8 +91,8 @@ fn clear_chromium_profile_dir(profile_dir: &Path) -> usize {
 /// layouts: profile content at the root (imported profiles copy a Chromium
 /// profile dir directly) and the standard `Default` / `Profile N` subdirs
 /// Chromium creates itself. Top-level cache dirs (ShaderCache, GrShaderCache,
-/// component_crx_cache, …) are removed; `Local State` stays because it holds
-/// the os_crypt key extensions may rely on.
+/// component_crx_cache, …) are removed; `Local State` and `os_crypt_key` stay
+/// because they hold the key extensions' encrypted data needs.
 pub fn clear_user_data_dir(user_data_dir: &Path) -> usize {
   if !user_data_dir.exists() {
     return 0;
@@ -227,6 +229,7 @@ mod tests {
     let tmp = TempDir::new().unwrap();
     let dir = tmp.path();
     touch(dir, "Local State");
+    touch(dir, "os_crypt_key");
     mkdir(dir, "ShaderCache");
     mkdir(dir, "Default");
     let default = dir.join("Default");
@@ -240,6 +243,7 @@ mod tests {
     clear_user_data_dir(dir);
 
     assert!(dir.join("Local State").exists());
+    assert!(dir.join("os_crypt_key").exists());
     assert!(!dir.join("ShaderCache").exists());
     assert!(default.join("Preferences").exists());
     assert!(default.join("Bookmarks").exists());

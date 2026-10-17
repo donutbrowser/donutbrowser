@@ -632,7 +632,7 @@ pub fn bot_precondition(
     // ciphertext and push the corruption back over the real profile.
     return Err(error("COOKIE_BOT_ENCRYPTED_SYNC_UNSUPPORTED", &[]));
   }
-  let Some(platform) = profile.resolved_os() else {
+  let Some(platform) = profile.remote_platform() else {
     return Err(error("COOKIE_BOT_UNKNOWN_PLATFORM", &[]));
   };
   if !BOT_PLATFORMS.contains(&platform) {
@@ -1047,7 +1047,7 @@ pub fn profile_identity(profile: &BrowserProfile) -> ProfileIdentity {
       .map(|zone| zone.trim().to_string())
       .filter(|zone| !zone.is_empty()),
     platform: profile
-      .resolved_os()
+      .remote_platform()
       .filter(|os| BOT_PLATFORMS.contains(os))
       .map(str::to_string),
     profile_name: (!name.is_empty() && name.encode_utf16().count() <= MAX_PROFILE_NAME_UNITS)
@@ -1567,19 +1567,20 @@ mod tests {
 
   #[test]
   fn a_report_names_the_zone_the_platform_and_the_profile() {
+    // A Wayfern profile created on macOS runs on a Linux host.
     let identity = profile_identity(&profile_in_zone("Europe/Berlin"));
     assert_eq!(
       identity,
       ProfileIdentity {
         timezone: Some("Europe/Berlin".to_string()),
-        platform: Some("macos".to_string()),
+        platform: Some("linux".to_string()),
         profile_name: Some("warm me".to_string()),
       }
     );
 
     let body = profile_state_body(profile_state(&eligible_profile()), &identity);
     assert_eq!(body["timezone"], "Europe/Berlin");
-    assert_eq!(body["platform"], "macos");
+    assert_eq!(body["platform"], "linux");
     assert_eq!(body["profile_name"], "warm me");
     assert_eq!(body["has_proxy"], true);
     assert_eq!(body["sync_enabled"], true);
@@ -1789,7 +1790,9 @@ mod tests {
 
   #[test]
   fn an_os_the_fleet_cannot_lease_is_refused_at_enrolment_rather_than_at_two_in_the_morning() {
+    // A profile bound to its OS runs on a host of the OS that created it.
     let mut profile = eligible_profile();
+    profile.browser = "camoufox".to_string();
     profile.host_os = Some("android".to_string());
     let err = bot_precondition(&profile, &ExitReachability::Remote)
       .expect_err("android has no host to lease");

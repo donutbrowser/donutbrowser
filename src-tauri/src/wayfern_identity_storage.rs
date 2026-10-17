@@ -21,18 +21,10 @@ pub enum StoredShape {
 #[derive(Debug)]
 enum ConversionError {
   Deferred(String),
+  LaunchOnly(Box<BrowserProfile>),
   Changed,
   Yielded,
   Failed(String),
-}
-
-impl ConversionError {
-  fn coded(self) -> String {
-    match self {
-      Self::Deferred(coded) | Self::Failed(coded) => coded,
-      Self::Changed | Self::Yielded => crate::backend_error("WAYFERN_BROWSER_BUSY"),
-    }
-  }
 }
 
 const COMMAND: &str = "Wayfern.matchLegacyProfile";
@@ -182,7 +174,7 @@ pub fn converted_profile(
   Ok(updated)
 }
 
-fn read_profile(id: &uuid::Uuid) -> Option<BrowserProfile> {
+pub(crate) fn read_profile(id: &uuid::Uuid) -> Option<BrowserProfile> {
   let path = ProfileManager::instance()
     .get_profiles_dir()
     .join(id.to_string())
@@ -192,7 +184,9 @@ fn read_profile(id: &uuid::Uuid) -> Option<BrowserProfile> {
 }
 
 async fn is_running(profile: &BrowserProfile) -> bool {
-  if profile.process_id.is_some() {
+  if profile.process_id.is_some()
+    || crate::remote_handoff::state_for(&profile.id.to_string()).is_some()
+  {
     return true;
   }
   let profiles_dir = ProfileManager::instance().get_profiles_dir();
@@ -206,17 +200,25 @@ async fn is_running(profile: &BrowserProfile) -> bool {
 fn write_backup(profile: &BrowserProfile) -> Result<(), String> {
   let dir = crate::app_dirs::data_subdir().join("wayfern-config-backups");
   std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-  let path = dir.join(format!("{}.json", profile.id));
-  if path.exists() {
-    return Ok(());
-  }
   let body = serde_json::to_vec_pretty(&json!({
     "profileId": profile.id.to_string(),
     "version": profile.version,
     "wayfernConfig": profile.wayfern_config,
   }))
   .map_err(|e| e.to_string())?;
-  crate::app_dirs::write_owner_only(&path, &body).map_err(|e| e.to_string())
+  for index in 0u32.. {
+    let path = if index == 0 {
+      dir.join(format!("{}.json", profile.id))
+    } else {
+      dir.join(format!("{}-{index}.json", profile.id))
+    };
+    match std::fs::read(&path) {
+      Ok(existing) if existing == body => return Ok(()),
+      Ok(_) => continue,
+      Err(_) => return crate::app_dirs::write_owner_only(&path, &body).map_err(|e| e.to_string()),
+    }
+  }
+  Err("no free backup name".to_string())
 }
 
 fn config_value(profile: &BrowserProfile) -> Value {
@@ -272,24 +274,21 @@ async fn convert_and_save(
   session: &HeadlessWayfern,
   profile: &BrowserProfile,
   interruptible: bool,
-  wait_for_withheld: bool,
+  token_resolved: bool,
 ) -> Result<BrowserProfile, ConversionError> {
   let config = profile.wayfern_config.clone().unwrap_or_default();
   let response = request(session, conversion_params(profile, &config), interruptible).await?;
-  if wait_for_withheld
-    && response.get("withheld").and_then(Value::as_bool) == Some(true)
-    && !CLOUD_AUTH.is_logged_in().await
-  {
-    return Err(ConversionError::Deferred(crate::backend_error(
-      "WAYFERN_PLAN_CHECK_UNAVAILABLE",
-    )));
-  }
   let updated = converted_profile(profile, &response).map_err(|reason| {
     ConversionError::Failed(crate::backend_error_with_detail(
       "WAYFERN_FINGERPRINT_APPLY_FAILED",
       reason,
     ))
   })?;
+  if response.get("withheld").and_then(Value::as_bool) == Some(true)
+    && !(token_resolved && CLOUD_AUTH.is_logged_in().await)
+  {
+    return Err(ConversionError::LaunchOnly(Box::new(updated)));
+  }
 
   let Some(current) = read_profile(&profile.id) else {
     return Err(ConversionError::Failed(crate::backend_error(
@@ -342,11 +341,9 @@ pub async fn convert_for_launch(profile: &BrowserProfile) -> Result<BrowserProfi
   if !needs_conversion(&current) {
     return Ok(current);
   }
-  // A LAUNCH NEVER FAILS OVER PLAN STATE. A token that does not arrive means
-  // the caller is unentitled, signed out, or the verifier is briefly
-  // unreachable -- none of which is a reason the browser should not start. It
-  // proceeds without one and the browser drops what the plan does not carry.
-  let token = token_for_conversion().await.unwrap_or(None);
+  let token = token_for_conversion().await;
+  let token_resolved = token.is_ok();
+  let token = token.unwrap_or(None);
   let session = HeadlessWayfern::start(
     WayfernManager::instance(),
     &current,
@@ -355,11 +352,11 @@ pub async fn convert_for_launch(profile: &BrowserProfile) -> Result<BrowserProfi
   )
   .await
   .map_err(|e| wayfern_failure(&e.to_string(), "WAYFERN_FINGERPRINT_APPLY_FAILED", None))?;
-  let mut result = convert_and_save(&session, &current, false, false).await;
+  let mut result = convert_and_save(&session, &current, false, token_resolved).await;
   if matches!(result, Err(ConversionError::Changed)) {
     result = match read_profile(&profile.id) {
       Some(latest) if needs_conversion(&latest) && latest.version == current.version => {
-        convert_and_save(&session, &latest, false, false).await
+        convert_and_save(&session, &latest, false, token_resolved).await
       }
       Some(latest) if !needs_conversion(&latest) => Ok(latest),
       Some(_) => Err(ConversionError::Changed),
@@ -372,20 +369,13 @@ pub async fn convert_for_launch(profile: &BrowserProfile) -> Result<BrowserProfi
   launch_outcome(result, current)
 }
 
-/// What a conversion result means to the person clicking launch.
-///
-/// CONVERSION IS NOT A PRECONDITION FOR LAUNCHING. A refusal, a transient
-/// verifier failure and a browser that did not answer all mean the same thing
-/// here: nothing yet. The profile still has its stored device, so it opens on
-/// that and the background sweep converts it later, once whatever was briefly
-/// true has stopped being true. Returning an error instead turns "your plan
-/// does not include custom fingerprints" into "your browser does not start".
 fn launch_outcome(
   result: Result<BrowserProfile, ConversionError>,
   current: BrowserProfile,
 ) -> Result<BrowserProfile, String> {
   match result {
     Ok(converted) => Ok(converted),
+    Err(ConversionError::LaunchOnly(launch_copy)) => Ok(*launch_copy),
     Err(ConversionError::Failed(reason)) | Err(ConversionError::Deferred(reason)) => {
       log::warn!(
         "Identity conversion failed, launching on the stored device profile={} err=\"{reason}\"",
@@ -393,8 +383,16 @@ fn launch_outcome(
       );
       Ok(current)
     }
-    Err(other) => Err(other.coded()),
+    Err(ConversionError::Changed) | Err(ConversionError::Yielded) => {
+      Ok(read_profile(&current.id).unwrap_or(current))
+    }
   }
+}
+
+/// True when `launched` carries a config that the disk copy does not hold yet.
+pub fn is_launch_only(launched: &BrowserProfile) -> bool {
+  !needs_conversion(launched)
+    && read_profile(&launched.id).is_some_and(|disk| needs_conversion(&disk))
 }
 
 fn any_wayfern_running(profiles: &[BrowserProfile]) -> bool {
@@ -496,7 +494,7 @@ async fn run_pass() -> bool {
         deferred = true;
         break;
       }
-      Err(ConversionError::Changed) => deferred = true,
+      Err(ConversionError::Changed) | Err(ConversionError::LaunchOnly(_)) => deferred = true,
       Err(ConversionError::Deferred(reason)) => {
         log::debug!("Identity conversion deferred profile={id} reason=\"{reason}\"");
         deferred = true;
@@ -700,7 +698,6 @@ mod tests {
     camoufox.browser = "camoufox".to_string();
     assert!(!needs_conversion(&camoufox));
 
-    // A profile created on another OS launches here, so it converts here too.
     let mut foreign = profile_with("152.0.7977.64", payload_only);
     foreign.host_os = Some(
       if get_host_os() == "windows" {
@@ -901,10 +898,6 @@ mod tests {
 
   #[test]
   fn a_launch_never_fails_because_the_conversion_could_not_finish() {
-    // The rule this pins: plan state, a transient verifier failure and a
-    // browser that did not answer must all still open the profile on its
-    // stored device. Returning an error here is a launch outage, and it has
-    // reached a user twice.
     let stored = profile_with("152.0.7977.64", WayfernConfig::default());
 
     for refusal in [
@@ -919,6 +912,17 @@ mod tests {
         "{label} must fall back to the stored device"
       );
     }
+
+    let launch_copy = profile_with("152.0.7977.64", WayfernConfig::default());
+    let outcome = launch_outcome(
+      Err(ConversionError::LaunchOnly(Box::new(launch_copy.clone()))),
+      stored.clone(),
+    );
+    assert_eq!(
+      outcome.expect("a withheld answer still launches").id,
+      launch_copy.id
+    );
+    assert!(launch_outcome(Err(ConversionError::Changed), stored.clone()).is_ok());
 
     // A successful conversion is what the caller gets instead.
     let converted = profile_with("152.0.7977.64", WayfernConfig::default());

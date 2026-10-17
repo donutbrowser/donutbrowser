@@ -153,6 +153,24 @@ impl BrowserProfile {
     self.browser == "wayfern"
   }
 
+  /// The host OS a remote session or a cookie-bot run is scheduled on, or
+  /// `None` when the profile cannot be scheduled.
+  ///
+  /// A profile that runs on every OS goes to a Linux host, which presents the
+  /// fingerprint's `os`, else the OS of the machine that created the profile.
+  /// Unlike `native_os` there is no fallback to this machine, which is not the
+  /// host, and a `host_os` that is not a real machine counts as unknown: with
+  /// neither OS the profile has none to present and no host. Any other profile
+  /// goes to the OS that created it.
+  pub fn remote_platform(&self) -> Option<&str> {
+    if self.runs_on_any_os() {
+      let fingerprint_os = self.wayfern_config.as_ref().and_then(|c| c.os.as_deref());
+      let creating_os = self.host_os.as_deref().filter(|os| is_host_os(os));
+      return fingerprint_os.or(creating_os).map(|_| "linux");
+    }
+    self.resolved_os()
+  }
+
   /// Returns true when the profile cannot run here because a browser bound to
   /// its OS created it on a different OS. A Wayfern profile is never cross-OS:
   /// it syncs its data and launches on every OS.
@@ -256,6 +274,38 @@ mod tests {
     assert!(foreign.is_cross_os());
     assert!(!profile_from("camoufox", Some(&get_host_os())).is_cross_os());
     assert!(!profile_from("camoufox", None).is_cross_os());
+  }
+
+  #[test]
+  fn a_profile_that_runs_on_any_os_is_scheduled_on_linux_only_with_an_os_to_present() {
+    for os in ["macos", "windows", "linux"] {
+      assert_eq!(
+        profile_from("wayfern", Some(os)).remote_platform(),
+        Some("linux"),
+        "a Wayfern profile created on {os} runs on a Linux host"
+      );
+    }
+    let mut mobile = profile_from("wayfern", None);
+    mobile.wayfern_config = Some(WayfernConfig {
+      os: Some("android".to_string()),
+      ..WayfernConfig::default()
+    });
+    assert_eq!(mobile.remote_platform(), Some("linux"));
+
+    // Nothing says which OS the profile is, so no host can run it.
+    assert_eq!(profile_from("wayfern", None).remote_platform(), None);
+    // A fingerprint OS stored as the creating machine is not a machine.
+    assert_eq!(
+      profile_from("wayfern", Some("android")).remote_platform(),
+      None
+    );
+
+    // A profile bound to its OS still goes to the OS that created it.
+    assert_eq!(
+      profile_from("camoufox", Some("macos")).remote_platform(),
+      Some("macos")
+    );
+    assert_eq!(profile_from("camoufox", None).remote_platform(), None);
   }
 
   #[test]

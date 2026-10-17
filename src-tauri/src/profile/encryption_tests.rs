@@ -356,3 +356,44 @@ fn the_sealed_exclusions_keep_what_a_database_needs() {
     assert!(excludes.is_match(dropped), "{dropped} must not be sealed");
   }
 }
+
+#[test]
+fn a_seal_never_drops_or_blanks_the_key_files() {
+  const LOCAL_STATE: &[u8] = b"{\"os_crypt\":{}}";
+  let key = make_key();
+  let work = TempDir::new().unwrap();
+  let plain = work.path().join("plain");
+  let enc = work.path().join("enc");
+  std::fs::create_dir_all(plain.join("Default")).unwrap();
+  std::fs::write(plain.join("os_crypt_key"), [7u8; 32]).unwrap();
+  std::fs::write(plain.join("Local State"), LOCAL_STATE).unwrap();
+  std::fs::write(plain.join("Default/Cookies"), b"rows").unwrap();
+  encrypt_profile_dir(&key, &plain, &enc, &[]).unwrap();
+
+  // Damage from outside the browser: one key file zero-filled in place, the
+  // other deleted.
+  let copy = work.path().join("copy");
+  let baseline = decrypt_profile_dir(&key, &enc, &copy).unwrap().baseline;
+  std::fs::write(copy.join("os_crypt_key"), [0u8; 32]).unwrap();
+  std::fs::remove_file(copy.join("Local State")).unwrap();
+  reencrypt_changed_files(&key, &copy, &enc, &[], &baseline).unwrap();
+
+  let fresh = work.path().join("fresh");
+  decrypt_profile_dir(&key, &enc, &fresh).unwrap();
+  assert_eq!(
+    std::fs::read(fresh.join("os_crypt_key")).unwrap(),
+    [7u8; 32]
+  );
+  assert_eq!(
+    std::fs::read(fresh.join("Local State")).unwrap(),
+    LOCAL_STATE
+  );
+
+  assert_eq!(restore_key_material(&key, &enc, &copy).unwrap(), 2);
+  assert_eq!(std::fs::read(copy.join("os_crypt_key")).unwrap(), [7u8; 32]);
+  assert_eq!(
+    std::fs::read(copy.join("Local State")).unwrap(),
+    LOCAL_STATE
+  );
+  assert_eq!(restore_key_material(&key, &enc, &copy).unwrap(), 0);
+}

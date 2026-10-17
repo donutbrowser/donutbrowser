@@ -88,6 +88,18 @@ pub const SEALED_EXCLUDE_PATTERNS: &[&str] = &[
 /// erased, so a directory without it is never mistaken for a profile.
 pub const BASELINE_FILE_NAME: &str = ".donut-baseline.json";
 
+/// The files that hold the key every encrypted cookie and password in the
+/// profile is sealed with. A healthy profile never loses them or holds them
+/// blank, so a decrypted copy that lacks one, or holds one empty or
+/// zero-filled, was damaged from outside (a temp-folder cleaner, an erase that
+/// zero-fills before it unlinks). Sealing that state would lose the key and,
+/// with it, every encrypted value, so a seal keeps the sealed file instead.
+const KEY_MATERIAL_PATHS: &[&str] = &["os_crypt_key", "Local State"];
+
+fn is_blank(bytes: &[u8]) -> bool {
+  bytes.iter().all(|byte| *byte == 0)
+}
+
 /// A file's size and modification time, enough to tell that it changed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FileStamp {
@@ -416,15 +428,24 @@ pub fn reencrypt_changed_files(
     }
 
     let bytes = std::fs::read(&abs)?;
+    if KEY_MATERIAL_PATHS.contains(&relpath.as_str()) && is_blank(&bytes) {
+      // Left out of the baseline, so the next seal looks at it again.
+      sealed.remove(&relpath);
+      log::error!("Blank key file not sealed, the sealed one is kept path={relpath}");
+      continue;
+    }
     let encrypted = encrypt_profile_file(key, &relpath, &bytes)?;
     let on_disk = encrypted_dir.join(hmac_filename(key, &relpath));
     atomic_write(&on_disk, &encrypted)?;
     rewrote += 1;
   }
 
-  // Delete on-disk files for plaintext paths that no longer exist
+  // Delete on-disk files for plaintext paths that no longer exist. A key file
+  // is never deleted this way: its absence from the copy is damage.
   let valid_names: HashSet<String> = current_paths
     .iter()
+    .map(String::as_str)
+    .chain(KEY_MATERIAL_PATHS.iter().copied())
     .map(|p| hmac_filename(key, p))
     .collect();
 
@@ -447,6 +468,32 @@ pub fn reencrypt_changed_files(
 
   write_verifier(key, encrypted_dir)?;
   Ok((rewrote, sealed))
+}
+
+/// Put back, from the sealed copy, each key file the decrypted copy lacks or
+/// holds blank. Returns how many were put back.
+pub fn restore_key_material(
+  key: &[u8; 32],
+  encrypted_dir: &Path,
+  plaintext_dir: &Path,
+) -> PasswordResult<usize> {
+  let mut restored = 0usize;
+  for relpath in KEY_MATERIAL_PATHS {
+    let dest = plaintext_dir.join(relpath);
+    if std::fs::read(&dest).is_ok_and(|bytes| !is_blank(&bytes)) {
+      continue;
+    }
+    let Ok(bytes) = std::fs::read(encrypted_dir.join(hmac_filename(key, relpath))) else {
+      continue;
+    };
+    let (path, content) = decrypt_profile_file(key, &bytes)?;
+    if path != *relpath || is_blank(&content) {
+      continue;
+    }
+    atomic_write(&dest, &content)?;
+    restored += 1;
+  }
+  Ok(restored)
 }
 
 /// Re-encrypt every file under `encrypted_dir` from `old_key` to `new_key` in

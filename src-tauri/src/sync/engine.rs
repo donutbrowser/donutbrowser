@@ -943,6 +943,15 @@ impl SyncEngine {
     // before we generate the manifest (WAL files are excluded from sync)
     checkpoint_sqlite_wal_files(&profile_dir);
 
+    #[cfg(target_os = "windows")]
+    match crate::profile_import::keyring::write_key_file_from_local_state(
+      &profile_dir.join("profile"),
+    ) {
+      Ok(true) => log::info!("Key file written from Local State profile={profile_id}"),
+      Ok(false) => {}
+      Err(e) => log::warn!("Key file not written profile={profile_id} err=\"{e}\""),
+    }
+
     // Load or create hash cache
     let cache_path = get_cache_path(&profile_dir);
     let mut hash_cache = HashCache::load(&cache_path);

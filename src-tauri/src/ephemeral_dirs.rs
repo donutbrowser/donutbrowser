@@ -359,15 +359,14 @@ pub fn recover_ephemeral_dirs() {
     if entry.path().is_dir() {
       if let Some(name) = entry.file_name().to_str() {
         if uuid::Uuid::parse_str(name).is_ok() {
-          dirs.insert(
-            name.to_string(),
-            EphemeralEntry {
-              path: entry.path(),
-              // Judge a recovered directory by the base it was found under, not
-              // by what some earlier run happened to resolve.
-              backing,
-            },
-          );
+          // A disk-backed copy kept by the sweep above is the one with
+          // unsealed changes, so it is not displaced.
+          dirs.entry(name.to_string()).or_insert(EphemeralEntry {
+            path: entry.path(),
+            // Judge a recovered directory by the base it was found under, not
+            // by what some earlier run happened to resolve.
+            backing,
+          });
           log::info!("Ephemeral dir recovered profile={name}");
         }
       }
@@ -381,6 +380,38 @@ pub fn recover_ephemeral_dirs() {
 fn sweep_disk_fallback_residue(current_base: &Path) {
   let fallback = disk_fallback_base();
   if !fallback.exists() || fallback == current_base {
+    return;
+  }
+
+  // A decrypted copy that still has its baseline holds changes its sealed
+  // profile does not have yet. It stays where it is and is mapped, so the next
+  // launch of that profile seals it, and nothing here is erased until then.
+  let mut unsealed = 0usize;
+  if let (Ok(entries), Ok(mut dirs)) = (std::fs::read_dir(&fallback), EPHEMERAL_DIRS.lock()) {
+    for entry in entries.flatten() {
+      let path = entry.path();
+      let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+        continue;
+      };
+      if uuid::Uuid::parse_str(&name).is_err()
+        || !path
+          .join(crate::profile::encryption::BASELINE_FILE_NAME)
+          .is_file()
+      {
+        continue;
+      }
+      dirs.entry(name).or_insert(EphemeralEntry {
+        path,
+        backing: EphemeralBacking::Disk,
+      });
+      unsealed += 1;
+    }
+  }
+  if unsealed > 0 {
+    log::warn!(
+      "Disk-backed decrypted copies kept until sealed count={unsealed} path={}",
+      fallback.display()
+    );
     return;
   }
 

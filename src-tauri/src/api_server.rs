@@ -486,7 +486,8 @@ pub struct RunRemoteResponse {
   pub profile_id: String,
   /// Remote session id, for polling or closing the session.
   pub session_id: String,
-  /// Operating system the session was scheduled onto — always the profile's own.
+  /// Operating system of the host the session was scheduled onto: `linux` for
+  /// a profile that runs on every OS, else the OS that created the profile.
   pub platform: String,
   pub status: String,
 }
@@ -518,8 +519,9 @@ struct ApiRemoteSessionsResponse {
 struct SetCookieBotScheduleRequest {
   /// Defaults to the profile's local name.
   profile_name: Option<String>,
-  /// `windows`, `macos` or `linux`. Defaults to the profile's own operating
-  /// system, and must match it when supplied.
+  /// `windows`, `macos` or `linux`: the OS of the host the bot runs the
+  /// profile on, `linux` for a profile that runs on every OS, else the OS that
+  /// created the profile. Defaults to that OS, and must match it when supplied.
   platform: Option<String>,
   /// Whether the nightly run is armed. A disabled schedule keeps its settings.
   enabled: bool,
@@ -3626,7 +3628,7 @@ async fn run_profile(
   }))
 }
 
-// API Handler - Launch this profile on a REMOTE VM of its own operating system
+// API Handler - Launch this profile on a REMOTE VM of the OS `remote_platform` picks
 #[utoipa::path(
   post,
   path = "/v1/profiles/{id}/run-remote",
@@ -3840,7 +3842,7 @@ pub fn remote_launch_profile_rules(
         .to_string(),
     );
   }
-  if profile.resolved_os().is_none() {
+  if profile.remote_platform().is_none() {
     return Err(
       "profile has no recorded operating system, so it cannot be scheduled \
        onto a matching host"
@@ -4377,7 +4379,7 @@ async fn set_cookie_bot_schedule(
   // than the request is what stops a caller enrolling a macOS profile onto a
   // Windows host.
   let platform = profile
-    .resolved_os()
+    .remote_platform()
     .ok_or((
       StatusCode::BAD_REQUEST,
       serde_json::json!({ "code": "COOKIE_BOT_UNKNOWN_PLATFORM" }).to_string(),
@@ -5758,8 +5760,8 @@ mod tests {
 
   #[test]
   fn remote_launch_requires_a_known_operating_system() {
-    // Without one there is no way to pick a matching host, and guessing would
-    // be the cross-OS mismatch this whole design exists to prevent.
+    // Without one a Linux host has no OS to present the profile as, and a
+    // guess would change the OS the profile reports to sites.
     assert!(remote_launch_profile_rules(&profile_with(SyncMode::Regular, None)).is_err());
   }
 

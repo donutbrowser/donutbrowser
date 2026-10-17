@@ -236,6 +236,25 @@ fn windows_has_app_bound_key(dir: &Path) -> bool {
     .is_some_and(|k| !k.is_empty())
 }
 
+/// Writes `os_crypt_key` from the DPAPI-wrapped key in `Local State` when the
+/// profile has no key file yet, so its encrypted records open on every OS.
+/// Returns true when it wrote the file.
+#[cfg(target_os = "windows")]
+pub fn write_key_file_from_local_state(user_data_dir: &Path) -> Result<bool, String> {
+  let key_file = user_data_dir.join(super::os_crypt::KEY_FILE_NAME);
+  if std::fs::metadata(&key_file).is_ok_and(|meta| meta.len() > 0) {
+    return Ok(false);
+  }
+  let Some(key) = windows_local_state_key(user_data_dir)? else {
+    return Ok(false);
+  };
+  std::fs::write(&key_file, key).map_err(|e| format!("Failed to write os_crypt_key: {e}"))?;
+  if std::fs::read(&key_file).map_err(|e| e.to_string())? != key {
+    return Err("os_crypt_key verification failed after write".to_string());
+  }
+  Ok(true)
+}
+
 #[cfg(target_os = "windows")]
 fn windows_local_state_key(dir: &Path) -> Result<Option<[u8; 32]>, String> {
   use base64::Engine;

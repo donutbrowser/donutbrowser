@@ -76,7 +76,8 @@ pub struct RemoteSessionOutcome {
 #[derive(Debug, Serialize)]
 struct StartRemoteRequest {
   profile_id: String,
-  /// The profile's own OS. The backend refuses to schedule it anywhere else.
+  /// The host OS from `BrowserProfile::remote_platform`. The backend refuses
+  /// to schedule the session anywhere else.
   platform: String,
   /// Set when the caller wants a page opened once the browser is up.
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -164,10 +165,10 @@ fn control_client(total: std::time::Duration) -> reqwest::Client {
 /// without a network or a sync scheduler, and so both the REST and the MCP
 /// entry points get the identical answer from one place.
 ///
-/// - The platform must be one a leased host serves. `resolved_os` can return a
-///   fingerprint OS like `android` for a profile with no recorded host OS, and
-///   no remote host runs that; refusing here gives a clear message instead of
-///   leasing a host and taking a generic failure back.
+/// - The platform must be one a leased host serves. `remote_platform` can
+///   return a fingerprint OS like `android` for a profile bound to the OS that
+///   created it, and no remote host runs that; refusing here gives a clear
+///   message instead of leasing a host and taking a generic failure back.
 /// - Sync must have completed at least once. A remote session opens the synced
 ///   copy and hands it back when it stops, so a profile with sync enabled but
 ///   `last_sync` still None (the first upload failed, or is only queued) would
@@ -252,7 +253,7 @@ pub async fn start_remote_session(
   url: Option<String>,
 ) -> Result<RemoteSessionOutcome, RemoteSessionError> {
   let platform = profile
-    .resolved_os()
+    .remote_platform()
     .ok_or_else(|| {
       RemoteSessionError::Other("profile has no recorded operating system".to_string())
     })?

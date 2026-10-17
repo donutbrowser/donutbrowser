@@ -346,10 +346,12 @@ impl BrowserRunner {
       let launch_started = std::time::Instant::now();
       let _launch_in_progress = crate::wayfern_identity_storage::yield_to_launch().await;
       let converted;
+      let mut launch_only = false;
       let profile = if crate::wayfern_identity_storage::needs_conversion(profile) {
         converted = crate::wayfern_identity_storage::convert_for_launch(profile)
           .await
           .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
+        launch_only = crate::wayfern_identity_storage::is_launch_only(&converted);
         &converted
       } else {
         profile
@@ -855,7 +857,16 @@ impl BrowserRunner {
       updated_profile.last_launch = Some(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs());
 
       // Save the updated profile
-      self.save_process_info(&updated_profile)?;
+      if launch_only {
+        let mut persisted = updated_profile.clone();
+        if let Some(disk) = crate::wayfern_identity_storage::read_profile(&updated_profile.id) {
+          persisted.wayfern_config = disk.wayfern_config;
+          persisted.host_os = disk.host_os;
+        }
+        self.save_process_info(&persisted)?;
+      } else {
+        self.save_process_info(&updated_profile)?;
+      }
       let _ = crate::tag_manager::TAG_MANAGER.lock().map(|tm| {
         let _ = tm.rebuild_from_profiles(&self.profile_manager.list_profiles().unwrap_or_default());
       });
