@@ -82,7 +82,17 @@
       "hideToken": "Token ausblenden"
     },
     "keys": {
-      "escape": "Escape"
+      "escape": "Escape",
+      "command": "Befehl",
+      "control": "Steuerung",
+      "shift": "Umschalt",
+      "option": "Wahltaste",
+      "alt": "Alt",
+      "enter": "Eingabe",
+      "backspace": "Rücktaste",
+      "arrowUp": "Pfeil nach oben",
+      "arrowDown": "Pfeil nach unten",
+      "tab": "Tab"
     },
     "errors": {
       "unknown": "Ein unbekannter Fehler ist aufgetreten"
@@ -353,6 +363,32 @@
       "a": "Laufende Profile in einer Gruppe",
       "b": "Profile ohne Tags, die einen Proxy haben",
       "c": "Seit über 30 Tagen nicht gestartet, archivierte ausgenommen"
+    },
+    "suggest": {
+      "label": "Suchvorschläge",
+      "matches": "Treffer",
+      "recent": "Zuletzt",
+      "none": "Nicht gesetzt",
+      "any": "Beliebiger Wert",
+      "dates": {
+        "last7d": "Letzte 7 Tage",
+        "last30d": "Letzte 30 Tage",
+        "over30d": "Vor über 30 Tagen",
+        "over90d": "Vor über 90 Tagen",
+        "thisYear": "Dieses Jahr",
+        "never": "Nie"
+      },
+      "keys": {
+        "choose": "Auswählen",
+        "complete": "Vervollständigen"
+      }
+    },
+    "issues": {
+      "unknownField": "{{name}} ist kein Feld, daher wird als Text gesucht. Meinten Sie {{field}}?",
+      "compare": "{{field}} kann nicht vergleichen, daher wird als Text gesucht. Vergleichen lassen sich nur Datumsangaben und Versionen.",
+      "date": "{{field}} erwartet ein Datum wie 2026-01-31 oder 7d für die letzten 7 Tage.",
+      "enum": "{{field}} erwartet {{values}}.",
+      "boolean": "{{field}} erwartet yes oder no."
     }
   },
   "profiles": {
@@ -571,7 +607,6 @@
       "tabVpns": "VPNs",
       "create": "Erstellen",
       "loading": "Proxys werden geladen...",
-      "noneCreated": "Noch keine Proxys erstellt. Erstellen Sie Ihren ersten Proxy über die Schaltfläche oben.",
       "usage": "Nutzung",
       "syncCol": "Sync",
       "syncCannotDisable": "Die Synchronisierung kann nicht deaktiviert werden, solange synchronisierte Profile diesen Proxy verwenden",
@@ -597,7 +632,9 @@
       "firstHopPlaintextTooltip": "Erster Hop unverschlüsselt: Die Verbindung zu diesem Proxy ist nicht verschlüsselt.",
       "firstHopEncryptedTooltip": "Erster Hop verschlüsselt: Die Verbindung zu diesem Proxy ist verschlüsselt. Der Anbieter sieht trotzdem, welche Seiten Sie aufrufen.",
       "firstHopCipherTooltip": "Erster Hop hängt von der Verschlüsselungsmethode ab: Für diesen Proxy ist keine Methode hinterlegt, daher ist offen, ob die Verbindung zu ihm verschlüsselt ist. Bearbeiten Sie ihn und legen Sie eine echte Methode fest, z. B. aes-256-gcm.",
-      "udpCol": "UDP"
+      "udpCol": "UDP",
+      "checkSelected": "Auswahl prüfen",
+      "checkSummary": "Prüfung fertig. Bestanden: {{passed}}. Fehlgeschlagen: {{failed}}."
     },
     "add": "Proxy hinzufügen",
     "edit": "Proxy bearbeiten",
@@ -755,13 +792,11 @@
     "title": "Gruppen",
     "management": "Gruppenverwaltung",
     "add": "Gruppe hinzufügen",
-    "edit": "Gruppe bearbeiten",
     "delete": "Gruppe löschen",
     "moveToDefault": "Profile aus der Gruppe entfernen",
     "noGroupDescription": "Profile ohne Gruppe erscheinen im Filter „Alle“.",
     "assignSuccess": "{{count}} Profil(e) erfolgreich {{group}} zugewiesen",
     "noGroups": "Keine Gruppen erstellt",
-    "noGroupsDescription": "Erstellen Sie eine Gruppe, um Ihre Profile zu organisieren.",
     "form": {
       "name": "Name",
       "namePlaceholder": "Gruppennamen eingeben"
@@ -1692,10 +1727,8 @@
     "managedNotice": "Hier verwaltete Erweiterungen ersetzen beim Start alle manuell in Profilen installierten Erweiterungen.",
     "proRequired": "Die Erweiterungsverwaltung ist eine Pro-Funktion",
     "empty": "Noch keine Erweiterungen hochgeladen.",
-    "noGroups": "Noch keine Erweiterungsgruppen erstellt.",
     "createGroup": "Gruppe erstellen",
     "newGroup": "Neue Gruppe",
-    "addToGroup": "Erweiterung hinzufügen...",
     "removeFromGroup": "Aus der Gruppe entfernen",
     "deleteGroup": "Gruppe löschen",
     "extensionGroup": "Erweiterungsgruppe",
@@ -1780,7 +1813,9 @@
     "fetchedIdentity": "{{name}} · Version {{version}}",
     "fetchedFrom": "Heruntergeladen von {{source}}",
     "fetchSuccess": "Erweiterung heruntergeladen. Prüfen Sie den Namen und fügen Sie sie dann hinzu.",
-    "fetchFailed": "Die Erweiterung konnte nicht heruntergeladen werden"
+    "fetchFailed": "Die Erweiterung konnte nicht heruntergeladen werden",
+    "searchExtensions": "Erweiterungen suchen",
+    "membersSelected": "{{selected}} von {{total}} ausgewählt"
   },
   "pro": {
     "badge": "PRO",
@@ -1912,8 +1947,6 @@
     "namesHint": "Die Profile heißen {{name}} 1, {{name}} 2 und so weiter, nach den bereits verwendeten Nummern.",
     "allowanceLeft_one": "Sie können in dieser Stunde noch {{count}} erstellen.",
     "allowanceLeft_other": "Sie können in dieser Stunde noch {{count}} erstellen.",
-    "createMany_one": "{{count}} Profil erstellen",
-    "createMany_other": "{{count}} Profile erstellen",
     "progress": "Erstelle {{done}} von {{total}}",
     "stop": "Stoppen",
     "created_one": "{{count}} Profil erstellt",
@@ -1984,7 +2017,6 @@
     },
     "management": {
       "loading": "VPNs werden geladen...",
-      "noneCreated": "Noch keine VPN-Konfigurationen erstellt. Importieren oder erstellen Sie eine über die Schaltflächen oben.",
       "editVpn": "VPN bearbeiten",
       "deleteVpn": "VPN löschen",
       "cannotDelete_one": "Löschen nicht möglich: wird von {{count}} Profil verwendet",
@@ -2100,7 +2132,9 @@
       "description": "Möchten Sie {{count}} Gruppen wirklich löschen? {{names}}. Die Profile werden nach „Standard“ verschoben.",
       "description_one": "Möchten Sie {{count}} Gruppe wirklich löschen? {{names}}. Die Profile werden nach „Standard“ verschoben.",
       "confirmButton": "Gruppen löschen"
-    }
+    },
+    "newGroup": "Neue Gruppe",
+    "bookmarksCol": "Lesezeichen"
   },
   "proxyAssignment": {
     "title": "Proxy / VPN zuweisen",
@@ -2712,7 +2746,8 @@
     "syncServerNoAccounts": "Dieser Server akzeptiert keine Donut-Konten. Setzen Sie SYNC_PUBLIC_URL auf dem Server.",
     "syncServerAddressMismatch": "Die Adresse des Servers ist {{address}}. Geben Sie diese Adresse ein.",
     "remoteNeedsDonutSync": "Remote-Sitzungen und Cookie Bot erhalten Profile aus der Donut-Cloud-Synchronisierung. Dieser Computer synchronisiert mit Ihrem eigenen Server.",
-    "accountSyncUnavailable": "Donut kann sich noch nicht bei Ihrem eigenen Server anmelden. Versuchen Sie es später erneut."
+    "accountSyncUnavailable": "Donut kann sich noch nicht bei Ihrem eigenen Server anmelden. Versuchen Sie es später erneut.",
+    "selfHostedTeamSeat": "Team-Konten können nicht mit einem Server synchronisieren, der ein Sync-Token nutzt."
   },
   "rail": {
     "profiles": "Profile",
@@ -2818,31 +2853,40 @@
     "automationActiveHere": "Die Browser-Automatisierung ist auf diesem Gerät aktiv.",
     "viewTeamUsage": "Team-Nutzung anzeigen",
     "ownServer": {
-      "title": "Eigener Sync-Server",
-      "description": "Synchronisieren Sie dieses Konto mit einem donut-sync-Server, den Sie selbst betreiben, statt mit der Donut-Cloud. Das Profillimit Ihres Plans sowie die Rollen und der Gruppenzugriff Ihres Teams bleiben gleich.",
-      "current": "Synchronisiert mit {{server}}",
-      "currentCloud": "Synchronisiert mit der Donut-Cloud",
       "donutCloud": "Donut-Cloud",
-      "useDonutCloud": "Donut-Cloud verwenden",
       "accountsOn": "Dieser Server akzeptiert Donut-Konten.",
       "cloudOnly": "Remote-Sitzungen und Cookie Bot benötigen die Synchronisierung mit der Donut-Cloud.",
       "teamNote": "Alle Mitglieder Ihres Teams müssen denselben Server verwenden.",
-      "saved": "Sync-Server gespeichert.",
-      "backToCloud": "Synchronisiert wieder mit der Donut-Cloud."
+      "backToCloud": "Synchronisiert wieder mit der Donut-Cloud.",
+      "label": "Sync-Server",
+      "change": "Ändern",
+      "remove": "Entfernen",
+      "removed": "Sync-Server entfernt.",
+      "switched": "Synchronisiert mit {{server}}.",
+      "tokenServer": "{{host}} (Sync-Token)"
     }
   },
   "shortcutsPage": {
     "title": "Tastenkürzel",
-    "description": "Arbeiten Sie mit diesen Tastenkürzeln schneller."
+    "description": "Arbeiten Sie mit diesen Tastenkürzeln schneller.",
+    "paletteHint": "Durchsucht alle Seiten, Profile und Aktionen.",
+    "holdHint": "Halte diese Tasten, um zu sehen, welche Kürzel sie nutzen.",
+    "paletteKeys": {
+      "title": "In der Befehlspalette",
+      "move": "Zwischen Ergebnissen wechseln",
+      "run": "Ausgewählten Befehl ausführen",
+      "back": "Zurück, wenn die Suche leer ist",
+      "close": "Palette schließen"
+    }
   },
   "commandPalette": {
     "placeholder": "Befehl eingeben oder suchen...",
-    "empty": "Keine Ergebnisse gefunden.",
     "groups": {
       "navigation": "Navigation",
       "profiles": "Profile",
       "actions": "Aktionen",
-      "profileGroups": "Profilgruppen"
+      "profileGroups": "Profilgruppen",
+      "recent": "Zuletzt verwendet"
     },
     "actions": {
       "launchProfile": "{{name}} starten",
@@ -2850,6 +2894,66 @@
       "profileInfo": "Info: {{name}}",
       "createProfile": "Profil erstellen",
       "about": "Über Donut Browser"
+    },
+    "pages": {
+      "launch": {
+        "entry": "Profil starten…",
+        "title": "Starten",
+        "placeholder": "Profile zum Starten suchen...",
+        "empty": "Alle Profile laufen bereits."
+      },
+      "stop": {
+        "entry": "Profil stoppen…",
+        "title": "Stoppen",
+        "placeholder": "Laufende Profile suchen...",
+        "empty": "Kein Profil läuft."
+      },
+      "info": {
+        "entry": "Profilinfo öffnen…",
+        "title": "Profilinfo",
+        "placeholder": "Profile suchen...",
+        "empty": "Noch keine Profile."
+      },
+      "group": {
+        "entry": "Zu Gruppe wechseln…",
+        "title": "Gruppen",
+        "placeholder": "Gruppen suchen...",
+        "empty": "Noch keine Gruppen."
+      }
+    },
+    "emptyFor": "Keine Ergebnisse für „{{query}}“.",
+    "emptyHint": "Suche nach Seiten, Profilen, Gruppen und Aktionen.",
+    "emptyPageHint": "Esc führt zurück zu allen Befehlen.",
+    "footer": {
+      "move": "Bewegen",
+      "run": "Ausführen",
+      "open": "Öffnen",
+      "back": "Zurück",
+      "close": "Schließen"
+    },
+    "keywords": {
+      "openPalette": "befehl suche finden ausführen",
+      "openShortcuts": "tastatur tasten tastenkürzel hilfe",
+      "openTips": "hinweise hilfe lernen tour funktionen",
+      "sendFeedback": "fehler melden problem support kontakt idee",
+      "openTotp": "zwei-faktor 2fa otp totp authenticator code mfa",
+      "importProfile": "importieren hinzufügen laden übernehmen chrome firefox",
+      "goProfiles": "start browser liste alle",
+      "goProxies": "proxy proxys vpn wireguard netzwerk socks http",
+      "goExtensions": "erweiterungen add-ons plugins",
+      "goGroups": "gruppen ordner organisieren",
+      "goCookieBot": "cookies aufwärmen bot surfen",
+      "goAgent": "ki mcp assistent automatisierung",
+      "goIntegrations": "api mcp rest token integrationen automatisierung",
+      "goAccount": "konto cloud anmelden abo tarif abrechnung team sync",
+      "goSettings": "einstellungen optionen design sprache töne darstellung",
+      "goTrash": "papierkorb gelöscht wiederherstellen",
+      "createProfile": "neu hinzufügen profil browser anlegen",
+      "about": "version lizenz über",
+      "launch": "starten öffnen ausführen browser",
+      "stop": "stoppen beenden schließen",
+      "info": "details info bearbeiten profil",
+      "group": "gruppe filter wechseln ordner"
     }
   },
   "shortcuts": {
@@ -3010,7 +3114,7 @@
   },
   "cookieBot": {
     "title": "Cookie Bot",
-    "description": "Nächtliches Aufwärmen von Profilen auf einem entfernten Rechner.",
+    "description": "Wärmt Profile nach Ihrem Zeitplan auf einem entfernten Rechner auf.",
     "tabs": {
       "overview": "Übersicht",
       "schedule": "Zeitplan",
@@ -3019,37 +3123,27 @@
     },
     "locked": {
       "title": "Cookie Bot",
-      "hint": "Der Cookie Bot wärmt Ihre Profile nachts auf einem entfernten Rechner auf, damit sie ihre Cookies und ihren Verlauf behalten, ohne dass Ihr Computer eingeschaltet sein muss."
+      "hint": "Der Cookie Bot wärmt Ihre Profile zu den von Ihnen gewählten Zeiten auf einem entfernten Rechner auf, damit sie ihre Cookies und ihren Verlauf behalten, ohne dass Ihr Computer eingeschaltet sein muss."
     },
     "empty": {
       "title": "Keine Profile aufgenommen",
-      "hint": "Wählen Sie ein Profil, und der Bot wärmt es nachts auf einem entfernten Rechner auf. Ihr Computer kann ausgeschaltet sein.",
+      "hint": "Wählen Sie ein Profil, und der Bot wärmt es zu den von Ihnen festgelegten Zeiten auf einem entfernten Rechner auf. Ihr Computer kann ausgeschaltet sein.",
       "cta": "Profil aufnehmen"
     },
-    "tonight": {
-      "label": "Heute Nacht",
-      "nextRun": "Nächster Durchlauf {{time}}",
-      "dueCount_one": "{{count}} Profil fällig",
-      "dueCount_other": "{{count}} Profile fällig",
-      "nothingScheduled": "Nichts geplant"
-    },
     "lastDay": {
-      "label": "Letzte 24 Stunden",
-      "none": "Noch keine Durchläufe",
-      "ran_one": "{{count}} ausgeführt",
-      "ran_other": "{{count}} ausgeführt",
-      "partial_one": "{{count}} teilweise",
-      "partial_other": "{{count}} teilweise",
-      "failed_one": "{{count}} fehlgeschlagen",
-      "failed_other": "{{count}} fehlgeschlagen"
+      "label": "Letzte 24 Stunden"
     },
     "chart": {
-      "machineTime": "Rechnerzeit pro Nacht",
-      "minutes": "{{minutes}} min"
+      "machineTime": "Rechnerzeit pro Tag",
+      "minutes": "{{minutes}} min",
+      "total": "{{duration}} insgesamt",
+      "empty": "Keine Durchläufe in diesem Zeitraum",
+      "noRuns": "Keine Durchläufe",
+      "runs_one": "{{count}} Durchlauf",
+      "runs_other": "{{count}} Durchläufe"
     },
     "hours": {
       "label": "Remote-Stunden",
-      "remaining": "Noch {{remaining}} h von {{total}}",
       "remainingOf": "von {{total}} h",
       "used": "{{used}} von {{total}} h verbraucht",
       "resets": "Wird am {{date}} zurückgesetzt",
@@ -3057,12 +3151,11 @@
       "exhaustedOn": "Keine Remote-Stunden mehr übrig. Die Zeitpläne bleiben erhalten und werden am {{date}} fortgesetzt.",
       "estimate": "Etwa {{hours}} h pro Woche · noch {{remaining}} h in diesem Zeitraum",
       "estimateOverBudget": "Benötigt etwa {{hours}} h pro Woche, aber nur noch {{remaining}} h übrig",
-      "estimateOnly": "Etwa {{hours}} h pro Woche"
+      "estimateOnly": "Etwa {{hours}} h pro Woche",
+      "left": "Noch {{hours}} h"
     },
     "enrolled": {
       "columnProfile": "Profil",
-      "columnCadence": "Rhythmus",
-      "columnTime": "Uhrzeit",
       "columnNextRun": "Nächster Durchlauf",
       "columnLastRun": "Letzter Durchlauf",
       "enrolProfiles": "Profile aufnehmen",
@@ -3075,8 +3168,9 @@
       "empty": "Noch nichts geplant.",
       "unenrol": "Aus dem Cookie Bot entfernen",
       "unenrolTitle": "{{name}} aus dem Cookie Bot entfernen?",
-      "unenrolDescription": "Das Aufwärmen endet ab heute Nacht. Frühere Durchläufe bleiben unter „Aktivität“ erhalten.",
-      "unenrolled": "Aus dem Cookie Bot entfernt"
+      "unenrolDescription": "Die anstehenden Durchläufe entfallen. Frühere Durchläufe bleiben unter „Aktivität“ erhalten.",
+      "unenrolled": "Aus dem Cookie Bot entfernt",
+      "localTime": "Jetzt {{time}}"
     },
     "status": {
       "provisioning": "Rechner wird vorbereitet",
@@ -3147,7 +3241,7 @@
     },
     "picker": {
       "title": "Profile aufnehmen",
-      "description": "Wählen Sie die Profile, die der Bot nachts aufwärmen soll.",
+      "description": "Wählen Sie die Profile, die der Bot aufwärmen soll.",
       "searchPlaceholder": "Profile durchsuchen…",
       "noProfiles": "Keine passenden Profile.",
       "alreadyEnrolled": "Aufgenommen",
@@ -3160,25 +3254,25 @@
       "titleCount_other": "{{count}} Profile aufnehmen",
       "editTitle": "Zeitplan bearbeiten",
       "description": "Der Bot öffnet das Profil auf einem entfernten Rechner und besucht die von Ihnen angegebenen Websites. Ihr Computer kann ausgeschaltet sein.",
-      "summaryNightly": "Läuft jede Nacht um {{time}}, jeweils bis zu {{minutes}} min.",
+      "summaryNightly": "Läuft jeden Tag um {{time}}, jeweils bis zu {{minutes}} min.",
       "summaryWeeknights": "Läuft Montag bis Freitag um {{time}}, jeweils bis zu {{minutes}} min.",
-      "summaryAlternate": "Läuft jede zweite Nacht um {{time}}, jeweils bis zu {{minutes}} min.",
-      "summaryCustom_one": "Läuft {{count}} Nacht pro Woche um {{time}}, jeweils bis zu {{minutes}} min.",
-      "summaryCustom_other": "Läuft {{count}} Nächte pro Woche um {{time}}, jeweils bis zu {{minutes}} min.",
-      "confirm": "Ab heute Nacht aufnehmen",
-      "confirmSome": "{{eligible}} von {{total}} ab heute Nacht aufnehmen",
+      "summaryAlternate": "Läuft jeden zweiten Tag um {{time}}, jeweils bis zu {{minutes}} min.",
+      "summaryCustom_one": "Läuft an {{count}} Tag pro Woche um {{time}}, jeweils bis zu {{minutes}} min.",
+      "summaryCustom_other": "Läuft an {{count}} Tagen pro Woche um {{time}}, jeweils bis zu {{minutes}} min.",
+      "confirm": "Aufnehmen",
+      "confirmSome": "{{eligible}} von {{total}} aufnehmen",
       "fixFirst": "Zuerst diese Punkte beheben",
       "saving": "Wird aufgenommen…",
       "saved": "Zeitplan gespeichert",
       "enrolled_one": "{{count}} Profil aufgenommen",
       "enrolled_other": "{{count}} Profile aufgenommen",
-      "adjust": "Zeitplan anpassen",
+      "adjust": "Dauer und Tiefe",
       "cadenceLabel": "Rhythmus",
-      "cadenceNightly": "Jede Nacht",
-      "cadenceWeeknights": "Werktags nachts",
-      "cadenceAlternate": "Jede zweite Nacht",
-      "cadenceCustom_one": "{{count}} Nacht pro Woche",
-      "cadenceCustom_other": "{{count}} Nächte pro Woche",
+      "cadenceNightly": "Jeden Tag",
+      "cadenceWeeknights": "Werktags",
+      "cadenceAlternate": "Jeden zweiten Tag",
+      "cadenceCustom_one": "{{count}} Tag pro Woche",
+      "cadenceCustom_other": "{{count}} Tage pro Woche",
       "timeLabel": "Startzeit",
       "timeHint": "Bezogen auf die Fingerprint-Zeitzone des jeweiligen Profils.",
       "maxMinutesLabel": "Max. Minuten",
@@ -3191,8 +3285,8 @@
       "presetsUnavailable": "Die Tiefenvorgaben konnten nicht geladen werden. Versuchen Sie es gleich noch einmal.",
       "confirmBulkTitle_one": "{{count}} Profil in den Cookie Bot aufnehmen?",
       "confirmBulkTitle_other": "{{count}} Profile in den Cookie Bot aufnehmen?",
-      "confirmBulkDescription_one": "Dafür wird ein nächtlicher Durchlauf von Ihren gemeinsamen Remote-Stunden gebucht. Uhrzeit und Websites wählen Sie im nächsten Schritt.",
-      "confirmBulkDescription_other": "Dafür werden {{count}} nächtliche Durchläufe von Ihren gemeinsamen Remote-Stunden gebucht. Uhrzeit und Websites wählen Sie im nächsten Schritt.",
+      "confirmBulkDescription_one": "Dafür wird ein täglicher Durchlauf von Ihren gemeinsamen Remote-Stunden gebucht. Uhrzeit und Websites wählen Sie im nächsten Schritt.",
+      "confirmBulkDescription_other": "Dafür werden {{count}} tägliche Durchläufe von Ihren gemeinsamen Remote-Stunden gebucht. Uhrzeit und Websites wählen Sie im nächsten Schritt.",
       "confirmBulkButton_one": "Weiter mit {{count}} Profil",
       "confirmBulkButton_other": "Weiter mit {{count}} Profilen",
       "sitesRequired": "Fügen Sie mindestens eine Website hinzu.",
@@ -3228,7 +3322,12 @@
       "listSites_other": "{{count}} Websites",
       "summarySlots_one": "Läuft {{count}}-mal pro Woche, jeweils bis zu {{minutes}} min.",
       "summarySlots_other": "Läuft {{count}}-mal pro Woche, jeweils bis zu {{minutes}} min.",
-      "templateNameInvalidNoMax": "Dieser Name kann für eine gespeicherte Liste nicht verwendet werden."
+      "templateNameInvalidNoMax": "Dieser Name kann für eine gespeicherte Liste nicht verwendet werden.",
+      "shuffleTime": "Andere Uhrzeit wählen",
+      "ownTimes": "Für jedes Profil eine andere Uhrzeit",
+      "timeRandom": "Je Profil zufällig",
+      "summaryOwnTimes_one": "Jedes Profil läuft {{count}}-mal pro Woche zu einer eigenen zufälligen Uhrzeit, jeweils bis zu {{minutes}} min.",
+      "summaryOwnTimes_other": "Jedes Profil läuft {{count}}-mal pro Woche zu einer eigenen zufälligen Uhrzeit, jeweils bis zu {{minutes}} min."
     },
     "preset": {
       "light": "Leicht",
@@ -3317,13 +3416,27 @@
       "profileLocked": "Das Profil war an anderer Stelle geöffnet",
       "noCapacity": "Kein Rechner war frei",
       "managerError": "Die Remote-Rechner konnten den Browser nicht starten",
-      "budgetExceeded": "Das Budget der Nacht war aufgebraucht",
-      "browsingIncomplete": "Der Browser wurde geöffnet, aber das nächtliche Surfen wurde nicht abgeschlossen",
+      "budgetExceeded": "Das Zeitbudget des Durchlaufs war aufgebraucht",
+      "browsingIncomplete": "Der Browser wurde geöffnet, aber das Surfen wurde nicht abgeschlossen",
       "proxyUnsupported": "Kein Host kann diesen Proxytyp verwenden, nutzen Sie daher einen HTTP-, SOCKS- oder WireGuard-Exit",
       "profileNotSynced": "Die Cloud-Kopie ist unvollständig, schließen Sie daher die Synchronisierung dieses Profils auf einem Desktop ab",
       "profileOsMismatch": "Das Profil stammt von einem anderen Betriebssystem als der Host, der es ausgeführt hat",
       "cancelledByUser": "Manuell gestoppt",
       "unknown": "Unbekannter Grund ({{code}})"
+    },
+    "next": {
+      "label": "Nächster Durchlauf",
+      "now": "Startet jetzt",
+      "inMinutes_one": "In {{count}} min",
+      "inMinutes_other": "In {{count}} min",
+      "inHours_one": "In {{count}} h",
+      "inHours_other": "In {{count}} h",
+      "today": "Heute",
+      "tomorrow": "Morgen",
+      "dueSoon_one": "{{count}} Profil in den nächsten 24 h",
+      "dueSoon_other": "{{count}} Profile in den nächsten 24 h",
+      "nothingScheduled": "Nichts geplant",
+      "blocked": "Kein Profil kann laufen. Siehe die Liste unten."
     }
   },
   "prelaunchGate": {
@@ -3466,7 +3579,11 @@
     "confirmed": "Ja",
     "unavailable": "Nein",
     "apiProbeScope": "Prüft die laufende lokale API mit den gespeicherten Zugangsdaten. Es wird kein Profil gestartet.",
-    "remoteProbeScope": "Prüft die gespeicherten MCP-Zugangsdaten. Die Fernsteuerung benötigt außerdem ein verbundenes Gerät und einen passenden Tarif; ein konfigurierter Client ist noch keine aktive Sitzung."
+    "remoteProbeScope": "Prüft die gespeicherten MCP-Zugangsdaten. Die Fernsteuerung benötigt außerdem ein verbundenes Gerät und einen passenden Tarif; ein konfigurierter Client ist noch keine aktive Sitzung.",
+    "probeNotConfigured": "Es sind keine Zugangsdaten gespeichert.",
+    "probeUnreachable": "Der Server hat nicht geantwortet.",
+    "probeRefused": "Der Server hat die Zugangsdaten abgelehnt.",
+    "probeUnverified": "Der Server hat mit HTTP {{status}} geantwortet, daher wurden die Zugangsdaten nicht geprüft."
   },
   "easterEgg": {
     "konami": {
@@ -3817,13 +3934,11 @@
   },
   "tips": {
     "title": "Tipps",
-    "essentials": "Grundlagen",
-    "planSection": "In Ihrem Tarif enthalten",
     "count": "{{current}} von {{total}}",
     "previous": "Vorheriger Tipp",
     "next": "Nächster Tipp",
     "done": "Fertig",
-    "autoShow": "Alle paar Tage einen Tipp anzeigen",
+    "autoShow": "Tipps auf der Profilseite anzeigen",
     "items": {
       "dnsBlocklist": {
         "label": "DNS-Blockierung",
@@ -3911,7 +4026,7 @@
       },
       "cookieBot": {
         "label": "Cookie Bot",
-        "title": "Profile über Nacht aufwärmen",
+        "title": "Profile nach Zeitplan aufwärmen",
         "body": "Der Cookie Bot besucht nach Zeitplan echte Websites von einem entfernten Host aus, sodass ein neues Profil einen natürlichen Verlauf aufbaut, bevor Sie es verwenden.",
         "action": "Cookie Bot öffnen"
       },
@@ -3950,7 +4065,75 @@
         "title": "Sagen Sie dem Team, was als Nächstes besser werden soll",
         "body": "Funktioniert etwas nicht oder fehlt etwas? Senden Sie Feedback über das Menü „Mehr“. Ein Schalter hängt Ihre Protokolle an, damit das Team genau sieht, was schiefging.",
         "action": "Feedback senden"
+      },
+      "searchSyntax": {
+        "label": "Suchfelder",
+        "title": "Profile nach Feld filtern",
+        "body": "Geben Sie ein Feld in die Suche ein, etwa tag:work, proxy:none oder status:running. Ein Minus davor schließt aus: -tag:old.",
+        "action": "proxy:none ausprobieren"
+      },
+      "shortcuts": {
+        "label": "Tastenkürzel",
+        "title": "Die Hände bleiben auf der Tastatur",
+        "body": "Jede Seite hat ein eigenes Tastenkürzel, ebenso Import, Feedback und Tipps. {{mod}}+/ zeigt alle.",
+        "action": "Alle Tastenkürzel"
+      },
+      "statuses": {
+        "label": "Status",
+        "title": "Zeigen Sie, wo jedes Konto steht",
+        "body": "Geben Sie einem Profil in der Spalte „Status“ einen Status wie Aktiv oder Gesperrt. Jeder Status hat eine Farbe und wird mit Ihren anderen Geräten synchronisiert.",
+        "action": "Profile öffnen"
+      },
+      "templates": {
+        "label": "Vorlagen",
+        "title": "Einmal einrichten, oft erstellen",
+        "body": "Sichern Sie die Einstellungen eines Profils mit „Als Vorlage speichern“ in seinem Menü. Neue Profile starten von der Vorlage, auch viele auf einmal, jedes mit eigenem Gerät.",
+        "action": "Neues Profil"
+      },
+      "vpn": {
+        "label": "VPN",
+        "title": "Ein Profil über ein VPN leiten",
+        "body": "Importieren Sie auf der Seite Netzwerk eine WireGuard-Datei oder einen VLESS-, VMess-, Trojan- oder Hysteria2-Link. Wählen Sie ihn dann für ein Profil: Nur dieses Profil nutzt den Tunnel.",
+        "action": "VPNs öffnen"
+      },
+      "requireRoute": {
+        "label": "Direkte Starts blockieren",
+        "title": "Nie von Ihrer eigenen IP starten",
+        "body": "Schalten Sie in den Datenschutz-Einstellungen „Starts ohne Proxy oder VPN blockieren“ ein. Ein Profil ohne Proxy oder mit fehlendem Proxy oder VPN startet dann nicht.",
+        "action": "Datenschutz-Einstellungen öffnen"
+      },
+      "totp": {
+        "label": "2FA-Codes",
+        "title": "2FA-Codes beim Profil aufbewahren",
+        "body": "Fügen Sie in den Profilinfos den 2FA-Schlüssel eines Kontos hinzu, und Donut zeigt den aktuellen Code zum Kopieren. Die Schlüssel bleiben verschlüsselt auf diesem Gerät.",
+        "action": "2FA-Schlüssel testen"
+      },
+      "synchronizer": {
+        "label": "Synchronizer",
+        "title": "Viele Profile gleichzeitig steuern",
+        "body": "Wählen Sie „Mit Synchronizer starten“ im Menü eines Profils und dann die Follower. Jeder Klick und jede Eingabe im Leader wiederholt sich in jedem Follower.",
+        "action": "Profile öffnen"
       }
+    },
+    "sections": {
+      "everyday": "Alltag",
+      "network": "Netzwerk",
+      "privacy": "Datenschutz und Daten",
+      "connect": "Verbinden",
+      "plan": "In Ihrem Tarif enthalten"
+    },
+    "progress": "{{read}} von {{total}} gelesen",
+    "unread": "Noch nicht gelesen",
+    "nextShort": "Weiter",
+    "inline": {
+      "label": "Funktionstipp",
+      "eyebrow": "Tipp",
+      "more": "Weitere Optionen zum Tipp",
+      "allTips": "Alle Tipps",
+      "turnOff": "Keine Tipps anzeigen",
+      "dismiss": "Tipp ausblenden",
+      "offTitle": "Tipps sind aus",
+      "offBody": "Unter Tipps ({{shortcut}}) schalten Sie sie wieder ein."
     }
   },
   "paidWelcome": {
@@ -4170,6 +4353,35 @@
     "kind": {
       "auto": "Täglich",
       "manual": "Manuell"
+    }
+  },
+  "entities": {
+    "empty": {
+      "proxies": {
+        "title": "Noch keine Proxys",
+        "body": "Ein Proxy leitet den Verkehr eines Profils über einen anderen Server. Jedes Profil kann einen eigenen nutzen."
+      },
+      "vpns": {
+        "title": "Noch keine VPNs",
+        "body": "Ein WireGuard-VPN leitet den Verkehr eines Profils durch einen verschlüsselten Tunnel."
+      },
+      "groups": {
+        "title": "Noch keine Gruppen",
+        "body": "Gruppen ordnen Profile nach Kunde, Projekt oder Aufgabe. Jedes Profil einer Gruppe erhält die Lesezeichen der Gruppe."
+      },
+      "extensions": {
+        "title": "Noch keine Erweiterungen",
+        "body": "Fügen Sie eine Erweiterung aus einer Datei, einem Ordner oder einem Web-Store-Link hinzu. Legen Sie sie in eine Erweiterungsgruppe, um sie in Profilen zu nutzen."
+      },
+      "extensionGroups": {
+        "title": "Noch keine Erweiterungsgruppen",
+        "body": "Eine Erweiterungsgruppe ist ein Satz von Erweiterungen. Profile mit dieser Gruppe erhalten den Satz beim Start."
+      }
+    },
+    "check": {
+      "notChecked": "Nicht geprüft",
+      "valid": "Gültig",
+      "invalid": "Ungültig"
     }
   }
 }

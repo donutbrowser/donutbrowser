@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { canonicalProxyType } from "./proxy-type.ts";
+import { canonicalProxyType, proxyTypeLabelKey } from "./proxy-type.ts";
 
 /**
  * `proxy_type` is stored verbatim, so the UI meets both Shadowsocks spellings.
@@ -274,4 +274,34 @@ test("the Shadowsocks sentences name the cipher, not the credentials", () => {
   // It must still say what an unset or null cipher means, or softening the
   // claim would have cost the user the warning.
   assert.match(form.firstHopCipherNote, /empty|none|null/i);
+});
+
+test("every spelling of a known type names it, and only known types get a name", () => {
+  // The management table prints this name in the protocol tooltip; a key with
+  // no sentence behind it would show the raw identifier instead.
+  const en = JSON.parse(
+    readFileSync(path.join(HERE, "..", "i18n", "locales", "en.json"), "utf8"),
+  );
+  assert.equal(proxyTypeLabelKey("shadowsocks"), "proxies.types.ss");
+  assert.equal(proxyTypeLabelKey(" HY2 "), "proxies.types.hysteria2");
+  for (const type of ["socks", "nonsense", "", "__proto__", "constructor"])
+    assert.equal(proxyTypeLabelKey(type), null);
+  for (const type of [
+    "http",
+    "https",
+    "httpstls",
+    "socks4",
+    "socks5",
+    "ss",
+    "vless",
+    "vmess",
+    "trojan",
+    "hysteria2",
+  ]) {
+    const key = proxyTypeLabelKey(type);
+    const value = key
+      ?.split(".")
+      .reduce((node, part) => (node == null ? node : node[part]), en);
+    assert.equal(typeof value, "string", `${type} has no name at ${key}`);
+  }
 });

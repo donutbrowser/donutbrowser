@@ -142,37 +142,61 @@ test("fresh app renders, completes onboarding, persists settings, and never touc
       assert.ok(system && typeof system === "object");
       assert.equal(typeof (await app.invoke("read_log_files")), "string");
 
-      // Feature tips: what was seen, the random 2-5 day wait between
-      // automatic tips, and the decision behind the paid-plan welcome all
-      // live in the settings file.
+      // Feature tips: what was read, the tip on the Profiles page, the day
+      // the next one may come, and the decision behind the paid-plan welcome
+      // all live in the settings file.
       const tips = await app.invoke("get_tips_state");
       assert.equal(tips.auto_show, true);
       assert.deepEqual(tips.seen, []);
+      assert.deepEqual(tips.used, []);
+      assert.equal(tips.inline_tip, null);
       assert.equal(tips.next_auto_show_at, null);
       assert.equal(tips.auto_due, true, "a fresh install owes its first tip");
-      const marked = await app.invoke("mark_tip_seen", {
+      const shown = await app.invoke("show_inline_tip", {
         tipId: "dnsBlocklist",
-        auto: true,
       });
-      assert.deepEqual(marked.seen, ["dnsBlocklist"]);
-      assert.equal(typeof marked.last_auto_shown_at, "number");
-      const gap = marked.next_auto_show_at - marked.last_auto_shown_at;
-      assert.ok(
-        gap >= 2 * 24 * 60 * 60 && gap <= 5 * 24 * 60 * 60,
-        `the next automatic tip waits 2 to 5 days, not ${gap} seconds`,
+      assert.equal(shown.inline_tip, "dnsBlocklist");
+      assert.equal(typeof shown.last_auto_shown_at, "number");
+      assert.equal(shown.auto_due, false, "one tip at a time");
+      assert.equal(
+        (await app.invoke("show_inline_tip", { tipId: "trash" })).inline_tip,
+        "dnsBlocklist",
+        "the tip on the page stays until it is closed",
       );
-      assert.equal(marked.auto_due, false, "the wait has only started");
       const browsed = await app.invoke("mark_tip_seen", {
         tipId: "proxyCheck",
-        auto: false,
       });
-      assert.deepEqual(browsed.seen, ["dnsBlocklist", "proxyCheck"]);
+      assert.deepEqual(browsed.seen, ["proxyCheck"]);
       assert.equal(
-        browsed.last_auto_shown_at,
-        marked.last_auto_shown_at,
-        "a browsed tip must not restart the pacing",
+        browsed.inline_tip,
+        "dnsBlocklist",
+        "reading another tip leaves the one on the page",
       );
-      assert.equal(browsed.next_auto_show_at, marked.next_auto_show_at);
+      assert.equal(browsed.next_auto_show_at, null);
+      const released = await app.invoke("release_inline_tip", {
+        tipId: "dnsBlocklist",
+      });
+      assert.equal(released.inline_tip, null);
+      assert.ok(
+        !released.seen.includes("dnsBlocklist"),
+        "a tip the seat lost goes back to the pool unread",
+      );
+      assert.equal(released.auto_due, false, "the day's tip was shown already");
+      const marked = await app.invoke("mark_tip_seen", {
+        tipId: "dnsBlocklist",
+      });
+      assert.deepEqual(marked.seen, ["proxyCheck", "dnsBlocklist"]);
+      assert.equal(marked.inline_tip, null);
+      const wait = marked.next_auto_show_at - Math.floor(Date.now() / 1000);
+      assert.ok(
+        wait >= 12 * 60 * 60 - 60 && wait <= 24 * 60 * 60,
+        `the next tip waits for the next day, not ${wait} seconds`,
+      );
+      assert.equal(marked.auto_due, false, "not again the same day");
+      const used = await app.invoke("note_tip_feature_used", {
+        tipId: "commandPalette",
+      });
+      assert.deepEqual(used.used, ["commandPalette"]);
       const quiet = await app.invoke("set_tips_auto_show", { enabled: false });
       assert.equal(quiet.auto_show, false);
       assert.equal(quiet.auto_due, false);
@@ -227,16 +251,17 @@ test("fresh app renders, completes onboarding, persists settings, and never touc
       assert.equal(afterRestart.theme, "dark");
       assert.equal(afterRestart.language, "en");
       assert.equal(afterRestart.onboarding_completed, true);
-      assert.deepEqual(afterRestart.tips_seen, ["dnsBlocklist", "proxyCheck"]);
+      assert.deepEqual(afterRestart.tips_seen, ["proxyCheck", "dnsBlocklist"]);
+      assert.deepEqual(afterRestart.tips_used, ["commandPalette"]);
       assert.equal(afterRestart.tips_auto_show, false);
       assert.equal(
         afterRestart.tips_next_auto_show_at,
         marked.next_auto_show_at,
-        "the drawn wait survives a restart",
+        "the wait survives a restart",
       );
       assert.deepEqual((await app.invoke("get_tips_state")).seen, [
-        "dnsBlocklist",
         "proxyCheck",
+        "dnsBlocklist",
       ]);
 
       const settingsFile = path.join(

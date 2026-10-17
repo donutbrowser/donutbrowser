@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /**
- * Cookie bot: overnight warming of a synced profile on a leased remote host.
+ * Cookie bot: scheduled warming of a synced profile on a leased remote host.
  *
  * Nothing about HOW the bot browses is here. The schedule, the calendar maths,
  * what a preset expands to, the site ordering, the dwell model and the pooled
@@ -111,11 +111,10 @@ export interface CookieBotSchedule {
   profile_state_at?: string | null;
 
   /**
-   * Why tonight would be refused, or null. One of the run outcome codes.
+   * Why the next run would be refused, or null. One of the run outcome codes.
    *
    * The server computes this on every read so a broken enrolment is visible the
-   * moment it breaks, rather than first announcing itself as a skipped run at
-   * 02:00.
+   * moment it breaks, rather than first announcing itself as a skipped run.
    */
   blocked_by?: string | null;
 
@@ -200,9 +199,9 @@ export interface CookieBotRun {
   dispatch_after?: string | null;
   started_at?: string | null;
   ended_at?: string | null;
-  /** The night's whole budget, which may span several browser sessions. */
+  /** The run's whole budget, which may span several browser sessions. */
   max_minutes: number;
-  /** How many sessions this night is split into, and which one is running. */
+  /** How many sessions this run is split into, and which one is running. */
   chunks_total: number;
   chunk_index: number;
   sites_total: number;

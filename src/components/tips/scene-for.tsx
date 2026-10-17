@@ -24,38 +24,60 @@ import {
   CookieBotScene,
   CrossOsScene,
   RemoteScene,
+  SynchronizerScene,
   TeamScene,
 } from "./scenes-plan";
+import { RequireRouteScene, TotpScene, VpnScene } from "./scenes-safety";
+import {
+  SearchScene,
+  ShortcutsScene,
+  StatusesScene,
+  TemplatesScene,
+} from "./scenes-workflow";
 
 /** The drawing for one tip. Every tip id has one; the switch is exhaustive. */
 export function TipScene({ id }: { id: TipId }) {
   switch (id) {
-    case "dnsBlocklist":
-      return <DnsScene />;
-    case "proxyCheck":
-      return <ProxyRouteScene />;
-    case "groups":
-      return <GroupsScene />;
     case "commandPalette":
       return <PaletteScene modLabel={isMacOS() ? "⌘" : "Ctrl"} />;
+    case "searchSyntax":
+      return <SearchScene />;
+    case "shortcuts":
+      return <ShortcutsScene />;
+    case "groups":
+      return <GroupsScene />;
+    case "statuses":
+      return <StatusesScene />;
+    case "templates":
+      return <TemplatesScene />;
+    case "extensionGroups":
+      return <ExtensionsScene />;
+    case "importProfiles":
+      return <ImportScene />;
+    case "proxyCheck":
+      return <ProxyRouteScene />;
+    case "vpn":
+      return <VpnScene />;
+    case "dnsBlocklist":
+      return <DnsScene />;
     case "fingerprintGate":
       return <ConsistencyScene />;
+    case "requireRoute":
+      return <RequireRouteScene />;
     case "profilePassword":
       return <LockScene />;
     case "clearOnClose":
       return <SweepScene />;
-    case "defaultBrowser":
-      return <LinkRouteScene />;
-    case "extensionGroups":
-      return <ExtensionsScene />;
-    case "selfHostedSync":
-      return <SyncScene />;
+    case "totp":
+      return <TotpScene />;
     case "trash":
       return <TrashScene />;
+    case "selfHostedSync":
+      return <SyncScene />;
+    case "defaultBrowser":
+      return <LinkRouteScene />;
     case "localApi":
       return <ApiScene variant="api" />;
-    case "importProfiles":
-      return <ImportScene />;
     case "feedback":
       return <FeedbackScene />;
     case "cloudBackup":
@@ -64,6 +86,8 @@ export function TipScene({ id }: { id: TipId }) {
       return <CookieBotScene />;
     case "crossOs":
       return <CrossOsScene />;
+    case "synchronizer":
+      return <SynchronizerScene />;
     case "automation":
       return <ApiScene variant="run" />;
     case "agent":

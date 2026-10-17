@@ -1162,9 +1162,11 @@ test("the connection check fails a server whose storage host this device cannot 
 });
 
 // A paid account syncs with its own server only while signed in, with a token
-// the Donut API binds to that server's address. The suites cannot sign in, so
+// the Donut API binds to that server's address, and a signed-in device picks
+// between Donut cloud and its stored servers. The suites cannot sign in, so
 // this covers what a device sees on its own: the address the server names on
-// /readyz, and the refusals that keep a signed-out device from storing one.
+// /readyz, the refusals that keep a signed-out device from storing a server or
+// a pick, and the shared-token server as the signed-out source.
 test("an own sync server is read from /readyz and needs a signed-in account", async () => {
   const app = appFromEnvironment("sync-account-server");
   const accountServer = createServer((request, response) => {
@@ -1194,24 +1196,56 @@ test("an own sync server is read from /readyz and needs a signed-in account", as
     assert.equal(check.server_reachable, true);
     assert.equal(check.account_url, "https://sync.example.test");
 
-    assert.equal(await app.invoke("get_account_sync_server"), null);
+    const nothing = {
+      active: null,
+      account_server: null,
+      self_hosted_server: null,
+    };
+    assert.deepEqual(await app.invoke("get_sync_source"), nothing);
     const refused = await app.invokeError("set_account_sync_server", {
       serverUrl: accountServerUrl,
     });
     assert.match(refused, /"code":"ACCOUNT_SYNC_SIGN_IN_REQUIRED"/);
-    // Going back to Donut cloud is always allowed, and stores nothing.
-    assert.equal(
+    // Forgetting the own server is always allowed, and stores nothing.
+    assert.deepEqual(
       await app.invoke("set_account_sync_server", { serverUrl: null }),
-      null,
+      nothing,
     );
-    assert.equal(await app.invoke("get_account_sync_server"), null);
+    for (const source of ["cloud", "account", "self_hosted"]) {
+      assert.match(
+        await app.invokeError("set_sync_source", { source }),
+        /"code":"ACCOUNT_SYNC_SIGN_IN_REQUIRED"/,
+      );
+    }
 
-    // A settings save from the frontend never writes the field.
+    // A settings save from the frontend never writes the server or the pick.
     const settings = await app.invoke("get_app_settings");
     await app.invoke("save_app_settings", {
-      settings: { ...settings, account_sync_server_url: accountServerUrl },
+      settings: {
+        ...settings,
+        account_sync_server_url: accountServerUrl,
+        sync_source: "account",
+      },
     });
-    assert.equal(await app.invoke("get_account_sync_server"), null);
+    assert.deepEqual(await app.invoke("get_sync_source"), nothing);
+    assert.equal((await app.invoke("get_app_settings")).sync_source, null);
+
+    // Signed out, the shared-token server is the source.
+    const saved = await app.invoke("save_sync_settings", {
+      syncServerUrl: accountServerUrl,
+      syncToken: "e2e-shared-token",
+    });
+    assert.equal(saved.source, "self_hosted");
+    assert.deepEqual(await app.invoke("get_sync_source"), {
+      active: "self_hosted",
+      account_server: null,
+      self_hosted_server: accountServerUrl,
+    });
+    await app.invoke("save_sync_settings", {
+      syncServerUrl: null,
+      syncToken: null,
+    });
+    assert.deepEqual(await app.invoke("get_sync_source"), nothing);
   } catch (error) {
     await app.capture("failure");
     throw error;

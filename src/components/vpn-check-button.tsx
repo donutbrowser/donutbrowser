@@ -3,115 +3,162 @@
 import { invoke } from "@tauri-apps/api/core";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { FiCheck, FiX } from "react-icons/fi";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { LuCheck, LuCircleDashed, LuX } from "react-icons/lu";
+import {
+  CheckPill,
+  CheckSpinner,
+  type CheckState,
+} from "@/components/entity-page";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { translateBackendError } from "@/lib/backend-errors";
 import { formatRelativeTime } from "@/lib/flag-utils";
-import type { ProxyCheckResult } from "@/types";
+import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
+import type { ProxyCheckResult, VpnConfig } from "@/types";
+
+interface VpnCheckEntry {
+  /** The config the result belongs to; any other config shows no result. */
+  routeKey: string;
+  checking: boolean;
+  result: ProxyCheckResult | null;
+}
+
+const IDLE: VpnCheckEntry = { routeKey: "", checking: false, result: null };
+
+/** The last check of each VPN this session, so a row that remounts keeps it. */
+const entries = new Map<string, VpnCheckEntry>();
+const listeners = new Set<() => void>();
+
+/** An edit, a synced download or an API update bumps `updated_at`, so a
+ * result from before it no longer describes the tunnel. */
+function vpnRouteKey(vpn: VpnConfig): string {
+  return JSON.stringify([
+    vpn.id,
+    vpn.vpn_type,
+    vpn.updated_at ?? null,
+    vpn.config_data,
+  ]);
+}
+
+function publish(vpnId: string, entry: VpnCheckEntry) {
+  entries.set(vpnId, entry);
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 
 interface VpnCheckButtonProps {
-  vpnId: string;
-  vpnName: string;
-  checkingVpnId: string | null;
-  setCheckingVpnId: (id: string | null) => void;
+  vpn: VpnConfig;
   disabled?: boolean;
 }
 
-export function VpnCheckButton({
-  vpnId,
-  vpnName,
-  checkingVpnId,
-  setCheckingVpnId,
-  disabled = false,
-}: VpnCheckButtonProps) {
+export function VpnCheckButton({ vpn, disabled = false }: VpnCheckButtonProps) {
   const { t } = useTranslation();
-  const [result, setResult] = React.useState<ProxyCheckResult | undefined>();
+  const vpnId = vpn.id;
+  const vpnName = vpn.name;
+  const routeKey = vpnRouteKey(vpn);
+  const getSnapshot = React.useCallback(
+    () => entries.get(vpnId) ?? IDLE,
+    [vpnId],
+  );
+  const raw = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const { checking, result } = raw.routeKey === routeKey ? raw : IDLE;
 
   const handleCheck = React.useCallback(async () => {
-    if (checkingVpnId === vpnId) return;
-
-    setCheckingVpnId(vpnId);
+    const current = entries.get(vpnId);
+    const before =
+      current?.routeKey === routeKey ? current : { ...IDLE, routeKey };
+    if (before.checking) return;
+    publish(vpnId, { ...before, checking: true });
     try {
-      const checkResult = await invoke<ProxyCheckResult>("check_vpn_validity", {
+      const checked = await invoke<ProxyCheckResult>("check_vpn_validity", {
         vpnId,
       });
-      setResult(checkResult);
-
-      if (checkResult.is_valid) {
-        toast.success(t("vpnCheck.valid", { name: vpnName }));
+      publish(vpnId, { routeKey, checking: false, result: checked });
+      if (checked.is_valid) {
+        showSuccessToast(t("vpnCheck.valid", { name: vpnName }));
       } else {
-        toast.error(t("vpnCheck.invalid", { name: vpnName }));
+        showErrorToast(t("vpnCheck.invalid", { name: vpnName }));
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      toast.error(t("vpnCheck.failed", { error: errorMessage }));
-
-      setResult({
-        ip: "",
-        timestamp: Math.floor(Date.now() / 1000),
-        is_valid: false,
+      publish(vpnId, {
+        routeKey,
+        checking: false,
+        result: {
+          ip: "",
+          timestamp: Math.floor(Date.now() / 1000),
+          is_valid: false,
+        },
       });
-    } finally {
-      setCheckingVpnId(null);
+      showErrorToast(
+        t("vpnCheck.failed", { error: translateBackendError(t, error) }),
+      );
     }
-  }, [vpnId, vpnName, checkingVpnId, setCheckingVpnId, t]);
+  }, [vpnId, vpnName, routeKey, t]);
 
-  const isCurrentlyChecking = checkingVpnId === vpnId;
+  const state: CheckState = checking
+    ? "checking"
+    : !result
+      ? "idle"
+      : result.is_valid
+        ? "ok"
+        : "failed";
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="size-7 p-0"
-          onClick={handleCheck}
-          disabled={isCurrentlyChecking || disabled}
-          aria-busy={isCurrentlyChecking}
+        <CheckPill
+          state={state}
+          resultKey={result?.timestamp}
+          compact
+          onClick={() => void handleCheck()}
+          disabled={disabled}
+          aria-busy={checking}
           aria-label={t(
-            isCurrentlyChecking
-              ? "vpnCheck.tooltipChecking"
-              : "vpnCheck.tooltipDefault",
+            checking ? "vpnCheck.tooltipChecking" : "vpnCheck.tooltipDefault",
           )}
-        >
-          <span
-            aria-hidden="true"
-            className="inline-flex size-3 items-center justify-center"
-          >
-            {isCurrentlyChecking ? (
-              <span className="size-3 animate-spin rounded-full border border-current border-t-transparent motion-reduce:animate-none" />
-            ) : result?.is_valid ? (
-              <FiCheck className="size-3 text-success-text" />
-            ) : result && !result.is_valid ? (
-              <FiX className="size-3 text-destructive-text" />
+          icon={
+            state === "checking" ? (
+              <CheckSpinner />
+            ) : state === "ok" ? (
+              <LuCheck className="text-success-text" />
+            ) : state === "failed" ? (
+              <LuX />
             ) : (
-              <FiCheck className="size-3" />
-            )}
-          </span>
-        </Button>
+              <LuCircleDashed />
+            )
+          }
+        >
+          {state === "checking"
+            ? t("appFeedback.checking")
+            : state === "ok"
+              ? t("entities.check.valid")
+              : state === "failed"
+                ? t("entities.check.invalid")
+                : t("entities.check.notChecked")}
+        </CheckPill>
       </TooltipTrigger>
       <TooltipContent>
-        {isCurrentlyChecking ? (
+        {checking ? (
           <p>{t("vpnCheck.tooltipChecking")}</p>
-        ) : result?.is_valid ? (
+        ) : result ? (
           <div className="space-y-1">
-            <p>{t("vpnCheck.tooltipValid")}</p>
-            <p className="text-xs text-primary-foreground">
-              {t("vpnCheck.tooltipChecked", {
-                time: formatRelativeTime(result.timestamp),
-              })}
+            <p>
+              {t(
+                result.is_valid
+                  ? "vpnCheck.tooltipValid"
+                  : "vpnCheck.tooltipInvalid",
+              )}
             </p>
-          </div>
-        ) : result && !result.is_valid ? (
-          <div>
-            <p>{t("vpnCheck.tooltipInvalid")}</p>
-            <p className="text-xs text-primary-foreground">
+            <p className="text-primary-foreground/75">
               {t("vpnCheck.tooltipChecked", {
                 time: formatRelativeTime(result.timestamp),
               })}

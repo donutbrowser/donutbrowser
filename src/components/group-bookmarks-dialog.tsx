@@ -1,10 +1,17 @@
 "use client";
 
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
-import { LuChevronDown, LuChevronUp, LuTrash2 } from "react-icons/lu";
+import {
+  LuBookmark,
+  LuChevronDown,
+  LuChevronUp,
+  LuTrash2,
+} from "react-icons/lu";
+import { useEntityMotion } from "@/components/entity-page";
 import { LoadingButton } from "@/components/loading-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +30,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { translateBackendError } from "@/lib/backend-errors";
+import { MOTION_EASE_OUT, MOTION_SPRING_POSITION } from "@/lib/motion";
 import { showSuccessToast } from "@/lib/toast-utils";
+import { cn } from "@/lib/utils";
 import type { BrowserProfile, GroupBookmark } from "@/types";
 import { RippleButton } from "./ui/ripple";
 
@@ -53,6 +62,47 @@ function toRows(bookmarks: GroupBookmark[]): BookmarkRow[] {
   }));
 }
 
+function RowButton({
+  testId,
+  label,
+  destructive = false,
+  disabled,
+  onClick,
+  children,
+}: {
+  testId: string;
+  label: string;
+  destructive?: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="subtle"
+          size="icon"
+          data-testid={testId}
+          aria-label={label}
+          disabled={disabled}
+          onClick={onClick}
+          className={cn(
+            "size-8 rounded-lg [&_svg]:size-4",
+            destructive &&
+              "hover:bg-destructive/10 hover:text-destructive-text",
+          )}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{label}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function GroupBookmarksDialog({
   isOpen,
   onClose,
@@ -65,6 +115,9 @@ export function GroupBookmarksDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** The row just added, whose title field takes focus. */
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const animate = useEntityMotion();
 
   useEffect(() => {
     if (!isOpen || !groupId) return;
@@ -159,145 +212,149 @@ export function GroupBookmarksDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+        <div className="-mx-1 min-h-0 flex-1 space-y-3 overflow-y-auto px-1">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">
               {t("common.buttons.loading")}
             </p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="flex items-center gap-2 rounded-xl bg-foreground/3 px-3 py-4 text-sm text-muted-foreground">
+              <LuBookmark aria-hidden="true" className="size-4 shrink-0" />
               {t("groupBookmarks.empty")}
             </p>
           ) : (
-            <div className="space-y-3" data-testid="group-bookmark-rows">
-              {rows.map((row, index) => (
-                <div
-                  key={row.key}
-                  data-testid="group-bookmark-row"
-                  className="flex items-end gap-2 rounded-md border border-border p-3"
-                >
-                  <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
-                    <div className="space-y-1">
-                      <Label htmlFor={`${row.key}-title`} className="text-xs">
-                        {t("groupBookmarks.titleColumn")}
-                      </Label>
-                      <Input
-                        id={`${row.key}-title`}
-                        data-testid="group-bookmark-title"
-                        value={row.title}
-                        placeholder={t("groupBookmarks.titlePlaceholder")}
-                        onChange={(event) => {
-                          updateRow(row.key, "title", event.target.value);
-                        }}
-                        disabled={isSaving}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor={`${row.key}-url`} className="text-xs">
-                        {t("groupBookmarks.urlColumn")}
-                      </Label>
-                      <Input
-                        id={`${row.key}-url`}
-                        data-testid="group-bookmark-url"
-                        value={row.url}
-                        placeholder={t("groupBookmarks.urlPlaceholder")}
-                        onChange={(event) => {
-                          updateRow(row.key, "url", event.target.value);
-                        }}
-                        disabled={isSaving}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor={`${row.key}-folder`} className="text-xs">
-                        {t("groupBookmarks.folderColumn")}
-                      </Label>
-                      <Input
-                        id={`${row.key}-folder`}
-                        data-testid="group-bookmark-folder"
-                        value={row.folder ?? ""}
-                        placeholder={t("groupBookmarks.folderPlaceholder")}
-                        onChange={(event) => {
-                          updateRow(row.key, "folder", event.target.value);
-                        }}
-                        disabled={isSaving}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          data-testid="group-bookmark-move-up"
-                          aria-label={t("groupBookmarks.moveUp")}
-                          disabled={index === 0 || isSaving}
-                          onClick={() => {
-                            moveRow(index, -1);
-                          }}
+            <div className="space-y-2" data-testid="group-bookmark-rows">
+              <AnimatePresence initial={false}>
+                {rows.map((row, index) => (
+                  <motion.div
+                    key={row.key}
+                    data-testid="group-bookmark-row"
+                    layout={animate ? "position" : false}
+                    initial={animate ? { opacity: 0, y: -4 } : false}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{
+                      opacity: 0,
+                      transition: { duration: animate ? 0.12 : 0 },
+                    }}
+                    transition={{
+                      duration: 0.18,
+                      ease: MOTION_EASE_OUT,
+                      layout: MOTION_SPRING_POSITION,
+                    }}
+                    className="flex items-end gap-2 rounded-xl bg-foreground/3 p-3"
+                  >
+                    <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor={`${row.key}-title`}
+                          className="text-xs text-muted-foreground"
                         >
-                          <LuChevronUp className="size-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{t("groupBookmarks.moveUp")}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          data-testid="group-bookmark-move-down"
-                          aria-label={t("groupBookmarks.moveDown")}
-                          disabled={index === rows.length - 1 || isSaving}
-                          onClick={() => {
-                            moveRow(index, 1);
+                          {t("groupBookmarks.titleColumn")}
+                        </Label>
+                        <Input
+                          id={`${row.key}-title`}
+                          variant="soft"
+                          data-testid="group-bookmark-title"
+                          value={row.title}
+                          autoFocus={row.key === focusKey}
+                          placeholder={t("groupBookmarks.titlePlaceholder")}
+                          onChange={(event) => {
+                            updateRow(row.key, "title", event.target.value);
                           }}
-                        >
-                          <LuChevronDown className="size-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{t("groupBookmarks.moveDown")}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          data-testid="group-bookmark-remove"
-                          aria-label={t("groupBookmarks.removeRow")}
                           disabled={isSaving}
-                          onClick={() => {
-                            setRows((current) =>
-                              current.filter((item) => item.key !== row.key),
-                            );
-                          }}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor={`${row.key}-url`}
+                          className="text-xs text-muted-foreground"
                         >
-                          <LuTrash2 className="size-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{t("groupBookmarks.removeRow")}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                </div>
-              ))}
+                          {t("groupBookmarks.urlColumn")}
+                        </Label>
+                        <Input
+                          id={`${row.key}-url`}
+                          variant="soft"
+                          data-testid="group-bookmark-url"
+                          value={row.url}
+                          placeholder={t("groupBookmarks.urlPlaceholder")}
+                          onChange={(event) => {
+                            updateRow(row.key, "url", event.target.value);
+                          }}
+                          disabled={isSaving}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor={`${row.key}-folder`}
+                          className="text-xs text-muted-foreground"
+                        >
+                          {t("groupBookmarks.folderColumn")}
+                        </Label>
+                        <Input
+                          id={`${row.key}-folder`}
+                          variant="soft"
+                          data-testid="group-bookmark-folder"
+                          value={row.folder ?? ""}
+                          placeholder={t("groupBookmarks.folderPlaceholder")}
+                          onChange={(event) => {
+                            updateRow(row.key, "folder", event.target.value);
+                          }}
+                          disabled={isSaving}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 gap-0.5">
+                      <RowButton
+                        testId="group-bookmark-move-up"
+                        label={t("groupBookmarks.moveUp")}
+                        disabled={index === 0 || isSaving}
+                        onClick={() => {
+                          moveRow(index, -1);
+                        }}
+                      >
+                        <LuChevronUp />
+                      </RowButton>
+                      <RowButton
+                        testId="group-bookmark-move-down"
+                        label={t("groupBookmarks.moveDown")}
+                        disabled={index === rows.length - 1 || isSaving}
+                        onClick={() => {
+                          moveRow(index, 1);
+                        }}
+                      >
+                        <LuChevronDown />
+                      </RowButton>
+                      <RowButton
+                        testId="group-bookmark-remove"
+                        label={t("groupBookmarks.removeRow")}
+                        destructive
+                        disabled={isSaving}
+                        onClick={() => {
+                          setRows((current) =>
+                            current.filter((item) => item.key !== row.key),
+                          );
+                        }}
+                      >
+                        <LuTrash2 />
+                      </RowButton>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
 
           <RippleButton
-            variant="outline"
+            variant="soft"
             size="sm"
             data-testid="group-bookmark-add"
             disabled={isSaving}
             onClick={() => {
+              const key = newKey();
+              setFocusKey(key);
               setRows((current) => [
                 ...current,
-                { key: newKey(), title: "", url: "", folder: "" },
+                { key, title: "", url: "", folder: "" },
               ]);
             }}
             className="flex items-center gap-2"
@@ -307,7 +364,10 @@ export function GroupBookmarksDialog({
           </RippleButton>
 
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-text">
+            <div
+              role="alert"
+              className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-text"
+            >
               {error}
             </div>
           )}

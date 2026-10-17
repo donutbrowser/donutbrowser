@@ -214,8 +214,9 @@ use settings_manager::{
   complete_onboarding, dismiss_window_resize_warning, get_app_settings, get_onboarding_completed,
   get_sync_settings, get_system_info, get_system_language, get_table_preferences,
   get_table_sorting_settings, get_tips_state, get_window_resize_warning_dismissed, mark_tip_seen,
-  observe_cloud_plan, open_log_directory, read_log_files, save_app_settings, save_sync_settings,
-  save_table_preferences, save_table_sorting_settings, set_tips_auto_show,
+  note_tip_feature_used, observe_cloud_plan, open_log_directory, read_log_files,
+  release_inline_tip, save_app_settings, save_sync_settings, save_table_preferences,
+  save_table_sorting_settings, set_tips_auto_show, show_inline_tip,
 };
 
 use sync::{
@@ -3484,6 +3485,9 @@ pub fn run_with_builder(
       complete_onboarding,
       get_tips_state,
       mark_tip_seen,
+      show_inline_tip,
+      release_inline_tip,
+      note_tip_feature_used,
       set_tips_auto_show,
       observe_cloud_plan,
       clear_all_version_cache_and_refetch,
@@ -3576,7 +3580,8 @@ pub fn run_with_builder(
       get_sync_settings,
       save_sync_settings,
       check_sync_server_connection,
-      sync::account_server::get_account_sync_server,
+      sync::account_server::get_sync_source,
+      sync::account_server::set_sync_source,
       sync::account_server::set_account_sync_server,
       set_profile_sync_mode,
       cancel_profile_sync,

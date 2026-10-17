@@ -28,6 +28,15 @@ import {
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { DeleteGroupDialog } from "@/components/delete-group-dialog";
 import { EditGroupDialog } from "@/components/edit-group-dialog";
+import { EntityEmptyState } from "@/components/entity-empty-state";
+import {
+  PageAction,
+  RowAction,
+  RowActions,
+  SyncCell,
+  type SyncStatus,
+  TickingCount,
+} from "@/components/entity-page";
 import { GroupBookmarksDialog } from "@/components/group-bookmarks-dialog";
 import {
   configureEntityColumns,
@@ -36,9 +45,8 @@ import {
 } from "@/components/managed-data-table";
 import { ProfileUsageButton } from "@/components/profile-usage-button";
 import { SortableColumnHeader } from "@/components/table-controls";
-import { AnimatedSwitch } from "@/components/ui/animated-switch";
+import { GroupsScene } from "@/components/tips/scenes-essentials";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -58,56 +66,6 @@ import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import type { GroupWithCount, ProfileGroup } from "@/types";
 import { RippleButton } from "./ui/ripple";
 
-type SyncStatus = "disabled" | "syncing" | "synced" | "error" | "waiting";
-
-function getSyncStatusDot(
-  group: GroupWithCount,
-  liveStatus: SyncStatus | undefined,
-  t: (key: string, options?: Record<string, unknown>) => string,
-  errorMessage?: string,
-): { color: string; tooltip: string; animate: boolean } {
-  const status = liveStatus ?? (group.sync_enabled ? "synced" : "disabled");
-
-  switch (status) {
-    case "syncing":
-      return {
-        color: "bg-warning",
-        tooltip: t("syncTooltips.syncing"),
-        animate: true,
-      };
-    case "synced":
-      return {
-        color: "bg-success",
-        tooltip: group.last_sync
-          ? t("syncTooltips.syncedAt", {
-              time: new Date(group.last_sync * 1000).toLocaleString(),
-            })
-          : t("syncTooltips.synced"),
-        animate: false,
-      };
-    case "waiting":
-      return {
-        color: "bg-warning",
-        tooltip: t("syncTooltips.waiting"),
-        animate: false,
-      };
-    case "error":
-      return {
-        color: "bg-destructive",
-        tooltip: errorMessage
-          ? t("syncTooltips.errorWith", { error: errorMessage })
-          : t("syncTooltips.error"),
-        animate: false,
-      };
-    default:
-      return {
-        color: "bg-muted-foreground",
-        tooltip: t("syncTooltips.notSynced"),
-        animate: false,
-      };
-  }
-}
-
 interface GroupManagementDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -125,7 +83,7 @@ export function GroupManagementDialog({
   const { profiles: referencedProfiles, failed: referencesFailed } =
     useProfileReferences(isOpen);
   const [groups, setGroups] = useState<GroupWithCount[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Dialog states
@@ -187,20 +145,16 @@ export function GroupManagementDialog({
       );
       setGroups(groupList);
 
-      // Check which groups are in use by synced profiles
-      const inUse: Record<string, boolean> = {};
-      for (const group of groupList) {
-        try {
-          const inUseBySynced = await invoke<boolean>(
-            "is_group_in_use_by_synced_profile",
-            { groupId: group.id },
-          );
-          inUse[group.id] = inUseBySynced;
-        } catch (_error) {
-          // Ignore errors
-        }
-      }
-      setGroupInUse(inUse);
+      const inUse = await Promise.all(
+        groupList.map((group) =>
+          invoke<boolean>("is_group_in_use_by_synced_profile", {
+            groupId: group.id,
+          }).catch(() => false),
+        ),
+      );
+      setGroupInUse(
+        Object.fromEntries(groupList.map((group, i) => [group.id, inUse[i]])),
+      );
     } catch (err) {
       console.error("Failed to load groups:", err);
       setError(
@@ -287,36 +241,7 @@ export function GroupManagementDialog({
 
   const columns = useMemo<ColumnDef<GroupWithCount>[]>(
     () => [
-      {
-        id: "select",
-        size: 36,
-        enableSorting: false,
-        header: ({ table }) => (
-          <Checkbox
-            checked={
-              table.getIsAllRowsSelected()
-                ? true
-                : table.getIsSomeRowsSelected()
-                  ? "indeterminate"
-                  : false
-            }
-            onCheckedChange={(value) => {
-              table.toggleAllRowsSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectAll")}
-            disabled={table.getRowModel().rows.length === 0}
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => {
-              row.toggleSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectRow")}
-          />
-        ),
-      },
+      { id: "select", size: 36, enableSorting: false },
       {
         accessorKey: "name",
         enableSorting: true,
@@ -327,33 +252,21 @@ export function GroupManagementDialog({
             label={t("common.labels.name")}
           />
         ),
-        cell: ({ row }) => {
-          const group = row.original;
-          const syncDot = getSyncStatusDot(
-            group,
-            groupSyncStatus[group.id],
-            t,
-            groupSyncErrors[group.id],
-          );
-          return (
-            <div className="flex min-w-0 items-center gap-2 font-medium">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className={`size-2 rounded-full shrink-0 ${syncDot.color} ${
-                      syncDot.animate ? "animate-pulse" : ""
-                    }`}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{syncDot.tooltip}</p>
-                </TooltipContent>
-              </Tooltip>
-              <LuFolder className="size-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{group.name}</span>
-            </div>
-          );
-        },
+        cell: ({ row }) => (
+          <button
+            type="button"
+            className="flex max-w-full min-w-0 items-center gap-2 rounded-sm text-left font-medium hover:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            onClick={() => {
+              handleEditGroup(row.original);
+            }}
+          >
+            <LuFolder
+              aria-hidden="true"
+              className="size-4 shrink-0 text-muted-foreground"
+            />
+            <span className="truncate">{row.original.name}</span>
+          </button>
+        ),
       },
       {
         id: "count",
@@ -375,105 +288,89 @@ export function GroupManagementDialog({
         ),
       },
       {
-        id: "sync",
-        size: 96,
+        id: "bookmarks",
+        size: 104,
         enableSorting: false,
-        header: () => t("proxies.management.syncCol"),
+        header: () => t("groupManagement.bookmarksCol"),
         cell: ({ row }) => {
           const group = row.original;
-          const locked = groupInUse[group.id];
+          const label = t("groupBookmarks.editTooltip", {
+            n: group.bookmark_count ?? 0,
+          });
           return (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center">
-                  <AnimatedSwitch
-                    checked={group.sync_enabled}
-                    onCheckedChange={() => handleToggleSync(group)}
-                    disabled={isTogglingSync[group.id] || locked}
-                  />
-                </span>
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  data-testid="group-bookmarks-button"
+                  aria-label={label}
+                  className="h-7 gap-1.5 px-1.5 tabular-nums"
+                  onClick={() => {
+                    handleEditBookmarks(group);
+                  }}
+                >
+                  <LuBookmark className="size-3.5" />
+                  {group.bookmark_count ?? 0}
+                </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {locked ? (
-                  <p>{t("syncTooltips.lockedInUse")}</p>
-                ) : (
-                  <p>
-                    {group.sync_enabled
-                      ? t("syncTooltips.disable")
-                      : t("syncTooltips.enable")}
-                  </p>
-                )}
+                <p>{label}</p>
               </TooltipContent>
             </Tooltip>
           );
         },
       },
       {
-        id: "actions",
-        size: 132,
+        id: "sync",
+        size: 80,
         enableSorting: false,
-        header: () => t("common.labels.actions"),
+        header: () => t("proxies.management.syncCol"),
         cell: ({ row }) => {
           const group = row.original;
           return (
-            <div className="flex gap-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-testid="group-bookmarks-button"
-                    aria-label={t("groupBookmarks.editTooltip", {
-                      n: group.bookmark_count ?? 0,
-                    })}
-                    onClick={() => {
-                      handleEditBookmarks(group);
-                    }}
-                  >
-                    <LuBookmark className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {t("groupBookmarks.editTooltip", {
-                      n: group.bookmark_count ?? 0,
-                    })}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      handleEditGroup(group);
-                    }}
-                  >
-                    <LuPencil className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t("groupManagement.editGroupTooltip")}</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      handleDeleteGroup(group);
-                    }}
-                  >
-                    <LuTrash2 className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t("groupManagement.deleteGroupTooltip")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
+            <SyncCell
+              name={group.name}
+              enabled={Boolean(group.sync_enabled)}
+              lastSync={group.last_sync}
+              status={groupSyncStatus[group.id]}
+              error={groupSyncErrors[group.id]}
+              busy={isTogglingSync[group.id]}
+              lockedReason={
+                groupInUse[group.id] ? t("syncTooltips.lockedInUse") : undefined
+              }
+              onToggle={() => void handleToggleSync(group)}
+            />
+          );
+        },
+      },
+      {
+        id: "actions",
+        size: 76,
+        enableSorting: false,
+        header: () => (
+          <span className="sr-only">{t("common.labels.actions")}</span>
+        ),
+        cell: ({ row }) => {
+          const group = row.original;
+          return (
+            <RowActions>
+              <RowAction
+                label={t("groupManagement.editGroupTooltip")}
+                icon={<LuPencil />}
+                onClick={() => {
+                  handleEditGroup(group);
+                }}
+              />
+              <RowAction
+                label={t("groupManagement.deleteGroupTooltip")}
+                icon={<LuTrash2 />}
+                tone="destructive"
+                onClick={() => {
+                  handleDeleteGroup(group);
+                }}
+              />
+            </RowActions>
           );
         },
       },
@@ -603,46 +500,70 @@ export function GroupManagementDialog({
           )}
 
           <div className="@container flex min-h-0 w-full flex-1 flex-col">
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+            <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-2">
               <div
                 data-slot="group-summary-pill"
                 className="inline-flex h-7 items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium whitespace-nowrap text-accent-foreground"
               >
                 <span>{t("groups.pageTitle")}</span>
-                <span
-                  data-slot="group-summary-count"
-                  className="text-xs tabular-nums"
-                >
-                  {groups.length}
-                </span>
+                <TickingCount
+                  slot="group-summary-count"
+                  value={groups.length}
+                  className="text-xs"
+                />
               </div>
-              <RippleButton
-                size="sm"
+              <PageAction
+                primary
+                icon={<GoPlus className="size-4" />}
+                label={t("groupManagement.newGroup")}
                 onClick={() => {
                   setCreateDialogOpen(true);
                 }}
-                className="flex shrink-0 items-center gap-2"
-                aria-label={t("common.buttons.create")}
-              >
-                <GoPlus className="size-4" />
-                <span className="hidden @2xl:inline">
-                  {t("common.buttons.create")}
-                </span>
-              </RippleButton>
+              />
             </div>
 
             {error && (
-              <div className="mt-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive-text">
-                {error}
+              <div
+                role="alert"
+                className="mb-4 flex items-center justify-between gap-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-text"
+              >
+                <span className="min-w-0 break-words">{error}</span>
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  className="h-7 shrink-0"
+                  onClick={() => void loadGroups()}
+                >
+                  {t("common.buttons.retry")}
+                </Button>
               </div>
             )}
 
-            {/* Groups list */}
             <ManagedDataTable
               table={table}
               tools={tableTools}
               loading={isLoading}
-              emptyText={t("groups.noGroupsDescription")}
+              empty={
+                error ? undefined : (
+                  <EntityEmptyState
+                    entity="groups"
+                    scene={<GroupsScene />}
+                    title={t("entities.empty.groups.title")}
+                    description={t("entities.empty.groups.body")}
+                  >
+                    <RippleButton
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        setCreateDialogOpen(true);
+                      }}
+                    >
+                      <GoPlus className="size-4" />
+                      {t("groupManagement.newGroup")}
+                    </RippleButton>
+                  </EntityEmptyState>
+                )
+              }
             />
           </div>
 

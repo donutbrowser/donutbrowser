@@ -639,7 +639,152 @@ test("profile table filters, range selection, view settings, and keyboard edits 
         false,
         "search clears all action targets",
       );
+      const searchValue = () =>
+        app.execute("return document.querySelector(arguments[0]).value;", [
+          searchSelector,
+        ]);
+      const searchGhost = () =>
+        app.execute(
+          `return document.querySelector('[data-slot="profile-search-ghost"]')?.textContent ?? "";`,
+        );
+      const suggestionsOpen = () =>
+        app.execute(
+          `return Boolean(document.querySelector('[data-slot="profile-search-suggestions"]'));`,
+        );
       await app.clickSelector(`[aria-label="${en.header.clearSearch}"]`);
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="profile-search-suggestions"] [role="option"][data-suggestion-kind="example"]').length === arguments[0];`,
+            [3],
+          ),
+        { description: "an emptied search lists example queries" },
+      );
+      await app.pressShortcut({ key: "\uE00C" });
+      await app.waitFor(async () => !(await suggestionsOpen()), {
+        description: "Escape closes the suggestions",
+      });
+
+      // Ghost completion: a field name, then a value from the profiles' tags.
+      await app.fillSelector(searchSelector, "ta");
+      await app.waitFor(async () => (await searchGhost()) === "g:", {
+        description: "field name ghost text",
+      });
+      await app.pressShortcut({ key: "\uE004" });
+      await app.waitFor(async () => (await searchValue()) === "tag:", {
+        description: "Tab accepts the field name",
+      });
+      await app.waitFor(async () => (await searchGhost()) === "table-work", {
+        description: "tag value ghost text",
+      });
+      await app.pressShortcut({ key: "\uE004" });
+      await app.waitFor(
+        async () =>
+          (await searchValue()) === "tag:table-work " &&
+          (await tableRows(app, "profiles")).length === 2,
+        { description: "Tab accepts the tag value" },
+      );
+      const highlight = await app.execute(
+        `
+        const input = document.querySelector(arguments[0]);
+        const layer = document.querySelector('[data-slot="profile-search-highlight"]');
+        const field = [...layer.children].find((node) => node.textContent === "tag:");
+        return {
+          mirrored: layer.textContent === input.value,
+          inputText: getComputedStyle(input).color,
+          field: field ? getComputedStyle(field).color : null,
+          value: getComputedStyle([...layer.children].find((node) => node.textContent === "table-work")).color,
+        };
+      `,
+        [searchSelector],
+      );
+      assert.equal(highlight.mirrored, true, "the highlight mirrors the input");
+      assert.equal(highlight.inputText, "rgba(0, 0, 0, 0)");
+      assert.ok(highlight.field, "the field name is its own span");
+      assert.notEqual(
+        highlight.field,
+        highlight.value,
+        "field and value differ",
+      );
+      assert.equal(
+        await suggestionsOpen(),
+        false,
+        "a finished term closes the list",
+      );
+
+      // Picking a value with the mouse, and with the arrow keys.
+      await app.fillSelector(searchSelector, "tag:");
+      const option =
+        '[data-slot="profile-search-suggestions"] [role="option"][data-suggestion="table-work"]';
+      await app.waitFor(
+        () =>
+          app.execute(
+            "return document.querySelector(arguments[0])?.textContent === '2';",
+            [`${option} [data-slot="profile-search-count"]`],
+          ),
+        { description: "tag value with its profile count" },
+      );
+      await app.clickSelector(option);
+      await app.waitFor(
+        async () =>
+          (await searchValue()) === "tag:table-work " &&
+          (await tableRows(app, "profiles")).length === 2,
+        { description: "a clicked suggestion fills the value" },
+      );
+      await app.fillSelector(searchSelector, "tag:");
+      await app.waitFor(suggestionsOpen, { description: "tag values listed" });
+      await app.pressShortcut({ key: "\uE015" });
+      await app.waitFor(
+        () =>
+          app.execute(
+            "return document.getElementById(document.querySelector(arguments[0]).getAttribute('aria-activedescendant'))?.dataset.suggestion === 'table-work';",
+            [searchSelector],
+          ),
+        { description: "ArrowDown chooses the first value" },
+      );
+      await app.pressShortcut({ key: "\uE007" });
+      await app.waitFor(
+        async () => (await searchValue()) === "tag:table-work ",
+        {
+          description: "Enter accepts the chosen suggestion",
+        },
+      );
+
+      // A value the field cannot take is explained in the list.
+      await app.fillSelector(searchSelector, "os:solaris");
+      await app.waitFor(
+        () =>
+          app
+            .execute(
+              `return document.querySelector('[data-slot="profile-search-issue"]')?.textContent ?? "";`,
+            )
+            .then(
+              (text) =>
+                text ===
+                en.search.issues.enum
+                  .replace("{{field}}", "os:")
+                  .replace("{{values}}", "macos, windows, linux"),
+            ),
+        { description: "an invalid enum value explains itself" },
+      );
+
+      // The syntax help inserts a field where the caret is.
+      await app.clickSelector(`[aria-label="${en.header.clearSearch}"]`);
+      await app.clickSelector(`[aria-label="${en.search.helpLabel}"]`);
+      await app.clickSelector(
+        '[data-slot="profile-search-help"] [data-search-field="group"]',
+      );
+      await app.waitFor(
+        async () =>
+          (await searchValue()) === "group:" &&
+          (await app.execute(
+            "return document.activeElement === document.querySelector(arguments[0]);",
+            [searchSelector],
+          )),
+        { description: "the help inserts a field and returns to the box" },
+      );
+      await app.clickSelector(`[aria-label="${en.header.clearSearch}"]`);
+      await app.pressShortcut({ key: "\uE00C" });
       await app.clickTextIn(
         '[data-table-id="profiles"] [data-slot="table-filters"]',
         en.tables.filters,
@@ -1727,7 +1872,65 @@ test("the local API page shows a one-line example and opens runnable examples in
       (await copied())[0],
       oneLine(curlSnippet(LOCAL_API_EXAMPLES[0].request, { baseUrl, token })),
     );
+
+    // The connection test is one row until it runs: no stations and no
+    // verdicts before there is a result.
+    const diagnostics = '[data-slot="integration-diagnostics"]';
+    const probe = () =>
+      app.execute(
+        `const panel = document.querySelector(arguments[0]);
+         return {
+           height: panel.getBoundingClientRect().height,
+           flow: panel.querySelector('[data-slot="operation-flow"]')?.dataset.state ?? null,
+           problem: panel.querySelector('[data-slot="integration-diagnostics-problem"]')?.innerText ?? null,
+           text: panel.innerText,
+         };`,
+        [diagnostics],
+      );
+    const idle = await probe();
+    assert.equal(idle.flow, null);
+    assert.ok(!idle.text.includes(en.appFeedback.notVerified), idle.text);
+    assert.ok(idle.height < 110, `idle connection test is ${idle.height}px`);
+    await app.clickTextIn(diagnostics, en.appFeedback.testConnection, {
+      roles: ["button"],
+    });
+    await app.waitFor(async () => (await probe()).flow === "done", {
+      description: "the running API accepting the saved token",
+    });
+    const passed = await probe();
+    assert.equal(passed.problem, null);
+    assert.ok(passed.text.includes("HTTP 200"), passed.text);
+    assert.ok(
+      passed.height < 170,
+      `tested connection test is ${passed.height}px`,
+    );
     await app.capture("integrations-local-api");
+
+    // A refusal names the station and the reason, and stays.
+    await stubCommand(app, "check_integration_connection", {
+      configured: true,
+      reachable: true,
+      authorized: false,
+      http_status: 401,
+      checked_at: Math.floor(Date.now() / 1000),
+    });
+    await app.clickTextIn(diagnostics, en.appFeedback.testConnection, {
+      roles: ["button"],
+    });
+    await app.waitFor(async () => (await probe()).flow === "failed", {
+      description: "the refused credential reported",
+    });
+    const refused = await probe();
+    assert.equal(refused.problem, en.appFeedback.probeRefused);
+    assert.ok(refused.text.includes("HTTP 401"), refused.text);
+    assert.equal(
+      await app.execute(
+        `return document.querySelector(arguments[0] + ' [data-slot="operation-marker"]')?.dataset.nodeState ?? null;`,
+        [diagnostics],
+      ),
+      "failed",
+    );
+    await app.capture("integrations-local-api-refused");
 
     await app.clickText(en.integrations.examples.open);
     await app.waitForText(en.integrations.examples.apiTitle);
@@ -1806,7 +2009,7 @@ test("all primary navigation buttons and sub-page tabs render and remain interac
     }
 
     await app.clickSelector('[aria-label="Groups"]');
-    await app.waitForText("Create");
+    await app.waitForText(en.groupManagement.newGroup);
     await dismissSurface(app);
 
     await app.clickSelector('[aria-label="More"]');
@@ -2329,6 +2532,95 @@ test("settings tabs, command palette filtering, and responsive layout survive re
       ),
       true,
     );
+  });
+});
+
+test("the command palette finds synonyms, remembers recent commands, and opens nested pages", async () => {
+  await withApp("ui-command-palette", async (app) => {
+    const modifier =
+      process.platform === "darwin" ? { meta: true } : { ctrl: true };
+    const paletteOpen = () =>
+      app.execute(`return Boolean(document.querySelector("[cmdk-input]"));`);
+    const openPalette = async () => {
+      await app.pressShortcut({ key: "k", ...modifier });
+      await app.waitFor(paletteOpen, { description: "command palette" });
+    };
+    const hasSelector = (selector) =>
+      app.execute(`return Boolean(document.querySelector(arguments[0]));`, [
+        selector,
+      ]);
+    const placeholder = () =>
+      app.execute(`return document.querySelector("[cmdk-input]").placeholder;`);
+    const waitSelected = (value) =>
+      app.waitFor(
+        async () =>
+          (await app.execute(
+            `return document.querySelector('[cmdk-item][data-selected="true"]')?.getAttribute("data-value") ?? null;`,
+          )) === value,
+        { description: `selected ${value}` },
+      );
+    const chip = '[data-slot="command-page-chip"][data-page="group"]';
+
+    await openPalette();
+    // A synonym finds a command its label does not name.
+    await app.fillSelector("[cmdk-input]", "new");
+    await waitSelected("action:createProfile");
+    // The matched part of a label is marked.
+    await app.fillSelector("[cmdk-input]", "trash");
+    await waitSelected("shortcut:goTrash");
+    assert.equal(
+      await app.execute(
+        `return document.querySelector('[cmdk-item][data-value="shortcut:goTrash"] mark')?.textContent ?? "";`,
+      ),
+      "Trash",
+    );
+    // Enter runs it, closes the palette, and remembers it.
+    await app.pressShortcut({ key: "\uE007" });
+    await app.waitFor(() => hasSelector('[data-slot="trash-page"]'), {
+      description: "trash page",
+    });
+    assert.equal(await paletteOpen(), false);
+    assert.deepEqual(
+      await app.execute(
+        `return JSON.parse(localStorage.getItem("donut.commandPalette.recent"));`,
+      ),
+      ["shortcut:goTrash"],
+    );
+
+    // Recent commands come first, so Enter repeats the last one.
+    await openPalette();
+    await waitSelected("recent:shortcut:goTrash");
+
+    // A page opens with a breadcrumb and its own search, and Backspace in
+    // the empty search goes back to the entry it came from.
+    await app.clickSelector('[cmdk-item][data-value="page:group"]');
+    await app.waitFor(() => hasSelector(chip), { description: "group page" });
+    assert.equal(
+      await placeholder(),
+      en.commandPalette.pages.group.placeholder,
+    );
+    await waitSelected("group:__all__");
+    await app.pressShortcut({ key: "\uE003" });
+    await app.waitFor(async () => !(await hasSelector(chip)), {
+      description: "back to all commands",
+    });
+    assert.equal(await placeholder(), en.commandPalette.placeholder);
+    await waitSelected("page:group");
+
+    // Escape leaves a page first, then closes the palette.
+    await app.pressShortcut({ key: "\uE007" });
+    await app.waitFor(() => hasSelector(chip), { description: "group page" });
+    await app.pressShortcut({ key: "Escape" });
+    await app.waitFor(async () => !(await hasSelector(chip)), {
+      description: "Escape leaves the page",
+    });
+    assert.equal(await paletteOpen(), true);
+
+    // The palette shortcut closes the palette it opened.
+    await app.pressShortcut({ key: "k", ...modifier });
+    await app.waitFor(async () => !(await paletteOpen()), {
+      description: "the palette shortcut closes the palette",
+    });
   });
 });
 
@@ -3967,16 +4259,27 @@ test("templates save from the create dialog and the inspector, and several profi
         { description: "the saved template shown as applied" },
       );
 
+      // The count moves nothing: every footer control keeps its place and
+      // size, and the dialog keeps its height.
+      const single = await createFooterLayout(app);
       await app.clickSelector('[data-slot="profile-count-more"]');
       await app.clickSelector('[data-slot="profile-count-more"]');
-      await app.waitForText(
-        en.templates.createMany_other.replace("{{count}}", "3"),
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('#profile-count')?.value === "3";`,
+          ),
+        { description: "three profiles" },
       );
-      assert.equal(
-        await app.execute(
-          `return document.querySelector('[data-slot="profile-count-hint"]') !== null;`,
-        ),
-        true,
+      assert.deepEqual(await createFooterLayout(app), single);
+      // The names the batch gets show on the stepper, not in the form.
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="profile-count-hint"]')?.innerText.includes(arguments[0]) ?? false;`,
+            [en.templates.namesHint.replaceAll("{{name}}", "Batch")],
+          ),
+        { description: "the names hint on the stepper" },
       );
       assert.equal(
         await app.execute(
@@ -4220,6 +4523,194 @@ test("importing from a link validates the input and names the extension before i
   });
 });
 
+/** Theme tokens as the browser computes them, so they compare with any
+ * element's computed colour whatever notation the theme uses. */
+async function themeTokenColors(app) {
+  return app.execute(`
+    const probe = document.createElement("span");
+    document.body.append(probe);
+    const resolve = (name) => {
+      probe.style.color = "var(" + name + ")";
+      return getComputedStyle(probe).color;
+    };
+    const tokens = {
+      muted: resolve("--muted-foreground"),
+      warning: resolve("--warning"),
+      warningText: resolve("--warning-text"),
+    };
+    probe.remove();
+    return tokens;
+  `);
+}
+
+test("entity pages teach when empty, label protocols neutrally, and reach row actions by keyboard", async () => {
+  await withApp("ui-entity-pages", async (app) => {
+    const emptyState = (entity) =>
+      `[data-slot="entity-empty-state"][data-entity="${entity}"]`;
+
+    // Nothing stored yet: the page says what a group is for, and its one
+    // action makes the first one.
+    await app.clickSelector(`[aria-label="${en.rail.groups}"]`);
+    await app.waitForText(en.entities.empty.groups.title);
+    assert.ok(await app.visibleTextIncludes(en.entities.empty.groups.body));
+    await app.clickTextIn(emptyState("groups"), en.groupManagement.newGroup, {
+      roles: ["button"],
+    });
+    await app.waitForText(en.groups.createTitle);
+    await app.fillSelector("#group-name", "Empty state group");
+    await app.clickTextIn('[role="dialog"]', en.common.buttons.create, {
+      roles: ["button"],
+    });
+    await app.waitFor(
+      async () => (await tableRows(app, "groups")).length === 1,
+      { description: "the first group replaces the empty state" },
+    );
+    assert.equal(
+      await app.execute("return document.querySelector(arguments[0]);", [
+        emptyState("groups"),
+      ]),
+      null,
+    );
+
+    await app.clickSelector(`[aria-label="${en.rail.network}"]`);
+    await app.waitForText(en.entities.empty.proxies.title);
+    await app.clickTextIn(
+      emptyState("proxies"),
+      en.proxies.management.newProxy,
+      { roles: ["button"] },
+    );
+    await app.waitFor(
+      () =>
+        app.execute(`return Boolean(document.querySelector("#proxy-name"));`),
+      { description: "the proxy form from the empty state" },
+    );
+    await dismissSurface(app);
+    await app.waitFor(
+      async () =>
+        !(await app.execute(
+          `return Boolean(document.querySelector("#proxy-name"));`,
+        )),
+      { description: "the proxy form to close" },
+    );
+    await app.clickText(en.proxies.management.tabVpns, {
+      roles: ["tab"],
+      exact: false,
+    });
+    await app.waitForText(en.entities.empty.vpns.title);
+    await app.clickText(en.proxies.management.tabProxies, {
+      roles: ["tab"],
+      exact: false,
+    });
+
+    const plain = await app.invoke("create_stored_proxy", {
+      name: "Badge HTTP",
+      proxySettings: {
+        proxy_type: "http",
+        host: "127.0.0.1",
+        port: 9,
+        username: null,
+        password: null,
+      },
+    });
+    await app.invoke("create_stored_proxy", {
+      name: "Badge Shadowsocks",
+      proxySettings: {
+        proxy_type: "ss",
+        host: "127.0.0.1",
+        port: 8388,
+        username: "aes-256-gcm",
+        password: "badge-secret",
+      },
+    });
+    await app.waitFor(
+      async () => (await tableRows(app, "proxies")).length === 2,
+      { description: "the proxies replace the empty state" },
+    );
+
+    // A protocol is a fact, not a state: an unencrypted first hop keeps the
+    // same quiet badge as an encrypted one, and neither is warning-coloured.
+    const tokens = await themeTokenColors(app);
+    const badges = await app.execute(
+      `return [...document.querySelectorAll('[data-table-id="proxies"] [data-slot="kind-badge"]')]
+         .map((badge) => ({
+           text: badge.innerText.trim(),
+           hop: badge.dataset.firstHop,
+           color: getComputedStyle(badge).color,
+         }));`,
+    );
+    assert.deepEqual(badges.map((badge) => badge.hop).sort(), [
+      "encrypted",
+      "plaintext",
+    ]);
+    for (const badge of badges) {
+      assert.equal(badge.color, tokens.muted, `${badge.text} badge colour`);
+      assert.notEqual(badge.color, tokens.warning, `${badge.text} badge`);
+      assert.notEqual(badge.color, tokens.warningText, `${badge.text} badge`);
+    }
+
+    // Row actions wait for hover or focus, and the keyboard reaches them:
+    // End moves to the actions cell, F2 enters it. The driver's key events
+    // are synthetic, so Enter cannot press a native button, and the headless
+    // window never has focus, so focus styles never apply: the test checks
+    // focus, then presses the focused action.
+    await app.execute(`document.querySelector(arguments[0]).focus();`, [
+      `[data-table-id="proxies"] tr[data-table-row="${plain.id}"] [data-table-column="name"]`,
+    ]);
+    await app.pressShortcut({ key: "\uE010" });
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return document.activeElement?.dataset?.tableColumn === "actions";`,
+        ),
+      { description: "the actions cell to take focus" },
+    );
+    await app.pressShortcut({ key: "\uE032" });
+    await app.waitFor(
+      async () =>
+        (await app.execute(
+          `const active = document.activeElement;
+           return active?.matches('[data-slot="row-actions"] button')
+             ? active.getAttribute("aria-label")
+             : null;`,
+        )) === en.proxies.management.editProxy,
+      { description: "the edit action focused" },
+    );
+    await app.execute(`document.activeElement.click();`);
+    await app.waitFor(
+      async () =>
+        (await app.execute(
+          `return document.querySelector("#proxy-name")?.value ?? null;`,
+        )) === plain.name,
+      { description: "the edit form opened from the keyboard" },
+    );
+    await dismissSurface(app);
+
+    await app.invoke("create_vpn_config_manual", {
+      name: "Badge VPN",
+      vpnType: "WireGuard",
+      configData: wireGuardFixture(),
+    });
+    // The VPN form announces the change itself; the command does not.
+    await app.invoke("plugin:event|emit", {
+      event: "vpn-configs-changed",
+      payload: null,
+    });
+    await app.clickText(en.proxies.management.tabVpns, {
+      roles: ["tab"],
+      exact: false,
+    });
+    await app.waitFor(async () => (await tableRows(app, "vpns")).length === 1, {
+      description: "the VPN replaces the empty state",
+    });
+    assert.equal(
+      await app.execute(
+        `return getComputedStyle(document.querySelector('[data-table-id="vpns"] [data-slot="kind-badge"]')).color;`,
+      ),
+      tokens.muted,
+    );
+  });
+});
+
 test("a checked proxy shows its UDP verdict in the table and its check trail in the details", async () => {
   await withApp("ui-proxy-check-trail", async (app) => {
     const proxy = await app.invoke("create_stored_proxy", {
@@ -4258,6 +4749,21 @@ test("a checked proxy shows its UDP verdict in the table and its check trail in 
         )
       ).toLowerCase(),
       en.proxyCheck.udpNo.toLowerCase(),
+    );
+    // A proxy without UDP is a property, not a fault, so it is not painted
+    // as a warning.
+    const udpTokens = await themeTokenColors(app);
+    const udpColor = await app.execute(
+      `return getComputedStyle(document.querySelector('[data-slot="proxy-udp-verdict"]')).color;`,
+    );
+    assert.notEqual(udpColor, udpTokens.warning);
+    assert.notEqual(udpColor, udpTokens.warningText);
+    // The status pill states the failed check in words, beside the flag slot.
+    assert.equal(
+      await app.execute(
+        `return document.querySelector('[data-table-id="proxies"] [data-slot="check-pill"]')?.dataset?.checkState ?? null;`,
+      ),
+      "failed",
     );
 
     await app.clickSelector(`[aria-label="${en.appFeedback.routeDetails}"]`);
@@ -4587,27 +5093,69 @@ async function openTipsFromRail(app) {
   await app.clickSelector('[data-slot="rail-open-tips"]');
   await app.waitFor(
     () =>
-      app.execute(
-        `return document.querySelector(arguments[0])?.dataset.mode === "browse";`,
-        [TIPS_DIALOG],
-      ),
+      app.execute(`return Boolean(document.querySelector(arguments[0]));`, [
+        TIPS_DIALOG,
+      ]),
     { description: "the tips catalog" },
+  );
+}
+
+const INLINE_TIP = '[data-slot="inline-tip"]';
+
+async function inlineTipId(app) {
+  return app.execute(
+    `const card = document.querySelector(arguments[0]); return card?.dataset.state === "shown" ? card.dataset.tipId : null;`,
+    [INLINE_TIP],
+  );
+}
+
+async function waitForInlineTip(app, id) {
+  await app.waitFor(async () => (await inlineTipId(app)) === id, {
+    description: `the inline ${id} tip`,
+    timeoutMs: 30_000,
+  });
+}
+
+async function waitForNoInlineTip(app) {
+  await app.waitFor(
+    () =>
+      app.execute(`return !document.querySelector(arguments[0]);`, [
+        INLINE_TIP,
+      ]),
+    { description: "the inline tip gone" },
   );
 }
 
 test("tips open from the rail, walk the catalog, and deep-link into the feature", async () => {
   await withApp("ui-tips-browse", async (app) => {
     await openTipsFromRail(app);
-    assert.ok(await app.visibleTextIncludes(en.tips.items.dnsBlocklist.title));
+    assert.ok(
+      await app.visibleTextIncludes(en.tips.items.commandPalette.title),
+    );
 
-    // Every essential is listed; a plan tip needs a plan, and there is none.
+    // Every essential is listed, in its section; a plan tip needs a plan,
+    // and there is none.
     const listed = await app.execute(
       `return [...document.querySelectorAll('[data-slot="tips-list-item"]')].map((node) => node.dataset.tipId);`,
     );
-    assert.ok(listed.includes("dnsBlocklist"));
-    assert.ok(listed.includes("trash"));
+    for (const id of ["dnsBlocklist", "trash", "vpn", "searchSyntax", "totp"]) {
+      assert.ok(listed.includes(id), `${id} is listed`);
+    }
     assert.ok(!listed.includes("cookieBot"));
+    assert.ok(!listed.includes("synchronizer"));
     assert.ok(!listed.includes("team"));
+    assert.equal(
+      await app.execute(
+        `return document.querySelectorAll('[data-slot="tips-section"]').length;`,
+      ),
+      4,
+      "four sections, and no plan section without a plan",
+    );
+    assert.equal(
+      await app.execute(`return document.activeElement?.dataset.slot;`),
+      "tip-advance",
+      "Enter walks on from the first moment",
+    );
 
     // The drawing is live SVG in the scene panel, not a picture.
     assert.equal(
@@ -4621,11 +5169,11 @@ test("tips open from the rail, walk the catalog, and deep-link into the feature"
     await app.waitFor(
       () =>
         app.execute(
-          `return document.querySelector('[data-slot="tip-detail"]')?.dataset.tipId === "proxyCheck";`,
+          `return document.querySelector('[data-slot="tip-detail"]')?.dataset.tipId === "searchSyntax";`,
         ),
       { description: "the second tip" },
     );
-    assert.ok(await app.visibleTextIncludes(en.tips.items.proxyCheck.title));
+    assert.ok(await app.visibleTextIncludes(en.tips.items.searchSyntax.title));
 
     // Picking from the catalog moves the sliding indicator onto that entry.
     await app.clickSelector(
@@ -4648,15 +5196,40 @@ test("tips open from the rail, walk the catalog, and deep-link into the feature"
     );
     await app.capture("tips-browse");
 
-    // Seen tips are remembered, so the automatic flow never repeats them.
+    // The arrows page through the catalog from the keyboard.
+    await app.pressShortcut({ key: "ArrowRight" });
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return document.querySelector('[data-slot="tip-detail"]')?.dataset.tipId === "selfHostedSync";`,
+        ),
+      { description: "the tip after the trash tip" },
+    );
+    await app.pressShortcut({ key: "ArrowLeft" });
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return document.querySelector('[data-slot="tip-detail"]')?.dataset.tipId === "trash";`,
+        ),
+      { description: "back to the trash tip" },
+    );
+
+    // Read tips are remembered, so the inline tip never repeats them, and
+    // the catalog marks only the unread ones.
     await app.waitFor(
       async () => {
         const state = await app.invoke("get_tips_state");
-        return ["dnsBlocklist", "proxyCheck", "trash"].every((id) =>
+        return ["commandPalette", "searchSyntax", "trash"].every((id) =>
           state.seen.includes(id),
         );
       },
       { description: "seen tips persisted" },
+    );
+    assert.deepEqual(
+      await app.execute(
+        `return ["commandPalette", "vpn"].map((id) => Boolean(document.querySelector('[data-slot="tips-list-item"][data-tip-id="' + id + '"] [data-slot="tips-unread-dot"]')));`,
+      ),
+      [false, true],
     );
 
     // The action lands inside the feature: the DNS tip opens settings on
@@ -4689,10 +5262,9 @@ test("tips open from the rail, walk the catalog, and deep-link into the feature"
     });
     await app.waitFor(
       () =>
-        app.execute(
-          `return document.querySelector(arguments[0])?.dataset.mode === "browse";`,
-          [TIPS_DIALOG],
-        ),
+        app.execute(`return Boolean(document.querySelector(arguments[0]));`, [
+          TIPS_DIALOG,
+        ]),
       { description: "the tips catalog from the keyboard" },
     );
     assert.equal(
@@ -4718,14 +5290,14 @@ test("tips open from the rail, walk the catalog, and deep-link into the feature"
   });
 });
 
-test("one tip for an unused feature opens by itself as a single card, then waits 2 to 5 days", async () => {
-  // Every tip but two is seen already, and the only profile blocks ads, so
-  // the DNS tip is in use and the trash tip is the one the automatic flow
-  // may open. The flow is switched on only after that profile exists.
+test("one tip a day sits on the Profiles page for an unused feature, and a dismissed one waits for tomorrow", async () => {
+  // Every tip but two is read already, and the only profile blocks ads, so
+  // the DNS tip is in use and the trash tip is the one the page may show.
+  // Tips are switched on only after that profile exists.
   const unseen = ["dnsBlocklist", "trash"];
   const seen = Object.keys(en.tips.items).filter((id) => !unseen.includes(id));
   await withApp(
-    "ui-tips-auto",
+    "ui-tips-inline",
     async (app) => {
       const profile = await createUiProfile(app, "Tips Blocker");
       await app.invoke("update_profile_dns_blocklist", {
@@ -4735,74 +5307,69 @@ test("one tip for an unused feature opens by itself as a single card, then waits
       await app.invoke("set_tips_auto_show", { enabled: true });
       await app.restart();
 
-      await app.waitFor(
-        () =>
-          app.execute(
-            `return document.querySelector(arguments[0])?.dataset.mode === "single";`,
-            [TIPS_DIALOG],
-          ),
-        { description: "the automatic tip", timeoutMs: 30_000 },
-      );
-      assert.equal(
-        await app.execute(
-          `return document.querySelector('[data-slot="tip-detail"]')?.dataset.tipId;`,
-        ),
-        "trash",
-        "the DNS tip is skipped because a profile already blocks ads",
-      );
+      await waitForInlineTip(app, "trash");
       assert.ok(await app.visibleTextIncludes(en.tips.items.trash.title));
-      assert.deepEqual(
+      assert.equal(
         await app.execute(
-          `return ['tips-list-item', 'tip-previous', 'tip-next'].map((slot) => document.querySelectorAll('[data-slot="' + slot + '"]').length);`,
+          `return Boolean(document.querySelector('[role="dialog"], [role="alertdialog"]'));`,
         ),
-        [0, 0, 0],
-        "one tip at a time: no catalog and no pager",
+        false,
+        "the tip is part of the page, not a dialog",
       );
       assert.equal(
         await app.execute(
-          `return document.querySelector('[data-slot="tip-advance"]')?.textContent.trim();`,
+          `return document.querySelector(arguments[0]).contains(document.activeElement);`,
+          [INLINE_TIP],
         ),
-        en.tips.done,
+        false,
+        "the tip never takes the focus",
       );
-      await app.capture("tips-auto");
+      assert.equal(
+        await app.execute(
+          `const card = document.querySelector(arguments[0]).getBoundingClientRect(); const table = document.querySelector('[data-slot="profile-workspace"]').getBoundingClientRect(); return card.top >= table.bottom - 1;`,
+          [INLINE_TIP],
+        ),
+        true,
+        "the card sits under the table and covers no profile",
+      );
+      const pinned = await app.invoke("get_tips_state");
+      assert.equal(pinned.inline_tip, "trash");
+      assert.equal(pinned.auto_due, false);
+      assert.ok(
+        !pinned.seen.includes("trash") && !pinned.seen.includes("dnsBlocklist"),
+        "showing a tip is not reading it, and the skipped tip stays unread",
+      );
+      await app.capture("tips-inline");
 
+      // The day's tip comes back after a restart until it is closed.
+      await app.restart();
+      await waitForInlineTip(app, "trash");
+
+      await app.clickSelector('[data-slot="inline-tip-dismiss"]');
+      await waitForNoInlineTip(app);
       const state = await app.waitFor(
         async () => {
           const current = await app.invoke("get_tips_state");
-          return current.seen.includes("trash") && current.auto_due === false
-            ? current
-            : null;
+          return current.seen.includes("trash") ? current : null;
         },
-        { description: "the automatic tip recorded" },
+        { description: "the dismissed tip recorded" },
       );
+      assert.equal(state.inline_tip, null);
+      assert.equal(state.auto_due, false);
+      const wait = state.next_auto_show_at - Math.floor(Date.now() / 1000);
       assert.ok(
-        !state.seen.includes("dnsBlocklist"),
-        "the skipped tip stays unseen",
-      );
-      const gap = state.next_auto_show_at - state.last_auto_shown_at;
-      assert.ok(
-        gap >= 2 * 24 * 60 * 60 && gap <= 5 * 24 * 60 * 60,
-        `the next automatic tip waits 2 to 5 days, not ${gap} seconds`,
+        wait >= 12 * 60 * 60 - 60 && wait <= 24 * 60 * 60,
+        `the next tip waits for the next day, not ${wait} seconds`,
       );
 
-      // Done closes the card instead of walking to another tip.
-      await app.clickSelector('[data-slot="tip-advance"]');
-      await app.waitFor(
-        () =>
-          app.execute(`return !document.querySelector(arguments[0]);`, [
-            TIPS_DIALOG,
-          ]),
-        { description: "the dialog closed" },
-      );
-
-      // A restart inside the gap shows nothing, and keeps the same wait.
+      // A restart the same day shows nothing, and keeps the same wait.
       await app.restart();
       await app.waitForText("Tips Blocker");
-      await new Promise((resolve) => setTimeout(resolve, 4_500));
+      await new Promise((resolve) => setTimeout(resolve, 6_000));
       assert.equal(
         await app.execute(
           `return Boolean(document.querySelector(arguments[0]));`,
-          [TIPS_DIALOG],
+          [INLINE_TIP],
         ),
         false,
       );
@@ -4812,6 +5379,101 @@ test("one tip for an unused feature opens by itself as a single card, then waits
       );
     },
     { settings: { tips_seen: seen } },
+  );
+});
+
+/** Settings where only `id` is unread, and it is the tip on the page. */
+function pinnedTip(id) {
+  return {
+    tips_seen: Object.keys(en.tips.items).filter((other) => other !== id),
+    tips_auto_show: true,
+    tips_inline: id,
+  };
+}
+
+test("the inline tip's action opens its feature and closes the tip as read", async () => {
+  await withApp(
+    "ui-tips-inline-action",
+    async (app) => {
+      await createUiProfile(app, "Tips Action");
+      await app.waitForText("Tips Action");
+      await waitForInlineTip(app, "trash");
+      assert.ok(await app.visibleTextIncludes(en.tips.items.trash.title));
+
+      await app.clickSelector('[data-slot="inline-tip-action"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="trash-page"]'));`,
+          ),
+        { description: "the trash page" },
+      );
+      const done = await app.waitFor(
+        async () => {
+          const current = await app.invoke("get_tips_state");
+          return current.seen.includes("trash") ? current : null;
+        },
+        { description: "the acted-on tip recorded" },
+      );
+      assert.equal(done.inline_tip, null);
+      assert.equal(done.auto_due, false);
+    },
+    { settings: pinnedTip("trash") },
+  );
+});
+
+test("turning tips off from the card takes it away, unread, for the day", async () => {
+  await withApp(
+    "ui-tips-inline-off",
+    async (app) => {
+      await createUiProfile(app, "Tips Off");
+      await app.waitForText("Tips Off");
+      await waitForInlineTip(app, "vpn");
+
+      await app.clickSelector('[data-slot="inline-tip-menu"]');
+      await app.clickSelector('[data-slot="inline-tip-off"]');
+      await waitForNoInlineTip(app);
+      assert.ok(await app.visibleTextIncludes(en.tips.inline.offTitle));
+      const off = await app.invoke("get_tips_state");
+      assert.equal(off.auto_show, false);
+      assert.equal(off.inline_tip, null);
+      assert.ok(!off.seen.includes("vpn"), "turned off is not read");
+      const wait = off.next_auto_show_at - Math.floor(Date.now() / 1000);
+      assert.ok(
+        wait >= 12 * 60 * 60 - 60 && wait <= 24 * 60 * 60,
+        `the removed tip counts as the day's tip, not ${wait} seconds`,
+      );
+
+      // Back on from the catalog, nothing new appears the same day.
+      await app.pressShortcut({
+        ...(process.platform === "darwin" ? { meta: true } : { ctrl: true }),
+        shift: true,
+        key: "h",
+      });
+      await app.waitFor(
+        () =>
+          app.execute(`return Boolean(document.querySelector(arguments[0]));`, [
+            TIPS_DIALOG,
+          ]),
+        { description: "the tips catalog" },
+      );
+      await app.clickSelector('[data-slot="tips-auto-show"]');
+      await app.waitFor(
+        async () => (await app.invoke("get_tips_state")).auto_show === true,
+        { description: "tips back on" },
+      );
+      await dismissSurface(app);
+      await new Promise((resolve) => setTimeout(resolve, 6_000));
+      assert.equal(
+        await app.execute(
+          `return Boolean(document.querySelector(arguments[0]));`,
+          [INLINE_TIP],
+        ),
+        false,
+      );
+      assert.equal((await app.invoke("get_tips_state")).auto_due, false);
+    },
+    { settings: pinnedTip("vpn") },
   );
 });
 
@@ -4862,6 +5524,7 @@ test("a freshly paid account is welcomed once and walked to its plan tips", asyn
           "cloudBackup",
           "cookieBot",
           "crossOs",
+          "synchronizer",
           "automation",
           "agent",
           "remoteControl",
@@ -5258,51 +5921,80 @@ test("Pro users can edit and save launch arguments in each profile", async () =>
   );
 });
 
-test("the create dialog warns a free user who creates quickly and holds a capped plan at its hourly limit", async () => {
+test("the create dialog warns a free user who creates quickly, holds a capped plan at its hourly limit, and never offers more profiles than fit", async () => {
   await withApp(
     "ui-profile-hourly-limit",
     async (app) => {
       const createDisabled = () =>
         app.execute(
-          `const dialog = document.querySelector('[role="dialog"]');
-         const button = [...(dialog?.querySelectorAll('button') ?? [])]
-           .find((node) => node.textContent.trim() === arguments[0]);
+          `const button = document.querySelector('[data-slot="profile-create-submit"]');
          return button ? button.disabled : null;`,
-          [en.common.buttons.create],
         );
+      const stepper = () =>
+        app.execute(
+          `return {
+             value: document.querySelector('#profile-count')?.value ?? null,
+             more: document.querySelector('[data-slot="profile-count-more"]')?.disabled ?? null,
+             hint: document.querySelector('[data-slot="profile-count-hint"]')?.innerText ?? "",
+             stressed: document.querySelector('[data-slot="profile-count-hint"] [data-limit]')?.innerText ?? null,
+           };`,
+        );
+      // Typing past the cap clamps to it as the digits arrive.
+      const typeCount = async (count, shown = count) => {
+        await app.clickSelector("#profile-count");
+        await app.fillSelector("#profile-count", String(count));
+        await app.waitFor(
+          async () => (await stepper()).value === String(shown),
+          {
+            description: `count ${count} shown as ${shown}`,
+          },
+        );
+      };
+      const closeDialog = async () => {
+        await app.clickTextIn('[role="dialog"]', en.common.buttons.cancel, {
+          roles: ["button"],
+        });
+        await app.waitFor(
+          () => app.execute(`return !document.querySelector('#profile-name');`),
+          { description: "create dialog closed" },
+        );
+      };
 
-      // Free: past the allowance the dialog warns, and Create still works.
+      // Free: past the allowance the dialog warns, and one profile can
+      // still be created, but not a batch.
       await stubCommand(app, "get_profile_creation_allowance", {
         enforcement: "soft",
         per_hour: 8,
         used: 8,
         retry_after_secs: 1_200,
+        remaining: 0,
       });
       await openProfileCreation(app);
       await app.waitForText(en.createProfile.hourlyLimit.warningTitle);
       await app.waitForText(en.createProfile.hourlyLimit.warning);
       await app.fillSelector("#profile-name", "Quick profile");
       assert.equal(await createDisabled(), false);
-      await app.clickTextIn('[role="dialog"]', en.common.buttons.cancel, {
-        roles: ["button"],
-      });
-      await app.waitFor(
-        () => app.execute(`return !document.querySelector('#profile-name');`),
-        { description: "create dialog closed" },
-      );
+      assert.equal((await stepper()).more, true, "no batch past the allowance");
+      await closeDialog();
 
-      // Solo at its cap: Create is disabled and its tooltip says why and when.
+      // Solo at its cap: Create is disabled and the dialog says why and when.
       await stubCommand(app, "get_profile_creation_allowance", {
         enforcement: "hard",
         per_hour: 10,
         used: 10,
         retry_after_secs: 1_200,
+        remaining: 0,
       });
       await openProfileCreation(app);
       await app.fillSelector("#profile-name", "Capped profile");
       await app.waitFor(async () => (await createDisabled()) === true, {
         description: "Create disabled at the hourly cap",
       });
+      await app.waitForText(
+        en.createProfile.hourlyLimit.reached
+          .replace("{{limit}}", "10")
+          .replace("{{minutes}}", "20"),
+      );
       assert.equal(
         await app.execute(
           `return document.body.innerText.includes(arguments[0]);`,
@@ -5311,40 +6003,97 @@ test("the create dialog warns a free user who creates quickly and holds a capped
         false,
         "a capped plan is refused, not warned",
       );
+      assert.equal((await stepper()).more, true);
+      await closeDialog();
 
-      const target = await app.execute(
-        `const rect = document.querySelector('[data-slot="hourly-limit"]').getBoundingClientRect();
-       return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };`,
-      );
-      try {
-        await app.session.command("POST", "/actions", {
-          actions: [
-            {
-              type: "pointer",
-              id: "hourly-limit-pointer",
-              actions: [
-                {
-                  type: "pointerMove",
-                  x: target.x,
-                  y: target.y,
-                  origin: "viewport",
-                },
-              ],
-            },
-          ],
-        });
-      } finally {
-        await app.session.command("DELETE", "/actions");
+      // Solo with three left: the stepper stops at three and says why.
+      await stubCommand(app, "get_profile_creation_allowance", {
+        enforcement: "hard",
+        per_hour: 10,
+        used: 7,
+        retry_after_secs: null,
+        remaining: 3,
+      });
+      await openProfileCreation(app);
+      await app.fillSelector("#profile-name", "Three left");
+      for (let i = 0; i < 2; i += 1) {
+        await app.clickSelector('[data-slot="profile-count-more"]');
       }
-      await app.waitForText(
-        en.createProfile.hourlyLimit.reached
-          .replace("{{limit}}", "10")
-          .replace("{{minutes}}", "20"),
+      await app.waitFor(async () => (await stepper()).value === "3", {
+        description: "count at the allowance",
+      });
+      let state = await stepper();
+      assert.equal(state.more, true, "+ stops at the allowance");
+      await typeCount(9, 3);
+      state = await stepper();
+      assert.equal(
+        state.stressed,
+        en.templates.allowanceLeft_other.replace("{{count}}", "3"),
       );
+      assert.equal(await createDisabled(), false);
+      await closeDialog();
+
+      // Pro: nothing in the footer moves from one profile to a hundred,
+      // and a hundred is the most one batch makes.
+      await stubCommand(app, "get_profile_creation_allowance", {
+        enforcement: "hard",
+        per_hour: 100,
+        used: 0,
+        retry_after_secs: null,
+        remaining: 100,
+      });
+      await openProfileCreation(app);
+      await app.fillSelector("#profile-name", "Many");
+      await app.waitFor(async () => (await createDisabled()) === false, {
+        description: "creation available",
+      });
+      const single = await createFooterLayout(app);
+      for (const count of [9, 10, 100]) {
+        await typeCount(count);
+        assert.deepEqual(
+          await createFooterLayout(app),
+          single,
+          `the footer at ${count} profiles`,
+        );
+      }
+      await typeCount(250, 100);
+      state = await stepper();
+      assert.equal(state.more, true, "+ stops at a hundred");
+      assert.equal(
+        state.stressed,
+        en.backendErrors.bulkCreateCountInvalid.replace("{{max}}", "100"),
+      );
+      await app.capture("profile-create-count-cap");
+      await closeDialog();
     },
     { seedDownloadedBrowser: true },
   );
 });
+
+/**
+ * Where each footer control of the create dialog sits in the dialog, and the
+ * dialog's height. Layout boxes, not painted ones: the dialog scales in as it
+ * opens, which moves painted boxes by a pixel for a moment.
+ */
+function createFooterLayout(app) {
+  return app.execute(`
+    const dialog = document.querySelector('#profile-name').closest('[role="dialog"]');
+    const footer = dialog.querySelector('[data-slot="dialog-footer"]');
+    const box = (node) => {
+      let x = 0;
+      let y = 0;
+      for (let at = node; at && at !== dialog; at = at.offsetParent) {
+        x += at.offsetLeft;
+        y += at.offsetTop;
+      }
+      return [x, y, node.offsetWidth, node.offsetHeight];
+    };
+    return {
+      dialog: dialog.offsetHeight,
+      controls: [...footer.querySelectorAll("button, input")].map(box),
+    };
+  `);
+}
 
 /** Stands in for the cloud feedback route and keeps every request it gets. */
 async function feedbackCaptureServer() {
@@ -5599,13 +6348,49 @@ test("feedback goes from the More menu to the team, with the logs the person pre
   }
 });
 
-test("a signed-in paid account picks its own sync server on the account page", async () => {
+async function signInAs(app, id, plan, subscriptionStatus, extra = {}) {
+  await stubCommand(app, "cloud_get_user", {
+    logged_in_at: new Date().toISOString(),
+    user: {
+      id,
+      email: `${id}@example.test`,
+      plan,
+      planPeriod: "monthly",
+      subscriptionStatus,
+      profileLimit: plan === "free" ? 0 : 20,
+      cloudProfilesUsed: 0,
+      proxyBandwidthLimitMb: 0,
+      proxyBandwidthUsedMb: 0,
+      proxyBandwidthExtraMb: 0,
+      isPrimaryDevice: true,
+      ...extra,
+    },
+  });
+  await app.invoke("plugin:event|emit", {
+    event: "cloud-auth-changed",
+    payload: null,
+  });
+}
+
+const SYNC_SOURCE_LINE = '[data-slot="account-sync-source"]';
+
+function pickedSyncSource(app) {
+  return app.execute(
+    `return document.querySelector('[data-slot="account-sync-source-choice"] [role="radio"][aria-checked="true"]')?.textContent?.trim() ?? null;`,
+  );
+}
+
+test("a paid account keeps its own sync server behind one quiet line", async () => {
   await withApp("ui-account-sync-server", async (app) => {
     await app.waitForText("No profiles yet");
     const own = en.account.ownServer;
     const server = "https://sync.example.test";
     try {
-      await stubCommand(app, "get_account_sync_server", null);
+      await stubCommand(app, "get_sync_source", {
+        active: "cloud",
+        account_server: null,
+        self_hosted_server: null,
+      });
       await stubCommand(app, "check_sync_server_connection", {
         server_reachable: true,
         storage_ready: true,
@@ -5614,28 +6399,18 @@ test("a signed-in paid account picks its own sync server on the account page", a
         storage_error: null,
         account_url: server,
       });
-      await stubCommand(app, "set_account_sync_server", server);
+      await stubCommand(app, "set_account_sync_server", {
+        active: "account",
+        account_server: server,
+        self_hosted_server: null,
+      });
+      await stubCommand(app, "set_sync_source", {
+        active: "cloud",
+        account_server: server,
+        self_hosted_server: null,
+      });
       await stubCommand(app, "restart_sync_service", null);
-      await stubCommand(app, "cloud_get_user", {
-        logged_in_at: new Date().toISOString(),
-        user: {
-          id: "ui-account-sync-server",
-          email: "solo@example.test",
-          plan: "solo",
-          planPeriod: "monthly",
-          subscriptionStatus: "active",
-          profileLimit: 20,
-          cloudProfilesUsed: 0,
-          proxyBandwidthLimitMb: 0,
-          proxyBandwidthUsedMb: 0,
-          proxyBandwidthExtraMb: 0,
-          isPrimaryDevice: true,
-        },
-      });
-      await app.invoke("plugin:event|emit", {
-        event: "cloud-auth-changed",
-        payload: null,
-      });
+      await signInAs(app, "ui-account-sync-server", "solo", "active");
       // A paid account opens the one-time welcome; close it when it comes.
       const welcomed = await app
         .waitFor(
@@ -5649,33 +6424,145 @@ test("a signed-in paid account picks its own sync server on the account page", a
       if (welcomed) await dismissSurface(app);
 
       await app.clickSelector(`[aria-label="${en.rail.account}"]`);
-      await app.clickText(en.account.tabs.selfHosted, { roles: ["tab"] });
-      await app.waitForText(own.title);
-      assert.ok(await app.visibleTextIncludes(own.currentCloud));
-      assert.ok(await app.visibleTextIncludes(own.cloudOnly));
-      // Signed in, the shared-token form is not offered.
+      const line = await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector(arguments[0])?.innerText ?? "";`,
+            [SYNC_SOURCE_LINE],
+          ),
+        { description: "the sync server line" },
+      );
+      assert.ok(line.includes(own.label), line);
+      assert.ok(line.includes(own.donutCloud), line);
+      // Signed in, there is no self-hosted tab, and the address form waits
+      // behind Change.
       assert.equal(
         await app.execute(
-          `return Boolean(document.querySelector('#self-hosted-token'));`,
+          `return [...document.querySelectorAll('[role="tab"]')].some((tab) => tab.textContent.trim() === arguments[0]);`,
+          [en.account.tabs.selfHosted],
+        ),
+        false,
+      );
+      assert.equal(
+        await app.execute(
+          `return Boolean(document.querySelector('#account-sync-server-url, #self-hosted-token'));`,
         ),
         false,
       );
 
+      await app.clickTextIn(SYNC_SOURCE_LINE, own.change);
       await app.fillSelector("#account-sync-server-url", `${server}/`);
-      await app.clickText(en.account.selfHosted.testConnection, {
-        roles: ["button"],
-      });
+      await app.clickTextIn(
+        SYNC_SOURCE_LINE,
+        en.account.selfHosted.testConnection,
+      );
       await app.waitForText(own.accountsOn);
-      await app.clickText(en.common.buttons.save, { roles: ["button"] });
-      await app.waitForText(own.current.replace("{{server}}", server));
-      assert.ok(await app.visibleTextIncludes(own.useDonutCloud));
+      await app.clickTextIn(SYNC_SOURCE_LINE, en.common.buttons.save);
+      await app.waitForText(
+        own.switched.replace("{{server}}", "sync.example.test"),
+      );
+      await app.waitFor(
+        async () => (await pickedSyncSource(app)) === "sync.example.test",
+        { description: "the own server picked" },
+      );
+      assert.ok(await app.visibleTextIncludes(own.cloudOnly));
       await app.capture("account-sync-server");
 
+      // Back to Donut cloud in one click; the server stays offered.
+      await app.clickTextIn(SYNC_SOURCE_LINE, own.donutCloud, {
+        roles: ["radio"],
+      });
+      await app.waitFor(
+        async () => (await pickedSyncSource(app)) === own.donutCloud,
+        { description: "Donut cloud picked" },
+      );
+      await app.waitForText(own.backToCloud);
+
       const calls = await app.execute(
-        `return (window.__donutStubbedCalls ?? []).filter((call) => call.command === "set_account_sync_server");`,
+        `return (window.__donutStubbedCalls ?? []).filter((call) => ["set_account_sync_server", "set_sync_source", "restart_sync_service"].includes(call.command));`,
+      );
+      assert.deepEqual(
+        calls.map((call) => call.command),
+        [
+          "set_account_sync_server",
+          "restart_sync_service",
+          "set_sync_source",
+          "restart_sync_service",
+        ],
+      );
+      assert.equal(calls[0].payload.serverUrl, `${server}/`);
+      assert.equal(calls[2].payload.source, "cloud");
+    } finally {
+      await restoreStubs(app);
+    }
+  });
+});
+
+test("a signed-in free account starts on Donut cloud and may pick a server set up signed out", async () => {
+  await withApp("ui-account-sync-choice", async (app) => {
+    await app.waitForText("No profiles yet");
+    const own = en.account.ownServer;
+    const shared = "https://shared.example.test";
+    try {
+      await stubCommand(app, "get_sync_source", {
+        active: "cloud",
+        account_server: null,
+        self_hosted_server: shared,
+      });
+      await stubCommand(app, "set_sync_source", {
+        active: "self_hosted",
+        account_server: null,
+        self_hosted_server: shared,
+      });
+      await stubCommand(app, "restart_sync_service", null);
+      await signInAs(app, "ui-account-sync-choice", "free", "inactive");
+
+      await app.clickSelector(`[aria-label="${en.rail.account}"]`);
+      await app.waitFor(
+        async () => (await pickedSyncSource(app)) === own.donutCloud,
+        { description: "Donut cloud picked by default" },
+      );
+      // A free account gets no way to add a server.
+      assert.equal(
+        await app.execute(
+          `return [...document.querySelectorAll(arguments[0] + " button")].some((button) => button.textContent.trim() === arguments[1]);`,
+          [SYNC_SOURCE_LINE, own.change],
+        ),
+        false,
+      );
+
+      await app.clickTextIn(SYNC_SOURCE_LINE, "shared.example.test", {
+        roles: ["radio"],
+      });
+      await app.waitFor(
+        async () => (await pickedSyncSource(app)) === "shared.example.test",
+        { description: "the shared-token server picked" },
+      );
+      await app.waitForText(
+        own.switched.replace("{{server}}", "shared.example.test"),
+      );
+      assert.ok(await app.visibleTextIncludes(own.cloudOnly));
+
+      const calls = await app.execute(
+        `return (window.__donutStubbedCalls ?? []).filter((call) => call.command === "set_sync_source");`,
       );
       assert.equal(calls.length, 1);
-      assert.equal(calls[0].payload.serverUrl, `${server}/`);
+      assert.equal(calls[0].payload.source, "self_hosted");
+
+      // A team seat is never offered a sync-token server.
+      await signInAs(app, "ui-account-sync-choice", "free", "inactive", {
+        teamId: "team-1",
+        teamName: "Team",
+        teamRole: "member",
+      });
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return ![...document.querySelectorAll('[data-slot="account-sync-source-choice"] [role="radio"]')].some((radio) => radio.textContent.trim() === arguments[0]);`,
+            ["shared.example.test"],
+          ),
+        { description: "no sync-token server for a team seat" },
+      );
     } finally {
       await restoreStubs(app);
     }

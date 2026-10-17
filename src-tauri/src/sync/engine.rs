@@ -573,7 +573,9 @@ impl SyncEngine {
 
   pub async fn create_from_settings(app_handle: &tauri::AppHandle) -> Result<Self, String> {
     // Cloud auth takes priority
-    if crate::cloud_auth::CLOUD_AUTH.is_logged_in().await {
+    if crate::cloud_auth::CLOUD_AUTH.is_logged_in().await
+      && !super::account_server::self_hosted_picked().await
+    {
       let (url, token) = match super::account_server::configured().await {
         Some(server) => {
           let token = crate::cloud_auth::CLOUD_AUTH
@@ -3943,10 +3945,8 @@ async fn apply_profile_sync_mode(
     );
   }
 
-  // The cloud counts what it stores; an own server counts for itself.
-  if crate::cloud_auth::CLOUD_AUTH.is_logged_in().await
-    && super::account_server::configured().await.is_none()
-  {
+  // The cloud counts what it stores; another server counts for itself.
+  if super::account_server::current().await == Some(super::account_server::SyncSource::Cloud) {
     let sync_count = profile_manager
       .list_profiles()
       .map(|profiles| profiles.iter().filter(|p| p.is_sync_enabled()).count())

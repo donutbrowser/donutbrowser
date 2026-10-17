@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { translateBackendError } from "@/lib/backend-errors";
+import { cn } from "@/lib/utils";
 import type { BrowserProfile, ProfileGroup } from "@/types";
 import { RippleButton } from "./ui/ripple";
 
@@ -126,65 +127,76 @@ export function DeleteGroupDialog({
             <div className="text-sm text-muted-foreground">
               {t("groups.loadingProfiles")}
             </div>
-          ) : (
-            <>
-              {associatedProfiles.length > 0 && (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label>
-                      {t("groups.associatedProfiles", {
-                        count: associatedProfiles.length,
-                      })}
-                    </Label>
-                    <ScrollArea className="max-h-[min(8rem,25vh)] w-full overflow-y-auto rounded-md border p-3">
-                      <div className="space-y-1">
-                        {associatedProfiles.map((profile) => (
-                          <div key={profile.id} className="truncate text-sm">
-                            • {profile.name}
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </div>
+          ) : associatedProfiles.length > 0 ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>
+                  {t("groups.associatedProfiles", {
+                    count: associatedProfiles.length,
+                  })}
+                </Label>
+                <ScrollArea className="max-h-[min(8rem,25vh)] w-full overflow-y-auto rounded-xl bg-foreground/3 p-1">
+                  <ul className="space-y-0.5">
+                    {associatedProfiles.map((profile) => (
+                      <li
+                        key={profile.id}
+                        className="truncate rounded-md px-2 py-1 text-sm"
+                      >
+                        {profile.name}
+                      </li>
+                    ))}
+                  </ul>
+                </ScrollArea>
+              </div>
 
-                  <div className="space-y-3">
-                    <Label>{t("groups.whatToDoWithProfiles")}</Label>
-                    <RadioGroup
-                      value={deleteAction}
-                      onValueChange={(value) => {
-                        setDeleteAction(value as "move" | "delete");
-                      }}
+              <div className="space-y-2">
+                <Label>{t("groups.whatToDoWithProfiles")}</Label>
+                <RadioGroup
+                  value={deleteAction}
+                  onValueChange={(value) => {
+                    setDeleteAction(value as "move" | "delete");
+                  }}
+                  className="gap-1.5"
+                >
+                  {(["move", "delete"] as const).map((action) => (
+                    <Label
+                      key={action}
+                      htmlFor={`delete-group-${action}`}
+                      data-state={
+                        deleteAction === action ? "checked" : "unchecked"
+                      }
+                      className={cn(
+                        "flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-normal transition-colors duration-150",
+                        deleteAction !== action
+                          ? "bg-foreground/3 hover:bg-foreground/5"
+                          : action === "delete"
+                            ? "bg-destructive/10 text-destructive-text"
+                            : "bg-primary/10",
+                      )}
                     >
-                      <div className="flex items-center gap-x-2">
-                        <RadioGroupItem value="move" id="move" />
-                        <Label htmlFor="move" className="text-sm">
-                          {t("groups.moveToDefault")}
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-x-2">
-                        <RadioGroupItem value="delete" id="delete" />
-                        <Label
-                          htmlFor="delete"
-                          className="text-sm text-destructive-text"
-                        >
-                          {t("groups.deleteAlongWithGroup")}
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                </div>
-              )}
-
-              {associatedProfiles.length === 0 && !isLoading && (
-                <div className="text-sm text-muted-foreground">
-                  {t("groups.noAssociatedProfiles")}
-                </div>
-              )}
-            </>
+                      <RadioGroupItem
+                        value={action}
+                        id={`delete-group-${action}`}
+                      />
+                      {action === "move"
+                        ? t("groups.moveToDefault")
+                        : t("groups.deleteAlongWithGroup")}
+                    </Label>
+                  ))}
+                </RadioGroup>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              {t("groups.noAssociatedProfiles")}
+            </div>
           )}
 
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-text">
+            <div
+              role="alert"
+              className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-text"
+            >
               {error}
             </div>
           )}

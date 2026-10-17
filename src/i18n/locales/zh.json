@@ -82,7 +82,17 @@
       "hideToken": "隐藏令牌"
     },
     "keys": {
-      "escape": "Esc"
+      "escape": "Esc",
+      "command": "Command",
+      "control": "Control",
+      "shift": "Shift",
+      "option": "Option",
+      "alt": "Alt",
+      "enter": "回车",
+      "backspace": "退格",
+      "arrowUp": "上箭头",
+      "arrowDown": "下箭头",
+      "tab": "Tab"
     },
     "errors": {
       "unknown": "发生未知错误"
@@ -353,6 +363,32 @@
       "a": "某个分组中正在运行的配置文件",
       "b": "没有标签但有代理的配置文件",
       "c": "超过 30 天未启动，且排除已归档的"
+    },
+    "suggest": {
+      "label": "搜索建议",
+      "matches": "匹配项",
+      "recent": "最近搜索",
+      "none": "未设置",
+      "any": "任意值",
+      "dates": {
+        "last7d": "过去 7 天",
+        "last30d": "过去 30 天",
+        "over30d": "30 天以前",
+        "over90d": "90 天以前",
+        "thisYear": "今年",
+        "never": "从未"
+      },
+      "keys": {
+        "choose": "选择",
+        "complete": "补全"
+      }
+    },
+    "issues": {
+      "unknownField": "{{name}} 不是字段，因此按文本搜索。是否想输入 {{field}}？",
+      "compare": "{{field}} 不能比较，因此按文本搜索。只有日期和版本可以比较。",
+      "date": "{{field}} 接受 2026-01-31 这样的日期，或表示过去 7 天的 7d。",
+      "enum": "{{field}} 接受 {{values}}。",
+      "boolean": "{{field}} 接受 yes 或 no。"
     }
   },
   "profiles": {
@@ -571,7 +607,6 @@
       "tabVpns": "VPN",
       "create": "创建",
       "loading": "正在加载代理...",
-      "noneCreated": "尚未创建代理。使用上方按钮创建第一个代理。",
       "usage": "使用情况",
       "syncCol": "同步",
       "syncCannotDisable": "此代理被同步的配置文件使用时无法禁用同步",
@@ -597,7 +632,9 @@
       "firstHopPlaintextTooltip": "第一跳未加密：与该代理的连接未加密。",
       "firstHopEncryptedTooltip": "第一跳已加密：与该代理的连接已加密。服务商仍然能看到你的访问目标。",
       "firstHopCipherTooltip": "第一跳取决于加密方式：该代理没有记录加密方式，因此与它的连接是否加密尚未确定。请编辑并设置 aes-256-gcm 这类真正的加密方式。",
-      "udpCol": "UDP"
+      "udpCol": "UDP",
+      "checkSelected": "检查所选项",
+      "checkSummary": "检查完成。通过：{{passed}}。失败：{{failed}}。"
     },
     "add": "添加代理",
     "edit": "编辑代理",
@@ -755,13 +792,11 @@
     "title": "分组",
     "management": "分组管理",
     "add": "添加分组",
-    "edit": "编辑分组",
     "delete": "删除分组",
     "moveToDefault": "将配置文件移出分组",
     "noGroupDescription": "未分组的配置文件显示在「全部」筛选中。",
     "assignSuccess": "已成功将 {{count}} 个配置文件分配到 {{group}}",
     "noGroups": "暂无分组",
-    "noGroupsDescription": "创建分组来组织您的配置文件。",
     "form": {
       "name": "名称",
       "namePlaceholder": "输入分组名称"
@@ -1692,10 +1727,8 @@
     "managedNotice": "此处管理的扩展程序将在启动时替换配置文件中手动安装的所有扩展程序。",
     "proRequired": "扩展程序管理是 Pro 功能",
     "empty": "尚未上传任何扩展程序。",
-    "noGroups": "尚未创建任何扩展程序组。",
     "createGroup": "创建分组",
     "newGroup": "新建分组",
-    "addToGroup": "添加扩展程序...",
     "removeFromGroup": "从分组中移除",
     "deleteGroup": "删除分组",
     "extensionGroup": "扩展程序组",
@@ -1780,7 +1813,9 @@
     "fetchedIdentity": "{{name}} · 版本 {{version}}",
     "fetchedFrom": "下载自 {{source}}",
     "fetchSuccess": "扩展已下载。请确认名称后再添加。",
-    "fetchFailed": "下载扩展失败"
+    "fetchFailed": "下载扩展失败",
+    "searchExtensions": "搜索扩展",
+    "membersSelected": "已选 {{selected}}/{{total}}"
   },
   "pro": {
     "badge": "PRO",
@@ -1912,8 +1947,6 @@
     "namesHint": "配置文件将命名为 {{name}} 1、{{name}} 2 等，编号接在已用编号之后。",
     "allowanceLeft_one": "本小时内还可以创建 {{count}} 个。",
     "allowanceLeft_other": "本小时内还可以创建 {{count}} 个。",
-    "createMany_one": "创建 {{count}} 个配置文件",
-    "createMany_other": "创建 {{count}} 个配置文件",
     "progress": "正在创建第 {{done}} 个，共 {{total}} 个",
     "stop": "停止",
     "created_one": "已创建 {{count}} 个配置文件",
@@ -1984,7 +2017,6 @@
     },
     "management": {
       "loading": "正在加载 VPN...",
-      "noneCreated": "尚未创建 VPN 配置。使用上方按钮导入或创建一个。",
       "editVpn": "编辑 VPN",
       "deleteVpn": "删除 VPN",
       "cannotDelete_one": "无法删除: 被 {{count}} 个配置文件使用",
@@ -2100,7 +2132,9 @@
       "description": "确定要删除 {{count}} 个分组吗？{{names}}。配置文件将被移至默认分组。",
       "description_one": "确定要删除 {{count}} 个分组吗？{{names}}。配置文件将被移至默认分组。",
       "confirmButton": "删除分组"
-    }
+    },
+    "newGroup": "新建分组",
+    "bookmarksCol": "书签"
   },
   "proxyAssignment": {
     "title": "分配代理 / VPN",
@@ -2712,7 +2746,8 @@
     "syncServerNoAccounts": "此服务器不接受 Donut 账户。请在服务器上设置 SYNC_PUBLIC_URL。",
     "syncServerAddressMismatch": "服务器的地址是 {{address}}。请输入该地址。",
     "remoteNeedsDonutSync": "远程会话和 Cookie Bot 从 Donut 云同步获取配置文件。此计算机正在与你自己的服务器同步。",
-    "accountSyncUnavailable": "Donut 暂时无法登录你自己的服务器。请稍后重试。"
+    "accountSyncUnavailable": "Donut 暂时无法登录你自己的服务器。请稍后重试。",
+    "selfHostedTeamSeat": "团队账户无法与使用同步令牌的服务器同步。"
   },
   "rail": {
     "profiles": "配置文件",
@@ -2818,31 +2853,40 @@
     "automationActiveHere": "浏览器自动化已在此设备上启用。",
     "viewTeamUsage": "查看团队用量",
     "ownServer": {
-      "title": "你自己的同步服务器",
-      "description": "将此账户与你自己运行的 donut-sync 服务器同步，而不是与 Donut 云同步。你的套餐配置文件上限以及团队的角色和分组访问权限保持不变。",
-      "current": "正在与 {{server}} 同步",
-      "currentCloud": "正在与 Donut 云同步",
       "donutCloud": "Donut 云",
-      "useDonutCloud": "使用 Donut 云",
       "accountsOn": "此服务器接受 Donut 账户。",
       "cloudOnly": "远程会话和 Cookie Bot 需要 Donut 云同步。",
       "teamNote": "团队的所有成员必须使用同一台服务器。",
-      "saved": "同步服务器已保存。",
-      "backToCloud": "已重新与 Donut 云同步。"
+      "backToCloud": "已重新与 Donut 云同步。",
+      "label": "同步服务器",
+      "change": "更改",
+      "remove": "移除",
+      "removed": "已移除同步服务器。",
+      "switched": "正在与 {{server}} 同步。",
+      "tokenServer": "{{host}}（同步令牌）"
     }
   },
   "shortcutsPage": {
     "title": "键盘快捷键",
-    "description": "使用这些快捷键加速您的工作流程。"
+    "description": "使用这些快捷键加速您的工作流程。",
+    "paletteHint": "搜索所有页面、配置文件和操作。",
+    "holdHint": "按住这些键，可查看使用它们的快捷键。",
+    "paletteKeys": {
+      "title": "在命令面板中",
+      "move": "在结果之间移动",
+      "run": "执行所选命令",
+      "back": "搜索为空时返回",
+      "close": "关闭面板"
+    }
   },
   "commandPalette": {
     "placeholder": "输入命令或搜索...",
-    "empty": "未找到结果。",
     "groups": {
       "navigation": "导航",
       "profiles": "配置文件",
       "actions": "操作",
-      "profileGroups": "配置文件分组"
+      "profileGroups": "配置文件分组",
+      "recent": "最近使用"
     },
     "actions": {
       "launchProfile": "启动 {{name}}",
@@ -2850,6 +2894,66 @@
       "profileInfo": "信息 — {{name}}",
       "createProfile": "创建配置文件",
       "about": "关于 Donut Browser"
+    },
+    "pages": {
+      "launch": {
+        "entry": "启动配置文件…",
+        "title": "启动",
+        "placeholder": "搜索要启动的配置文件...",
+        "empty": "所有配置文件都已在运行。"
+      },
+      "stop": {
+        "entry": "停止配置文件…",
+        "title": "停止",
+        "placeholder": "搜索运行中的配置文件...",
+        "empty": "没有正在运行的配置文件。"
+      },
+      "info": {
+        "entry": "打开配置文件信息…",
+        "title": "配置文件信息",
+        "placeholder": "搜索配置文件...",
+        "empty": "还没有配置文件。"
+      },
+      "group": {
+        "entry": "转到分组…",
+        "title": "分组",
+        "placeholder": "搜索分组...",
+        "empty": "还没有分组。"
+      }
+    },
+    "emptyFor": "没有与“{{query}}”匹配的结果。",
+    "emptyHint": "可搜索页面、配置文件、分组和操作。",
+    "emptyPageHint": "按 Esc 返回全部命令。",
+    "footer": {
+      "move": "移动",
+      "run": "执行",
+      "open": "打开",
+      "back": "返回",
+      "close": "关闭"
+    },
+    "keywords": {
+      "openPalette": "命令 搜索 查找 执行",
+      "openShortcuts": "键盘 按键 快捷键 帮助",
+      "openTips": "提示 帮助 学习 功能",
+      "sendFeedback": "错误 报告 问题 支持 联系 建议",
+      "openTotp": "双重验证 2fa otp totp 验证器 验证码 mfa",
+      "importProfile": "导入 添加 加载 迁移 chrome firefox",
+      "goProfiles": "首页 浏览器 列表 全部",
+      "goProxies": "代理 vpn wireguard 网络 socks http",
+      "goExtensions": "扩展 插件 附加组件",
+      "goGroups": "分组 文件夹 整理",
+      "goCookieBot": "cookie 预热 机器人 浏览",
+      "goAgent": "ai mcp 助手 自动化",
+      "goIntegrations": "api mcp rest 令牌 集成 自动化",
+      "goAccount": "账户 云 登录 订阅 套餐 账单 团队 同步",
+      "goSettings": "偏好 选项 主题 语言 声音 外观",
+      "goTrash": "回收站 已删除 恢复",
+      "createProfile": "新建 添加 配置文件 浏览器",
+      "about": "版本 许可证 关于",
+      "launch": "启动 打开 运行 浏览器",
+      "stop": "停止 退出 关闭",
+      "info": "详情 信息 编辑 配置文件",
+      "group": "分组 筛选 切换 文件夹"
     }
   },
   "shortcuts": {
@@ -3010,7 +3114,7 @@
   },
   "cookieBot": {
     "title": "Cookie Bot",
-    "description": "在远程机器上通宵养号。",
+    "description": "按你的计划在远程机器上养号。",
     "tabs": {
       "overview": "概览",
       "schedule": "计划",
@@ -3019,37 +3123,27 @@
     },
     "locked": {
       "title": "Cookie Bot",
-      "hint": "Cookie Bot 在远程机器上通宵养号，无需开着你的电脑也能保住 Cookie 和历史记录。"
+      "hint": "Cookie Bot 会在你选择的时间于远程机器上养号，无需开着你的电脑也能保住 Cookie 和历史记录。"
     },
     "empty": {
       "title": "尚未加入任何配置文件",
-      "hint": "选一个配置文件，机器人会在远程机器上通宵养号。你的电脑可以关机。",
+      "hint": "选一个配置文件，机器人会在你设定的时间于远程机器上养号。你的电脑可以关机。",
       "cta": "加入一个配置文件"
     },
-    "tonight": {
-      "label": "今晚",
-      "nextRun": "下次运行 {{time}}",
-      "dueCount_one": "{{count}} 个配置文件待运行",
-      "dueCount_other": "{{count}} 个配置文件待运行",
-      "nothingScheduled": "没有安排"
-    },
     "lastDay": {
-      "label": "最近 24 小时",
-      "none": "还没有运行记录",
-      "ran_one": "{{count}} 次运行",
-      "ran_other": "{{count}} 次运行",
-      "partial_one": "{{count}} 次部分完成",
-      "partial_other": "{{count}} 次部分完成",
-      "failed_one": "{{count}} 次失败",
-      "failed_other": "{{count}} 次失败"
+      "label": "最近 24 小时"
     },
     "chart": {
-      "machineTime": "每晚机器时长",
-      "minutes": "{{minutes}} 分钟"
+      "machineTime": "每日机器时长",
+      "minutes": "{{minutes}} 分钟",
+      "total": "共 {{duration}}",
+      "empty": "此期间没有运行",
+      "noRuns": "无运行",
+      "runs_one": "{{count}} 次运行",
+      "runs_other": "{{count}} 次运行"
     },
     "hours": {
       "label": "远程时长",
-      "remaining": "{{total}} 小时中还剩 {{remaining}} 小时",
       "remainingOf": "/ {{total}} 小时",
       "used": "{{total}} 小时中已用 {{used}} 小时",
       "resets": "{{date}} 重置",
@@ -3057,26 +3151,26 @@
       "exhaustedOn": "远程时长已用完。计划仍然保留，将于 {{date}} 恢复。",
       "estimate": "每周约 {{hours}} 小时 · 本周期还剩 {{remaining}} 小时",
       "estimateOverBudget": "每周约需 {{hours}} 小时，但只剩 {{remaining}} 小时",
-      "estimateOnly": "每周约 {{hours}} 小时"
+      "estimateOnly": "每周约 {{hours}} 小时",
+      "left": "剩余 {{hours}} 小时"
     },
     "enrolled": {
       "columnProfile": "配置文件",
-      "columnCadence": "频率",
-      "columnTime": "时间",
       "columnNextRun": "下次运行",
       "columnLastRun": "上次运行",
       "enrolProfiles": "加入配置文件",
       "edit": "编辑计划",
       "neverRun": "从未",
-      "pausedNoHours": "已暂停 — 时长用尽",
+      "pausedNoHours": "已暂停：时长用尽",
       "profileMissing": "该配置文件不在这台电脑上。"
     },
     "schedule": {
       "empty": "还没有任何安排。",
       "unenrol": "从 Cookie Bot 移除",
       "unenrolTitle": "将 {{name}} 从 Cookie Bot 移除？",
-      "unenrolDescription": "今晚起停止养号。以往的运行记录仍保留在“活动”中。",
-      "unenrolled": "已从 Cookie Bot 移除"
+      "unenrolDescription": "之后的运行将停止。以往的运行记录仍保留在“活动”中。",
+      "unenrolled": "已从 Cookie Bot 移除",
+      "localTime": "现在 {{time}}"
     },
     "status": {
       "provisioning": "正在准备机器",
@@ -3147,7 +3241,7 @@
     },
     "picker": {
       "title": "加入配置文件",
-      "description": "选择机器人应在夜间养号的配置文件。",
+      "description": "选择机器人要养号的配置文件。",
       "searchPlaceholder": "搜索配置文件…",
       "noProfiles": "没有匹配的配置文件。",
       "alreadyEnrolled": "已加入",
@@ -3160,25 +3254,25 @@
       "titleCount_other": "加入 {{count}} 个配置文件",
       "editTitle": "编辑计划",
       "description": "机器人会在远程机器上打开配置文件，浏览你列出的网站。你的电脑可以关机。",
-      "summaryNightly": "每晚 {{time}} 运行，每次最多 {{minutes}} 分钟。",
+      "summaryNightly": "每天 {{time}} 运行，每次最多 {{minutes}} 分钟。",
       "summaryWeeknights": "周一至周五 {{time}} 运行，每次最多 {{minutes}} 分钟。",
-      "summaryAlternate": "隔晚 {{time}} 运行，每次最多 {{minutes}} 分钟。",
-      "summaryCustom_one": "每周 {{count}} 晚，于 {{time}} 运行，每次最多 {{minutes}} 分钟。",
-      "summaryCustom_other": "每周 {{count}} 晚，于 {{time}} 运行，每次最多 {{minutes}} 分钟。",
-      "confirm": "今晚起加入",
-      "confirmSome": "今晚加入 {{total}} 个中的 {{eligible}} 个",
+      "summaryAlternate": "隔天 {{time}} 运行，每次最多 {{minutes}} 分钟。",
+      "summaryCustom_one": "每周 {{count}} 天，于 {{time}} 运行，每次最多 {{minutes}} 分钟。",
+      "summaryCustom_other": "每周 {{count}} 天，于 {{time}} 运行，每次最多 {{minutes}} 分钟。",
+      "confirm": "加入",
+      "confirmSome": "加入 {{total}} 个中的 {{eligible}} 个",
       "fixFirst": "请先解决这些问题",
       "saving": "正在加入…",
       "saved": "计划已保存",
       "enrolled_one": "已加入 {{count}} 个配置文件",
       "enrolled_other": "已加入 {{count}} 个配置文件",
-      "adjust": "调整计划",
+      "adjust": "时长与深度",
       "cadenceLabel": "频率",
-      "cadenceNightly": "每晚",
-      "cadenceWeeknights": "工作日夜间",
-      "cadenceAlternate": "隔晚一次",
-      "cadenceCustom_one": "每周 {{count}} 晚",
-      "cadenceCustom_other": "每周 {{count}} 晚",
+      "cadenceNightly": "每天",
+      "cadenceWeeknights": "工作日",
+      "cadenceAlternate": "隔天",
+      "cadenceCustom_one": "每周 {{count}} 天",
+      "cadenceCustom_other": "每周 {{count}} 天",
       "timeLabel": "开始时间",
       "timeHint": "按各配置文件指纹所在时区计算。",
       "maxMinutesLabel": "最长分钟数",
@@ -3191,8 +3285,8 @@
       "presetsUnavailable": "无法加载深度预设。请稍后再试。",
       "confirmBulkTitle_one": "将 {{count}} 个配置文件加入 Cookie Bot？",
       "confirmBulkTitle_other": "将 {{count}} 个配置文件加入 Cookie Bot？",
-      "confirmBulkDescription_one": "这会占用共享远程时长预订一次夜间运行。时间和网站将在下一步选择。",
-      "confirmBulkDescription_other": "这会占用共享远程时长预订 {{count}} 次夜间运行。时间和网站将在下一步选择。",
+      "confirmBulkDescription_one": "这会占用共享远程时长预订一次每日运行。时间和网站将在下一步选择。",
+      "confirmBulkDescription_other": "这会占用共享远程时长预订 {{count}} 次每日运行。时间和网站将在下一步选择。",
       "confirmBulkButton_one": "继续（{{count}} 个配置文件）",
       "confirmBulkButton_other": "继续（{{count}} 个配置文件）",
       "sitesRequired": "请至少添加一个网站。",
@@ -3202,7 +3296,7 @@
       "sourceCurated": "精选",
       "sourceSaved": "已保存",
       "curatedEmpty": "目前没有可用的精选列表。",
-      "curatedNote": "由我们持续维护的精选列表。每个配置文件都会从中抽取各自的样本，因此不会有两个配置文件浏览同一组网站——这正是让列表本身不会变成特征的原因。地址只保留在我们这边。",
+      "curatedNote": "由我们持续维护的精选列表。每个配置文件都会从中抽取各自的样本，因此不会有两个配置文件浏览同一组网站，这正是让列表本身不会变成特征的原因。地址只保留在我们这边。",
       "savedEmpty": "还没有保存任何内容。请在“我的列表”中输入列表，然后从那里保存。",
       "savedNote": "保存计划时会把网站复制到计划中，因此以后编辑列表不会影响已有的计划。",
       "savedUnavailable": "无法加载你保存的列表。",
@@ -3228,7 +3322,12 @@
       "listSites_other": "{{count}} 个网站",
       "summarySlots_one": "每周运行 {{count}} 次，每次最多 {{minutes}} 分钟。",
       "summarySlots_other": "每周运行 {{count}} 次，每次最多 {{minutes}} 分钟。",
-      "templateNameInvalidNoMax": "该名称不能用于已保存的列表。"
+      "templateNameInvalidNoMax": "该名称不能用于已保存的列表。",
+      "shuffleTime": "换一个时间",
+      "ownTimes": "每个配置文件使用不同时间",
+      "timeRandom": "各自随机",
+      "summaryOwnTimes_one": "每个配置文件每周运行 {{count}} 次，各自在随机时间，每次最多 {{minutes}} 分钟。",
+      "summaryOwnTimes_other": "每个配置文件每周运行 {{count}} 次，各自在随机时间，每次最多 {{minutes}} 分钟。"
     },
     "preset": {
       "light": "轻度",
@@ -3245,7 +3344,7 @@
       "reasonSync": "同步已关闭",
       "reasonEncrypted": "端到端加密",
       "reasonNoFingerprint": "没有记录操作系统",
-      "reasonCrossOs": "为 {{os}} 创建 — 没有匹配的远程机器",
+      "reasonCrossOs": "为 {{os}} 创建：没有匹配的远程机器",
       "reasonNoExitNode": "没有代理或 VPN",
       "fixSync": "开启同步",
       "fixEncrypted": "打开同步设置",
@@ -3317,13 +3416,27 @@
       "profileLocked": "该配置文件已在别处打开",
       "noCapacity": "没有空闲机器",
       "managerError": "机器集群未能启动浏览器",
-      "budgetExceeded": "当晚的时长预算已用完",
-      "browsingIncomplete": "浏览器已启动，但当晚的浏览未完成",
+      "budgetExceeded": "本次运行的时长预算已用完",
+      "browsingIncomplete": "浏览器已启动，但浏览未完成",
       "proxyUnsupported": "没有主机能使用这种类型的代理，请改用 HTTP、SOCKS 或 WireGuard 出口",
       "profileNotSynced": "云端副本不完整，请在桌面端完成同步",
       "profileOsMismatch": "配置文件来自与运行它的主机不同的操作系统",
       "cancelledByUser": "已手动停止",
       "unknown": "未知原因（{{code}}）"
+    },
+    "next": {
+      "label": "下次运行",
+      "now": "即将开始",
+      "inMinutes_one": "{{count}} 分钟后",
+      "inMinutes_other": "{{count}} 分钟后",
+      "inHours_one": "{{count}} 小时后",
+      "inHours_other": "{{count}} 小时后",
+      "today": "今天",
+      "tomorrow": "明天",
+      "dueSoon_one": "未来 24 小时内有 {{count}} 个配置文件",
+      "dueSoon_other": "未来 24 小时内有 {{count}} 个配置文件",
+      "nothingScheduled": "没有安排",
+      "blocked": "没有可运行的配置文件。请查看下方列表。"
     }
   },
   "prelaunchGate": {
@@ -3466,7 +3579,11 @@
     "confirmed": "是",
     "unavailable": "否",
     "apiProbeScope": "使用已保存的凭据检查正在运行的本地 API。不会启动任何配置文件。",
-    "remoteProbeScope": "检查已保存的 MCP 凭据。远程控制还需要已连接的设备和符合条件的套餐；已配置的客户端不代表活动会话。"
+    "remoteProbeScope": "检查已保存的 MCP 凭据。远程控制还需要已连接的设备和符合条件的套餐；已配置的客户端不代表活动会话。",
+    "probeNotConfigured": "未保存凭据。",
+    "probeUnreachable": "服务器没有响应。",
+    "probeRefused": "服务器拒绝了凭据。",
+    "probeUnverified": "服务器返回 HTTP {{status}}，因此未检查凭据。"
   },
   "easterEgg": {
     "konami": {
@@ -3817,13 +3934,11 @@
   },
   "tips": {
     "title": "小贴士",
-    "essentials": "基础",
-    "planSection": "您的套餐已包含",
     "count": "{{current}} / {{total}}",
     "previous": "上一条",
     "next": "下一条",
     "done": "完成",
-    "autoShow": "每隔几天显示一条小贴士",
+    "autoShow": "在配置文件页面显示小贴士",
     "items": {
       "dnsBlocklist": {
         "label": "DNS 拦截",
@@ -3911,7 +4026,7 @@
       },
       "cookieBot": {
         "label": "Cookie Bot",
-        "title": "夜间养号",
+        "title": "按计划养号",
         "body": "Cookie Bot 会从远程主机按计划浏览真实网站，让新配置文件在您使用之前积累自然的历史记录。",
         "action": "打开 Cookie Bot"
       },
@@ -3950,7 +4065,75 @@
         "title": "告诉团队下一步该修什么",
         "body": "有东西坏了或缺少功能？从“更多”菜单发送反馈。只需一个开关即可附上日志，让团队准确看到出了什么问题。",
         "action": "发送反馈"
+      },
+      "searchSyntax": {
+        "label": "搜索字段",
+        "title": "按字段筛选配置文件",
+        "body": "在搜索框中输入字段，例如 tag:work、proxy:none 或 status:running。在前面加减号表示排除：-tag:old。",
+        "action": "试试 proxy:none"
+      },
+      "shortcuts": {
+        "label": "快捷键",
+        "title": "双手不离键盘",
+        "body": "每个页面都有快捷键，导入、反馈和小贴士也有。{{mod}}+/ 列出全部快捷键。",
+        "action": "查看全部快捷键"
+      },
+      "statuses": {
+        "label": "状态",
+        "title": "标记每个账号的情况",
+        "body": "在状态列中为配置文件设置状态，例如活跃或已封禁。每个状态都有颜色，并会同步到您的其他设备。",
+        "action": "打开配置文件"
+      },
+      "templates": {
+        "label": "模板",
+        "title": "设置一次，批量创建",
+        "body": "在配置文件的菜单中用“保存为模板”保留其设置。新配置文件从模板开始，可一次创建多个，每个都有自己的设备。",
+        "action": "新建配置文件"
+      },
+      "vpn": {
+        "label": "VPN",
+        "title": "让配置文件走 VPN",
+        "body": "在网络页面导入 WireGuard 文件或 VLESS、VMess、Trojan、Hysteria2 链接。然后为配置文件选择它：只有该配置文件使用隧道。",
+        "action": "打开 VPN"
+      },
+      "requireRoute": {
+        "label": "阻止直连启动",
+        "title": "绝不从自己的 IP 启动",
+        "body": "在隐私设置中开启“阻止未使用代理或 VPN 的启动”。没有代理、或代理或 VPN 已不存在的配置文件将不会启动。",
+        "action": "打开隐私设置"
+      },
+      "totp": {
+        "label": "2FA 验证码",
+        "title": "让 2FA 验证码跟着配置文件",
+        "body": "在配置文件信息中添加账号的 2FA 密钥，Donut 会显示当前验证码，可直接复制。密钥加密保存在本设备上。",
+        "action": "试用 2FA 密钥"
+      },
+      "synchronizer": {
+        "label": "同步器",
+        "title": "同时操作多个配置文件",
+        "body": "在配置文件菜单中选择“使用同步器启动”，再选择跟随者。领导者中的每次点击和按键都会在每个跟随者中重复。",
+        "action": "打开配置文件"
       }
+    },
+    "sections": {
+      "everyday": "日常",
+      "network": "网络",
+      "privacy": "隐私与数据",
+      "connect": "连接",
+      "plan": "您的套餐已包含"
+    },
+    "progress": "已读 {{read}} / {{total}}",
+    "unread": "未读",
+    "nextShort": "下一条",
+    "inline": {
+      "label": "功能小贴士",
+      "eyebrow": "小贴士",
+      "more": "更多小贴士选项",
+      "allTips": "全部小贴士",
+      "turnOff": "不再显示小贴士",
+      "dismiss": "关闭小贴士",
+      "offTitle": "小贴士已关闭",
+      "offBody": "可在小贴士 ({{shortcut}}) 中重新开启。"
     }
   },
   "paidWelcome": {
@@ -4170,6 +4353,35 @@
     "kind": {
       "auto": "每日",
       "manual": "手动"
+    }
+  },
+  "entities": {
+    "empty": {
+      "proxies": {
+        "title": "还没有代理",
+        "body": "代理让配置文件的流量经由另一台服务器。每个配置文件都可以使用自己的代理。"
+      },
+      "vpns": {
+        "title": "还没有 VPN",
+        "body": "WireGuard VPN 通过加密隧道传送配置文件的流量。"
+      },
+      "groups": {
+        "title": "还没有分组",
+        "body": "分组按客户、项目或任务整理配置文件。分组中的每个配置文件都会获得该分组的书签。"
+      },
+      "extensions": {
+        "title": "还没有扩展",
+        "body": "从文件、文件夹或 Web Store 链接添加扩展。将其放入扩展分组即可在配置文件中使用。"
+      },
+      "extensionGroups": {
+        "title": "还没有扩展分组",
+        "body": "扩展分组是一组扩展。使用该分组的配置文件会在启动时获得这组扩展。"
+      }
+    },
+    "check": {
+      "notChecked": "未检查",
+      "valid": "有效",
+      "invalid": "无效"
     }
   }
 }

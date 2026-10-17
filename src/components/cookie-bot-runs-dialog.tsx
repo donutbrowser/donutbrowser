@@ -7,11 +7,10 @@ import {
   formatDuration,
   hasRunCounters,
   outcomeLabel,
-  runStatusLabel,
-  runStatusTone,
-  StatusDot,
+  RunStatusBadge,
 } from "@/components/cookie-bot-shared";
 import { LoadingButton } from "@/components/loading-button";
+import { DATA_TABLE_CLASSES } from "@/components/table-controls";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +34,7 @@ import {
   getCookieBotRuns,
 } from "@/lib/cookie-bot";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
+import { cn } from "@/lib/utils";
 
 const RUN_PAGE_SIZE = 25;
 
@@ -144,7 +144,7 @@ export function CookieBotRunsDialog({
               {Array.from({ length: 5 }, (_, index) => (
                 <Skeleton
                   key={`run-skeleton-${index}`}
-                  className="h-7 w-full"
+                  className="h-9 w-full rounded-lg"
                 />
               ))}
             </div>
@@ -153,14 +153,29 @@ export function CookieBotRunsDialog({
               {t("cookieBot.history.empty")}
             </p>
           ) : (
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-background">
-                <TableRow>
-                  <TableHead>{t("cookieBot.history.columnStarted")}</TableHead>
-                  <TableHead>{t("cookieBot.history.columnDuration")}</TableHead>
-                  <TableHead>{t("cookieBot.history.columnSites")}</TableHead>
-                  <TableHead>{t("cookieBot.history.columnStatus")}</TableHead>
-                  <TableHead />
+            <Table
+              className={cn(DATA_TABLE_CLASSES.table, "w-full")}
+              containerClassName="overflow-visible"
+            >
+              <TableHeader className={DATA_TABLE_CLASSES.header}>
+                <TableRow className={DATA_TABLE_CLASSES.headerRow}>
+                  <TableHead className={cn(DATA_TABLE_CLASSES.head, "w-44")}>
+                    {t("cookieBot.history.columnStarted")}
+                  </TableHead>
+                  <TableHead className={cn(DATA_TABLE_CLASSES.head, "w-24")}>
+                    {t("cookieBot.history.columnDuration")}
+                  </TableHead>
+                  <TableHead className={DATA_TABLE_CLASSES.head}>
+                    {t("cookieBot.history.columnSites")}
+                  </TableHead>
+                  <TableHead className={cn(DATA_TABLE_CLASSES.head, "w-40")}>
+                    {t("cookieBot.history.columnStatus")}
+                  </TableHead>
+                  <TableHead className={cn(DATA_TABLE_CLASSES.head, "w-24")}>
+                    <span className="sr-only">
+                      {t("common.labels.actions")}
+                    </span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -169,17 +184,25 @@ export function CookieBotRunsDialog({
                   const started =
                     formatDateTime(run.started_at ?? run.scheduled_for) ?? "—";
                   return (
-                    <TableRow key={run.id}>
-                      <TableCell className="text-xs tabular-nums whitespace-nowrap">
+                    <TableRow
+                      key={run.id}
+                      data-table-row={run.id}
+                      className={DATA_TABLE_CLASSES.row}
+                    >
+                      <TableCell className="max-w-0 truncate py-1.5 text-xs tabular-nums">
                         {started}
                       </TableCell>
-                      <TableCell className="text-xs tabular-nums">
-                        {duration === null ? "—" : formatDuration(t, duration)}
+                      <TableCell className="py-1.5 text-xs tabular-nums">
+                        {duration === null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          formatDuration(t, duration)
+                        )}
                       </TableCell>
                       {/* Never a confident `0/12`: nothing writes these
                           counters yet, so the column default is not a fact
                           about what the bot did. */}
-                      <TableCell className="text-xs tabular-nums">
+                      <TableCell className="py-1.5 text-xs tabular-nums">
                         {hasRunCounters(run)
                           ? t("cookieBot.history.sitesVisited", {
                               visited: run.sites_visited,
@@ -194,31 +217,24 @@ export function CookieBotRunsDialog({
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs">
-                        <span className="flex items-center gap-1.5">
-                          <StatusDot
-                            tone={runStatusTone(run.status)}
-                            pulse={run.status === "running"}
-                            className="size-1.5"
-                          />
-                          {runStatusLabel(t, run.status)}
-                        </span>
+                      <TableCell className="py-1.5 text-xs">
+                        <RunStatusBadge status={run.status} />
                         {run.outcome_code && (
-                          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                          <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
                             {outcomeLabel(t, run.outcome_code)}
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="py-1.5 text-right">
                         {IN_FLIGHT.has(run.status) && (
                           <LoadingButton
                             size="sm"
-                            variant="outline"
+                            variant="soft"
                             isLoading={cancellingId === run.id}
                             onClick={() => {
                               void handleCancel(run);
                             }}
-                            className="h-6 text-[11px]"
+                            className="h-7 rounded-lg text-xs"
                           >
                             {t("cookieBot.running.stop")}
                           </LoadingButton>

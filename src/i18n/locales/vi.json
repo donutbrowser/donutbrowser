@@ -82,7 +82,17 @@
       "hideToken": "Ẩn token"
     },
     "keys": {
-      "escape": "Escape"
+      "escape": "Escape",
+      "command": "Command",
+      "control": "Control",
+      "shift": "Shift",
+      "option": "Option",
+      "alt": "Alt",
+      "enter": "Enter",
+      "backspace": "Backspace",
+      "arrowUp": "Mũi tên lên",
+      "arrowDown": "Mũi tên xuống",
+      "tab": "Tab"
     },
     "errors": {
       "unknown": "Đã xảy ra lỗi không xác định"
@@ -353,6 +363,32 @@
       "a": "Hồ sơ đang chạy trong một nhóm",
       "b": "Hồ sơ không có thẻ nhưng có proxy",
       "c": "Không khởi chạy hơn 30 ngày, bỏ qua hồ sơ đã lưu trữ"
+    },
+    "suggest": {
+      "label": "Gợi ý tìm kiếm",
+      "matches": "Kết quả khớp",
+      "recent": "Gần đây",
+      "none": "Chưa đặt",
+      "any": "Giá trị bất kỳ",
+      "dates": {
+        "last7d": "7 ngày qua",
+        "last30d": "30 ngày qua",
+        "over30d": "Hơn 30 ngày trước",
+        "over90d": "Hơn 90 ngày trước",
+        "thisYear": "Năm nay",
+        "never": "Chưa bao giờ"
+      },
+      "keys": {
+        "choose": "Chọn",
+        "complete": "Hoàn tất"
+      }
+    },
+    "issues": {
+      "unknownField": "{{name}} không phải là trường, nên sẽ tìm như văn bản. Ý bạn là {{field}}?",
+      "compare": "{{field}} không so sánh được, nên sẽ tìm như văn bản. Chỉ ngày và phiên bản mới so sánh được.",
+      "date": "{{field}} nhận ngày như 2026-01-31, hoặc 7d cho 7 ngày qua.",
+      "enum": "{{field}} nhận {{values}}.",
+      "boolean": "{{field}} nhận yes hoặc no."
     }
   },
   "profiles": {
@@ -571,7 +607,6 @@
       "tabVpns": "VPN",
       "create": "Tạo",
       "loading": "Đang tải proxy...",
-      "noneCreated": "Chưa có proxy nào. Tạo proxy đầu tiên bằng nút phía trên.",
       "usage": "Sử dụng",
       "syncCol": "Đồng bộ",
       "syncCannotDisable": "Không thể tắt đồng bộ khi proxy này đang được sử dụng bởi các hồ sơ đã đồng bộ",
@@ -597,7 +632,9 @@
       "firstHopPlaintextTooltip": "Chặng đầu không mã hóa: kết nối tới proxy này không được mã hóa.",
       "firstHopEncryptedTooltip": "Chặng đầu được mã hóa: kết nối tới proxy này được mã hóa. Nhà cung cấp vẫn thấy bạn đi đến đâu.",
       "firstHopCipherTooltip": "Chặng đầu tùy thuộc vào cipher: proxy này không lưu cipher nào, nên chưa xác định được kết nối tới nó có được mã hóa hay không. Hãy sửa và đặt một cipher thật, ví dụ aes-256-gcm.",
-      "udpCol": "UDP"
+      "udpCol": "UDP",
+      "checkSelected": "Kiểm tra mục đã chọn",
+      "checkSummary": "Đã kiểm tra xong. Đạt: {{passed}}. Lỗi: {{failed}}."
     },
     "add": "Thêm Proxy",
     "edit": "Chỉnh sửa Proxy",
@@ -755,13 +792,11 @@
     "title": "Nhóm",
     "management": "Quản lý nhóm",
     "add": "Thêm nhóm",
-    "edit": "Chỉnh sửa nhóm",
     "delete": "Xóa nhóm",
     "moveToDefault": "Xóa profile khỏi nhóm",
     "noGroupDescription": "Profile không thuộc nhóm nào sẽ hiển thị trong bộ lọc \"Tất cả\".",
     "assignSuccess": "Đã gán thành công {{count}} profile vào {{group}}",
     "noGroups": "Chưa tạo nhóm nào",
-    "noGroupsDescription": "Tạo một nhóm để sắp xếp các profile của bạn.",
     "form": {
       "name": "Tên",
       "namePlaceholder": "Nhập tên nhóm"
@@ -1692,10 +1727,8 @@
     "managedNotice": "Tiện ích được quản lý tại đây sẽ thay thế bất kỳ tiện ích nào được cài đặt thủ công trong profile khi khởi chạy.",
     "proRequired": "Quản lý tiện ích là tính năng Pro",
     "empty": "Chưa tải lên tiện ích nào.",
-    "noGroups": "Chưa tạo nhóm tiện ích nào.",
     "createGroup": "Tạo nhóm",
     "newGroup": "Nhóm mới",
-    "addToGroup": "Thêm tiện ích...",
     "removeFromGroup": "Xóa khỏi nhóm",
     "deleteGroup": "Xóa nhóm",
     "extensionGroup": "Nhóm tiện ích",
@@ -1780,7 +1813,9 @@
     "fetchedIdentity": "{{name}} · phiên bản {{version}}",
     "fetchedFrom": "Đã tải từ {{source}}",
     "fetchSuccess": "Đã tải tiện ích. Hãy kiểm tra tên rồi thêm vào.",
-    "fetchFailed": "Không tải được tiện ích"
+    "fetchFailed": "Không tải được tiện ích",
+    "searchExtensions": "Tìm tiện ích",
+    "membersSelected": "Đã chọn {{selected}}/{{total}}"
   },
   "pro": {
     "badge": "PRO",
@@ -1912,8 +1947,6 @@
     "namesHint": "Các profile được đặt tên {{name}} 1, {{name}} 2, v.v., tiếp sau các số đã dùng.",
     "allowanceLeft_one": "Bạn có thể tạo thêm {{count}} trong giờ này.",
     "allowanceLeft_other": "Bạn có thể tạo thêm {{count}} trong giờ này.",
-    "createMany_one": "Tạo {{count}} profile",
-    "createMany_other": "Tạo {{count}} profile",
     "progress": "Đang tạo {{done}} trên {{total}}",
     "stop": "Dừng",
     "created_one": "Đã tạo {{count}} profile",
@@ -1984,7 +2017,6 @@
     },
     "management": {
       "loading": "Đang tải VPN...",
-      "noneCreated": "Chưa tạo cấu hình VPN nào. Nhập hoặc tạo một VPN bằng các nút phía trên.",
       "editVpn": "Chỉnh sửa VPN",
       "deleteVpn": "Xóa VPN",
       "cannotDelete_one": "Không thể xóa: đang được sử dụng bởi {{count}} profile",
@@ -2100,7 +2132,9 @@
       "description": "Bạn có chắc muốn xóa {{count}} nhóm? {{names}}. Profile sẽ được chuyển về Mặc định.",
       "description_one": "Bạn có chắc muốn xóa {{count}} nhóm? {{names}}. Profile sẽ được chuyển về Mặc định.",
       "confirmButton": "Xóa nhóm"
-    }
+    },
+    "newGroup": "Nhóm mới",
+    "bookmarksCol": "Dấu trang"
   },
   "proxyAssignment": {
     "title": "Gán proxy / VPN",
@@ -2712,7 +2746,8 @@
     "syncServerNoAccounts": "Máy chủ này không chấp nhận tài khoản Donut. Hãy đặt SYNC_PUBLIC_URL trên máy chủ.",
     "syncServerAddressMismatch": "Địa chỉ của máy chủ là {{address}}. Hãy nhập địa chỉ đó.",
     "remoteNeedsDonutSync": "Phiên từ xa và Cookie Bot lấy hồ sơ từ đồng bộ Donut cloud. Máy tính này đồng bộ với máy chủ riêng của bạn.",
-    "accountSyncUnavailable": "Donut chưa thể đăng nhập vào máy chủ riêng của bạn. Hãy thử lại sau."
+    "accountSyncUnavailable": "Donut chưa thể đăng nhập vào máy chủ riêng của bạn. Hãy thử lại sau.",
+    "selfHostedTeamSeat": "Tài khoản nhóm không thể đồng bộ với máy chủ dùng token đồng bộ."
   },
   "rail": {
     "profiles": "Profile",
@@ -2818,31 +2853,40 @@
     "automationActiveHere": "Tự động hóa trình duyệt đang hoạt động trên thiết bị này.",
     "viewTeamUsage": "Xem mức dùng của nhóm",
     "ownServer": {
-      "title": "Máy chủ đồng bộ riêng của bạn",
-      "description": "Đồng bộ tài khoản này với máy chủ donut-sync do bạn vận hành, thay vì Donut cloud. Giới hạn hồ sơ của gói và vai trò, quyền truy cập nhóm của đội bạn vẫn giữ nguyên.",
-      "current": "Đang đồng bộ với {{server}}",
-      "currentCloud": "Đang đồng bộ với Donut cloud",
       "donutCloud": "Donut cloud",
-      "useDonutCloud": "Dùng Donut cloud",
       "accountsOn": "Máy chủ này chấp nhận tài khoản Donut.",
       "cloudOnly": "Phiên từ xa và Cookie Bot cần đồng bộ với Donut cloud.",
       "teamNote": "Tất cả thành viên trong đội phải dùng cùng một máy chủ.",
-      "saved": "Đã lưu máy chủ đồng bộ.",
-      "backToCloud": "Đang đồng bộ lại với Donut cloud."
+      "backToCloud": "Đang đồng bộ lại với Donut cloud.",
+      "label": "Máy chủ đồng bộ",
+      "change": "Thay đổi",
+      "remove": "Gỡ bỏ",
+      "removed": "Đã gỡ máy chủ đồng bộ.",
+      "switched": "Đang đồng bộ với {{server}}.",
+      "tokenServer": "{{host}} (token đồng bộ)"
     }
   },
   "shortcutsPage": {
     "title": "Phím tắt",
-    "description": "Tăng tốc quy trình làm việc với các phím tắt này."
+    "description": "Tăng tốc quy trình làm việc với các phím tắt này.",
+    "paletteHint": "Tìm mọi trang, profile và hành động.",
+    "holdHint": "Giữ các phím này để xem phím tắt nào dùng chúng.",
+    "paletteKeys": {
+      "title": "Trong bảng lệnh",
+      "move": "Di chuyển giữa các kết quả",
+      "run": "Chạy lệnh đã chọn",
+      "back": "Quay lại khi ô tìm kiếm trống",
+      "close": "Đóng bảng lệnh"
+    }
   },
   "commandPalette": {
     "placeholder": "Nhập lệnh hoặc tìm kiếm...",
-    "empty": "Không tìm thấy kết quả.",
     "groups": {
       "navigation": "Điều hướng",
       "profiles": "Profile",
       "actions": "Hành động",
-      "profileGroups": "Nhóm profile"
+      "profileGroups": "Nhóm profile",
+      "recent": "Gần đây"
     },
     "actions": {
       "launchProfile": "Khởi chạy {{name}}",
@@ -2850,6 +2894,66 @@
       "profileInfo": "Thông tin — {{name}}",
       "createProfile": "Tạo hồ sơ",
       "about": "Giới thiệu về Donut Browser"
+    },
+    "pages": {
+      "launch": {
+        "entry": "Khởi chạy profile…",
+        "title": "Khởi chạy",
+        "placeholder": "Tìm profile để khởi chạy...",
+        "empty": "Tất cả profile đều đang chạy."
+      },
+      "stop": {
+        "entry": "Dừng profile…",
+        "title": "Dừng",
+        "placeholder": "Tìm profile đang chạy...",
+        "empty": "Không có profile nào đang chạy."
+      },
+      "info": {
+        "entry": "Mở thông tin profile…",
+        "title": "Thông tin profile",
+        "placeholder": "Tìm profile...",
+        "empty": "Chưa có profile nào."
+      },
+      "group": {
+        "entry": "Đi tới nhóm…",
+        "title": "Nhóm",
+        "placeholder": "Tìm nhóm...",
+        "empty": "Chưa có nhóm nào."
+      }
+    },
+    "emptyFor": "Không có kết quả cho “{{query}}”.",
+    "emptyHint": "Tìm trang, profile, nhóm và hành động.",
+    "emptyPageHint": "Esc để quay lại tất cả lệnh.",
+    "footer": {
+      "move": "Di chuyển",
+      "run": "Chạy",
+      "open": "Mở",
+      "back": "Quay lại",
+      "close": "Đóng"
+    },
+    "keywords": {
+      "openPalette": "lệnh tìm kiếm chạy",
+      "openShortcuts": "bàn phím phím tắt trợ giúp",
+      "openTips": "mẹo trợ giúp hướng dẫn tính năng",
+      "sendFeedback": "lỗi báo cáo vấn đề hỗ trợ liên hệ ý tưởng",
+      "openTotp": "hai lớp 2fa otp totp xác thực mã mfa",
+      "importProfile": "nhập thêm tải chuyển chrome firefox",
+      "goProfiles": "trang chủ trình duyệt danh sách tất cả",
+      "goProxies": "proxy vpn wireguard mạng socks http",
+      "goExtensions": "tiện ích mở rộng add-on plugin",
+      "goGroups": "nhóm thư mục sắp xếp",
+      "goCookieBot": "cookie làm nóng bot duyệt web",
+      "goAgent": "ai mcp trợ lý tự động hóa",
+      "goIntegrations": "api mcp rest token tích hợp tự động hóa",
+      "goAccount": "tài khoản đám mây đăng nhập gói đăng ký thanh toán nhóm đồng bộ",
+      "goSettings": "tùy chọn giao diện chủ đề ngôn ngữ âm thanh",
+      "goTrash": "thùng rác đã xóa khôi phục",
+      "createProfile": "mới thêm profile trình duyệt",
+      "about": "phiên bản giấy phép giới thiệu",
+      "launch": "khởi chạy mở bắt đầu trình duyệt",
+      "stop": "dừng thoát đóng",
+      "info": "chi tiết thông tin sửa profile",
+      "group": "nhóm lọc chuyển thư mục"
     }
   },
   "shortcuts": {
@@ -3010,7 +3114,7 @@
   },
   "cookieBot": {
     "title": "Cookie Bot",
-    "description": "Làm ấm hồ sơ qua đêm trên máy từ xa.",
+    "description": "Làm ấm hồ sơ trên máy từ xa theo lịch của bạn.",
     "tabs": {
       "overview": "Tổng quan",
       "schedule": "Lịch chạy",
@@ -3019,64 +3123,54 @@
     },
     "locked": {
       "title": "Cookie Bot",
-      "hint": "Cookie Bot làm ấm hồ sơ của bạn qua đêm trên máy từ xa, giúp chúng giữ được cookie và lịch sử mà không cần bật máy tính của bạn."
+      "hint": "Cookie Bot làm ấm hồ sơ của bạn trên máy từ xa vào những giờ bạn chọn, giúp chúng giữ được cookie và lịch sử mà không cần bật máy tính của bạn."
     },
     "empty": {
       "title": "Chưa có hồ sơ nào được đăng ký",
-      "hint": "Chọn một hồ sơ và bot sẽ làm ấm nó qua đêm trên máy từ xa. Máy tính của bạn có thể tắt.",
+      "hint": "Chọn một hồ sơ và bot sẽ làm ấm nó trên máy từ xa vào những giờ bạn đặt. Máy tính của bạn có thể tắt.",
       "cta": "Đăng ký một hồ sơ"
     },
-    "tonight": {
-      "label": "Đêm nay",
-      "nextRun": "Lần chạy tới lúc {{time}}",
-      "dueCount_one": "{{count}} hồ sơ đến hạn",
-      "dueCount_other": "{{count}} hồ sơ đến hạn",
-      "nothingScheduled": "Chưa lên lịch gì"
-    },
     "lastDay": {
-      "label": "24 giờ qua",
-      "none": "Chưa có lần chạy nào",
-      "ran_one": "{{count}} đã chạy",
-      "ran_other": "{{count}} đã chạy",
-      "partial_one": "{{count}} một phần",
-      "partial_other": "{{count}} một phần",
-      "failed_one": "{{count}} thất bại",
-      "failed_other": "{{count}} thất bại"
+      "label": "24 giờ qua"
     },
     "chart": {
-      "machineTime": "Thời gian máy mỗi đêm",
-      "minutes": "{{minutes}} phút"
+      "machineTime": "Thời gian máy mỗi ngày",
+      "minutes": "{{minutes}} phút",
+      "total": "Tổng {{duration}}",
+      "empty": "Không có lần chạy nào trong khoảng này",
+      "noRuns": "Không có lần chạy",
+      "runs_one": "{{count}} lần chạy",
+      "runs_other": "{{count}} lần chạy"
     },
     "hours": {
       "label": "Giờ từ xa",
-      "remaining": "Còn {{remaining}} giờ trong {{total}}",
       "remainingOf": "trên {{total}} giờ",
       "used": "Đã dùng {{used}} trong {{total}} giờ",
       "resets": "Đặt lại vào {{date}}",
       "exhausted": "Đã hết giờ từ xa. Các lịch chạy vẫn được giữ và sẽ tiếp tục ở chu kỳ sau.",
       "exhaustedOn": "Đã hết giờ từ xa. Các lịch chạy vẫn được giữ và sẽ tiếp tục vào {{date}}.",
       "estimate": "Khoảng {{hours}} giờ mỗi tuần · còn {{remaining}} giờ trong chu kỳ này",
-      "estimateOverBudget": "Cần khoảng {{hours}} giờ mỗi tuần — chỉ còn {{remaining}} giờ",
-      "estimateOnly": "Khoảng {{hours}} giờ mỗi tuần"
+      "estimateOverBudget": "Cần khoảng {{hours}} giờ mỗi tuần, chỉ còn {{remaining}} giờ",
+      "estimateOnly": "Khoảng {{hours}} giờ mỗi tuần",
+      "left": "Còn {{hours}} giờ"
     },
     "enrolled": {
       "columnProfile": "Hồ sơ",
-      "columnCadence": "Tần suất",
-      "columnTime": "Giờ",
       "columnNextRun": "Lần chạy tới",
       "columnLastRun": "Lần chạy trước",
       "enrolProfiles": "Đăng ký hồ sơ",
       "edit": "Sửa lịch chạy",
       "neverRun": "Chưa bao giờ",
-      "pausedNoHours": "Tạm dừng — hết giờ",
+      "pausedNoHours": "Tạm dừng: hết giờ",
       "profileMissing": "Hồ sơ đó không có trên máy tính này."
     },
     "schedule": {
       "empty": "Chưa có gì được lên lịch.",
       "unenrol": "Gỡ khỏi Cookie Bot",
       "unenrolTitle": "Gỡ {{name}} khỏi Cookie Bot?",
-      "unenrolDescription": "Việc làm ấm sẽ dừng ngay đêm nay. Các lần chạy trước vẫn nằm trong tab Hoạt động.",
-      "unenrolled": "Đã gỡ khỏi Cookie Bot"
+      "unenrolDescription": "Các lần chạy sắp tới sẽ dừng. Các lần chạy trước vẫn nằm trong tab Hoạt động.",
+      "unenrolled": "Đã gỡ khỏi Cookie Bot",
+      "localTime": "Bây giờ {{time}}"
     },
     "status": {
       "provisioning": "Đang chuẩn bị máy",
@@ -3103,7 +3197,7 @@
     "live": {
       "idle": "Hiện không có gì đang chạy",
       "streamOffline": "Cập nhật trực tiếp đang ngoại tuyến",
-      "streamOfflineDetail": "Cập nhật trực tiếp đang ngoại tuyến — đang kết nối lại. Các lần chạy bên dưới có thể đã cũ.",
+      "streamOfflineDetail": "Cập nhật trực tiếp đang ngoại tuyến, đang kết nối lại. Các lần chạy bên dưới có thể đã cũ.",
       "unnamedSession": "Phiên từ xa",
       "notStartedYet": "Máy chưa báo về thời điểm bắt đầu.",
       "sitesProgress": "{{visited}} trong {{total}} trang",
@@ -3147,7 +3241,7 @@
     },
     "picker": {
       "title": "Đăng ký hồ sơ",
-      "description": "Chọn các hồ sơ mà bot sẽ làm ấm qua đêm.",
+      "description": "Chọn các hồ sơ mà bot sẽ làm ấm.",
       "searchPlaceholder": "Tìm hồ sơ…",
       "noProfiles": "Không có hồ sơ nào khớp.",
       "alreadyEnrolled": "Đã đăng ký",
@@ -3160,25 +3254,25 @@
       "titleCount_other": "Đăng ký {{count}} hồ sơ",
       "editTitle": "Sửa lịch chạy",
       "description": "Bot mở hồ sơ trên máy từ xa và duyệt các trang bạn liệt kê. Máy tính của bạn có thể tắt.",
-      "summaryNightly": "Chạy mỗi đêm lúc {{time}}, tối đa {{minutes}} phút mỗi lần.",
+      "summaryNightly": "Chạy mỗi ngày lúc {{time}}, tối đa {{minutes}} phút mỗi lần.",
       "summaryWeeknights": "Chạy từ thứ Hai đến thứ Sáu lúc {{time}}, tối đa {{minutes}} phút mỗi lần.",
-      "summaryAlternate": "Chạy cách đêm lúc {{time}}, tối đa {{minutes}} phút mỗi lần.",
-      "summaryCustom_one": "Chạy {{count}} đêm mỗi tuần lúc {{time}}, tối đa {{minutes}} phút mỗi lần.",
-      "summaryCustom_other": "Chạy {{count}} đêm mỗi tuần lúc {{time}}, tối đa {{minutes}} phút mỗi lần.",
-      "confirm": "Đăng ký cho đêm nay",
-      "confirmSome": "Đăng ký {{eligible}} trong {{total}} cho đêm nay",
+      "summaryAlternate": "Chạy cách ngày lúc {{time}}, tối đa {{minutes}} phút mỗi lần.",
+      "summaryCustom_one": "Chạy {{count}} ngày mỗi tuần lúc {{time}}, tối đa {{minutes}} phút mỗi lần.",
+      "summaryCustom_other": "Chạy {{count}} ngày mỗi tuần lúc {{time}}, tối đa {{minutes}} phút mỗi lần.",
+      "confirm": "Đăng ký",
+      "confirmSome": "Đăng ký {{eligible}} trong {{total}}",
       "fixFirst": "Hãy khắc phục những mục này trước",
       "saving": "Đang đăng ký…",
       "saved": "Đã lưu lịch chạy",
       "enrolled_one": "Đã đăng ký {{count}} hồ sơ",
       "enrolled_other": "Đã đăng ký {{count}} hồ sơ",
-      "adjust": "Điều chỉnh lịch chạy",
+      "adjust": "Thời lượng và độ sâu",
       "cadenceLabel": "Tần suất",
-      "cadenceNightly": "Mỗi đêm",
-      "cadenceWeeknights": "Đêm trong tuần",
-      "cadenceAlternate": "Cách đêm",
-      "cadenceCustom_one": "{{count}} đêm mỗi tuần",
-      "cadenceCustom_other": "{{count}} đêm mỗi tuần",
+      "cadenceNightly": "Mỗi ngày",
+      "cadenceWeeknights": "Ngày trong tuần",
+      "cadenceAlternate": "Cách ngày",
+      "cadenceCustom_one": "{{count}} ngày mỗi tuần",
+      "cadenceCustom_other": "{{count}} ngày mỗi tuần",
       "timeLabel": "Giờ bắt đầu",
       "timeHint": "Theo múi giờ trong dấu vân tay của từng hồ sơ.",
       "maxMinutesLabel": "Số phút tối đa",
@@ -3191,8 +3285,8 @@
       "presetsUnavailable": "Không tải được các mức độ sâu định sẵn. Hãy thử lại sau giây lát.",
       "confirmBulkTitle_one": "Đăng ký {{count}} hồ sơ vào Cookie Bot?",
       "confirmBulkTitle_other": "Đăng ký {{count}} hồ sơ vào Cookie Bot?",
-      "confirmBulkDescription_one": "Việc này đặt trước một lần chạy đêm, trừ vào quỹ giờ từ xa dùng chung. Bạn sẽ chọn giờ và các trang ở bước tiếp theo.",
-      "confirmBulkDescription_other": "Việc này đặt trước {{count}} lần chạy đêm, trừ vào quỹ giờ từ xa dùng chung. Bạn sẽ chọn giờ và các trang ở bước tiếp theo.",
+      "confirmBulkDescription_one": "Việc này đặt trước một lần chạy hằng ngày, trừ vào quỹ giờ từ xa dùng chung. Bạn sẽ chọn giờ và các trang ở bước tiếp theo.",
+      "confirmBulkDescription_other": "Việc này đặt trước {{count}} lần chạy hằng ngày, trừ vào quỹ giờ từ xa dùng chung. Bạn sẽ chọn giờ và các trang ở bước tiếp theo.",
       "confirmBulkButton_one": "Tiếp tục với {{count}} hồ sơ",
       "confirmBulkButton_other": "Tiếp tục với {{count}} hồ sơ",
       "sitesRequired": "Hãy thêm ít nhất một trang.",
@@ -3202,7 +3296,7 @@
       "sourceCurated": "Tuyển chọn",
       "sourceSaved": "Đã lưu",
       "curatedEmpty": "Hiện không có danh sách tuyển chọn nào.",
-      "curatedNote": "Danh sách tuyển chọn do chúng tôi cập nhật. Mỗi hồ sơ lấy một mẫu riêng từ đó, nên không hồ sơ nào duyệt cùng một tập trang — chính điều này khiến danh sách không trở thành dấu hiệu nhận dạng. Các địa chỉ vẫn nằm ở phía chúng tôi.",
+      "curatedNote": "Danh sách tuyển chọn do chúng tôi cập nhật. Mỗi hồ sơ lấy một mẫu riêng từ đó, nên không hồ sơ nào duyệt cùng một tập trang, và chính điều này khiến danh sách không trở thành dấu hiệu nhận dạng. Các địa chỉ vẫn nằm ở phía chúng tôi.",
       "savedEmpty": "Chưa lưu gì cả. Hãy nhập danh sách ở mục Danh sách của tôi rồi lưu từ đó.",
       "savedNote": "Các trang được sao chép vào lịch khi bạn lưu, nên sửa danh sách sau này không ảnh hưởng tới các lịch đã có.",
       "savedUnavailable": "Không tải được các danh sách đã lưu của bạn.",
@@ -3228,7 +3322,12 @@
       "listSites_other": "{{count}} trang",
       "summarySlots_one": "Chạy {{count}} lần mỗi tuần, tối đa {{minutes}} phút mỗi lần.",
       "summarySlots_other": "Chạy {{count}} lần mỗi tuần, tối đa {{minutes}} phút mỗi lần.",
-      "templateNameInvalidNoMax": "Không thể dùng tên đó cho danh sách đã lưu."
+      "templateNameInvalidNoMax": "Không thể dùng tên đó cho danh sách đã lưu.",
+      "shuffleTime": "Chọn giờ khác",
+      "ownTimes": "Mỗi hồ sơ một giờ khác nhau",
+      "timeRandom": "Ngẫu nhiên theo hồ sơ",
+      "summaryOwnTimes_one": "Mỗi hồ sơ chạy {{count}} lần mỗi tuần vào một giờ ngẫu nhiên riêng, tối đa {{minutes}} phút mỗi lần.",
+      "summaryOwnTimes_other": "Mỗi hồ sơ chạy {{count}} lần mỗi tuần vào một giờ ngẫu nhiên riêng, tối đa {{minutes}} phút mỗi lần."
     },
     "preset": {
       "light": "Nhẹ",
@@ -3245,7 +3344,7 @@
       "reasonSync": "Đồng bộ đang tắt",
       "reasonEncrypted": "Mã hóa đầu cuối",
       "reasonNoFingerprint": "Chưa ghi nhận hệ điều hành",
-      "reasonCrossOs": "Tạo cho {{os}} — không có máy từ xa phù hợp",
+      "reasonCrossOs": "Tạo cho {{os}}: không có máy từ xa phù hợp",
       "reasonNoExitNode": "Không có proxy hoặc VPN",
       "fixSync": "Bật đồng bộ",
       "fixEncrypted": "Mở cài đặt đồng bộ",
@@ -3317,13 +3416,27 @@
       "profileLocked": "Hồ sơ đang mở ở nơi khác",
       "noCapacity": "Không có máy nào rảnh",
       "managerError": "Cụm máy không khởi động được trình duyệt",
-      "budgetExceeded": "Đã hết thời lượng dành cho đêm nay",
-      "browsingIncomplete": "Trình duyệt đã mở nhưng phiên duyệt trong đêm chưa hoàn tất",
+      "budgetExceeded": "Đã hết thời lượng dành cho lần chạy",
+      "browsingIncomplete": "Trình duyệt đã mở nhưng phiên duyệt chưa hoàn tất",
       "proxyUnsupported": "Không máy chủ nào dùng được loại proxy này, hãy dùng lối ra HTTP, SOCKS hoặc WireGuard",
       "profileNotSynced": "Bản sao trên đám mây chưa đầy đủ, hãy đồng bộ xong hồ sơ từ máy tính",
       "profileOsMismatch": "Hồ sơ đến từ hệ điều hành khác với máy chủ đã chạy nó",
       "cancelledByUser": "Đã dừng thủ công",
       "unknown": "Lý do không xác định ({{code}})"
+    },
+    "next": {
+      "label": "Lần chạy tới",
+      "now": "Sắp bắt đầu",
+      "inMinutes_one": "Sau {{count}} phút",
+      "inMinutes_other": "Sau {{count}} phút",
+      "inHours_one": "Sau {{count}} giờ",
+      "inHours_other": "Sau {{count}} giờ",
+      "today": "Hôm nay",
+      "tomorrow": "Ngày mai",
+      "dueSoon_one": "{{count}} hồ sơ trong 24 giờ tới",
+      "dueSoon_other": "{{count}} hồ sơ trong 24 giờ tới",
+      "nothingScheduled": "Chưa lên lịch gì",
+      "blocked": "Chưa có hồ sơ nào chạy được. Xem danh sách bên dưới."
     }
   },
   "prelaunchGate": {
@@ -3466,7 +3579,11 @@
     "confirmed": "Có",
     "unavailable": "Không",
     "apiProbeScope": "Kiểm tra API cục bộ đang chạy bằng thông tin xác thực đã lưu. Không khởi chạy hồ sơ.",
-    "remoteProbeScope": "Kiểm tra thông tin xác thực MCP đã lưu. Điều khiển từ xa cũng cần thiết bị được kết nối và gói phù hợp; máy khách đã cấu hình không phải phiên đang hoạt động."
+    "remoteProbeScope": "Kiểm tra thông tin xác thực MCP đã lưu. Điều khiển từ xa cũng cần thiết bị được kết nối và gói phù hợp; máy khách đã cấu hình không phải phiên đang hoạt động.",
+    "probeNotConfigured": "Chưa lưu thông tin xác thực nào.",
+    "probeUnreachable": "Máy chủ không phản hồi.",
+    "probeRefused": "Máy chủ đã từ chối thông tin xác thực.",
+    "probeUnverified": "Máy chủ trả lời bằng HTTP {{status}}, nên thông tin xác thực chưa được kiểm tra."
   },
   "easterEgg": {
     "konami": {
@@ -3817,13 +3934,11 @@
   },
   "tips": {
     "title": "Mẹo",
-    "essentials": "Cơ bản",
-    "planSection": "Có trong gói của bạn",
     "count": "{{current}} / {{total}}",
     "previous": "Mẹo trước",
     "next": "Mẹo tiếp theo",
     "done": "Xong",
-    "autoShow": "Hiện một mẹo sau mỗi vài ngày",
+    "autoShow": "Hiện mẹo trên trang Profile",
     "items": {
       "dnsBlocklist": {
         "label": "Chặn DNS",
@@ -3911,7 +4026,7 @@
       },
       "cookieBot": {
         "label": "Cookie Bot",
-        "title": "Làm nóng hồ sơ qua đêm",
+        "title": "Làm nóng hồ sơ theo lịch",
         "body": "Cookie Bot duyệt các trang thật theo lịch từ một máy chủ từ xa, để hồ sơ mới tích lũy lịch sử tự nhiên trước khi bạn dùng.",
         "action": "Mở Cookie Bot"
       },
@@ -3950,7 +4065,75 @@
         "title": "Cho đội ngũ biết nên sửa gì tiếp theo",
         "body": "Có gì bị hỏng hoặc còn thiếu? Gửi phản hồi từ menu Thêm. Chỉ một công tắc là đính kèm nhật ký, để đội ngũ thấy chính xác điều gì đã sai.",
         "action": "Gửi phản hồi"
+      },
+      "searchSyntax": {
+        "label": "Trường tìm kiếm",
+        "title": "Lọc profile theo trường",
+        "body": "Gõ một trường vào ô tìm kiếm, ví dụ tag:work, proxy:none hoặc status:running. Thêm dấu trừ phía trước để loại trừ: -tag:old.",
+        "action": "Thử proxy:none"
+      },
+      "shortcuts": {
+        "label": "Phím tắt",
+        "title": "Tay luôn trên bàn phím",
+        "body": "Mỗi trang đều có phím tắt riêng, nhập, phản hồi và mẹo cũng vậy. {{mod}}+/ liệt kê tất cả.",
+        "action": "Xem tất cả phím tắt"
+      },
+      "statuses": {
+        "label": "Trạng thái",
+        "title": "Đánh dấu tình trạng của từng tài khoản",
+        "body": "Gán cho profile một trạng thái, như Hoạt động hoặc Bị cấm, trong cột Trạng thái. Mỗi trạng thái có một màu và được đồng bộ sang các thiết bị khác.",
+        "action": "Mở Hồ sơ"
+      },
+      "templates": {
+        "label": "Mẫu",
+        "title": "Thiết lập một lần, tạo nhiều lần",
+        "body": "Giữ cài đặt của một profile bằng Lưu thành mẫu trong menu của nó. Profile mới bắt đầu từ mẫu, tạo nhiều cái một lúc, mỗi cái có thiết bị riêng.",
+        "action": "Profile mới"
+      },
+      "vpn": {
+        "label": "VPN",
+        "title": "Cho profile đi qua VPN",
+        "body": "Nhập tệp WireGuard hoặc liên kết VLESS, VMess, Trojan hay Hysteria2 trên trang Mạng. Sau đó chọn nó cho một profile: chỉ profile đó dùng đường hầm.",
+        "action": "Mở VPN"
+      },
+      "requireRoute": {
+        "label": "Chặn khởi chạy trực tiếp",
+        "title": "Không bao giờ khởi chạy từ IP của bạn",
+        "body": "Bật Chặn khởi chạy khi không có proxy hoặc VPN trong cài đặt quyền riêng tư. Profile không có proxy, hoặc proxy hay VPN đã mất, sẽ không khởi động.",
+        "action": "Mở cài đặt quyền riêng tư"
+      },
+      "totp": {
+        "label": "Mã 2FA",
+        "title": "Giữ mã 2FA cùng profile",
+        "body": "Thêm khóa 2FA của tài khoản trong thông tin profile, Donut hiện mã hiện tại, sẵn sàng để sao chép. Khóa được mã hóa và ở lại trên thiết bị này.",
+        "action": "Thử một khóa 2FA"
+      },
+      "synchronizer": {
+        "label": "Trình đồng bộ",
+        "title": "Điều khiển nhiều profile cùng lúc",
+        "body": "Chọn Khởi chạy với trình đồng bộ trong menu của profile và chọn các profile theo sau. Mỗi cú nhấp và phím gõ ở profile dẫn đầu được lặp lại ở từng profile theo sau.",
+        "action": "Mở Hồ sơ"
       }
+    },
+    "sections": {
+      "everyday": "Hằng ngày",
+      "network": "Mạng",
+      "privacy": "Quyền riêng tư và dữ liệu",
+      "connect": "Kết nối",
+      "plan": "Có trong gói của bạn"
+    },
+    "progress": "Đã đọc {{read}}/{{total}}",
+    "unread": "Chưa đọc",
+    "nextShort": "Tiếp",
+    "inline": {
+      "label": "Mẹo tính năng",
+      "eyebrow": "Mẹo",
+      "more": "Thêm tùy chọn cho mẹo",
+      "allTips": "Tất cả mẹo",
+      "turnOff": "Không hiện mẹo",
+      "dismiss": "Ẩn mẹo",
+      "offTitle": "Đã tắt mẹo",
+      "offBody": "Bật lại trong Mẹo ({{shortcut}})."
     }
   },
   "paidWelcome": {
@@ -4170,6 +4353,35 @@
     "kind": {
       "auto": "Hằng ngày",
       "manual": "Thủ công"
+    }
+  },
+  "entities": {
+    "empty": {
+      "proxies": {
+        "title": "Chưa có proxy",
+        "body": "Proxy gửi lưu lượng của hồ sơ qua một máy chủ khác. Mỗi hồ sơ có thể dùng proxy riêng."
+      },
+      "vpns": {
+        "title": "Chưa có VPN",
+        "body": "VPN WireGuard đưa lưu lượng của hồ sơ qua một đường hầm mã hóa."
+      },
+      "groups": {
+        "title": "Chưa có nhóm",
+        "body": "Nhóm sắp xếp hồ sơ theo khách hàng, dự án hoặc công việc. Mọi hồ sơ trong nhóm nhận dấu trang của nhóm."
+      },
+      "extensions": {
+        "title": "Chưa có tiện ích",
+        "body": "Thêm tiện ích từ tệp, thư mục hoặc liên kết Web Store. Đặt tiện ích vào một nhóm tiện ích để dùng trong hồ sơ."
+      },
+      "extensionGroups": {
+        "title": "Chưa có nhóm tiện ích",
+        "body": "Nhóm tiện ích là một bộ tiện ích. Hồ sơ dùng nhóm sẽ nhận bộ này khi khởi chạy."
+      }
+    },
+    "check": {
+      "notChecked": "Chưa kiểm tra",
+      "valid": "Hợp lệ",
+      "invalid": "Không hợp lệ"
     }
   }
 }

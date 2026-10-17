@@ -4,9 +4,13 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-  autoTipCandidates,
+  actionStaysOn,
+  inlineTipCandidates,
+  isKnownTip,
   isPlanTip,
-  pickAutoTip,
+  pickInlineTip,
+  pinnedTipFate,
+  TIP_SECTIONS,
   TIPS,
   tipsFor,
 } from "./tips.ts";
@@ -20,9 +24,11 @@ const IDLE = {
   currentOs: "macos",
   groupCount: 0,
   extensionGroupCount: 0,
+  vpnCount: 0,
   inTeam: false,
   cookieBotEnrolled: false,
   syncServerConfigured: false,
+  noted: [],
 };
 
 const ALL_PLAN = {
@@ -56,6 +62,12 @@ test("tip ids are unique and every tip has copy in every locale", () => {
   assert.ok(locales.length >= 2, "expected several locale files");
   for (const name of locales) {
     const bundle = JSON.parse(readFileSync(path.join(LOCALES, name), "utf8"));
+    for (const section of TIP_SECTIONS) {
+      assert.ok(
+        bundle.tips?.sections?.[section]?.trim(),
+        `${name} is missing tips.sections.${section}`,
+      );
+    }
     for (const id of ids) {
       const item = bundle.tips?.items?.[id];
       assert.ok(item, `${name} is missing tips.items.${id}`);
@@ -96,27 +108,66 @@ test("a plan tip needs an active plan with that capability", () => {
   );
 });
 
-test("the automatic flow picks one unseen tip at random", () => {
+test("a launcher seat is not offered tips for features it may not change", () => {
+  const launcher = ids(tipsFor(ALL_PLAN, true));
+  for (const id of [
+    "groups",
+    "statuses",
+    "templates",
+    "vpn",
+    "importProfiles",
+  ]) {
+    assert.ok(!launcher.includes(id), `${id} edits team data`);
+  }
+  for (const id of ["commandPalette", "proxyCheck", "synchronizer", "agent"]) {
+    assert.ok(launcher.includes(id), `${id} works on a launcher seat`);
+  }
+  assert.deepEqual(
+    ids(tipsFor(ALL_PLAN, true)),
+    ids(tipsFor(ALL_PLAN).filter((tip) => !tip.editsTeamData)),
+  );
+});
+
+test("a pinned tip the seat lost is released, an unknown one closed", () => {
+  const free = tipsFor(NONE);
+  assert.equal(pinnedTipFate("trash", free), "check");
+  assert.equal(
+    pinnedTipFate("cookieBot", free),
+    "release",
+    "a plan tip after the plan is gone goes back to the pool unread",
+  );
+  assert.equal(pinnedTipFate("cookieBot", tipsFor(ALL_PLAN)), "check");
+  assert.equal(pinnedTipFate("retiredTip", free), "close");
+});
+
+test("only ids in the catalog count as known tips", () => {
+  assert.ok(isKnownTip("cookieBot"), "a plan tip is known without the plan");
+  assert.ok(!isKnownTip("retiredTip"));
+});
+
+test("the inline flow picks one unseen tip at random", () => {
   const offered = tipsFor(NONE);
   assert.equal(
-    pickAutoTip(offered, [], IDLE, () => 0),
+    pickInlineTip(offered, [], IDLE, () => 0),
     offered[0],
   );
   assert.equal(
-    pickAutoTip(offered, [], IDLE, () => 0.999_999),
+    pickInlineTip(offered, [], IDLE, () => 0.999_999),
     offered.at(-1),
     "the top of the random range lands on the last candidate",
   );
   assert.equal(
-    pickAutoTip(offered, [offered[0].id], IDLE, () => 0),
+    pickInlineTip(offered, [offered[0].id], IDLE, () => 0),
     offered[1],
     "a seen tip is never picked",
   );
-  assert.equal(pickAutoTip(offered, ids(offered), IDLE), null);
+  assert.equal(pickInlineTip(offered, ids(offered), IDLE), null);
 
   const picked = new Set();
   for (let roll = 0; roll < offered.length; roll += 1) {
-    picked.add(pickAutoTip(offered, [], IDLE, () => roll / offered.length)?.id);
+    picked.add(
+      pickInlineTip(offered, [], IDLE, () => roll / offered.length)?.id,
+    );
   }
   assert.equal(
     picked.size,
@@ -127,14 +178,14 @@ test("the automatic flow picks one unseen tip at random", () => {
 
 test("an install that uses nothing yet is offered every unseen tip", () => {
   const offered = tipsFor(ALL_PLAN);
-  assert.deepEqual(ids(autoTipCandidates(offered, [], IDLE)), ids(offered));
+  assert.deepEqual(ids(inlineTipCandidates(offered, [], IDLE)), ids(offered));
 });
 
 test("a tip for a feature already in use is skipped", () => {
   const offered = tipsFor(ALL_PLAN);
   const skipped = (usage) =>
     ids(offered).filter(
-      (id) => !ids(autoTipCandidates(offered, [], usage)).includes(id),
+      (id) => !ids(inlineTipCandidates(offered, [], usage)).includes(id),
     );
   const withProfile = (profile) => ({ ...IDLE, profiles: [profile] });
 
@@ -205,13 +256,53 @@ test("a tip for a feature already in use is skipped", () => {
   assert.deepEqual(skipped({ ...IDLE, remoteControlEnabled: true }), [
     "remoteControl",
   ]);
+  assert.deepEqual(skipped(withProfile({ vpn_id: "v1" })), ["vpn"]);
+  assert.deepEqual(skipped({ ...IDLE, vpnCount: 1 }), ["vpn"]);
+  assert.deepEqual(skipped(withProfile({ status_id: "s1" })), ["statuses"]);
+  assert.deepEqual(skipped(withProfile({ status_id: null })), []);
+  assert.deepEqual(skipped({ ...IDLE, templatesSaved: true }), ["templates"]);
+  assert.deepEqual(skipped({ ...IDLE, routeRequired: true }), ["requireRoute"]);
+  for (const feature of [
+    "commandPalette",
+    "searchSyntax",
+    "shortcuts",
+    "importProfiles",
+    "totp",
+    "synchronizer",
+  ]) {
+    assert.deepEqual(
+      skipped({ ...IDLE, noted: [feature] }),
+      [feature],
+      `${feature} stops once the app has seen it in use`,
+    );
+  }
 });
 
-test("only the command palette and import tips have no usage signal", () => {
-  assert.deepEqual(ids(TIPS.filter((tip) => tip.inUse === undefined)), [
-    "commandPalette",
-    "importProfiles",
-  ]);
+test("every tip has a section, and the plan section is exactly the plan tips", () => {
+  for (const tip of TIPS) {
+    assert.ok(TIP_SECTIONS.includes(tip.section), `${tip.id}: ${tip.section}`);
+    assert.equal(
+      tip.section === "plan",
+      isPlanTip(tip),
+      `${tip.id} is in the plan section only if a plan unlocks it`,
+    );
+    assert.equal(typeof tip.inUse, "function", `${tip.id} has a usage check`);
+  }
+  const order = TIPS.map((tip) => TIP_SECTIONS.indexOf(tip.section));
+  assert.deepEqual(
+    order,
+    [...order].sort((a, b) => a - b),
+    "the catalog lists the tips section by section",
+  );
+});
+
+test("an action stays on the page only when it names that page", () => {
+  assert.ok(actionStaysOn({ kind: "page", page: "profiles" }, "profiles"));
+  assert.ok(!actionStaysOn({ kind: "page", page: "groups" }, "profiles"));
+  assert.ok(!actionStaysOn({ kind: "palette" }, "profiles"));
+  assert.ok(
+    !actionStaysOn({ kind: "search", query: "proxy:none" }, "profiles"),
+  );
 });
 
 test("the pick skips tips in use and gives up when nothing is left", () => {
@@ -220,7 +311,10 @@ test("the pick skips tips in use and gives up when nothing is left", () => {
   const seen = ids(offered).filter((id) => !unseen.includes(id));
   const dnsOn = { ...IDLE, profiles: [{ dns_blocklist: "light" }] };
   for (const roll of [0, 0.5, 0.99]) {
-    assert.equal(pickAutoTip(offered, seen, dnsOn, () => roll)?.id, "trash");
+    assert.equal(pickInlineTip(offered, seen, dnsOn, () => roll)?.id, "trash");
   }
-  assert.equal(pickAutoTip(offered, seen, { ...dnsOn, trashUsed: true }), null);
+  assert.equal(
+    pickInlineTip(offered, seen, { ...dnsOn, trashUsed: true }),
+    null,
+  );
 });

@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
 import type { BrowserProfile, ExtensionGroup } from "@/types";
 import { RippleButton } from "./ui/ripple";
 
@@ -55,7 +56,9 @@ export function ExtensionGroupAssignmentDialog({
     } catch (err) {
       console.error("Failed to load extension groups:", err);
       setError(
-        err instanceof Error ? err.message : t("extensions.loadGroupsFailed"),
+        parseBackendError(err)
+          ? translateBackendError(t, err)
+          : t("extensions.loadGroupsFailed"),
       );
     } finally {
       setIsLoading(false);
@@ -78,8 +81,9 @@ export function ExtensionGroupAssignmentDialog({
       onClose();
     } catch (err) {
       console.error("Failed to assign extension group:", err);
-      const errorMessage =
-        err instanceof Error ? err.message : t("extensions.assignGroupFailed");
+      const errorMessage = parseBackendError(err)
+        ? translateBackendError(t, err)
+        : t("extensions.assignGroupFailed");
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -109,27 +113,24 @@ export function ExtensionGroupAssignmentDialog({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>{t("extensions.assignTitle")}:</Label>
-            <div className="max-h-[min(8rem,20vh)] overflow-y-auto rounded-md bg-muted p-3">
-              <ul className="space-y-1 text-sm">
-                {selectedProfiles.map((profileId) => {
-                  const profile = profiles.find(
-                    (p: BrowserProfile) => p.id === profileId,
-                  );
-                  const displayName = profile ? profile.name : profileId;
-                  return (
-                    <li key={profileId} className="truncate">
-                      • {displayName}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+            <Label>{t("extensions.assignTitle")}</Label>
+            <ul className="max-h-[min(8rem,20vh)] space-y-0.5 overflow-y-auto rounded-xl bg-foreground/3 p-1 text-sm">
+              {selectedProfiles.map((profileId) => {
+                const profile = profiles.find(
+                  (p: BrowserProfile) => p.id === profileId,
+                );
+                return (
+                  <li key={profileId} className="truncate rounded-md px-2 py-1">
+                    {profile ? profile.name : profileId}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="extension-group-select">
-              {t("extensions.extensionGroup")}:
+              {t("extensions.extensionGroup")}
             </Label>
             {isLoading ? (
               <div className="text-sm text-muted-foreground">
@@ -142,7 +143,7 @@ export function ExtensionGroupAssignmentDialog({
                   setSelectedGroupId(value === "none" ? null : value);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id="extension-group-select" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -160,7 +161,10 @@ export function ExtensionGroupAssignmentDialog({
           </div>
 
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-text">
+            <div
+              role="alert"
+              className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-text"
+            >
               {error}
             </div>
           )}

@@ -1,10 +1,19 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   LuChevronRight,
+  LuDices,
   LuInfo,
   LuPencil,
   LuPlus,
@@ -42,6 +51,7 @@ import {
 } from "@/components/ui/animated-tabs";
 import { AutoHeight } from "@/components/ui/auto-height";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +61,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { RippleButton } from "@/components/ui/ripple";
+import { SECTION_LABEL_CLASS } from "@/components/ui/settings-panel";
 import { StepTransition } from "@/components/ui/step-transition";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -82,6 +93,12 @@ import {
 } from "@/lib/cookie-bot";
 import { SCHEDULE_BOUNDS } from "@/lib/cookie-bot-limits";
 import { canUseCookieBot } from "@/lib/entitlements";
+import { MOTION_SPRING_POSITION } from "@/lib/motion";
+import {
+  MIN_SLOT_GAP_MINUTES,
+  minutesApart,
+  pickRunMinute,
+} from "@/lib/schedule-layout";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type { BrowserProfile } from "@/types";
@@ -112,9 +129,6 @@ const {
  */
 const FALLBACK_MAX_SLOTS = 14;
 const FALLBACK_MAX_TEMPLATE_NAME = 80;
-
-/** The default start: deep enough into the night to be plausible anywhere. */
-const DEFAULT_RUN_AT_MINUTE = 2 * 60;
 
 const PRESET_LABEL_KEYS: Record<string, string> = {
   light: "cookieBot.preset.light",
@@ -149,18 +163,60 @@ interface SlotDraft {
   key: string;
   daysMask: number;
   runAt: string;
+  /**
+   * The dialog drew this time, so it may draw it again. A time the user typed
+   * or a saved time is never moved.
+   */
+  drawn: boolean;
 }
 
 let slotKeySeq = 0;
 
-function makeSlot(daysMask: number, runAt: string): SlotDraft {
+function makeSlot(daysMask: number, runAt: string, drawn = false): SlotDraft {
   slotKeySeq += 1;
-  return { key: `slot-${slotKeySeq}`, daysMask, runAt };
+  return { key: `slot-${slotKeySeq}`, daysMask, runAt, drawn };
 }
 
-/** What a profile that has never been enrolled starts on: every night, 02:00. */
+/** What a profile that has never been enrolled starts on: every day, at a random minute. */
 function defaultSlot(): SlotDraft {
-  return makeSlot(DAYS_NIGHTLY, minutesToClock(DEFAULT_RUN_AT_MINUTE));
+  return makeSlot(DAYS_NIGHTLY, minutesToClock(pickRunMinute()), true);
+}
+
+/** The minutes the rows hold now, skipping any half-typed time. */
+function slotMinutes(slots: SlotDraft[]): number[] {
+  const out: number[] = [];
+  for (const slot of slots) {
+    const minute = clockToMinutes(slot.runAt);
+    if (minute !== null) out.push(minute);
+  }
+  return out;
+}
+
+/**
+ * Draws again every drawn time that sits closer than `gap` to another row, so
+ * the runs of one profile do not overlap. Returns `slots` itself when nothing
+ * moved.
+ */
+function respaceDrawnSlots(slots: SlotDraft[], gap: number): SlotDraft[] {
+  let next = slots;
+  for (let index = 0; index < next.length; index++) {
+    const slot = next[index];
+    if (!slot.drawn) continue;
+    const others = slotMinutes(next.filter((_, at) => at !== index));
+    const minute = clockToMinutes(slot.runAt);
+    if (
+      minute !== null &&
+      others.every((other) => minutesApart(minute, other) >= gap)
+    ) {
+      continue;
+    }
+    next = next.map((item, at) =>
+      at === index
+        ? { ...item, runAt: minutesToClock(pickRunMinute(others, { gap })) }
+        : item,
+    );
+  }
+  return next;
 }
 
 interface EnrolTarget {
@@ -206,10 +262,11 @@ export function CookieBotEnrolDialog({
   const { user } = useCloudAuth();
   // The same entitlement answer every other consumer of the shared store
   // passes; see the note in cookie-bot-page.tsx.
-  const { quota, refresh: refreshCookieBot } = useCookieBot(
-    canUseCookieBot(user),
-    cookieBotScopeFor(user),
-  );
+  const {
+    quota,
+    schedules: enrolledSchedules,
+    refresh: refreshCookieBot,
+  } = useCookieBot(canUseCookieBot(user), cookieBotScopeFor(user));
   const canReplaceOthers =
     !user?.teamId || user.teamRole === "owner" || user.teamRole === "admin";
 
@@ -289,15 +346,32 @@ export function CookieBotEnrolDialog({
   const [fixingId, setFixingId] = useState<string | null>(null);
   const [conflict, setConflict] = useState<ConflictNotice | null>(null);
   const [conflictAcknowledged, setConflictAcknowledged] = useState(false);
+  const [ownTimes, setOwnTimes] = useState(false);
+  const ownTimesId = useId();
+  /**
+   * The time each profile got, per calendar row, in own-time mode. Drawn on
+   * first use and kept until the dialog closes, so a retry after a conflict
+   * sends the same times.
+   */
+  const profileMinutes = useRef(new Map<string, Map<string, number>>());
 
   const isEdit = Boolean(existing);
   const single = profiles.length === 1 ? profiles[0] : null;
+  const bulk = !isEdit && profiles.length > 1;
+  const useOwnTimes = bulk && ownTimes;
+  // Times the dialog draws stay one run apart, and never less than an hour,
+  // so the runs of one profile do not overlap.
+  const slotGap = Math.max(
+    MIN_SLOT_GAP_MINUTES,
+    Number.isFinite(maxMinutes)
+      ? Math.min(Math.round(maxMinutes), MAX_MAX_MINUTES)
+      : 0,
+  );
 
-  // Reset to the defaults every time the dialog is opened, so a previous
-  // enrolment's answers never leak into the next one.
+  // The calendar resets only when the dialog opens, never when the presets
+  // arrive: a time drawn or shuffled a moment ago stays where it is.
   useEffect(() => {
     if (!isOpen) return;
-    setPreset(existing?.preset ?? defaultPreset?.id ?? "");
     // `scheduleSlots` and not `existing.slots`: a server that predates
     // multi-slot sends only the mirrored pair, and reading the field directly
     // would open the editor on an empty calendar and then save that emptiness
@@ -306,6 +380,19 @@ export function CookieBotEnrolDialog({
       makeSlot(slot.days_mask, minutesToClock(slot.run_at_minute)),
     );
     setSlots(restored.length > 0 ? restored : [defaultSlot()]);
+    setOwnTimes(!existing && profiles.length > 1);
+    profileMinutes.current = new Map();
+  }, [isOpen, existing, profiles.length]);
+
+  useEffect(() => {
+    setSlots((current) => respaceDrawnSlots(current, slotGap));
+  }, [slotGap]);
+
+  // Reset to the defaults every time the dialog is opened, so a previous
+  // enrolment's answers never leak into the next one.
+  useEffect(() => {
+    if (!isOpen) return;
+    setPreset(existing?.preset ?? defaultPreset?.id ?? "");
     setMaxMinutes(
       existing?.max_minutes ??
         defaultPreset?.typical_minutes ??
@@ -359,10 +446,49 @@ export function CookieBotEnrolDialog({
     return out;
   }, [slots]);
 
+  /** Own-time mode reads only the days; each profile gets its own times. */
+  const dayRows = useMemo(
+    () => slots.filter((slot) => slot.daysMask !== 0),
+    [slots],
+  );
+
+  /** One profile's calendar in own-time mode, with the times it was given. */
+  const ownCalendar = useCallback(
+    (profileId: string): CookieBotSlot[] => {
+      let chosen = profileMinutes.current.get(profileId);
+      if (!chosen) {
+        chosen = new Map();
+        profileMinutes.current.set(profileId, chosen);
+        // A profile that is already enrolled keeps the times it has.
+        const enrolled = enrolledSchedules[profileId];
+        const kept = enrolled
+          ? [...new Set(scheduleSlots(enrolled).map((s) => s.run_at_minute))]
+          : [];
+        dayRows.forEach((slot, index) => {
+          if (index < kept.length) chosen?.set(slot.key, kept[index]);
+        });
+      }
+      const picked: number[] = [];
+      const out: CookieBotSlot[] = [];
+      for (const slot of dayRows) {
+        let minute = chosen.get(slot.key);
+        if (minute === undefined) {
+          minute = pickRunMinute(picked, { gap: slotGap });
+          chosen.set(slot.key, minute);
+        }
+        picked.push(minute);
+        out.push({ days_mask: slot.daysMask, run_at_minute: minute });
+      }
+      return out;
+    },
+    [dayRows, enrolledSchedules, slotGap],
+  );
+
   // A row the user is still typing into is not a row that can be saved, and it
   // is not an error either — the confirm button names the missing piece.
-  const slotsIncomplete = wireSlots.length !== slots.length;
-  const firstMinute = wireSlots[0]?.run_at_minute ?? DEFAULT_RUN_AT_MINUTE;
+  const slotCount = useOwnTimes ? dayRows.length : wireSlots.length;
+  const slotsIncomplete = slotCount !== slots.length;
+  const firstMinute = wireSlots[0]?.run_at_minute ?? 0;
 
   /**
    * Rows that repeat a (days, time) another row already claims.
@@ -391,7 +517,7 @@ export function CookieBotEnrolDialog({
     }
     return repeats;
   }, [slots]);
-  const hasDuplicateSlot = duplicateSlotKeys.size > 0;
+  const hasDuplicateSlot = !useOwnTimes && duplicateSlotKeys.size > 0;
 
   const sites = useMemo(() => normaliseSites(sitesText), [sitesText]);
   const usingTemplate = source !== "own";
@@ -412,7 +538,7 @@ export function CookieBotEnrolDialog({
   // v1 browses the user's declared sites and nothing else, so an empty list is
   // not a schedule the server can accept — it 400s with COOKIE_BOT_SITE_LIMIT
   // and, before this, `canSubmit` did not ask. The three-click happy path
-  // (bot cell -> Enrol -> "Enrol tonight") posted `sites: []` and failed every
+  // (bot cell -> Enrol -> "Enrol") posted `sites: []` and failed every
   // single time, with the only input the bot cannot run without hidden inside a
   // collapsed disclosure. A template is the other way to answer the same
   // question, so it satisfies this too.
@@ -425,10 +551,12 @@ export function CookieBotEnrolDialog({
   const presetsUnavailable = presets === null;
 
   // A week's machine time from the operator's own numbers, summed across every
-  // slot: three times a night costs three times the hours, and this is the only
+  // slot: three times a day costs three times the hours, and this is the only
   // place that shows it before the commit. The budget it is compared against is
   // the server's; nothing here decides entitlement.
-  const runsPerWeek = weeklyRuns(wireSlots);
+  const runsPerWeek = useOwnTimes
+    ? dayRows.reduce((sum, slot) => sum + nightsPerWeek(slot.daysMask), 0)
+    : weeklyRuns(wireSlots);
   const weeklyHours = (runsPerWeek * maxMinutes) / 60;
   const remainingHours = quota?.remaining_hours ?? null;
   const overBudget =
@@ -437,10 +565,10 @@ export function CookieBotEnrolDialog({
   const canSubmit =
     eligible.length > 0 &&
     preset.length > 0 &&
-    wireSlots.length > 0 &&
+    slotCount > 0 &&
     !slotsIncomplete &&
     !hasDuplicateSlot &&
-    wireSlots.length <= maxSlots &&
+    slotCount <= maxSlots &&
     maxMinutesValid &&
     !sitesTooMany &&
     !sitesTooFew &&
@@ -449,7 +577,7 @@ export function CookieBotEnrolDialog({
     !isSaving;
 
   // A single-profile enrolment asks the server up front whether a teammate
-  // already owns this profile's night, so the one decision that matters is
+  // already warms this profile, so the one decision that matters is
   // made before the user commits rather than after.
   useEffect(() => {
     if (!isOpen || !single || isEdit) return;
@@ -473,10 +601,11 @@ export function CookieBotEnrolDialog({
   const buildInput = useCallback(
     (profile: BrowserProfile): CookieBotScheduleInput | null => {
       const platform = resolvedOs(profile);
+      const calendar = useOwnTimes ? ownCalendar(profile.id) : wireSlots;
       // The preflight already refuses a profile whose OS no fleet host runs;
       // the guard here keeps that refusal in the type instead of behind a cast.
       if (
-        wireSlots.length === 0 ||
+        calendar.length === 0 ||
         platform === null ||
         !isCookieBotPlatform(platform)
       ) {
@@ -489,9 +618,9 @@ export function CookieBotEnrolDialog({
         // The pair is the mirror of the first slot, sent for a server that
         // predates multi-slot scheduling: it stores the first time rather than
         // nothing at all.
-        run_at_minute: wireSlots[0].run_at_minute,
-        days_mask: wireSlots[0].days_mask,
-        slots: wireSlots,
+        run_at_minute: calendar[0].run_at_minute,
+        days_mask: calendar[0].days_mask,
+        slots: calendar,
         timezone: profileTimezone(profile),
         preset,
         // A template stands IN FOR the site list. The server refuses a body
@@ -501,7 +630,16 @@ export function CookieBotEnrolDialog({
         sites: usingTemplate ? [] : sites,
       };
     },
-    [wireSlots, preset, maxMinutes, sites, usingTemplate, templateId],
+    [
+      wireSlots,
+      useOwnTimes,
+      ownCalendar,
+      preset,
+      maxMinutes,
+      sites,
+      usingTemplate,
+      templateId,
+    ],
   );
 
   const submit = useCallback(
@@ -629,13 +767,15 @@ export function CookieBotEnrolDialog({
   // translator needs the whole clause to reorder. A calendar with more than one
   // start time has no single hour to name, so it gets its own sentence instead
   // of the first slot's time standing in for all of them.
-  const oneSlot = wireSlots.length === 1;
+  const oneSlot = !useOwnTimes && wireSlots.length === 1;
   const cadenceId = oneSlot ? cadenceForMask(wireSlots[0].days_mask) : null;
-  const summaryKey = !oneSlot
-    ? "cookieBot.enrol.summarySlots"
-    : cadenceId
-      ? `cookieBot.enrol.summary${cadenceId[0].toUpperCase()}${cadenceId.slice(1)}`
-      : "cookieBot.enrol.summaryCustom";
+  const summaryKey = useOwnTimes
+    ? "cookieBot.enrol.summaryOwnTimes"
+    : !oneSlot
+      ? "cookieBot.enrol.summarySlots"
+      : cadenceId
+        ? `cookieBot.enrol.summary${cadenceId[0].toUpperCase()}${cadenceId.slice(1)}`
+        : "cookieBot.enrol.summaryCustom";
 
   return (
     <Dialog
@@ -644,7 +784,7 @@ export function CookieBotEnrolDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="flex max-h-[80vh] max-w-md flex-col">
+      <DialogContent className="flex max-h-[80vh] max-w-lg flex-col">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -655,7 +795,10 @@ export function CookieBotEnrolDialog({
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
           {/* The whole default, said once, as one sentence. One key, not five
               fragments: a translator has to be free to reorder it. */}
-          <p className="text-sm tabular-nums text-foreground">
+          <p
+            data-slot="cookie-bot-enrol-summary"
+            className="text-sm tabular-nums text-foreground"
+          >
             {t(summaryKey, {
               count: oneSlot
                 ? nightsPerWeek(wireSlots[0].days_mask)
@@ -694,7 +837,7 @@ export function CookieBotEnrolDialog({
           </div>
 
           {blocked.length > 0 && (
-            <div className="flex flex-col gap-2 rounded-md border border-warning/50 bg-warning/10 p-3">
+            <div className="flex flex-col gap-2 rounded-xl bg-warning/10 p-3">
               <p className="text-xs font-medium text-warning-text">
                 {t("cookieBot.preflight.ineligible", {
                   count: blocked.length,
@@ -739,6 +882,88 @@ export function CookieBotEnrolDialog({
               })}
             </div>
           )}
+
+          <Field label={t("cookieBot.enrol.calendarLabel")}>
+            {bulk && (
+              <label
+                htmlFor={ownTimesId}
+                className="flex w-fit cursor-pointer items-center gap-2 py-0.5 text-xs text-foreground"
+              >
+                <Checkbox
+                  id={ownTimesId}
+                  data-slot="cookie-bot-own-times"
+                  checked={ownTimes}
+                  onCheckedChange={(value) => {
+                    setOwnTimes(value === true);
+                  }}
+                />
+                {t("cookieBot.enrol.ownTimes")}
+              </label>
+            )}
+            <AutoHeight deps={[slots.length, useOwnTimes]}>
+              <div
+                data-slot="cookie-bot-slots"
+                className="flex flex-col gap-1.5"
+              >
+                {slots.map((slot, index) => (
+                  <SlotRow
+                    key={slot.key}
+                    slot={slot}
+                    ownTime={useOwnTimes}
+                    taken={slotMinutes(slots.filter((_, at) => at !== index))}
+                    gap={slotGap}
+                    duplicate={duplicateSlotKeys.has(slot.key)}
+                    canRemove={slots.length > 1}
+                    onChange={(next) => {
+                      setSlots((current) =>
+                        current.map((item, at) =>
+                          at === index ? { ...item, ...next } : item,
+                        ),
+                      );
+                    }}
+                    onRemove={() => {
+                      setSlots((current) =>
+                        current.filter((_, at) => at !== index),
+                      );
+                    }}
+                  />
+                ))}
+              </div>
+            </AutoHeight>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {slots.length < maxSlots ? (
+                <Button
+                  variant="soft"
+                  size="sm"
+                  data-slot="cookie-bot-add-slot"
+                  className="h-7 w-fit gap-1 rounded-lg px-2 text-xs"
+                  onClick={() => {
+                    // The new row copies the last one's days and starts at a
+                    // random time clear of every other row.
+                    const last = slots[slots.length - 1];
+                    const row = makeSlot(
+                      last?.daysMask ?? DAYS_NIGHTLY,
+                      minutesToClock(
+                        pickRunMinute(slotMinutes(slots), { gap: slotGap }),
+                      ),
+                      true,
+                    );
+                    setSlots((current) => [...current, row]);
+                  }}
+                >
+                  <LuPlus className="size-3.5" />
+                  {t("cookieBot.enrol.addSlot")}
+                </Button>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  {t("cookieBot.enrol.slotsFull", { max: maxSlots })}
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                {t("cookieBot.enrol.timeHint")}
+              </p>
+            </div>
+          </Field>
 
           {/* Sites is not an adjustment: v1 browses one declared list and
               nothing else, so it is the one input without which there is no
@@ -831,14 +1056,14 @@ export function CookieBotEnrolDialog({
             </AutoHeight>
           </Field>
 
-          <div className="rounded-md border border-border">
+          <div className="rounded-xl bg-foreground/3">
             <button
               type="button"
               onClick={() => {
                 setAdjustOpen((open) => !open);
               }}
               aria-expanded={adjustOpen}
-              className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs font-medium text-foreground transition-colors duration-100 hover:bg-accent hover:text-accent-foreground"
+              className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-medium text-foreground transition-colors duration-100 hover:bg-foreground/4"
             >
               <AnimatedDisclosureChevron open={adjustOpen}>
                 <LuChevronRight className="size-3.5" />
@@ -846,67 +1071,11 @@ export function CookieBotEnrolDialog({
               {t("cookieBot.enrol.adjust")}
             </button>
 
-            <AutoHeight deps={[adjustOpen, presetList.length, slots]}>
+            <AutoHeight deps={[adjustOpen, presetList.length]}>
               <AnimatedDisclosureContent
                 open={adjustOpen}
-                className="flex flex-col gap-3 border-t border-border px-3 py-3"
+                className="flex flex-col gap-3 border-t border-foreground/6 px-3 py-3"
               >
-                <Field label={t("cookieBot.enrol.calendarLabel")}>
-                  <div className="flex flex-col gap-1.5">
-                    {slots.map((slot, index) => (
-                      <SlotRow
-                        key={slot.key}
-                        slot={slot}
-                        duplicate={duplicateSlotKeys.has(slot.key)}
-                        canRemove={slots.length > 1}
-                        onChange={(next) => {
-                          setSlots((current) =>
-                            current.map((item, at) =>
-                              at === index ? { ...item, ...next } : item,
-                            ),
-                          );
-                        }}
-                        onRemove={() => {
-                          setSlots((current) =>
-                            current.filter((_, at) => at !== index),
-                          );
-                        }}
-                      />
-                    ))}
-                  </div>
-                  {slots.length < maxSlots ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="mt-1 h-6 w-fit gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
-                      onClick={() => {
-                        // The new row copies the last one's days and lands
-                        // an hour later: a second run at the same minute as
-                        // the first is the one thing it must not default to.
-                        const last = slots[slots.length - 1];
-                        const minute = clockToMinutes(last?.runAt ?? "");
-                        setSlots((current) => [
-                          ...current,
-                          makeSlot(
-                            last?.daysMask ?? DAYS_NIGHTLY,
-                            minutesToClock((minute ?? 0) + 60),
-                          ),
-                        ]);
-                      }}
-                    >
-                      <LuPlus className="size-3" />
-                      {t("cookieBot.enrol.addSlot")}
-                    </Button>
-                  ) : (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {t("cookieBot.enrol.slotsFull", { max: maxSlots })}
-                    </p>
-                  )}
-                  <p className="text-[11px] text-muted-foreground">
-                    {t("cookieBot.enrol.timeHint")}
-                  </p>
-                </Field>
-
                 <Field label={t("cookieBot.enrol.maxMinutesLabel")}>
                   <Input
                     type="number"
@@ -917,6 +1086,7 @@ export function CookieBotEnrolDialog({
                       setMaxMinutesTouched(true);
                       setMaxMinutes(Number(event.target.value));
                     }}
+                    variant="soft"
                     className="h-8 w-24 tabular-nums"
                   />
                 </Field>
@@ -1061,9 +1231,9 @@ export function CookieBotEnrolDialog({
                   saving: isSaving,
                   needsSites: sitesTooFew,
                   needsTemplate: templateMissing || savedMissing,
-                  needsSlot: slotsIncomplete || wireSlots.length === 0,
+                  needsSlot: slotsIncomplete || slotCount === 0,
                   duplicateSlot: hasDuplicateSlot,
-                  overSlotCap: wireSlots.length > maxSlots,
+                  overSlotCap: slotCount > maxSlots,
                   maxSlots,
                   needsPreset: preset.length === 0,
                 })}
@@ -1079,9 +1249,7 @@ export function CookieBotEnrolDialog({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
+      <span className={SECTION_LABEL_CLASS}>{label}</span>
       {children}
     </div>
   );
@@ -1097,17 +1265,26 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
  * Days are a toggle strip rather than the three named cadences this control
  * used to offer: those name a mask, and a calendar of several rows needs each
  * row to be able to say something the three cannot. A single row with every day
- * lit is still "every night", which is what the sentence at the top of the
+ * lit is still "every day", which is what the sentence at the top of the
  * dialog goes on calling it.
  */
 function SlotRow({
   slot,
+  ownTime,
+  taken,
+  gap,
   duplicate,
   canRemove,
   onChange,
   onRemove,
 }: {
   slot: SlotDraft;
+  /** Each profile gets its own time, so this row sets only the days. */
+  ownTime: boolean;
+  /** The times the other rows hold, which a shuffle keeps clear of. */
+  taken: number[];
+  /** How far a shuffled time stays from the `taken` ones. */
+  gap: number;
   /** This row repeats a (days, time) an earlier row already claims. */
   duplicate: boolean;
   canRemove: boolean;
@@ -1122,16 +1299,17 @@ function SlotRow({
   // the row.
   const noDay = slot.daysMask === 0;
   // A repeat is marked on the time rather than the days because changing the
-  // time is what resolves it without giving up a night the row was added for.
-  const badTime = clockToMinutes(slot.runAt) === null || duplicate;
+  // time is what resolves it without giving up a day the row was added for.
+  const badTime =
+    !ownTime && (clockToMinutes(slot.runAt) === null || duplicate);
 
   return (
-    <div className="flex items-center gap-2">
+    <div data-slot="cookie-bot-slot" className="flex items-center gap-2">
       <div
         role="group"
         aria-label={t("cookieBot.enrol.daysLabel")}
         className={cn(
-          "flex shrink-0 gap-0.5 rounded-sm",
+          "flex shrink-0 gap-0.5 rounded-md",
           noDay && "ring-1 ring-destructive/60",
         )}
       >
@@ -1149,10 +1327,10 @@ function SlotRow({
                 onChange({ daysMask: slot.daysMask ^ bit });
               }}
               className={cn(
-                "size-6 cursor-pointer rounded-sm text-[11px] font-medium transition-colors duration-100",
+                "size-7 cursor-pointer rounded-md text-[11px] font-medium transition-colors duration-100",
                 on
                   ? "bg-foreground text-background"
-                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
               )}
             >
               {day.narrow}
@@ -1160,28 +1338,87 @@ function SlotRow({
           );
         })}
       </div>
-      <Input
-        type="time"
-        aria-label={t("cookieBot.enrol.timeLabel")}
-        aria-invalid={badTime}
-        title={duplicate ? t("cookieBot.enrol.duplicateSlot") : undefined}
-        value={slot.runAt}
-        onChange={(event) => {
-          onChange({ runAt: event.target.value });
-        }}
-        className="h-7 w-24 font-mono text-xs tabular-nums"
-      />
+      {ownTime ? (
+        <span
+          data-slot="cookie-bot-slot-random"
+          className="inline-flex h-7 min-w-0 items-center gap-1.5 rounded-lg bg-foreground/5 px-2 text-xs text-muted-foreground"
+        >
+          <LuDices className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{t("cookieBot.enrol.timeRandom")}</span>
+        </span>
+      ) : (
+        <>
+          <Input
+            type="time"
+            variant="soft"
+            data-slot="cookie-bot-slot-time"
+            aria-label={t("cookieBot.enrol.timeLabel")}
+            aria-invalid={badTime}
+            title={duplicate ? t("cookieBot.enrol.duplicateSlot") : undefined}
+            value={slot.runAt}
+            onChange={(event) => {
+              onChange({ runAt: event.target.value, drawn: false });
+            }}
+            className="h-7 w-24 rounded-lg px-2 font-mono text-xs tabular-nums"
+          />
+          <ShuffleTimeButton
+            onShuffle={() => {
+              const current = clockToMinutes(slot.runAt);
+              const avoid = current === null ? taken : [...taken, current];
+              onChange({
+                runAt: minutesToClock(pickRunMinute(avoid, { gap })),
+                drawn: true,
+              });
+            }}
+          />
+        </>
+      )}
       {canRemove && (
         <button
           type="button"
           aria-label={t("cookieBot.enrol.removeSlot")}
           onClick={onRemove}
-          className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground"
+          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-foreground/6 hover:text-foreground"
         >
           <LuX className="size-3.5" />
         </button>
       )}
     </div>
+  );
+}
+
+/** Draws another random time for a row; the dice turn with each draw. */
+function ShuffleTimeButton({ onShuffle }: { onShuffle: () => void }) {
+  const { t } = useTranslation();
+  const reduceMotion = useReducedMotion();
+  const [turns, setTurns] = useState(0);
+  const label = t("cookieBot.enrol.shuffleTime");
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          data-slot="cookie-bot-shuffle-time"
+          aria-label={label}
+          onClick={() => {
+            setTurns((count) => count + 1);
+            onShuffle();
+          }}
+          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-foreground/6 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <motion.span
+            aria-hidden="true"
+            className="inline-flex"
+            initial={false}
+            animate={{ rotate: reduceMotion ? 0 : turns * 180 }}
+            transition={reduceMotion ? { duration: 0 } : MOTION_SPRING_POSITION}
+          >
+            <LuDices className="size-3.5" />
+          </motion.span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -1353,8 +1590,8 @@ function CuratedPanel({
             className={cn(
               "flex w-full cursor-pointer flex-col gap-0.5 rounded-md border px-3 py-2 text-left transition-colors duration-100",
               selected
-                ? "border-foreground/40 bg-accent"
-                : "border-border hover:bg-accent/50",
+                ? "border-primary/50 bg-primary/8"
+                : "border-border hover:bg-foreground/4",
             )}
           >
             <span className="flex items-center gap-2">
@@ -1550,7 +1787,7 @@ function SavedPanel({
             key={template.id}
             className={cn(
               "flex items-center gap-1 rounded-md border pl-3 pr-1 transition-colors duration-100",
-              selected ? "border-foreground/40 bg-accent" : "border-border",
+              selected ? "border-primary/50 bg-primary/8" : "border-border",
             )}
           >
             <button
@@ -1604,7 +1841,7 @@ function SavedPanel({
                     setRenameText(template.name);
                     setRenamingId(template.id);
                   }}
-                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground"
+                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors duration-100 hover:bg-foreground/6 hover:text-foreground"
                 >
                   <LuPencil className="size-3" />
                 </button>
@@ -1615,7 +1852,7 @@ function SavedPanel({
                   onClick={() => {
                     setConfirmingId(template.id);
                   }}
-                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-destructive-text"
+                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors duration-100 hover:bg-destructive/10 hover:text-destructive-text"
                 >
                   <LuTrash2 className="size-3" />
                 </button>
@@ -1660,7 +1897,7 @@ function ExitNodeHint() {
 /**
  * What the confirm button says, including WHY it is disabled.
  *
- * A greyed "Enrol tonight" with the explanation twelve pixels away in a
+ * A greyed "Enrol" with the explanation twelve pixels away in a
  * different colour is a dead end: the user clicks a button that answers
  * nothing. Each blocked state names itself instead.
  */

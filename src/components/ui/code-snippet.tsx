@@ -69,22 +69,25 @@ export function CodeSnippet({
   "data-testid": testId,
 }: CodeSnippetProps) {
   return (
+    // The copy button sits beside the code, never over it: nothing scrolls
+    // or paints on top of the button, so it takes every click.
     <div
       data-slot="code-snippet"
       className={cn(
-        "group/snippet relative min-w-0 rounded-lg bg-foreground/4 font-mono text-[11px] leading-5 text-foreground",
+        "group/snippet flex min-w-0 rounded-lg bg-foreground/4 font-mono text-[11px] leading-5 text-foreground",
+        multiline ? "items-start" : "items-center",
         className,
       )}
     >
       <pre
         data-testid={testId}
         className={cn(
-          "[font-family:inherit] select-text",
+          "min-w-0 flex-auto [font-family:inherit] select-text",
           wrap
             ? "break-words whitespace-pre-wrap"
             : "scrollbar-none overflow-x-auto whitespace-pre",
           multiline ? "max-h-72 overflow-y-auto p-3" : "px-3 py-1.5",
-          copyable && "pr-10",
+          copyable && "pr-2",
         )}
       >
         {prompt && (
@@ -106,8 +109,8 @@ export function CodeSnippet({
           aria-label={copyLabel}
           successMessage={successMessage}
           className={cn(
-            "absolute right-1 size-7 rounded-md bg-background/60 opacity-0 backdrop-blur-sm transition-opacity duration-150 group-focus-within/snippet:opacity-100 group-hover/snippet:opacity-100 focus-visible:opacity-100 data-[copied=true]:opacity-100 [@media(hover:none)]:opacity-100",
-            multiline ? "top-1.5" : "top-1/2 -translate-y-1/2",
+            "size-7 shrink-0 rounded-md opacity-0 transition-opacity duration-150 group-focus-within/snippet:opacity-100 group-hover/snippet:opacity-100 focus-visible:opacity-100 data-[copied=true]:opacity-100 [@media(hover:none)]:opacity-100",
+            multiline ? "mt-1.5 mr-1.5" : "mr-1",
           )}
         />
       )}

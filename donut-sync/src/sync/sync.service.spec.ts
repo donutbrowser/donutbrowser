@@ -417,8 +417,8 @@ describe("SyncService restore points", () => {
 });
 
 describe("SyncService profile limit", () => {
-  const ACCOUNT: UserContext = {
-    mode: "account",
+  const CLOUD: UserContext = {
+    mode: "cloud",
     prefix: OWNER_PREFIX,
     profileLimit: 2,
     sub: "u1",
@@ -459,11 +459,11 @@ describe("SyncService profile limit", () => {
       "groups/g.json",
     ]) {
       await expect(
-        service.presignUpload({ key }, ACCOUNT),
+        service.presignUpload({ key }, CLOUD),
       ).resolves.toHaveProperty("url");
     }
     await expect(
-      service.presignUpload({ key: "profiles/p3/metadata.json" }, ACCOUNT),
+      service.presignUpload({ key: "profiles/p3/metadata.json" }, CLOUD),
     ).rejects.toBeInstanceOf(ForbiddenException);
     await expect(
       service.presignUploadBatch(
@@ -473,7 +473,7 @@ describe("SyncService profile limit", () => {
             { key: "profiles/p3/files/a" },
           ],
         },
-        ACCOUNT,
+        CLOUD,
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -489,7 +489,7 @@ describe("SyncService profile limit", () => {
             { key: "profiles/p2/files/b" },
           ],
         },
-        ACCOUNT,
+        CLOUD,
       ),
     ).resolves.toHaveProperty("items");
     await expect(
@@ -500,24 +500,30 @@ describe("SyncService profile limit", () => {
             { key: "profiles/p3/files/a" },
           ],
         },
-        ACCOUNT,
+        CLOUD,
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it("writes no profile over the limit, and never limits the shared token", async () => {
+  it("applies the profile limit", async () => {
     const service = withStoredProfiles("p1", "p2", "p3");
 
     await expect(
-      service.presignUpload({ key: "profiles/p1/files/a" }, ACCOUNT),
+      service.presignUpload({ key: "profiles/p1/files/a" }, CLOUD),
     ).rejects.toBeInstanceOf(ForbiddenException);
     await expect(
-      service.presignUpload({ key: "proxies/x.json" }, ACCOUNT),
+      service.presignUpload({ key: "proxies/x.json" }, CLOUD),
     ).resolves.toHaveProperty("url");
     await expect(
       service.presignUpload(
         { key: "profiles/p9/files/a" },
         { mode: "self-hosted", prefix: "", profileLimit: 0 },
+      ),
+    ).resolves.toHaveProperty("url");
+    await expect(
+      service.presignUpload(
+        { key: "profiles/p9/files/a" },
+        { ...CLOUD, mode: "account" },
       ),
     ).resolves.toHaveProperty("url");
   });

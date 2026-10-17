@@ -82,7 +82,17 @@
       "hideToken": "トークンを非表示"
     },
     "keys": {
-      "escape": "Esc"
+      "escape": "Esc",
+      "command": "Command",
+      "control": "Control",
+      "shift": "Shift",
+      "option": "Option",
+      "alt": "Alt",
+      "enter": "Enter",
+      "backspace": "Backspace",
+      "arrowUp": "上矢印",
+      "arrowDown": "下矢印",
+      "tab": "Tab"
     },
     "errors": {
       "unknown": "不明なエラーが発生しました"
@@ -353,6 +363,32 @@
       "a": "あるグループ内の実行中のプロファイル",
       "b": "タグがなくプロキシがあるプロファイル",
       "c": "30 日以上起動しておらず、アーカイブ済みを除いたもの"
+    },
+    "suggest": {
+      "label": "検索候補",
+      "matches": "一致する項目",
+      "recent": "最近の検索",
+      "none": "未設定",
+      "any": "任意の値",
+      "dates": {
+        "last7d": "過去7日間",
+        "last30d": "過去30日間",
+        "over30d": "30日以上前",
+        "over90d": "90日以上前",
+        "thisYear": "今年",
+        "never": "一度もない"
+      },
+      "keys": {
+        "choose": "選択",
+        "complete": "補完"
+      }
+    },
+    "issues": {
+      "unknownField": "{{name}} はフィールドではないため、テキストとして検索します。{{field}} のことですか？",
+      "compare": "{{field}} は比較できないため、テキストとして検索します。比較できるのは日付とバージョンだけです。",
+      "date": "{{field}} には 2026-01-31 のような日付か、過去7日間を表す 7d を指定します。",
+      "enum": "{{field}} に指定できるのは {{values}} です。",
+      "boolean": "{{field}} に指定できるのは yes か no です。"
     }
   },
   "profiles": {
@@ -571,7 +607,6 @@
       "tabVpns": "VPN",
       "create": "作成",
       "loading": "プロキシを読み込み中...",
-      "noneCreated": "プロキシはまだありません。上のボタンから最初のプロキシを作成してください。",
       "usage": "使用状況",
       "syncCol": "同期",
       "syncCannotDisable": "このプロキシが同期されたプロファイルで使用されている間は同期を無効にできません",
@@ -597,7 +632,9 @@
       "firstHopPlaintextTooltip": "第一ホップは平文: このプロキシへの接続は暗号化されていません。",
       "firstHopEncryptedTooltip": "第一ホップは暗号化: このプロキシへの接続は暗号化されています。プロバイダーはアクセス先を把握できます。",
       "firstHopCipherTooltip": "第一ホップは暗号方式次第: このプロキシには暗号方式が記録されていないため、接続が暗号化されるかどうかはまだ決まっていません。編集して aes-256-gcm のような実際の暗号方式を設定してください。",
-      "udpCol": "UDP"
+      "udpCol": "UDP",
+      "checkSelected": "選択項目をチェック",
+      "checkSummary": "チェック完了。成功: {{passed}}。失敗: {{failed}}。"
     },
     "add": "プロキシを追加",
     "edit": "プロキシを編集",
@@ -755,13 +792,11 @@
     "title": "グループ",
     "management": "グループ管理",
     "add": "グループを追加",
-    "edit": "グループを編集",
     "delete": "グループを削除",
     "moveToDefault": "プロファイルをグループから外す",
     "noGroupDescription": "グループに属さないプロファイルは「すべて」フィルターに表示されます。",
     "assignSuccess": "{{count}} 件のプロファイルを {{group}} に割り当てました",
     "noGroups": "グループがありません",
-    "noGroupsDescription": "プロファイルを整理するためのグループを作成してください。",
     "form": {
       "name": "名前",
       "namePlaceholder": "グループ名を入力"
@@ -1692,10 +1727,8 @@
     "managedNotice": "ここで管理される拡張機能は、起動時にプロファイルに手動でインストールされた拡張機能を置き換えます。",
     "proRequired": "拡張機能管理はプロ機能です",
     "empty": "まだ拡張機能がアップロードされていません。",
-    "noGroups": "まだ拡張機能グループが作成されていません。",
     "createGroup": "グループを作成",
     "newGroup": "新しいグループ",
-    "addToGroup": "拡張機能を追加...",
     "removeFromGroup": "グループから削除",
     "deleteGroup": "グループを削除",
     "extensionGroup": "拡張機能グループ",
@@ -1780,7 +1813,9 @@
     "fetchedIdentity": "{{name}} · バージョン {{version}}",
     "fetchedFrom": "{{source}} からダウンロードしました",
     "fetchSuccess": "拡張機能をダウンロードしました。名前を確認して追加してください。",
-    "fetchFailed": "拡張機能をダウンロードできませんでした"
+    "fetchFailed": "拡張機能をダウンロードできませんでした",
+    "searchExtensions": "拡張機能を検索",
+    "membersSelected": "{{total}} 件中 {{selected}} 件を選択"
   },
   "pro": {
     "badge": "PRO",
@@ -1912,8 +1947,6 @@
     "namesHint": "プロファイル名は {{name}} 1、{{name}} 2 のように、使用済みの番号の続きになります。",
     "allowanceLeft_one": "この1時間であと {{count}} 件作成できます。",
     "allowanceLeft_other": "この1時間であと {{count}} 件作成できます。",
-    "createMany_one": "{{count}} 件のプロファイルを作成",
-    "createMany_other": "{{count}} 件のプロファイルを作成",
     "progress": "{{total}} 件中 {{done}} 件を作成中",
     "stop": "停止",
     "created_one": "{{count}} 件のプロファイルを作成しました",
@@ -1984,7 +2017,6 @@
     },
     "management": {
       "loading": "VPN を読み込み中...",
-      "noneCreated": "VPN 構成はまだありません。上のボタンからインポートまたは作成してください。",
       "editVpn": "VPN を編集",
       "deleteVpn": "VPN を削除",
       "cannotDelete_one": "削除できません: {{count}} プロファイルで使用中",
@@ -2100,7 +2132,9 @@
       "description": "{{count}} 個のグループを削除してもよろしいですか？{{names}}。プロファイルはデフォルトに移動されます。",
       "description_one": "{{count}} 個のグループを削除してもよろしいですか？{{names}}。プロファイルはデフォルトに移動されます。",
       "confirmButton": "グループを削除"
-    }
+    },
+    "newGroup": "新しいグループ",
+    "bookmarksCol": "ブックマーク"
   },
   "proxyAssignment": {
     "title": "プロキシ / VPN を割り当てる",
@@ -2712,7 +2746,8 @@
     "syncServerNoAccounts": "このサーバーは Donut アカウントを受け付けません。サーバーで SYNC_PUBLIC_URL を設定してください。",
     "syncServerAddressMismatch": "サーバーのアドレスは {{address}} です。そのアドレスを入力してください。",
     "remoteNeedsDonutSync": "リモートセッションと Cookie Bot は Donut クラウド同期からプロファイルを取得します。このコンピューターは独自のサーバーと同期しています。",
-    "accountSyncUnavailable": "Donut はまだ独自のサーバーにサインインできません。後でもう一度お試しください。"
+    "accountSyncUnavailable": "Donut はまだ独自のサーバーにサインインできません。後でもう一度お試しください。",
+    "selfHostedTeamSeat": "チームアカウントは、同期トークンを使うサーバーとは同期できません。"
   },
   "rail": {
     "profiles": "プロファイル",
@@ -2818,31 +2853,40 @@
     "automationActiveHere": "ブラウザの自動化はこのデバイスで有効です。",
     "viewTeamUsage": "チームの使用状況を表示",
     "ownServer": {
-      "title": "独自の同期サーバー",
-      "description": "このアカウントを Donut クラウドではなく、自分で運用する donut-sync サーバーと同期します。プランのプロファイル上限と、チームのロールおよびグループアクセスは変わりません。",
-      "current": "{{server}} と同期中",
-      "currentCloud": "Donut クラウドと同期中",
       "donutCloud": "Donut クラウド",
-      "useDonutCloud": "Donut クラウドを使用",
       "accountsOn": "このサーバーは Donut アカウントを受け付けます。",
       "cloudOnly": "リモートセッションと Cookie Bot には Donut クラウド同期が必要です。",
       "teamNote": "チームの全メンバーが同じサーバーを使用する必要があります。",
-      "saved": "同期サーバーを保存しました。",
-      "backToCloud": "再び Donut クラウドと同期しています。"
+      "backToCloud": "再び Donut クラウドと同期しています。",
+      "label": "同期サーバー",
+      "change": "変更",
+      "remove": "削除",
+      "removed": "同期サーバーを削除しました。",
+      "switched": "{{server}} と同期しています。",
+      "tokenServer": "{{host}}（同期トークン）"
     }
   },
   "shortcutsPage": {
     "title": "キーボードショートカット",
-    "description": "これらのショートカットでワークフローを高速化できます。"
+    "description": "これらのショートカットでワークフローを高速化できます。",
+    "paletteHint": "すべてのページ、プロファイル、アクションを検索します。",
+    "holdHint": "これらのキーを押し続けると、使うショートカットが分かります。",
+    "paletteKeys": {
+      "title": "コマンドパレット内",
+      "move": "結果を移動",
+      "run": "選択したコマンドを実行",
+      "back": "検索が空のときに戻る",
+      "close": "パレットを閉じる"
+    }
   },
   "commandPalette": {
     "placeholder": "コマンドを入力するか検索...",
-    "empty": "結果が見つかりませんでした。",
     "groups": {
       "navigation": "ナビゲーション",
       "profiles": "プロファイル",
       "actions": "アクション",
-      "profileGroups": "プロファイルグループ"
+      "profileGroups": "プロファイルグループ",
+      "recent": "最近使用"
     },
     "actions": {
       "launchProfile": "{{name}} を起動",
@@ -2850,6 +2894,66 @@
       "profileInfo": "情報 — {{name}}",
       "createProfile": "プロファイルを作成",
       "about": "Donut Browser について"
+    },
+    "pages": {
+      "launch": {
+        "entry": "プロファイルを起動…",
+        "title": "起動",
+        "placeholder": "起動するプロファイルを検索...",
+        "empty": "すべてのプロファイルが実行中です。"
+      },
+      "stop": {
+        "entry": "プロファイルを停止…",
+        "title": "停止",
+        "placeholder": "実行中のプロファイルを検索...",
+        "empty": "実行中のプロファイルはありません。"
+      },
+      "info": {
+        "entry": "プロファイル情報を開く…",
+        "title": "プロファイル情報",
+        "placeholder": "プロファイルを検索...",
+        "empty": "プロファイルはまだありません。"
+      },
+      "group": {
+        "entry": "グループへ移動…",
+        "title": "グループ",
+        "placeholder": "グループを検索...",
+        "empty": "グループはまだありません。"
+      }
+    },
+    "emptyFor": "「{{query}}」に一致する結果はありません。",
+    "emptyHint": "ページ、プロファイル、グループ、アクションを検索できます。",
+    "emptyPageHint": "Esc ですべてのコマンドに戻ります。",
+    "footer": {
+      "move": "移動",
+      "run": "実行",
+      "open": "開く",
+      "back": "戻る",
+      "close": "閉じる"
+    },
+    "keywords": {
+      "openPalette": "コマンド 検索 実行",
+      "openShortcuts": "キーボード キー ホットキー ヘルプ",
+      "openTips": "ヒント ヘルプ 使い方 機能",
+      "sendFeedback": "バグ 報告 問題 サポート 問い合わせ 要望",
+      "openTotp": "二要素 2fa otp totp 認証 コード mfa",
+      "importProfile": "インポート 追加 読み込み 移行 chrome firefox",
+      "goProfiles": "ホーム ブラウザ 一覧 すべて",
+      "goProxies": "プロキシ vpn wireguard ネットワーク socks http",
+      "goExtensions": "拡張機能 アドオン プラグイン",
+      "goGroups": "グループ フォルダ 整理",
+      "goCookieBot": "クッキー ウォームアップ ボット 閲覧",
+      "goAgent": "ai mcp アシスタント 自動化",
+      "goIntegrations": "api mcp rest トークン 連携 自動化",
+      "goAccount": "アカウント クラウド ログイン サブスク プラン 請求 チーム 同期",
+      "goSettings": "環境設定 オプション テーマ 言語 サウンド 外観",
+      "goTrash": "ゴミ箱 削除済み 復元",
+      "createProfile": "新規 追加 プロファイル ブラウザ",
+      "about": "バージョン ライセンス 情報",
+      "launch": "起動 開始 開く ブラウザ",
+      "stop": "停止 終了 閉じる",
+      "info": "詳細 情報 編集 プロファイル",
+      "group": "グループ 絞り込み 切り替え フォルダ"
     }
   },
   "shortcuts": {
@@ -3010,7 +3114,7 @@
   },
   "cookieBot": {
     "title": "Cookie Bot",
-    "description": "リモートマシンで夜間にプロファイルをウォームアップします。",
+    "description": "スケジュールに沿ってリモートマシンでプロファイルをウォームアップします。",
     "tabs": {
       "overview": "概要",
       "schedule": "スケジュール",
@@ -3019,37 +3123,27 @@
     },
     "locked": {
       "title": "Cookie Bot",
-      "hint": "Cookie Bot はリモートマシンで夜間にプロファイルをウォームアップするため、お使いのコンピューターを起動していなくても Cookie と履歴が維持されます。"
+      "hint": "Cookie Bot は選んだ時刻にリモートマシンでプロファイルをウォームアップするため、お使いのコンピューターを起動していなくても Cookie と履歴が維持されます。"
     },
     "empty": {
       "title": "登録されたプロファイルはありません",
-      "hint": "プロファイルを選ぶと、ボットが夜間にリモートマシンでウォームアップします。お使いのコンピューターは電源を切っていて構いません。",
+      "hint": "プロファイルを選ぶと、ボットが設定した時刻にリモートマシンでウォームアップします。お使いのコンピューターは電源を切っていて構いません。",
       "cta": "プロファイルを登録"
     },
-    "tonight": {
-      "label": "今夜",
-      "nextRun": "次回の実行 {{time}}",
-      "dueCount_one": "{{count}} 件のプロファイルが予定",
-      "dueCount_other": "{{count}} 件のプロファイルが予定",
-      "nothingScheduled": "予定はありません"
-    },
     "lastDay": {
-      "label": "過去 24 時間",
-      "none": "実行はまだありません",
-      "ran_one": "{{count}} 件実行",
-      "ran_other": "{{count}} 件実行",
-      "partial_one": "{{count}} 件が部分完了",
-      "partial_other": "{{count}} 件が部分完了",
-      "failed_one": "{{count}} 件が失敗",
-      "failed_other": "{{count}} 件が失敗"
+      "label": "過去 24 時間"
     },
     "chart": {
-      "machineTime": "1 晩あたりのマシン時間",
-      "minutes": "{{minutes}} 分"
+      "machineTime": "1 日あたりのマシン時間",
+      "minutes": "{{minutes}} 分",
+      "total": "合計 {{duration}}",
+      "empty": "この期間の実行はありません",
+      "noRuns": "実行なし",
+      "runs_one": "{{count}} 回",
+      "runs_other": "{{count}} 回"
     },
     "hours": {
       "label": "リモート時間",
-      "remaining": "{{total}} 時間のうち残り {{remaining}} 時間",
       "remainingOf": "/ {{total}} 時間",
       "used": "{{total}} 時間のうち {{used}} 時間を使用",
       "resets": "{{date}} にリセット",
@@ -3057,26 +3151,26 @@
       "exhaustedOn": "リモート時間を使い切りました。スケジュールは登録されたままで、{{date}} に再開します。",
       "estimate": "週あたり約 {{hours}} 時間 · 今サイクルの残り {{remaining}} 時間",
       "estimateOverBudget": "週あたり約 {{hours}} 時間が必要ですが、残りは {{remaining}} 時間のみです",
-      "estimateOnly": "週あたり約 {{hours}} 時間"
+      "estimateOnly": "週あたり約 {{hours}} 時間",
+      "left": "残り {{hours}} 時間"
     },
     "enrolled": {
       "columnProfile": "プロファイル",
-      "columnCadence": "頻度",
-      "columnTime": "時刻",
       "columnNextRun": "次回の実行",
       "columnLastRun": "前回の実行",
       "enrolProfiles": "プロファイルを登録",
       "edit": "スケジュールを編集",
       "neverRun": "なし",
-      "pausedNoHours": "一時停止 — 時間切れ",
+      "pausedNoHours": "一時停止：時間切れ",
       "profileMissing": "そのプロファイルはこのコンピューターにありません。"
     },
     "schedule": {
       "empty": "まだ何も予定されていません。",
       "unenrol": "Cookie Bot から削除",
       "unenrolTitle": "{{name}} を Cookie Bot から削除しますか?",
-      "unenrolDescription": "今夜からウォームアップを停止します。過去の実行はアクティビティに残ります。",
-      "unenrolled": "Cookie Bot から削除しました"
+      "unenrolDescription": "今後の実行は停止します。過去の実行はアクティビティに残ります。",
+      "unenrolled": "Cookie Bot から削除しました",
+      "localTime": "現在 {{time}}"
     },
     "status": {
       "provisioning": "マシンを準備中",
@@ -3147,7 +3241,7 @@
     },
     "picker": {
       "title": "プロファイルを登録",
-      "description": "ボットが夜間にウォームアップするプロファイルを選びます。",
+      "description": "ボットがウォームアップするプロファイルを選びます。",
       "searchPlaceholder": "プロファイルを検索…",
       "noProfiles": "一致するプロファイルはありません。",
       "alreadyEnrolled": "登録済み",
@@ -3160,25 +3254,25 @@
       "titleCount_other": "{{count}} 件のプロファイルを登録",
       "editTitle": "スケジュールを編集",
       "description": "ボットはリモートマシンでプロファイルを開き、指定したサイトを閲覧します。お使いのコンピューターは電源を切っていて構いません。",
-      "summaryNightly": "毎晩 {{time}} に、1 回あたり最大 {{minutes}} 分実行します。",
+      "summaryNightly": "毎日 {{time}} に、1 回あたり最大 {{minutes}} 分実行します。",
       "summaryWeeknights": "月曜から金曜の {{time}} に、1 回あたり最大 {{minutes}} 分実行します。",
-      "summaryAlternate": "1 晩おきに {{time}} に、1 回あたり最大 {{minutes}} 分実行します。",
-      "summaryCustom_one": "週 {{count}} 晩、{{time}} に、1 回あたり最大 {{minutes}} 分実行します。",
-      "summaryCustom_other": "週 {{count}} 晩、{{time}} に、1 回あたり最大 {{minutes}} 分実行します。",
-      "confirm": "今夜から登録",
-      "confirmSome": "今夜は {{total}} 件中 {{eligible}} 件を登録",
+      "summaryAlternate": "1 日おきに {{time}} に、1 回あたり最大 {{minutes}} 分実行します。",
+      "summaryCustom_one": "週 {{count}} 日、{{time}} に、1 回あたり最大 {{minutes}} 分実行します。",
+      "summaryCustom_other": "週 {{count}} 日、{{time}} に、1 回あたり最大 {{minutes}} 分実行します。",
+      "confirm": "登録",
+      "confirmSome": "{{total}} 件中 {{eligible}} 件を登録",
       "fixFirst": "先にこちらを解決してください",
       "saving": "登録中…",
       "saved": "スケジュールを保存しました",
       "enrolled_one": "{{count}} 件のプロファイルを登録しました",
       "enrolled_other": "{{count}} 件のプロファイルを登録しました",
-      "adjust": "スケジュールを調整",
+      "adjust": "時間と深さ",
       "cadenceLabel": "頻度",
-      "cadenceNightly": "毎晩",
-      "cadenceWeeknights": "平日の夜",
-      "cadenceAlternate": "1 晩おき",
-      "cadenceCustom_one": "週 {{count}} 晩",
-      "cadenceCustom_other": "週 {{count}} 晩",
+      "cadenceNightly": "毎日",
+      "cadenceWeeknights": "平日",
+      "cadenceAlternate": "1 日おき",
+      "cadenceCustom_one": "週 {{count}} 日",
+      "cadenceCustom_other": "週 {{count}} 日",
       "timeLabel": "開始時刻",
       "timeHint": "各プロファイルのフィンガープリントのタイムゾーン基準です。",
       "maxMinutesLabel": "最大分数",
@@ -3191,8 +3285,8 @@
       "presetsUnavailable": "深さのプリセットを読み込めませんでした。しばらくしてからもう一度お試しください。",
       "confirmBulkTitle_one": "{{count}} 件のプロファイルを Cookie Bot に登録しますか?",
       "confirmBulkTitle_other": "{{count}} 件のプロファイルを Cookie Bot に登録しますか?",
-      "confirmBulkDescription_one": "共有のリモート時間から夜間の実行を 1 件予約します。時刻とサイトは次の画面で選びます。",
-      "confirmBulkDescription_other": "共有のリモート時間から夜間の実行を {{count}} 件予約します。時刻とサイトは次の画面で選びます。",
+      "confirmBulkDescription_one": "共有のリモート時間から毎日の実行を 1 件予約します。時刻とサイトは次の画面で選びます。",
+      "confirmBulkDescription_other": "共有のリモート時間から毎日の実行を {{count}} 件予約します。時刻とサイトは次の画面で選びます。",
       "confirmBulkButton_one": "{{count}} 件のプロファイルで続行",
       "confirmBulkButton_other": "{{count}} 件のプロファイルで続行",
       "sitesRequired": "サイトを 1 件以上追加してください。",
@@ -3228,7 +3322,12 @@
       "listSites_other": "{{count}} サイト",
       "summarySlots_one": "週 {{count}} 回、1 回あたり最大 {{minutes}} 分実行します。",
       "summarySlots_other": "週 {{count}} 回、1 回あたり最大 {{minutes}} 分実行します。",
-      "templateNameInvalidNoMax": "その名前は保存済みリストには使用できません。"
+      "templateNameInvalidNoMax": "その名前は保存済みリストには使用できません。",
+      "shuffleTime": "別の時刻にする",
+      "ownTimes": "プロファイルごとに別の時刻",
+      "timeRandom": "プロファイルごとにランダム",
+      "summaryOwnTimes_one": "各プロファイルが週 {{count}} 回、それぞれランダムな時刻に、1 回あたり最大 {{minutes}} 分実行します。",
+      "summaryOwnTimes_other": "各プロファイルが週 {{count}} 回、それぞれランダムな時刻に、1 回あたり最大 {{minutes}} 分実行します。"
     },
     "preset": {
       "light": "軽め",
@@ -3245,7 +3344,7 @@
       "reasonSync": "同期がオフです",
       "reasonEncrypted": "エンドツーエンド暗号化",
       "reasonNoFingerprint": "記録された OS がありません",
-      "reasonCrossOs": "{{os}} 向け — 一致するリモートマシンがありません",
+      "reasonCrossOs": "{{os}} 向け：一致するリモートマシンがありません",
       "reasonNoExitNode": "プロキシも VPN もありません",
       "fixSync": "同期をオンにする",
       "fixEncrypted": "同期設定を開く",
@@ -3317,13 +3416,27 @@
       "profileLocked": "プロファイルが別の場所で開かれていました",
       "noCapacity": "空きマシンがありませんでした",
       "managerError": "フリートがブラウザーを起動できませんでした",
-      "budgetExceeded": "その晩の持ち時間を使い切りました",
-      "browsingIncomplete": "ブラウザーは起動しましたが、その晩の巡回が完了しませんでした",
+      "budgetExceeded": "実行の持ち時間を使い切りました",
+      "browsingIncomplete": "ブラウザーは起動しましたが、巡回が完了しませんでした",
       "proxyUnsupported": "この種類のプロキシはどのホストも利用できません。HTTP、SOCKS または WireGuard の出口を使用してください",
       "profileNotSynced": "クラウド上のコピーが不完全です。デスクトップから同期を完了してください",
       "profileOsMismatch": "プロファイルは実行したホストとは別のオペレーティングシステムのものです",
       "cancelledByUser": "手動で停止しました",
       "unknown": "不明な理由 ({{code}})"
+    },
+    "next": {
+      "label": "次回の実行",
+      "now": "まもなく開始",
+      "inMinutes_one": "{{count}} 分後",
+      "inMinutes_other": "{{count}} 分後",
+      "inHours_one": "{{count}} 時間後",
+      "inHours_other": "{{count}} 時間後",
+      "today": "今日",
+      "tomorrow": "明日",
+      "dueSoon_one": "今後 24 時間で {{count}} 件のプロファイル",
+      "dueSoon_other": "今後 24 時間で {{count}} 件のプロファイル",
+      "nothingScheduled": "予定はありません",
+      "blocked": "実行できるプロファイルがありません。下の一覧を確認してください。"
     }
   },
   "prelaunchGate": {
@@ -3466,7 +3579,11 @@
     "confirmed": "はい",
     "unavailable": "いいえ",
     "apiProbeScope": "保存された認証情報で実行中のローカル API を確認します。プロファイルは起動しません。",
-    "remoteProbeScope": "保存された MCP 認証情報を確認します。リモート操作には接続済みデバイスと対応プランも必要です。クライアントの設定は稼働中のセッションを意味しません。"
+    "remoteProbeScope": "保存された MCP 認証情報を確認します。リモート操作には接続済みデバイスと対応プランも必要です。クライアントの設定は稼働中のセッションを意味しません。",
+    "probeNotConfigured": "認証情報が保存されていません。",
+    "probeUnreachable": "サーバーが応答しませんでした。",
+    "probeRefused": "サーバーが認証情報を拒否しました。",
+    "probeUnverified": "サーバーが HTTP {{status}} で応答したため、認証情報は確認されていません。"
   },
   "easterEgg": {
     "konami": {
@@ -3817,13 +3934,11 @@
   },
   "tips": {
     "title": "ヒント",
-    "essentials": "基本",
-    "planSection": "プランに含まれる機能",
     "count": "{{current}} / {{total}}",
     "previous": "前のヒント",
     "next": "次のヒント",
     "done": "完了",
-    "autoShow": "数日ごとにヒントを表示",
+    "autoShow": "プロファイルページにヒントを表示",
     "items": {
       "dnsBlocklist": {
         "label": "DNS ブロック",
@@ -3911,7 +4026,7 @@
       },
       "cookieBot": {
         "label": "Cookie Bot",
-        "title": "夜間にプロファイルを温める",
+        "title": "スケジュールでプロファイルを温める",
         "body": "Cookie Bot はリモートホストからスケジュールに従って実際のサイトを閲覧し、新しいプロファイルに自然な履歴を作ってから使えるようにします。",
         "action": "Cookie Bot を開く"
       },
@@ -3950,7 +4065,75 @@
         "title": "次に直すべきことをチームに伝える",
         "body": "不具合や足りない機能はありませんか？「その他」メニューからフィードバックを送れます。スイッチ 1 つでログを添付でき、何が起きたかをチームが正確に把握できます。",
         "action": "フィードバックを送信"
+      },
+      "searchSyntax": {
+        "label": "検索フィールド",
+        "title": "フィールドでプロファイルを絞り込む",
+        "body": "検索ボックスに tag:work、proxy:none、status:running のようなフィールドを入力します。前にマイナスを付けると除外します: -tag:old。",
+        "action": "proxy:none を試す"
+      },
+      "shortcuts": {
+        "label": "ショートカット",
+        "title": "手はキーボードのままで",
+        "body": "どのページにも、インポート、フィードバック、ヒントにもショートカットがあります。{{mod}}+/ で一覧を表示します。",
+        "action": "すべてのショートカット"
+      },
+      "statuses": {
+        "label": "ステータス",
+        "title": "各アカウントの状況を記録",
+        "body": "ステータス列でプロファイルにアクティブや BAN などのステータスを付けます。ステータスには色があり、他のデバイスにも同期されます。",
+        "action": "プロファイルを開く"
+      },
+      "templates": {
+        "label": "テンプレート",
+        "title": "一度設定して、何度でも作成",
+        "body": "プロファイルのメニューの「テンプレートとして保存」で設定を残せます。新しいプロファイルはテンプレートから始まり、まとめて作成でき、それぞれに専用のデバイスが付きます。",
+        "action": "新しいプロファイル"
+      },
+      "vpn": {
+        "label": "VPN",
+        "title": "プロファイルを VPN 経由にする",
+        "body": "ネットワークページで WireGuard ファイル、または VLESS、VMess、Trojan、Hysteria2 のリンクをインポートします。プロファイルで選ぶと、そのプロファイルだけがトンネルを使います。",
+        "action": "VPN を開く"
+      },
+      "requireRoute": {
+        "label": "直接起動をブロック",
+        "title": "自分の IP から起動しない",
+        "body": "プライバシー設定で「プロキシまたは VPN なしの起動をブロック」をオンにします。プロキシのないプロファイルや、プロキシや VPN が見つからないプロファイルは起動しません。",
+        "action": "プライバシー設定を開く"
+      },
+      "totp": {
+        "label": "2FA コード",
+        "title": "2FA コードをプロファイルと一緒に",
+        "body": "プロファイル情報でアカウントの 2FA キーを追加すると、Donut が現在のコードを表示し、すぐにコピーできます。キーはこのデバイスに暗号化して保存されます。",
+        "action": "2FA キーを試す"
+      },
+      "synchronizer": {
+        "label": "シンクロナイザー",
+        "title": "複数のプロファイルを同時に操作",
+        "body": "プロファイルのメニューで「シンクロナイザーで起動」を選び、フォロワーを選びます。リーダーでのクリックや入力が各フォロワーで繰り返されます。",
+        "action": "プロファイルを開く"
       }
+    },
+    "sections": {
+      "everyday": "日常",
+      "network": "ネットワーク",
+      "privacy": "プライバシーとデータ",
+      "connect": "連携",
+      "plan": "プランに含まれる機能"
+    },
+    "progress": "{{total}} 件中 {{read}} 件既読",
+    "unread": "未読",
+    "nextShort": "次へ",
+    "inline": {
+      "label": "機能のヒント",
+      "eyebrow": "ヒント",
+      "more": "ヒントのその他のオプション",
+      "allTips": "すべてのヒント",
+      "turnOff": "ヒントを表示しない",
+      "dismiss": "ヒントを閉じる",
+      "offTitle": "ヒントはオフです",
+      "offBody": "ヒント ({{shortcut}}) から再びオンにできます。"
     }
   },
   "paidWelcome": {
@@ -4170,6 +4353,35 @@
     "kind": {
       "auto": "毎日",
       "manual": "手動"
+    }
+  },
+  "entities": {
+    "empty": {
+      "proxies": {
+        "title": "プロキシはまだありません",
+        "body": "プロキシはプロファイルの通信を別のサーバー経由で送ります。プロファイルごとに別のプロキシを使えます。"
+      },
+      "vpns": {
+        "title": "VPN はまだありません",
+        "body": "WireGuard VPN はプロファイルの通信を暗号化されたトンネルで運びます。"
+      },
+      "groups": {
+        "title": "グループはまだありません",
+        "body": "グループでプロファイルをクライアント、プロジェクト、作業ごとに分けます。グループ内のすべてのプロファイルにグループのブックマークが入ります。"
+      },
+      "extensions": {
+        "title": "拡張機能はまだありません",
+        "body": "ファイル、フォルダー、Web Store のリンクから拡張機能を追加します。プロファイルで使うには拡張機能グループに入れます。"
+      },
+      "extensionGroups": {
+        "title": "拡張機能グループはまだありません",
+        "body": "拡張機能グループは拡張機能のセットです。グループを使うプロファイルは起動時にそのセットを受け取ります。"
+      }
+    },
+    "check": {
+      "notChecked": "未チェック",
+      "valid": "有効",
+      "invalid": "無効"
     }
   }
 }

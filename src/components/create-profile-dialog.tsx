@@ -12,6 +12,7 @@ import {
   LuCheck,
   LuChevronDown,
   LuChevronRight,
+  LuClock,
   LuFlame,
   LuGlobe,
   LuLayoutTemplate,
@@ -215,15 +216,20 @@ export function CreateProfileDialog({
     allowance !== null && allowance.used >= allowance.per_hour;
   const hourlyCapReached = overAllowance && allowance.enforcement === "hard";
   const creatingQuickly = overAllowance && allowance.enforcement === "soft";
+
+  // The wait in the hourly-limit notice counts down by the minute.
+  useEffect(() => {
+    if (!isOpen || !hourlyCapReached) return;
+    const timer = window.setInterval(() => void loadAllowance(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [isOpen, hourlyCapReached, loadAllowance]);
+
   // A batch stops at the hourly allowance on every plan, so it is never
   // offered past what is left.
   const maxCount =
     allowance === null
       ? MAX_BULK_CREATE
-      : Math.max(
-          1,
-          Math.min(MAX_BULK_CREATE, allowance.per_hour - allowance.used),
-        );
+      : Math.max(1, Math.min(MAX_BULK_CREATE, allowance.remaining));
   const many = count > 1;
   useEffect(() => {
     setCount((current) => Math.min(current, maxCount));
@@ -310,12 +316,19 @@ export function CreateProfileDialog({
       ? latestVersion
       : downloadedVersions[0];
   const downloading = isBrowserDownloading("wayfern");
+  // Several profiles, or one from a template, go to one batch, which stops at
+  // the allowance even where a single profile past it is only a warning.
+  const batchRefused =
+    allowance !== null &&
+    (many || appliedTemplate !== null) &&
+    count > allowance.remaining;
   const isCreateDisabled =
     !profileName.trim() ||
     !creatableVersion ||
     downloading ||
     isCreating ||
     hourlyCapReached ||
+    batchRefused ||
     !dnsServerValid;
   const selectedVpn = selectedProxyId?.startsWith("vpn-")
     ? vpnConfigs.find((vpn) => vpn.id === selectedProxyId.slice(4))
@@ -588,21 +601,29 @@ export function CreateProfileDialog({
           transition: { ...ENTRY_SPRING, delay },
         }
       : {};
-  const createButton = (
-    <LoadingButton
-      data-slot="profile-create-submit"
-      onClick={handleCreate}
-      isLoading={isCreating && !progress}
-      disabled={isCreateDisabled || progress !== null}
-      className="h-9 rounded-md px-4 transition-[opacity,box-shadow,transform] duration-200"
-    >
-      {progress
-        ? t("templates.progress", progress)
-        : many
-          ? t("templates.createMany", { count })
-          : t("common.buttons.create")}
-    </LoadingButton>
-  );
+  const countHint: CountHintLine[] = [];
+  if (many) {
+    countHint.push({
+      text: t("templates.namesHint", {
+        name: profileName.trim() || t("createProfile.profileName"),
+      }),
+    });
+  }
+  if (allowance !== null && allowance.remaining > 0) {
+    countHint.push({
+      text: t("templates.allowanceLeft", { count: allowance.remaining }),
+      limit: maxCount < MAX_BULK_CREATE,
+    });
+  }
+  if (maxCount === MAX_BULK_CREATE) {
+    countHint.push({
+      text: t("backendErrors.bulkCreateCountInvalid", {
+        max: MAX_BULK_CREATE,
+      }),
+      limit: true,
+      atLimitOnly: true,
+    });
+  }
 
   const reveal = animateEntry
     ? {
@@ -760,20 +781,6 @@ export function CreateProfileDialog({
               </PopoverContent>
             </Popover>
           </motion.div>
-
-          {many && (
-            <motion.p
-              data-slot="profile-count-hint"
-              className="px-2 text-xs text-muted-foreground"
-              {...reveal}
-            >
-              {t("templates.namesHint", {
-                name: profileName.trim() || t("createProfile.profileName"),
-              })}
-              {allowance !== null &&
-                ` ${t("templates.allowanceLeft", { count: maxCount })}`}
-            </motion.p>
-          )}
 
           <motion.div
             className="flex flex-wrap items-center gap-1.5"
@@ -1101,6 +1108,27 @@ export function CreateProfileDialog({
             ))
           )}
 
+          {hourlyCapReached && (
+            <motion.p
+              role="status"
+              data-slot="hourly-limit"
+              className={cn(STATUS_CLASS, "items-start")}
+              {...reveal}
+            >
+              <LuClock
+                className="mt-0.5 size-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              {t("createProfile.hourlyLimit.reached", {
+                limit: allowance.per_hour,
+                minutes: Math.max(
+                  1,
+                  Math.ceil((allowance.retry_after_secs ?? 60) / 60),
+                ),
+              })}
+            </motion.p>
+          )}
+
           {creatingQuickly && (
             <motion.div
               role="status"
@@ -1311,69 +1339,93 @@ export function CreateProfileDialog({
           </div>
         </div>
 
-        <DialogFooter className="items-center justify-between">
-          <Button
-            variant="subtle"
-            size="sm"
-            className="-ml-2 gap-1 rounded-lg px-2"
-            aria-expanded={advancedOpen}
-            aria-controls={advancedOptionsId}
-            onClick={() => setAdvancedOpen((open) => !open)}
-            disabled={isCreating}
-          >
-            <AnimatedDisclosureChevron open={advancedOpen}>
-              <LuChevronRight className="size-4" />
-            </AnimatedDisclosureChevron>
-            {t("createProfile.advancedOptions")}
-          </Button>
-          <div className="ml-auto flex items-center gap-2">
-            {progress ? (
-              <Button
-                variant="subtle"
-                data-slot="profile-create-stop"
-                onClick={() => void invoke("cancel_bulk_create_profiles")}
-              >
-                {t("templates.stop")}
-              </Button>
-            ) : (
-              <Button
-                variant="subtle"
-                onClick={handleClose}
-                disabled={isCreating}
-              >
-                {t("common.buttons.cancel")}
-              </Button>
-            )}
+        <DialogFooter className="items-center">
+          {/* Every control here keeps its size whatever the count, so the
+              row never reflows; the batch progress takes the place of
+              Advanced options without moving the buttons. */}
+          <div className="relative flex min-w-0 grow items-center">
+            <Button
+              variant="subtle"
+              size="sm"
+              className={cn(
+                "-ml-2 gap-1 rounded-lg px-2",
+                progress && "invisible",
+              )}
+              aria-expanded={advancedOpen}
+              aria-controls={advancedOptionsId}
+              onClick={() => setAdvancedOpen((open) => !open)}
+              disabled={isCreating}
+            >
+              <AnimatedDisclosureChevron open={advancedOpen}>
+                <LuChevronRight className="size-4" />
+              </AnimatedDisclosureChevron>
+              {t("createProfile.advancedOptions")}
+            </Button>
+            <p
+              role="status"
+              data-slot="profile-create-progress"
+              className="pointer-events-none absolute inset-0 flex min-w-0 items-center gap-2 text-xs text-muted-foreground tabular-nums"
+            >
+              {progress && (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-foreground/10"
+                  >
+                    <motion.span
+                      className="block h-full rounded-full bg-foreground"
+                      style={{ originX: 0 }}
+                      initial={false}
+                      animate={{
+                        scaleX: progress.total
+                          ? progress.done / progress.total
+                          : 0,
+                      }}
+                      transition={{
+                        duration: animateEntry ? 0.3 : 0,
+                        ease: MOTION_EASE_OUT,
+                      }}
+                    />
+                  </span>
+                  <span className="truncate">
+                    {t("templates.progress", progress)}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <Button
+              variant="subtle"
+              data-slot={progress ? "profile-create-stop" : undefined}
+              onClick={
+                progress
+                  ? () => void invoke("cancel_bulk_create_profiles")
+                  : handleClose
+              }
+              disabled={isCreating && !progress}
+            >
+              <SwapLabel
+                labels={[t("common.buttons.cancel"), t("templates.stop")]}
+                shown={progress ? 1 : 0}
+              />
+            </Button>
             <CountStepper
               value={count}
               max={maxCount}
               onChange={changeCount}
               disabled={isCreating}
+              hint={countHint}
             />
-            {hourlyCapReached ? (
-              <Tooltip
-                onOpenChange={(open) => {
-                  if (open) void loadAllowance();
-                }}
-              >
-                <TooltipTrigger asChild>
-                  <span data-slot="hourly-limit" className="inline-flex">
-                    {createButton}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={6} className="max-w-64">
-                  {t("createProfile.hourlyLimit.reached", {
-                    limit: allowance.per_hour,
-                    minutes: Math.max(
-                      1,
-                      Math.ceil((allowance.retry_after_secs ?? 60) / 60),
-                    ),
-                  })}
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              createButton
-            )}
+            <LoadingButton
+              data-slot="profile-create-submit"
+              onClick={handleCreate}
+              isLoading={isCreating}
+              disabled={isCreateDisabled}
+              className="h-9 rounded-md px-4 transition-[opacity,box-shadow,transform] duration-200"
+            >
+              {t("common.buttons.create")}
+            </LoadingButton>
           </div>
         </DialogFooter>
       </DialogContent>
@@ -1398,6 +1450,7 @@ interface ProfileCreationAllowance {
   per_hour: number;
   used: number;
   retry_after_secs: number | null;
+  remaining: number;
 }
 
 const STATUS_CLASS =
@@ -1716,78 +1769,177 @@ function TemplatePicker({
   );
 }
 
-/** How many profiles to create, from 1 to `max`. */
+/** One line of the count stepper's tooltip. */
+interface CountHintLine {
+  text: string;
+  /** Says what bounds the count; stressed once the count is at the bound. */
+  limit?: boolean;
+  /** Shown only at the bound. */
+  atLimitOnly?: boolean;
+}
+
+/** Shows one label in the width of the widest, so swapping them moves nothing. */
+function SwapLabel({ labels, shown }: { labels: string[]; shown: number }) {
+  return (
+    <span className="inline-grid">
+      {labels.map((label, index) => (
+        <span
+          key={label}
+          aria-hidden={index !== shown}
+          className={cn(
+            "col-start-1 row-start-1",
+            index !== shown && "invisible",
+          )}
+        >
+          {label}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * How many profiles to create, from 1 to `max`. Its width never changes, and
+ * what the count means (the names, the allowance, the bound) shows in a
+ * tooltip while the pointer or focus is on it, so nothing around it moves.
+ */
 function CountStepper({
   value,
   max,
   onChange,
   disabled,
+  hint,
 }: {
   value: number;
   max: number;
   onChange: (value: number) => void;
   disabled: boolean;
+  hint: CountHintLine[];
 }) {
   const { t } = useTranslation();
+  const hintId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(String(value));
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     setDraft(String(value));
   }, [value]);
 
-  const commit = () => {
-    const parsed = Number.parseInt(draft, 10);
-    const next = Number.isFinite(parsed)
-      ? Math.min(max, Math.max(1, parsed))
-      : value;
-    setDraft(String(next));
-    if (next !== value) onChange(next);
+  const atLimit = value >= max;
+  const lines = hint.filter((line) => atLimit || !line.atLimitOnly);
+  const open =
+    !disabled && !dismissed && (hovered || focused) && lines.length > 0;
+
+  const set = (next: number) => {
+    const clamped = Math.min(max, Math.max(1, next));
+    setDraft(String(clamped));
+    if (clamped !== value) onChange(clamped);
+    return clamped;
+  };
+  const stepBy = (delta: number, button: HTMLButtonElement) => {
+    const next = set(value + delta);
+    // The button disables at either end; the focus it held stays in the stepper.
+    if ((next >= max || next <= 1) && document.activeElement === button) {
+      inputRef.current?.focus();
+    }
   };
   const step =
     "grid h-9 w-7 place-items-center text-muted-foreground transition-colors duration-100 hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-3.5";
 
   return (
-    <div
-      role="group"
-      aria-label={t("templates.count")}
-      className="inline-flex h-9 items-center rounded-md bg-foreground/5"
-    >
-      <button
-        type="button"
-        aria-label={t("templates.fewer")}
-        data-slot="profile-count-fewer"
-        className={step}
-        disabled={disabled || value <= 1}
-        onClick={() => onChange(value - 1)}
+    <Tooltip open={open}>
+      <TooltipTrigger asChild>
+        <div
+          role="group"
+          aria-label={t("templates.count")}
+          data-slot="profile-count-stepper"
+          className="inline-flex h-9 shrink-0 items-center rounded-md bg-foreground/5"
+          onPointerEnter={() => {
+            setHovered(true);
+            setDismissed(false);
+          }}
+          onPointerLeave={() => setHovered(false)}
+          onFocus={(event) => {
+            // A click focuses a button without showing it; only a focus the
+            // person sees keeps the tooltip up once the pointer has left.
+            setFocused(event.target.matches(":focus-visible"));
+            setDismissed(false);
+          }}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              setFocused(false);
+            }
+          }}
+        >
+          <button
+            type="button"
+            aria-label={t("templates.fewer")}
+            data-slot="profile-count-fewer"
+            className={step}
+            disabled={disabled || value <= 1}
+            onClick={(event) => stepBy(-1, event.currentTarget)}
+          >
+            <LuMinus aria-hidden="true" />
+          </button>
+          <input
+            ref={inputRef}
+            id="profile-count"
+            data-slot="profile-count"
+            inputMode="numeric"
+            aria-label={t("templates.count")}
+            aria-describedby={lines.length > 0 ? hintId : undefined}
+            value={draft}
+            disabled={disabled}
+            onChange={(event) => {
+              const digits = event.target.value.replace(/\D/g, "");
+              if (digits) set(Number.parseInt(digits, 10));
+              else setDraft("");
+            }}
+            onBlur={() => {
+              if (!draft) setDraft(String(value));
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                event.preventDefault();
+                set(value + (event.key === "ArrowUp" ? 1 : -1));
+              }
+            }}
+            className="w-8 bg-transparent text-center text-sm tabular-nums outline-none disabled:opacity-50"
+          />
+          <button
+            type="button"
+            aria-label={t("templates.more")}
+            data-slot="profile-count-more"
+            className={step}
+            disabled={disabled || atLimit}
+            onClick={(event) => stepBy(1, event.currentTarget)}
+          >
+            <LuPlus aria-hidden="true" />
+          </button>
+          <span id={hintId} className="sr-only">
+            {lines.map((line) => line.text).join(" ")}
+          </span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        sideOffset={6}
+        data-slot="profile-count-hint"
+        className="max-w-64 space-y-1"
+        onEscapeKeyDown={() => setDismissed(true)}
       >
-        <LuMinus aria-hidden="true" />
-      </button>
-      <input
-        id="profile-count"
-        data-slot="profile-count"
-        inputMode="numeric"
-        aria-label={t("templates.count")}
-        value={draft}
-        disabled={disabled}
-        onChange={(event) => setDraft(event.target.value.replace(/\D/g, ""))}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            commit();
-          }
-        }}
-        className="w-8 bg-transparent text-center text-sm tabular-nums outline-none disabled:opacity-50"
-      />
-      <button
-        type="button"
-        aria-label={t("templates.more")}
-        data-slot="profile-count-more"
-        className={step}
-        disabled={disabled || value >= max}
-        onClick={() => onChange(value + 1)}
-      >
-        <LuPlus aria-hidden="true" />
-      </button>
-    </div>
+        {lines.map((line) => (
+          <p
+            key={line.text}
+            data-limit={line.limit && atLimit ? "" : undefined}
+            className={cn(line.limit && atLimit && "font-medium")}
+          >
+            {line.text}
+          </p>
+        ))}
+      </TooltipContent>
+    </Tooltip>
   );
 }

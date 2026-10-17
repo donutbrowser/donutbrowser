@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuActivity } from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
+import { AnimatedDisclosureContent } from "@/components/ui/animated-disclosure";
 import { OperationFlow } from "@/components/ui/operation-flow";
 import { SettingsPanel } from "@/components/ui/settings-panel";
 import { translateBackendError } from "@/lib/backend-errors";
@@ -19,9 +20,34 @@ interface Diagnostic {
 }
 
 /**
+ * The station a probe stopped at and why, or null when it passed all three.
+ * A server that answers with neither success nor a refusal leaves the
+ * credential unverified, which is not a pass.
+ */
+function stopOf(result: Diagnostic) {
+  if (!result.configured) {
+    return { station: 0, reason: "appFeedback.probeNotConfigured" } as const;
+  }
+  if (result.reachable === false) {
+    return { station: 1, reason: "appFeedback.probeUnreachable" } as const;
+  }
+  if (result.authorized === false) {
+    return { station: 2, reason: "appFeedback.probeRefused" } as const;
+  }
+  if (result.authorized == null) {
+    return { station: 2, reason: "appFeedback.probeUnverified" } as const;
+  }
+  return null;
+}
+
+/**
  * A read-only probe of one integration route. The owner remounts it (via
  * `key`) whenever the credential or server it describes changes, so a receipt
  * never outlives the configuration it was taken against.
+ *
+ * Until the first test it is one row; the stations, the receipt and what
+ * failed appear only once there is a result, and a failure stays until the
+ * next test.
  */
 export function IntegrationDiagnostics({
   target,
@@ -43,6 +69,8 @@ export function IntegrationDiagnostics({
         await invoke<Diagnostic>("check_integration_connection", { target }),
       );
     } catch (err) {
+      // A receipt from an earlier test must not stand in for this one.
+      setResult(null);
       setError(translateBackendError(t, err));
     } finally {
       setBusy(false);
@@ -56,12 +84,17 @@ export function IntegrationDiagnostics({
           ? "appFeedback.confirmed"
           : "appFeedback.unavailable",
     );
+  const stop = result && !busy ? stopOf(result) : null;
+  const problem =
+    error ??
+    (stop ? t(stop.reason, { status: result?.http_status ?? "" }) : null);
+
   return (
     <SettingsPanel
       data-slot="integration-diagnostics"
-      className={cn("space-y-4", className)}
+      className={cn("py-3", className)}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h3 className="text-sm font-medium">
             {t("appFeedback.connectionTest")}
@@ -77,7 +110,7 @@ export function IntegrationDiagnostics({
         <LoadingButton
           size="sm"
           variant="soft"
-          className="h-8 gap-1.5 rounded-lg text-xs"
+          className="h-8 shrink-0 gap-1.5 rounded-lg text-xs"
           isLoading={busy}
           onClick={() => void check()}
         >
@@ -85,69 +118,69 @@ export function IntegrationDiagnostics({
           {t("appFeedback.testConnection")}
         </LoadingButton>
       </div>
-      <OperationFlow
-        label={t("appFeedback.connectionTest")}
-        // The station the probe stopped at: nothing configured stops at
-        // "configured", unreachable at "reachable", a refused token at
-        // "authorized".
-        active={
-          busy
-            ? 1
-            : !result
-              ? 0
-              : !result.configured
-                ? 0
-                : result.reachable === false
-                  ? 1
-                  : 2
-        }
-        busy={busy}
-        failed={
-          !!result &&
-          (!result.configured ||
-            result.reachable === false ||
-            result.authorized === false)
-        }
-        steps={[
-          {
-            id: "configured",
-            label: t("appFeedback.configured"),
-            detail: verdict(result?.configured),
-          },
-          {
-            id: "reachable",
-            label: t("appFeedback.reachable"),
-            detail: verdict(result?.reachable),
-          },
-          {
-            id: "authorized",
-            label: t("appFeedback.authorized"),
-            detail: verdict(result?.authorized),
-          },
-        ]}
-      />
-      <div
-        role="status"
-        className="text-xs leading-relaxed text-muted-foreground tabular-nums"
-      >
-        {busy
-          ? t("appFeedback.checking")
-          : result
-            ? t("proxyCheck.tooltipChecked", {
-                time: new Date(result.checked_at * 1000).toLocaleString(),
-              })
-            : t("appFeedback.notChecked")}
-        {result?.http_status != null && (
-          <span className="ml-2 rounded-md bg-foreground/5 px-1.5 py-0.5 font-mono">
-            HTTP {result.http_status}
-          </span>
-        )}
-      </div>
-      {error && (
-        <p role="alert" className="break-words text-xs text-destructive-text">
-          {error}
-        </p>
-      )}
+      <AnimatedDisclosureContent open={busy || result !== null || !!error}>
+        <div className="mt-3 border-t border-foreground/6 pt-3">
+          {(busy || result) && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <OperationFlow
+                compact
+                label={t("appFeedback.connectionTest")}
+                // Nothing is verified until this test answers.
+                active={busy ? 0 : (stop?.station ?? 2)}
+                busy={busy}
+                failed={!!stop}
+                steps={[
+                  {
+                    id: "configured",
+                    label: t("appFeedback.configured"),
+                    detail: verdict(busy ? null : result?.configured),
+                  },
+                  {
+                    id: "reachable",
+                    label: t("appFeedback.reachable"),
+                    detail: verdict(busy ? null : result?.reachable),
+                  },
+                  {
+                    id: "authorized",
+                    label: t("appFeedback.authorized"),
+                    detail: verdict(busy ? null : result?.authorized),
+                  },
+                ]}
+              />
+              <p
+                role="status"
+                className="ml-auto flex items-center gap-2 text-xs text-muted-foreground tabular-nums"
+              >
+                {busy
+                  ? t("appFeedback.checking")
+                  : result &&
+                    t("proxyCheck.tooltipChecked", {
+                      time: new Date(
+                        result.checked_at * 1000,
+                      ).toLocaleTimeString(),
+                    })}
+                {!busy && result?.http_status != null && (
+                  <span className="rounded-md bg-foreground/5 px-1.5 py-0.5 font-mono">
+                    HTTP {result.http_status}
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+          {problem && (
+            <p
+              role="alert"
+              data-slot="integration-diagnostics-problem"
+              className={cn(
+                "break-words text-xs leading-relaxed text-destructive-text",
+                (busy || result) && "mt-1.5",
+              )}
+            >
+              {problem}
+            </p>
+          )}
+        </div>
+      </AnimatedDisclosureContent>
     </SettingsPanel>
   );
 }

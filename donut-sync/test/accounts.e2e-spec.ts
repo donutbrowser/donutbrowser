@@ -17,8 +17,8 @@ import {
 } from "./test-env.js";
 
 // Donut accounts on a server the customer runs: the Donut API (a stand-in
-// here) says whose a token is, and this server applies the namespace, the
-// plan's profile limit and the team scope against real storage.
+// here) says whose a token is, and this server applies the namespace and the
+// team scope against real storage.
 describe("Donut account sign-in (e2e)", () => {
   const PUBLIC_URL = "https://sync.example.test";
   // Shaped like the Donut API's tokens for this server. The stand-in API
@@ -160,15 +160,15 @@ describe("Donut account sign-in (e2e)", () => {
     );
   });
 
-  it("applies the plan's profile limit, and lets a full plan keep syncing", async () => {
+  it("stores an account's profiles and settings", async () => {
     await put(OWNER_TOKEN, "profiles/p1/files/Default/Cookies");
-    await upload(OWNER_TOKEN, "profiles/p2/metadata.json").expect(403);
+    await upload(OWNER_TOKEN, "profiles/p2/metadata.json").expect(200);
     await upload(OWNER_TOKEN, "proxies/x.json").expect(200);
   });
 
-  it("gives a team member the owner's space and the team's limit", async () => {
+  it("gives a team member the owner's space", async () => {
     expect(await listed(MEMBER_TOKEN)).toContain("profiles/p1/metadata.json");
-    await upload(MEMBER_TOKEN, "profiles/p2/metadata.json").expect(403);
+    await upload(MEMBER_TOKEN, "profiles/p2/metadata.json").expect(200);
   });
 
   it("refuses a token the API does not vouch for", async () => {

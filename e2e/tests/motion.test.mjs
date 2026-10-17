@@ -1395,7 +1395,56 @@ test("settings save a RAM-only edit, preserve location, and expose review and di
     await app.fillSelector(slot("shortcuts-search"), en.shortcuts.goProfiles);
     assert.equal(await app.visibleTextIncludes(en.shortcuts.goProfiles), true);
     assert.equal(await app.visibleTextIncludes(en.shortcuts.goGroups), false);
+    assert.equal(
+      await app.execute(
+        `return document.querySelectorAll('[data-shortcut-row="goProfiles"] mark').length > 0;`,
+      ),
+      true,
+      "the matched words are marked",
+    );
     await app.capture("shortcuts-search");
+
+    // Held modifiers press their keycaps and fade the rows that do not use
+    // them; letting go brings every row back.
+    await app.clickSelector(slot("shortcuts-search"));
+    await app.pressShortcut({ key: "Escape" });
+    await app.execute("document.activeElement?.blur();");
+    await waitForSelector(app, '[data-shortcut-row="goGroups"]');
+    const modKey = process.platform === "darwin" ? "\uE03D" : "\uE009";
+    await app.session.command("POST", "/actions", {
+      actions: [
+        {
+          type: "key",
+          id: "keyboard",
+          actions: [
+            { type: "keyDown", value: modKey },
+            { type: "keyDown", value: "\uE008" },
+          ],
+        },
+      ],
+    });
+    try {
+      await app.waitFor(
+        () =>
+          app.execute(`
+            const row = (id) => document.querySelector('[data-shortcut-row="' + id + '"]');
+            return row("goProfiles")?.dataset.dimmed === "true" &&
+              !row("goTrash")?.dataset.dimmed &&
+              row("goTrash").querySelectorAll('[data-slot="kbd"][data-pressed="true"]').length === 2;
+          `),
+        { description: "held modifiers fade the rows without them" },
+      );
+      await app.capture("shortcuts-held-modifiers");
+    } finally {
+      await app.session.command("DELETE", "/actions");
+    }
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return !document.querySelector('[data-shortcut-row][data-dimmed]');`,
+        ),
+      { description: "released modifiers bring every row back" },
+    );
   });
 });
 
@@ -1634,6 +1683,23 @@ test("schedule displays every timezone and slot, and skipped run details work by
     // start that fetch reached the backend before the stubs were in place.
     await installSynchronizerFixture(app);
     await app.pressShortcut({ ...modifier, key: "b" });
+    await waitForSelector(app, slot("cookie-bot-usage-chart"));
+    assert.equal(
+      await app.visibleTextIncludes(en.cookieBot.chart.machineTime),
+      true,
+    );
+    // Both start times of one profile show on its row, under the day cadence.
+    assert.equal(
+      await app.execute(
+        `return document.querySelector('[data-slot="cookie-bot-enrolled-row"][data-profile-id="' + arguments[0] + '"] [data-slot="cookie-bot-times"]')?.textContent ?? "";`,
+        [profile.id],
+      ),
+      "02:00 · 12:00",
+    );
+    assert.equal(
+      await app.visibleTextIncludes(en.cookieBot.enrol.cadenceNightly),
+      true,
+    );
     await app.clickText(en.cookieBot.tabs.schedule, { roles: ["tab"] });
     await waitForSelector(app, slot("schedule-lane"));
     assert.deepEqual(
@@ -1643,7 +1709,7 @@ test("schedule displays every timezone and slot, and skipped run details work by
       [120, 120, 720],
     );
     assert.equal(await app.visibleTextIncludes("Asia/Yerevan"), true);
-    assert.equal(await app.visibleTextIncludes("199.8"), true);
+    await app.waitForText("199.8");
     await app.execute("window.__donutRemainingHours = 199.7;");
     await emit(app, "remote-session-snapshot", { sessions: [] });
     await app.waitForText("199.7");
@@ -1677,6 +1743,94 @@ test("schedule displays every timezone and slot, and skipped run details work by
       "true",
     );
     await app.capture("skipped-run-details");
+    await restoreSynchronizerFixture(app);
+  });
+});
+
+test("a new enrolment starts at a random time that the dice can change", async () => {
+  await withApp("motion-cookie-bot-random-time", async (app) => {
+    await resize(app, 1200, 800);
+    const created = await createProfile(app, "Fresh enrolment");
+    const profile = {
+      ...created,
+      sync_mode: "Regular",
+      host_os: "linux",
+      proxy_id: "motion-fixture-proxy",
+    };
+    await app.execute(
+      `
+      const profile = arguments[0];
+      const previous = window.fetch;
+      const response = value => Promise.resolve(new Response(JSON.stringify(value), { status: 200, headers: { "content-type": "application/json", "Tauri-Response": "ok" } }));
+      window.fetch = function(input, init) {
+        let command = "";
+        try { const url = new URL(typeof input === "string" ? input : input.url); if (url.hostname === "localhost" && url.protocol === "ipc:" || url.hostname === "ipc.localhost") command = decodeURIComponent(url.pathname.split("/").pop() || ""); } catch {}
+        if (command === "list_browser_profiles") return response([profile]);
+        if (command === "get_cookie_bot_schedules") return response({ schedules: [] });
+        if (command === "get_cookie_bot_runs") return response({ runs: [], next_before: null });
+        if (command === "get_remote_hours_quota") return response({ granted_hours: 200, remaining_hours: 200, used_hours: 0, seats: 1, per_seat_hours: 200, members: [] });
+        return previous.apply(window, arguments);
+      };
+    `,
+      [profile],
+    );
+    await emit(app, "profiles-changed", null);
+    await installSynchronizerFixture(app);
+    await app.pressShortcut({ ...modifier, key: "b" });
+    await app.clickText(en.cookieBot.empty.cta);
+    await app.clickSelector(`#cookie-bot-pick-${profile.id}`);
+    // A fixed draw makes the default time known without making it 02:00.
+    await app.execute(
+      "window.__donutRandom = Math.random; Math.random = () => 0.9;",
+    );
+    await app.clickText(
+      en.cookieBot.picker.continue_one.replace("{{count}}", "1"),
+    );
+    await waitForSelector(app, slot("cookie-bot-slot-time"));
+    const minutesOf = (value) => {
+      const [hours, minutes] = value.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+    const apart = (a, b) => {
+      const distance = Math.abs(a - b) % 1440;
+      return Math.min(distance, 1440 - distance);
+    };
+    const times = () =>
+      app.execute(
+        `return [...document.querySelectorAll('[data-slot="cookie-bot-slot-time"]')].map(input => input.value);`,
+      );
+    const [first] = await times();
+    assert.match(first, /^\d\d:\d\d$/);
+    const start = minutesOf(first);
+    assert.ok(start >= 0 && start < 1440, `default time ${first}`);
+    assert.notEqual(start, 120, "a new enrolment does not default to 02:00");
+    assert.ok(
+      (
+        await app.execute(
+          `return document.querySelector('[data-slot="cookie-bot-enrol-summary"]').textContent;`,
+        )
+      ).includes(first),
+      "the summary names the drawn time",
+    );
+    await app.execute("Math.random = window.__donutRandom;");
+
+    await app.clickSelector(slot("cookie-bot-shuffle-time"));
+    await app.waitFor(async () => (await times())[0] !== first, {
+      description: "the dice draw another time",
+    });
+    const [shuffled] = await times();
+    assert.ok(
+      apart(minutesOf(shuffled), start) >= 60,
+      `shuffled to ${shuffled}`,
+    );
+
+    await app.clickSelector(slot("cookie-bot-add-slot"));
+    await app.waitFor(async () => (await times()).length === 2, {
+      description: "a second start time",
+    });
+    const [one, two] = (await times()).map(minutesOf);
+    assert.ok(apart(one, two) >= 60, "an added time keeps an hour clear");
+    await app.capture("cookie-bot-random-time");
     await restoreSynchronizerFixture(app);
   });
 });
@@ -1789,18 +1943,39 @@ test("connection diagnostics and extension impact expose real assigned profiles"
 
     await app.pressShortcut({ ...modifier, key: "i" });
     await waitForSelector(app, slot("integration-diagnostics"));
+    const receipt = () =>
+      app.execute(
+        `const panel = document.querySelector('[data-slot="integration-diagnostics"]');
+         const flow = panel.querySelector('[data-slot="operation-flow"]');
+         return {
+           flow: flow ? [flow.dataset.variant, flow.dataset.state] : null,
+           status: panel.querySelector('[role="status"]')?.textContent ?? "",
+           problem: panel.querySelector('[data-slot="integration-diagnostics-problem"]')?.textContent ?? null,
+           text: panel.innerText,
+         };`,
+      );
+    const untested = await receipt();
+    assert.equal(untested.flow, null, "no stations before the first test");
+    assert.ok(!untested.text.includes(en.appFeedback.notVerified));
     await app.clickTextIn(
       slot("integration-diagnostics"),
       en.appFeedback.testConnection,
       { roles: ["button"] },
     );
     await app.waitFor(
-      () =>
-        app.execute(
-          `return document.querySelector('[data-slot="integration-diagnostics"] [role="status"]').textContent.includes(arguments[0]);`,
-          [en.proxyCheck.tooltipChecked.split("{{")[0]],
+      async () =>
+        (await receipt()).status.includes(
+          en.proxyCheck.tooltipChecked.split("{{")[0],
         ),
       { description: "real local API probe receipt" },
+    );
+    // One compact line of stations; a test that did not pass says why.
+    const tested = await receipt();
+    assert.equal(tested.flow[0], "compact");
+    assert.equal(
+      tested.flow[1] === "failed",
+      tested.problem !== null,
+      JSON.stringify(tested),
     );
     await app.capture("integration-connection-receipt");
   });

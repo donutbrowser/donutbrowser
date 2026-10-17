@@ -57,3 +57,26 @@ export function canonicalProxyType(proxyType: string): string {
   const normalized = proxyType.trim().toLowerCase();
   return TYPE_ALIASES.get(normalized) ?? normalized;
 }
+
+/** Types with a translated name under `proxies.types.*`. */
+const NAMED_TYPES = new Set([
+  "http",
+  "https",
+  "httpstls",
+  "socks4",
+  "socks5",
+  "ss",
+  "vless",
+  "vmess",
+  "trojan",
+  "hysteria2",
+]);
+
+/**
+ * The translation key for a stored type's full name, such as "Shadowsocks"
+ * for `ss`, or null for a type the UI has no name for.
+ */
+export function proxyTypeLabelKey(proxyType: string): string | null {
+  const canonical = canonicalProxyType(proxyType);
+  return NAMED_TYPES.has(canonical) ? `proxies.types.${canonical}` : null;
+}

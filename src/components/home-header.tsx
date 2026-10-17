@@ -4,20 +4,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
-import { LuCircleHelp, LuSearch, LuX } from "react-icons/lu";
 import { useWindowDecorations } from "@/hooks/use-window-decorations";
 import { getCurrentOS } from "@/lib/browser-utils";
-import {
-  PROFILE_SEARCH_EXAMPLES,
-  PROFILE_SEARCH_FIELDS,
-  PROFILE_SEARCH_OPERATORS,
-} from "@/lib/profile-search";
+import type { ProfileSearchContext } from "@/lib/profile-search";
 import { cn } from "@/lib/utils";
-import type { GroupWithCount } from "@/types";
+import type { BrowserProfile, GroupWithCount } from "@/types";
 import { UNGROUPED_DROP_ID, useProfileGroupDrag } from "./profile-group-drag";
+import { ProfileSearchInput } from "./profile-search-input";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { ScrollStrip } from "./ui/scroll-strip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -29,8 +23,14 @@ const DRAG_THRESHOLD_PX = 3;
 // hands the pointer to the OS window-move loop and the control's click never
 // fires (e.g. the "+ New" button needing a double-click, and the window
 // un-maximizing on Windows). Mirrors the guard handleDoubleClick already uses.
-const isInteractiveTarget = (target: EventTarget | null): boolean => {
+// A portal's content (the search suggestions, a popover) is not part of the
+// bar, though React bubbles its events here: it never drags or maximizes.
+const isInteractiveTarget = (
+  target: EventTarget | null,
+  bar: Element,
+): boolean => {
   if (!(target instanceof Element)) return false;
+  if (!bar.contains(target)) return true;
   const el = target.closest(
     "button, a, [role='button'], input, select, textarea, [contenteditable=''], [contenteditable='true']",
   );
@@ -45,6 +45,9 @@ interface Props {
   canCreateProfiles?: boolean;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
+  /** The profiles the search runs over, for its suggestions and counts. */
+  searchProfiles?: readonly BrowserProfile[];
+  searchContext?: ProfileSearchContext;
   groups: GroupWithCount[];
   totalProfiles: number;
   selectedGroupId: string | null;
@@ -52,108 +55,13 @@ interface Props {
   pageTitle?: string;
 }
 
-/**
- * What the search box understands. The vocabulary is data owned by the parser
- * (`src/lib/profile-search.ts`), so the tokens listed here cannot drift from the
- * ones a query is actually matched against; only the prose beside them is
- * translated, because the tokens themselves have to mean the same thing to
- * everybody who is handed a query.
- */
-const SearchSyntaxHelp = () => {
-  const { t } = useTranslation();
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={t("search.helpLabel")}
-          className="grid size-6 shrink-0 place-items-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-accent-foreground"
-        >
-          <LuCircleHelp className="size-3.5" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-96 max-w-[calc(100vw-1.5rem)] p-0"
-      >
-        <div className="space-y-3 p-3 text-xs">
-          <div>
-            <p className="font-medium text-foreground">
-              {t("search.helpTitle")}
-            </p>
-            <p className="mt-1 text-muted-foreground">
-              {t("search.helpIntro")}
-            </p>
-          </div>
-
-          <div>
-            <p className="font-medium text-foreground">
-              {t("search.fieldsTitle")}
-            </p>
-            <div className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-              {PROFILE_SEARCH_FIELDS.map((field) => (
-                <div key={field.key} className="contents">
-                  <code className="font-mono text-[11px] text-foreground">
-                    {field.key}:
-                  </code>
-                  <span className="text-muted-foreground">
-                    {t(field.labelKey)}
-                    {field.values ? (
-                      <span className="ml-1.5 font-mono text-[10px] text-muted-foreground/70">
-                        {field.values.join(" ")}
-                      </span>
-                    ) : null}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="font-medium text-foreground">
-              {t("search.operatorsTitle")}
-            </p>
-            <div className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-              {PROFILE_SEARCH_OPERATORS.map((operator) => (
-                <div key={operator.labelKey} className="contents">
-                  <code className="font-mono text-[11px] text-foreground">
-                    {operator.token}
-                  </code>
-                  <span className="text-muted-foreground">
-                    {t(operator.labelKey)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="font-medium text-foreground">
-              {t("search.examplesTitle")}
-            </p>
-            <div className="mt-1.5 space-y-1.5">
-              {PROFILE_SEARCH_EXAMPLES.map((example) => (
-                <div key={example.labelKey}>
-                  <code className="font-mono text-[11px] text-foreground">
-                    {example.query}
-                  </code>
-                  <p className="text-muted-foreground">{t(example.labelKey)}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-};
-
 const HomeHeader = ({
   onCreateProfileDialogOpen,
   canCreateProfiles = true,
   searchQuery,
   onSearchQueryChange,
+  searchProfiles,
+  searchContext,
   groups,
   totalProfiles,
   selectedGroupId,
@@ -208,7 +116,7 @@ const HomeHeader = ({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (e.button !== 0) return;
-      if (isInteractiveTarget(e.target)) return;
+      if (isInteractiveTarget(e.target, e.currentTarget)) return;
 
       dragStartedRef.current = false;
       dragStartRef.current = { x: e.clientX, y: e.clientY };
@@ -254,7 +162,7 @@ const HomeHeader = ({
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (isInteractiveTarget(e.target)) return;
+      if (isInteractiveTarget(e.target, e.currentTarget)) return;
       clearHold();
       void getCurrentWindow().toggleMaximize();
     },
@@ -412,34 +320,13 @@ const HomeHeader = ({
       {!showProfileToolbar && <div className="flex-1" />}
 
       {showProfileToolbar && (
-        <div className="relative shrink-0">
-          <LuSearch className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="text"
-            variant="soft"
-            placeholder={t("header.searchPlaceholder")}
-            value={searchQuery}
-            onChange={(e) => {
-              onSearchQueryChange(e.target.value);
-            }}
-            className="h-7 w-36 pr-7 pl-8 text-xs md:text-xs min-[860px]:w-52"
-          />
-          {searchQuery ? (
-            <button
-              type="button"
-              onClick={() => {
-                onSearchQueryChange("");
-              }}
-              className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-0.5 transition-colors hover:bg-foreground/10"
-              aria-label={t("header.clearSearch")}
-            >
-              <LuX className="size-3.5 text-muted-foreground hover:text-foreground" />
-            </button>
-          ) : null}
-        </div>
+        <ProfileSearchInput
+          value={searchQuery}
+          onChange={onSearchQueryChange}
+          profiles={searchProfiles}
+          context={searchContext}
+        />
       )}
-
-      {showProfileToolbar && <SearchSyntaxHelp />}
 
       {showProfileToolbar && canCreateProfiles && (
         <Tooltip>

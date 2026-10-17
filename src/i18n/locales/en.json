@@ -82,7 +82,17 @@
       "hideToken": "Hide token"
     },
     "keys": {
-      "escape": "Escape"
+      "escape": "Escape",
+      "command": "Command",
+      "control": "Control",
+      "shift": "Shift",
+      "option": "Option",
+      "alt": "Alt",
+      "enter": "Enter",
+      "backspace": "Backspace",
+      "arrowUp": "Up arrow",
+      "arrowDown": "Down arrow",
+      "tab": "Tab"
     },
     "errors": {
       "unknown": "Unknown error occurred"
@@ -353,6 +363,32 @@
       "a": "Running profiles in one group",
       "b": "Untagged profiles that have a proxy",
       "c": "Not launched for over 30 days, ignoring archived ones"
+    },
+    "suggest": {
+      "label": "Search suggestions",
+      "matches": "Matches",
+      "recent": "Recent",
+      "none": "Not set",
+      "any": "Set to anything",
+      "dates": {
+        "last7d": "Last 7 days",
+        "last30d": "Last 30 days",
+        "over30d": "Over 30 days ago",
+        "over90d": "Over 90 days ago",
+        "thisYear": "This year",
+        "never": "Never"
+      },
+      "keys": {
+        "choose": "Choose",
+        "complete": "Complete"
+      }
+    },
+    "issues": {
+      "unknownField": "{{name}} is not a field, so this searches as text. Did you mean {{field}}?",
+      "compare": "{{field}} cannot compare, so this searches as text. Only dates and versions compare.",
+      "date": "{{field}} takes a date like 2026-01-31, or 7d for the last 7 days.",
+      "enum": "{{field}} takes {{values}}.",
+      "boolean": "{{field}} takes yes or no."
     }
   },
   "profiles": {
@@ -571,7 +607,6 @@
       "tabVpns": "VPNs",
       "create": "Create",
       "loading": "Loading proxies...",
-      "noneCreated": "No proxies created yet. Create your first proxy using the button above.",
       "usage": "Usage",
       "syncCol": "Sync",
       "syncCannotDisable": "Sync cannot be disabled while this proxy is used by synced profiles",
@@ -597,7 +632,9 @@
       "firstHopPlaintextTooltip": "First hop in the clear: the connection to this proxy is not encrypted.",
       "firstHopEncryptedTooltip": "First hop encrypted: the connection to this proxy is encrypted. The provider still sees where you go.",
       "firstHopCipherTooltip": "First hop depends on the cipher: this proxy records no cipher, so whether the connection to it is encrypted is not decided. Edit it and set a real cipher, such as aes-256-gcm.",
-      "udpCol": "UDP"
+      "udpCol": "UDP",
+      "checkSelected": "Check selected",
+      "checkSummary": "Checks done. Passed: {{passed}}. Failed: {{failed}}."
     },
     "add": "Add Proxy",
     "edit": "Edit Proxy",
@@ -755,13 +792,11 @@
     "title": "Groups",
     "management": "Group Management",
     "add": "Add Group",
-    "edit": "Edit Group",
     "delete": "Delete Group",
     "moveToDefault": "Remove profiles from group",
     "noGroupDescription": "Profiles without a group appear in the \"All\" filter.",
     "assignSuccess": "Successfully assigned {{count}} profile(s) to {{group}}",
     "noGroups": "No groups created",
-    "noGroupsDescription": "Create a group to organize your profiles.",
     "form": {
       "name": "Name",
       "namePlaceholder": "Enter group name"
@@ -1692,10 +1727,8 @@
     "managedNotice": "Extensions managed here will replace any manually installed extensions in profiles when launched.",
     "proRequired": "Extension management is a Pro feature",
     "empty": "No extensions uploaded yet.",
-    "noGroups": "No extension groups created yet.",
     "createGroup": "Create Group",
     "newGroup": "New group",
-    "addToGroup": "Add extension...",
     "removeFromGroup": "Remove from group",
     "deleteGroup": "Delete group",
     "extensionGroup": "Extension Group",
@@ -1780,7 +1813,9 @@
     "fetchedIdentity": "{{name}} · version {{version}}",
     "fetchedFrom": "Downloaded from {{source}}",
     "fetchSuccess": "Extension downloaded. Check the name, then add it.",
-    "fetchFailed": "Failed to download the extension"
+    "fetchFailed": "Failed to download the extension",
+    "searchExtensions": "Search extensions",
+    "membersSelected": "{{selected}} of {{total}} selected"
   },
   "pro": {
     "badge": "PRO",
@@ -1912,8 +1947,6 @@
     "namesHint": "The profiles get the names {{name}} 1, {{name}} 2 and so on, after the numbers already in use.",
     "allowanceLeft_one": "You can create {{count}} more this hour.",
     "allowanceLeft_other": "You can create {{count}} more this hour.",
-    "createMany_one": "Create {{count}} profile",
-    "createMany_other": "Create {{count}} profiles",
     "progress": "Creating {{done}} of {{total}}",
     "stop": "Stop",
     "created_one": "Created {{count}} profile",
@@ -1984,7 +2017,6 @@
     },
     "management": {
       "loading": "Loading VPNs...",
-      "noneCreated": "No VPN configs created yet. Import or create one using the buttons above.",
       "editVpn": "Edit VPN",
       "deleteVpn": "Delete VPN",
       "cannotDelete_one": "Cannot delete: in use by {{count}} profile",
@@ -2100,7 +2132,9 @@
       "description": "Are you sure you want to delete {{count}} groups? {{names}}. Profiles will be moved to Default.",
       "description_one": "Are you sure you want to delete {{count}} group? {{names}}. Profiles will be moved to Default.",
       "confirmButton": "Delete groups"
-    }
+    },
+    "newGroup": "New group",
+    "bookmarksCol": "Bookmarks"
   },
   "proxyAssignment": {
     "title": "Assign Proxy / VPN",
@@ -2712,7 +2746,8 @@
     "syncServerNoAccounts": "This server does not accept Donut accounts. Set SYNC_PUBLIC_URL on the server.",
     "syncServerAddressMismatch": "The server's address is {{address}}. Enter that address.",
     "remoteNeedsDonutSync": "Remote sessions and Cookie Bot get profiles from Donut cloud sync. This computer syncs with your own server.",
-    "accountSyncUnavailable": "Donut cannot sign in to your own server yet. Try again later."
+    "accountSyncUnavailable": "Donut cannot sign in to your own server yet. Try again later.",
+    "selfHostedTeamSeat": "Team accounts cannot sync with a server that uses a sync token."
   },
   "rail": {
     "profiles": "Profiles",
@@ -2818,31 +2853,40 @@
     "automationActiveHere": "Browser automation is active on this device.",
     "viewTeamUsage": "View team usage",
     "ownServer": {
-      "title": "Your own sync server",
-      "description": "Sync this account with a donut-sync server that you run, not with Donut cloud. Your plan's profile limit and your team's roles and group access stay the same.",
-      "current": "Syncing with {{server}}",
-      "currentCloud": "Syncing with Donut cloud",
       "donutCloud": "Donut cloud",
-      "useDonutCloud": "Use Donut cloud",
       "accountsOn": "This server accepts Donut accounts.",
       "cloudOnly": "Remote sessions and Cookie Bot need Donut cloud sync.",
       "teamNote": "All members of your team must use the same server.",
-      "saved": "Sync server saved.",
-      "backToCloud": "Syncing with Donut cloud again."
+      "backToCloud": "Syncing with Donut cloud again.",
+      "label": "Sync server",
+      "change": "Change",
+      "remove": "Remove",
+      "removed": "Sync server removed.",
+      "switched": "Syncing with {{server}}.",
+      "tokenServer": "{{host}} (sync token)"
     }
   },
   "shortcutsPage": {
     "title": "Keyboard shortcuts",
-    "description": "Speed up your workflow with these shortcuts."
+    "description": "Speed up your workflow with these shortcuts.",
+    "paletteHint": "Search every page, profile and action.",
+    "holdHint": "Hold these keys to see which shortcuts use them.",
+    "paletteKeys": {
+      "title": "In the command palette",
+      "move": "Move between results",
+      "run": "Run the selected command",
+      "back": "Go back when the search is empty",
+      "close": "Close the palette"
+    }
   },
   "commandPalette": {
     "placeholder": "Type a command or search...",
-    "empty": "No results found.",
     "groups": {
       "navigation": "Navigation",
       "profiles": "Profiles",
       "actions": "Actions",
-      "profileGroups": "Profile groups"
+      "profileGroups": "Profile groups",
+      "recent": "Recent"
     },
     "actions": {
       "launchProfile": "Launch {{name}}",
@@ -2850,6 +2894,66 @@
       "profileInfo": "Info — {{name}}",
       "createProfile": "Create profile",
       "about": "About Donut Browser"
+    },
+    "pages": {
+      "launch": {
+        "entry": "Launch profile…",
+        "title": "Launch",
+        "placeholder": "Search profiles to launch...",
+        "empty": "Every profile is already running."
+      },
+      "stop": {
+        "entry": "Stop profile…",
+        "title": "Stop",
+        "placeholder": "Search running profiles...",
+        "empty": "No profile is running."
+      },
+      "info": {
+        "entry": "Open profile info…",
+        "title": "Profile info",
+        "placeholder": "Search profiles...",
+        "empty": "No profiles yet."
+      },
+      "group": {
+        "entry": "Go to group…",
+        "title": "Groups",
+        "placeholder": "Search groups...",
+        "empty": "No groups yet."
+      }
+    },
+    "emptyFor": "No results for “{{query}}”.",
+    "emptyHint": "Search pages, profiles, groups and actions.",
+    "emptyPageHint": "Esc goes back to all commands.",
+    "footer": {
+      "move": "Move",
+      "run": "Run",
+      "open": "Open",
+      "back": "Back",
+      "close": "Close"
+    },
+    "keywords": {
+      "openPalette": "command search find run",
+      "openShortcuts": "keyboard keys hotkeys keybindings help",
+      "openTips": "hints help learn tour features",
+      "sendFeedback": "bug report issue support contact idea",
+      "openTotp": "two-factor 2fa otp totp authenticator code mfa",
+      "importProfile": "import add load migrate chrome firefox",
+      "goProfiles": "home browsers list all",
+      "goProxies": "proxy proxies vpn wireguard network socks http",
+      "goExtensions": "extensions addons plugins add-ons",
+      "goGroups": "groups folders organize",
+      "goCookieBot": "cookies warm warming bot browse",
+      "goAgent": "ai mcp assistant automation",
+      "goIntegrations": "api mcp rest token integrations automation",
+      "goAccount": "account cloud login sign in subscription plan billing team sync",
+      "goSettings": "preferences options theme language sounds appearance",
+      "goTrash": "trash deleted restore bin recycle",
+      "createProfile": "new add profile browser make",
+      "about": "version license about",
+      "launch": "launch start run open browser",
+      "stop": "stop quit kill close",
+      "info": "details info edit profile",
+      "group": "group filter switch folder"
     }
   },
   "shortcuts": {
@@ -3010,7 +3114,7 @@
   },
   "cookieBot": {
     "title": "Cookie Bot",
-    "description": "Overnight profile warming on a remote machine.",
+    "description": "Warms profiles on a remote machine, on your schedule.",
     "tabs": {
       "overview": "Overview",
       "schedule": "Schedule",
@@ -3019,64 +3123,54 @@
     },
     "locked": {
       "title": "Cookie Bot",
-      "hint": "Cookie Bot warms your profiles overnight on a remote machine, so they keep their cookies and their history without your computer being on."
+      "hint": "Cookie Bot warms your profiles on a remote machine at the times you pick, so they keep their cookies and their history without your computer being on."
     },
     "empty": {
       "title": "No profiles are enrolled",
-      "hint": "Pick a profile and the bot warms it overnight on a remote machine. Your computer can be off.",
+      "hint": "Pick a profile and the bot warms it on a remote machine at the times you set. Your computer can be off.",
       "cta": "Enrol a profile"
     },
-    "tonight": {
-      "label": "Tonight",
-      "nextRun": "Next run {{time}}",
-      "dueCount_one": "{{count}} profile due",
-      "dueCount_other": "{{count}} profiles due",
-      "nothingScheduled": "Nothing scheduled"
-    },
     "lastDay": {
-      "label": "Last 24 hours",
-      "none": "No runs yet",
-      "ran_one": "{{count}} ran",
-      "ran_other": "{{count}} ran",
-      "partial_one": "{{count}} partial",
-      "partial_other": "{{count}} partial",
-      "failed_one": "{{count}} failed",
-      "failed_other": "{{count}} failed"
+      "label": "Last 24 hours"
     },
     "chart": {
-      "machineTime": "Machine time per night",
-      "minutes": "{{minutes}} min"
+      "machineTime": "Machine time per day",
+      "minutes": "{{minutes}} min",
+      "total": "{{duration}} in total",
+      "empty": "No runs in this period",
+      "noRuns": "No runs",
+      "runs_one": "{{count}} run",
+      "runs_other": "{{count}} runs"
     },
     "hours": {
       "label": "Remote hours",
-      "remaining": "{{remaining}} h left of {{total}}",
       "remainingOf": "of {{total}} h",
       "used": "{{used}} of {{total}} h used",
       "resets": "Resets {{date}}",
       "exhausted": "No remote hours left. Schedules stay enrolled and resume next cycle.",
       "exhaustedOn": "No remote hours left. Schedules stay enrolled and resume {{date}}.",
       "estimate": "About {{hours}} h per week · {{remaining}} h left this cycle",
-      "estimateOverBudget": "Needs about {{hours}} h per week — only {{remaining}} h left",
-      "estimateOnly": "About {{hours}} h per week"
+      "estimateOverBudget": "Needs about {{hours}} h per week, only {{remaining}} h left",
+      "estimateOnly": "About {{hours}} h per week",
+      "left": "{{hours}} h left"
     },
     "enrolled": {
       "columnProfile": "Profile",
-      "columnCadence": "Cadence",
-      "columnTime": "Time",
       "columnNextRun": "Next run",
       "columnLastRun": "Last run",
       "enrolProfiles": "Enrol profiles",
       "edit": "Edit schedule",
       "neverRun": "Never",
-      "pausedNoHours": "Paused — out of hours",
+      "pausedNoHours": "Paused: no hours left",
       "profileMissing": "That profile is not on this computer."
     },
     "schedule": {
       "empty": "Nothing is scheduled yet.",
       "unenrol": "Remove from Cookie Bot",
       "unenrolTitle": "Remove {{name}} from Cookie Bot?",
-      "unenrolDescription": "It stops warming tonight. Past runs stay in Activity.",
-      "unenrolled": "Removed from Cookie Bot"
+      "unenrolDescription": "Its upcoming runs stop. Past runs stay in Activity.",
+      "unenrolled": "Removed from Cookie Bot",
+      "localTime": "Now {{time}}"
     },
     "status": {
       "provisioning": "Preparing a machine",
@@ -3103,7 +3197,7 @@
     "live": {
       "idle": "Nothing is running right now",
       "streamOffline": "Live updates are offline",
-      "streamOfflineDetail": "Live updates are offline — reconnecting. The runs below may be out of date.",
+      "streamOfflineDetail": "Live updates are offline and reconnecting. The runs below may be out of date.",
       "unnamedSession": "Remote session",
       "notStartedYet": "The machine has not reported a start time yet.",
       "sitesProgress": "{{visited}} of {{total}} sites",
@@ -3147,7 +3241,7 @@
     },
     "picker": {
       "title": "Enrol profiles",
-      "description": "Pick the profiles the bot should warm overnight.",
+      "description": "Pick the profiles the bot should warm.",
       "searchPlaceholder": "Search profiles…",
       "noProfiles": "No profiles match.",
       "alreadyEnrolled": "Enrolled",
@@ -3160,25 +3254,25 @@
       "titleCount_other": "Enrol {{count}} profiles",
       "editTitle": "Edit schedule",
       "description": "The bot opens the profile on a remote machine and browses the sites you list. Your computer can be off.",
-      "summaryNightly": "Runs every night at {{time}}, up to {{minutes}} min each.",
+      "summaryNightly": "Runs every day at {{time}}, up to {{minutes}} min each.",
       "summaryWeeknights": "Runs Monday to Friday at {{time}}, up to {{minutes}} min each.",
-      "summaryAlternate": "Runs every other night at {{time}}, up to {{minutes}} min each.",
-      "summaryCustom_one": "Runs {{count}} night a week at {{time}}, up to {{minutes}} min each.",
-      "summaryCustom_other": "Runs {{count}} nights a week at {{time}}, up to {{minutes}} min each.",
-      "confirm": "Enrol tonight",
-      "confirmSome": "Enrol {{eligible}} of {{total}} tonight",
+      "summaryAlternate": "Runs every other day at {{time}}, up to {{minutes}} min each.",
+      "summaryCustom_one": "Runs {{count}} day a week at {{time}}, up to {{minutes}} min each.",
+      "summaryCustom_other": "Runs {{count}} days a week at {{time}}, up to {{minutes}} min each.",
+      "confirm": "Enrol",
+      "confirmSome": "Enrol {{eligible}} of {{total}}",
       "fixFirst": "Fix these first",
       "saving": "Enrolling…",
       "saved": "Schedule saved",
       "enrolled_one": "Enrolled {{count}} profile",
       "enrolled_other": "Enrolled {{count}} profiles",
-      "adjust": "Adjust schedule",
+      "adjust": "Length and depth",
       "cadenceLabel": "Cadence",
-      "cadenceNightly": "Nightly",
-      "cadenceWeeknights": "Weeknights",
-      "cadenceAlternate": "Every other night",
-      "cadenceCustom_one": "{{count}} night a week",
-      "cadenceCustom_other": "{{count}} nights a week",
+      "cadenceNightly": "Every day",
+      "cadenceWeeknights": "Weekdays",
+      "cadenceAlternate": "Every other day",
+      "cadenceCustom_one": "{{count}} day a week",
+      "cadenceCustom_other": "{{count}} days a week",
       "timeLabel": "Start time",
       "timeHint": "Local to each profile's fingerprint timezone.",
       "maxMinutesLabel": "Max minutes",
@@ -3191,8 +3285,8 @@
       "presetsUnavailable": "Could not load the depth presets. Try again in a moment.",
       "confirmBulkTitle_one": "Enrol {{count}} profile in Cookie Bot?",
       "confirmBulkTitle_other": "Enrol {{count}} profiles in Cookie Bot?",
-      "confirmBulkDescription_one": "It books a nightly run against your shared remote hours. You choose the time and the sites next.",
-      "confirmBulkDescription_other": "They book {{count}} nightly runs against your shared remote hours. You choose the time and the sites next.",
+      "confirmBulkDescription_one": "It books a daily run against your shared remote hours. You choose the time and the sites next.",
+      "confirmBulkDescription_other": "They book {{count}} daily runs against your shared remote hours. You choose the time and the sites next.",
       "confirmBulkButton_one": "Continue with {{count}} profile",
       "confirmBulkButton_other": "Continue with {{count}} profiles",
       "sitesRequired": "Add at least one site.",
@@ -3202,7 +3296,7 @@
       "sourceCurated": "Curated",
       "sourceSaved": "Saved",
       "curatedEmpty": "No curated lists are available right now.",
-      "curatedNote": "A curated list we keep up to date. Every profile draws its own sample from it, so no two profiles browse the same set — which is what stops the list itself becoming a signature. The addresses stay on our side.",
+      "curatedNote": "A curated list we keep up to date. Every profile draws its own sample from it, so no two profiles browse the same set and the list itself never becomes a signature. The addresses stay on our side.",
       "savedEmpty": "Nothing saved yet. Type a list under My own list, then save it from there.",
       "savedNote": "The sites are copied onto the schedule when you save it, so editing a list later leaves existing schedules alone.",
       "savedUnavailable": "Could not load your saved lists.",
@@ -3228,7 +3322,12 @@
       "listSites_other": "{{count}} sites",
       "summarySlots_one": "Runs {{count}} time a week, up to {{minutes}} min each.",
       "summarySlots_other": "Runs {{count}} times a week, up to {{minutes}} min each.",
-      "templateNameInvalidNoMax": "That name can't be used for a saved list."
+      "templateNameInvalidNoMax": "That name can't be used for a saved list.",
+      "shuffleTime": "Pick another time",
+      "ownTimes": "A different time for each profile",
+      "timeRandom": "Random per profile",
+      "summaryOwnTimes_one": "Each profile runs {{count}} time a week at its own random time, up to {{minutes}} min each.",
+      "summaryOwnTimes_other": "Each profile runs {{count}} times a week at its own random time, up to {{minutes}} min each."
     },
     "preset": {
       "light": "Light",
@@ -3245,7 +3344,7 @@
       "reasonSync": "Sync is off",
       "reasonEncrypted": "End-to-end encrypted",
       "reasonNoFingerprint": "No recorded operating system",
-      "reasonCrossOs": "Built for {{os}} — no remote machine matches",
+      "reasonCrossOs": "Built for {{os}}, no remote machine matches",
       "reasonNoExitNode": "No proxy or VPN",
       "fixSync": "Turn on sync",
       "fixEncrypted": "Open sync settings",
@@ -3317,13 +3416,27 @@
       "profileLocked": "The profile was open somewhere else",
       "noCapacity": "No machine was free",
       "managerError": "The fleet could not start the browser",
-      "budgetExceeded": "The night's budget ran out",
-      "browsingIncomplete": "The browser opened but the night's browsing did not finish",
+      "budgetExceeded": "The run's time budget ran out",
+      "browsingIncomplete": "The browser opened but the browsing did not finish",
       "proxyUnsupported": "No host can dial this proxy type, so use an HTTP, SOCKS or WireGuard exit",
       "profileNotSynced": "The cloud copy is incomplete, so finish syncing this profile from a desktop",
       "profileOsMismatch": "The profile came from a different operating system than the host that ran it",
       "cancelledByUser": "Stopped by hand",
       "unknown": "Unknown reason ({{code}})"
+    },
+    "next": {
+      "label": "Next run",
+      "now": "Starting now",
+      "inMinutes_one": "In {{count}} min",
+      "inMinutes_other": "In {{count}} min",
+      "inHours_one": "In {{count}} h",
+      "inHours_other": "In {{count}} h",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "dueSoon_one": "{{count}} profile in the next 24 h",
+      "dueSoon_other": "{{count}} profiles in the next 24 h",
+      "nothingScheduled": "Nothing scheduled",
+      "blocked": "No profile can run. See the list below."
     }
   },
   "prelaunchGate": {
@@ -3466,7 +3579,11 @@
     "confirmed": "Yes",
     "unavailable": "No",
     "apiProbeScope": "Checks the running local API with the saved credential. No profile is launched.",
-    "remoteProbeScope": "Checks the saved MCP credential. Remote control also needs a connected device and an eligible plan; a configured client is not a live session."
+    "remoteProbeScope": "Checks the saved MCP credential. Remote control also needs a connected device and an eligible plan; a configured client is not a live session.",
+    "probeNotConfigured": "No credential is saved.",
+    "probeUnreachable": "The server did not answer.",
+    "probeRefused": "The server refused the credential.",
+    "probeUnverified": "The server answered with HTTP {{status}}, so the credential was not checked."
   },
   "easterEgg": {
     "konami": {
@@ -3817,13 +3934,11 @@
   },
   "tips": {
     "title": "Tips",
-    "essentials": "Essentials",
-    "planSection": "Included in your plan",
     "count": "{{current}} of {{total}}",
     "previous": "Previous tip",
     "next": "Next tip",
     "done": "Done",
-    "autoShow": "Show a tip every few days",
+    "autoShow": "Show tips on the Profiles page",
     "items": {
       "dnsBlocklist": {
         "label": "DNS blocking",
@@ -3911,7 +4026,7 @@
       },
       "cookieBot": {
         "label": "Cookie Bot",
-        "title": "Warm profiles overnight",
+        "title": "Warm profiles on a schedule",
         "body": "Cookie Bot browses real sites on a schedule from a remote host, so a fresh profile builds a natural history before you use it.",
         "action": "Open Cookie Bot"
       },
@@ -3950,7 +4065,75 @@
         "title": "Tell the team what to fix next",
         "body": "Something broken or missing? Send feedback from the More menu. One switch attaches your logs, so the team sees exactly what went wrong.",
         "action": "Send feedback"
+      },
+      "searchSyntax": {
+        "label": "Search fields",
+        "title": "Filter profiles by field",
+        "body": "Type a field in the search box, such as tag:work, proxy:none or status:running. A minus in front excludes: -tag:old.",
+        "action": "Try proxy:none"
+      },
+      "shortcuts": {
+        "label": "Shortcuts",
+        "title": "Keep your hands on the keyboard",
+        "body": "Every page has its own shortcut, and so do import, feedback and tips. {{mod}}+/ lists them all.",
+        "action": "See all shortcuts"
+      },
+      "statuses": {
+        "label": "Statuses",
+        "title": "Mark where each account stands",
+        "body": "Give a profile a status, such as Active or Banned, in its Status column. Each status has a color and syncs to your other devices.",
+        "action": "Open Profiles"
+      },
+      "templates": {
+        "label": "Templates",
+        "title": "Set up once, create many",
+        "body": "Keep a profile's settings with Save as template in its menu. New profiles start from the template, many at a time, each with its own device.",
+        "action": "New profile"
+      },
+      "vpn": {
+        "label": "VPN",
+        "title": "Route a profile through a VPN",
+        "body": "Import a WireGuard file or a VLESS, VMess, Trojan or Hysteria2 link on the Network page. Then pick it for a profile: only that profile uses the tunnel.",
+        "action": "Open VPNs"
+      },
+      "requireRoute": {
+        "label": "Block direct launches",
+        "title": "Never launch from your own IP",
+        "body": "Turn on Block launches without a proxy or VPN in Privacy settings. A profile with no proxy, or with a proxy or VPN that is gone, then does not start.",
+        "action": "Open Privacy settings"
+      },
+      "totp": {
+        "label": "2FA codes",
+        "title": "Keep 2FA codes with the profile",
+        "body": "Add an account's 2FA key in the profile's info, and Donut shows the current code, ready to copy. The keys stay encrypted on this device.",
+        "action": "Try a 2FA key"
+      },
+      "synchronizer": {
+        "label": "Synchronizer",
+        "title": "Drive many profiles at once",
+        "body": "Choose Launch with Synchronizer in a profile's menu and pick the followers. Every click and keystroke in the leader repeats in each follower.",
+        "action": "Open Profiles"
       }
+    },
+    "sections": {
+      "everyday": "Everyday",
+      "network": "Network",
+      "privacy": "Privacy and data",
+      "connect": "Connect",
+      "plan": "Included in your plan"
+    },
+    "progress": "{{read}} of {{total}} read",
+    "unread": "Not read yet",
+    "nextShort": "Next",
+    "inline": {
+      "label": "Feature tip",
+      "eyebrow": "Tip",
+      "more": "More tip options",
+      "allTips": "All tips",
+      "turnOff": "Don't show tips",
+      "dismiss": "Dismiss tip",
+      "offTitle": "Tips are off",
+      "offBody": "Turn them on again in Tips ({{shortcut}})."
     }
   },
   "paidWelcome": {
@@ -4170,6 +4353,35 @@
     "kind": {
       "auto": "Daily",
       "manual": "Manual"
+    }
+  },
+  "entities": {
+    "empty": {
+      "proxies": {
+        "title": "No proxies yet",
+        "body": "A proxy sends a profile's traffic through another server. Each profile can use its own."
+      },
+      "vpns": {
+        "title": "No VPNs yet",
+        "body": "A WireGuard VPN carries a profile's traffic through an encrypted tunnel."
+      },
+      "groups": {
+        "title": "No groups yet",
+        "body": "Groups sort profiles by client, project or task. Every profile in a group gets the group's bookmarks."
+      },
+      "extensions": {
+        "title": "No extensions yet",
+        "body": "Add an extension from a file, a folder or a Web Store link. Put it in an extension group to use it in profiles."
+      },
+      "extensionGroups": {
+        "title": "No extension groups yet",
+        "body": "An extension group is a set of extensions. Profiles that use the group get the set at launch."
+      }
+    },
+    "check": {
+      "notChecked": "Not checked",
+      "valid": "Valid",
+      "invalid": "Invalid"
     }
   }
 }

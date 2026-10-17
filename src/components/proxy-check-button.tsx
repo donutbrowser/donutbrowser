@@ -4,8 +4,13 @@ import { invoke } from "@tauri-apps/api/core";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { FiCheck, FiX } from "react-icons/fi";
-import { LuCircleDashed, LuCopy } from "react-icons/lu";
+import { LuCheck, LuCircleDashed, LuCopy } from "react-icons/lu";
 import { toast } from "sonner";
+import {
+  CheckPill,
+  CheckSpinner,
+  type CheckState,
+} from "@/components/entity-page";
 import { FlagIcon } from "@/components/flag-icon";
 import { Button } from "@/components/ui/button";
 import { ConfirmationMark } from "@/components/ui/confirmation-mark";
@@ -41,12 +46,12 @@ const UDP_TOOLTIP_KEYS: Record<UdpSupport, string> = {
   unknown: "proxyCheck.udpTooltipUnknown",
 };
 
-/** A verdict nobody established reads as muted, and a proxy that cannot carry
- * UDP reads as the caveat it is: WebRTC has nowhere to go through it. */
+/** A capability, not a fault: "no" is as calm as "unknown", only "yes" stands
+ * out. The tooltip says what a missing UDP path costs. */
 const UDP_TONE: Record<UdpSupport, string> = {
   yes: "text-foreground",
-  no: "text-warning-text",
-  unknown: "text-muted-foreground",
+  no: "text-muted-foreground",
+  unknown: "text-muted-foreground/70",
 };
 
 /**
@@ -64,9 +69,19 @@ export function ProxyUdpBadge({ proxy }: { proxy: StoredProxy }) {
         <span
           data-slot="proxy-udp-verdict"
           data-udp={verdict}
-          className={`font-mono text-[10px] tracking-wider uppercase ${UDP_TONE[verdict]}`}
+          className={cn(
+            "inline-flex max-w-full items-center text-xs",
+            UDP_TONE[verdict],
+          )}
         >
-          {t(UDP_LABEL_KEYS[verdict])}
+          {verdict === "unknown" ? (
+            <>
+              <LuCircleDashed aria-hidden="true" className="size-3 shrink-0" />
+              <span className="sr-only">{t(UDP_LABEL_KEYS[verdict])}</span>
+            </>
+          ) : (
+            <span className="truncate">{t(UDP_LABEL_KEYS[verdict])}</span>
+          )}
         </span>
       </TooltipTrigger>
       <TooltipContent>
@@ -192,11 +207,14 @@ function HistoryRow({ entry }: { entry: ProxyCheckHistoryEntry }) {
 interface ProxyCheckButtonProps {
   proxy: StoredProxy;
   disabled?: boolean;
+  /** `status` spells the last result out as a pill, for the proxy list. */
+  variant?: "icon" | "status";
 }
 
 export function ProxyCheckButton({
   proxy,
   disabled = false,
+  variant = "icon",
 }: ProxyCheckButtonProps) {
   const { t } = useTranslation();
   const [open, setOpen] = React.useState(false);
@@ -291,53 +309,103 @@ export function ProxyCheckButton({
   const location =
     (result && [result.city, result.country].filter(Boolean).join(", ")) ||
     t("proxyCheck.unknownLocation");
+  const triggerLabel = t(
+    checking
+      ? "proxyCheck.tooltipChecking"
+      : result
+        ? "appFeedback.routeDetails"
+        : "proxyCheck.tooltipDefault",
+  );
+  const state: CheckState = checking
+    ? "checking"
+    : !result
+      ? "idle"
+      : result.is_valid
+        ? "ok"
+        : "failed";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="size-7 p-0"
-              onClick={() => {
-                if (!result) void handleCheck();
-              }}
-              disabled={disabled}
-              aria-busy={checking}
-              aria-label={t(
-                checking
-                  ? "proxyCheck.tooltipChecking"
-                  : result
-                    ? "appFeedback.routeDetails"
-                    : "proxyCheck.tooltipDefault",
-              )}
-            >
-              <span
-                aria-hidden="true"
-                className="inline-flex size-3 items-center justify-center"
-              >
-                {checking ? (
-                  <span className="size-3 animate-spin rounded-full border border-current border-t-transparent motion-reduce:animate-none" />
-                ) : result?.is_valid && result.country_code ? (
-                  <span className="relative inline-flex items-center justify-center">
+            {variant === "status" ? (
+              <CheckPill
+                state={state}
+                resultKey={result?.timestamp}
+                compact={
+                  state !== "ok" || typeof result?.latency_ms !== "number"
+                }
+                onClick={() => {
+                  if (!result) void handleCheck();
+                }}
+                disabled={disabled}
+                aria-busy={checking}
+                aria-label={triggerLabel}
+                icon={
+                  state === "checking" ? (
+                    <CheckSpinner />
+                  ) : state === "ok" && result?.country_code ? (
                     <FlagIcon
                       countryCode={result.country_code}
-                      className="h-2.5"
+                      className="h-2.5 shrink-0 rounded-[2px]"
                     />
-                    <FiCheck className="absolute right-[-4px] bottom-[-6px]" />
-                  </span>
-                ) : result && !result.is_valid ? (
-                  <FiX className="size-3 text-destructive-text" />
-                ) : result?.is_valid ? (
-                  <FiCheck className="size-3" />
-                ) : (
-                  // An empty status slot: no verdict yet, not a question.
-                  <LuCircleDashed className="size-3.5 text-muted-foreground" />
-                )}
-              </span>
-            </Button>
+                  ) : state === "ok" ? (
+                    <LuCheck className="text-success-text" />
+                  ) : state === "failed" ? (
+                    <FiX />
+                  ) : (
+                    <LuCircleDashed />
+                  )
+                }
+              >
+                {state === "checking"
+                  ? t("appFeedback.checking")
+                  : state === "ok"
+                    ? typeof result?.latency_ms === "number"
+                      ? t("proxyCheck.latencyValue", { ms: result.latency_ms })
+                      : t("proxyCheck.historyOk")
+                    : state === "failed"
+                      ? t("proxyCheck.historyFailed")
+                      : t("entities.check.notChecked")}
+              </CheckPill>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="size-7 p-0"
+                onClick={() => {
+                  if (!result) void handleCheck();
+                }}
+                disabled={disabled}
+                aria-busy={checking}
+                aria-label={triggerLabel}
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-flex size-3 items-center justify-center"
+                >
+                  {checking ? (
+                    <span className="size-3 animate-spin rounded-full border border-current border-t-transparent motion-reduce:animate-none" />
+                  ) : result?.is_valid && result.country_code ? (
+                    <span className="relative inline-flex items-center justify-center">
+                      <FlagIcon
+                        countryCode={result.country_code}
+                        className="h-2.5"
+                      />
+                      <FiCheck className="absolute right-[-4px] bottom-[-6px]" />
+                    </span>
+                  ) : result && !result.is_valid ? (
+                    <FiX className="size-3 text-destructive-text" />
+                  ) : result?.is_valid ? (
+                    <FiCheck className="size-3" />
+                  ) : (
+                    // An empty status slot: no verdict yet, not a question.
+                    <LuCircleDashed className="size-3.5 text-muted-foreground" />
+                  )}
+                </span>
+              </Button>
+            )}
           </PopoverTrigger>
         </TooltipTrigger>
         <TooltipContent>

@@ -41,10 +41,10 @@ export type AccountScope = {
  * Signs Donut accounts in to this server.
  *
  * A paid account's app sends a token the Donut API issued for this server's
- * address. The API says whose it is, with the plan's profile limit and the
- * team scope, so this server applies the same namespace, limit and team rules
- * as Donut's own sync server. Answers are cached briefly: a seat or plan
- * change applies within the cache time.
+ * address. The API says whose it is, with the team scope, so this server
+ * applies the same namespace and team rules as Donut's own sync server.
+ * Answers are cached briefly: a seat or plan change applies within the cache
+ * time.
  */
 export class DonutAccounts {
   static readonly CACHE_TTL_MS = 30_000;

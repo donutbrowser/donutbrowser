@@ -82,7 +82,17 @@
       "hideToken": "Jetonu gizle"
     },
     "keys": {
-      "escape": "Escape"
+      "escape": "Escape",
+      "command": "Command",
+      "control": "Control",
+      "shift": "Shift",
+      "option": "Option",
+      "alt": "Alt",
+      "enter": "Enter",
+      "backspace": "Geri al",
+      "arrowUp": "Yukarı ok",
+      "arrowDown": "Aşağı ok",
+      "tab": "Tab"
     },
     "errors": {
       "unknown": "Bilinmeyen bir hata oluştu"
@@ -353,6 +363,32 @@
       "a": "Bir gruptaki çalışan profiller",
       "b": "Etiketi olmayan ama proxy'si olan profiller",
       "c": "30 günden uzun süredir başlatılmayanlar, arşivlenenler hariç"
+    },
+    "suggest": {
+      "label": "Arama önerileri",
+      "matches": "Eşleşmeler",
+      "recent": "Son aramalar",
+      "none": "Ayarlanmamış",
+      "any": "Herhangi bir değer",
+      "dates": {
+        "last7d": "Son 7 gün",
+        "last30d": "Son 30 gün",
+        "over30d": "30 günden önce",
+        "over90d": "90 günden önce",
+        "thisYear": "Bu yıl",
+        "never": "Hiç"
+      },
+      "keys": {
+        "choose": "Seç",
+        "complete": "Tamamla"
+      }
+    },
+    "issues": {
+      "unknownField": "{{name}} bir alan değil, bu yüzden metin olarak aranır. {{field}} mi demek istediniz?",
+      "compare": "{{field}} karşılaştırılamaz, bu yüzden metin olarak aranır. Yalnızca tarihler ve sürümler karşılaştırılır.",
+      "date": "{{field}}, 2026-01-31 gibi bir tarih ya da son 7 gün için 7d alır.",
+      "enum": "{{field}} şu değerleri alır: {{values}}.",
+      "boolean": "{{field}} yes ya da no alır."
     }
   },
   "profiles": {
@@ -571,7 +607,6 @@
       "tabVpns": "VPN'ler",
       "create": "Oluştur",
       "loading": "Proxy'ler yükleniyor...",
-      "noneCreated": "Henüz proxy oluşturulmadı. Yukarıdaki düğmeyi kullanarak ilk proxy'nizi oluşturun.",
       "usage": "Kullanım",
       "syncCol": "Eşitleme",
       "syncCannotDisable": "Bu proxy eşitlenen profiller tarafından kullanılırken eşitleme devre dışı bırakılamaz",
@@ -597,7 +632,9 @@
       "firstHopPlaintextTooltip": "İlk adım şifresiz: bu proxy'ye bağlantı şifreli değildir.",
       "firstHopEncryptedTooltip": "İlk adım şifreli: bu proxy'ye bağlantı şifrelidir. Sağlayıcı yine de nereye gittiğinizi görür.",
       "firstHopCipherTooltip": "İlk adım şifreleme algoritmasına bağlı: bu proxy için kayıtlı bir algoritma yok, bu yüzden ona giden bağlantının şifreli olup olmadığı henüz belli değil. Düzenleyip aes-256-gcm gibi gerçek bir algoritma seçin.",
-      "udpCol": "UDP"
+      "udpCol": "UDP",
+      "checkSelected": "Seçilenleri kontrol et",
+      "checkSummary": "Kontrol bitti. Başarılı: {{passed}}. Başarısız: {{failed}}."
     },
     "add": "Proxy Ekle",
     "edit": "Proxy'yi Düzenle",
@@ -755,13 +792,11 @@
     "title": "Gruplar",
     "management": "Grup Yönetimi",
     "add": "Grup Ekle",
-    "edit": "Grubu Düzenle",
     "delete": "Grubu Sil",
     "moveToDefault": "Profilleri gruptan çıkar",
     "noGroupDescription": "Grubu olmayan profiller \"Tümü\" filtresinde görünür.",
     "assignSuccess": "{{count}} profil {{group}} grubuna başarıyla atandı",
     "noGroups": "Oluşturulmuş grup yok",
-    "noGroupsDescription": "Profillerinizi düzenlemek için bir grup oluşturun.",
     "form": {
       "name": "Ad",
       "namePlaceholder": "Grup adını girin"
@@ -1692,10 +1727,8 @@
     "managedNotice": "Burada yönetilen uzantılar, profiller başlatıldığında elle yüklenmiş uzantıların yerini alır.",
     "proRequired": "Uzantı yönetimi bir Pro özelliğidir",
     "empty": "Henüz uzantı yüklenmedi.",
-    "noGroups": "Henüz uzantı grubu oluşturulmadı.",
     "createGroup": "Grup Oluştur",
     "newGroup": "Yeni grup",
-    "addToGroup": "Uzantı ekle...",
     "removeFromGroup": "Gruptan kaldır",
     "deleteGroup": "Grubu sil",
     "extensionGroup": "Uzantı Grubu",
@@ -1780,7 +1813,9 @@
     "fetchedIdentity": "{{name}} · sürüm {{version}}",
     "fetchedFrom": "{{source}} adresinden indirildi",
     "fetchSuccess": "Uzantı indirildi. Adı kontrol edip ekleyin.",
-    "fetchFailed": "Uzantı indirilemedi"
+    "fetchFailed": "Uzantı indirilemedi",
+    "searchExtensions": "Uzantılarda ara",
+    "membersSelected": "{{total}} uzantıdan {{selected}} seçili"
   },
   "pro": {
     "badge": "PRO",
@@ -1912,8 +1947,6 @@
     "namesHint": "Profiller, kullanılan numaralardan sonra gelecek şekilde {{name}} 1, {{name}} 2 diye adlandırılır.",
     "allowanceLeft_one": "Bu saat içinde {{count}} tane daha oluşturabilirsiniz.",
     "allowanceLeft_other": "Bu saat içinde {{count}} tane daha oluşturabilirsiniz.",
-    "createMany_one": "{{count}} profil oluştur",
-    "createMany_other": "{{count}} profil oluştur",
     "progress": "{{total}} profilden {{done}} tanesi oluşturuluyor",
     "stop": "Durdur",
     "created_one": "{{count}} profil oluşturuldu",
@@ -1984,7 +2017,6 @@
     },
     "management": {
       "loading": "VPN'ler yükleniyor...",
-      "noneCreated": "Henüz VPN yapılandırması oluşturulmadı. Yukarıdaki düğmeleri kullanarak içe aktarın veya oluşturun.",
       "editVpn": "VPN'i Düzenle",
       "deleteVpn": "VPN'i Sil",
       "cannotDelete_one": "Silinemez: {{count}} profil tarafından kullanılıyor",
@@ -2100,7 +2132,9 @@
       "description": "{{count}} grubu silmek istediğinizden emin misiniz? {{names}}. Profiller Varsayılan grubuna taşınacak.",
       "description_one": "{{count}} grubu silmek istediğinizden emin misiniz? {{names}}. Profiller Varsayılan grubuna taşınacak.",
       "confirmButton": "Grupları sil"
-    }
+    },
+    "newGroup": "Yeni grup",
+    "bookmarksCol": "Yer imleri"
   },
   "proxyAssignment": {
     "title": "Proxy / VPN Ata",
@@ -2712,7 +2746,8 @@
     "syncServerNoAccounts": "Bu sunucu Donut hesaplarını kabul etmiyor. Sunucuda SYNC_PUBLIC_URL değerini ayarlayın.",
     "syncServerAddressMismatch": "Sunucunun adresi {{address}}. Bu adresi girin.",
     "remoteNeedsDonutSync": "Uzak oturumlar ve Cookie Bot profilleri Donut cloud eşitlemesinden alır. Bu bilgisayar kendi sunucunuzla eşitleniyor.",
-    "accountSyncUnavailable": "Donut henüz kendi sunucunuzda oturum açamıyor. Daha sonra tekrar deneyin."
+    "accountSyncUnavailable": "Donut henüz kendi sunucunuzda oturum açamıyor. Daha sonra tekrar deneyin.",
+    "selfHostedTeamSeat": "Ekip hesapları, eşitleme jetonu kullanan bir sunucuyla eşitlenemez."
   },
   "rail": {
     "profiles": "Profiller",
@@ -2818,31 +2853,40 @@
     "automationActiveHere": "Tarayıcı otomasyonu bu cihazda etkin.",
     "viewTeamUsage": "Ekip kullanımını görüntüle",
     "ownServer": {
-      "title": "Kendi eşitleme sunucunuz (hesapla)",
-      "description": "Bu hesabı Donut cloud yerine kendi çalıştırdığınız bir donut-sync sunucusuyla eşitleyin. Planınızın profil sınırı ve ekibinizin rolleri ile grup erişimi aynı kalır.",
-      "current": "{{server}} ile eşitleniyor",
-      "currentCloud": "Donut cloud ile eşitleniyor",
       "donutCloud": "Donut cloud",
-      "useDonutCloud": "Donut cloud'u kullan",
       "accountsOn": "Bu sunucu Donut hesaplarını kabul ediyor.",
       "cloudOnly": "Uzak oturumlar ve Cookie Bot, Donut cloud eşitlemesi gerektirir.",
       "teamNote": "Ekibinizin tüm üyeleri aynı sunucuyu kullanmalıdır.",
-      "saved": "Eşitleme sunucusu kaydedildi.",
-      "backToCloud": "Yeniden Donut cloud ile eşitleniyor."
+      "backToCloud": "Yeniden Donut cloud ile eşitleniyor.",
+      "label": "Eşitleme sunucusu",
+      "change": "Değiştir",
+      "remove": "Kaldır",
+      "removed": "Eşitleme sunucusu kaldırıldı.",
+      "switched": "{{server}} ile eşitleniyor.",
+      "tokenServer": "{{host}} (eşitleme jetonu)"
     }
   },
   "shortcutsPage": {
     "title": "Klavye kısayolları",
-    "description": "Bu kısayollarla iş akışınızı hızlandırın."
+    "description": "Bu kısayollarla iş akışınızı hızlandırın.",
+    "paletteHint": "Tüm sayfa, profil ve işlemlerde arar.",
+    "holdHint": "Bu tuşları basılı tutun, hangi kısayolların kullandığını görün.",
+    "paletteKeys": {
+      "title": "Komut paletinde",
+      "move": "Sonuçlar arasında gezin",
+      "run": "Seçili komutu çalıştır",
+      "back": "Arama boşken geri dön",
+      "close": "Paleti kapat"
+    }
   },
   "commandPalette": {
     "placeholder": "Bir komut yazın veya arayın...",
-    "empty": "Sonuç bulunamadı.",
     "groups": {
       "navigation": "Gezinme",
       "profiles": "Profiller",
       "actions": "İşlemler",
-      "profileGroups": "Profil grupları"
+      "profileGroups": "Profil grupları",
+      "recent": "Son kullanılanlar"
     },
     "actions": {
       "launchProfile": "{{name}} profilini başlat",
@@ -2850,6 +2894,66 @@
       "profileInfo": "Bilgi — {{name}}",
       "createProfile": "Profil oluştur",
       "about": "Donut Browser Hakkında"
+    },
+    "pages": {
+      "launch": {
+        "entry": "Profil başlat…",
+        "title": "Başlat",
+        "placeholder": "Başlatılacak profilleri arayın...",
+        "empty": "Tüm profiller zaten çalışıyor."
+      },
+      "stop": {
+        "entry": "Profil durdur…",
+        "title": "Durdur",
+        "placeholder": "Çalışan profilleri arayın...",
+        "empty": "Çalışan profil yok."
+      },
+      "info": {
+        "entry": "Profil bilgisini aç…",
+        "title": "Profil bilgisi",
+        "placeholder": "Profilleri arayın...",
+        "empty": "Henüz profil yok."
+      },
+      "group": {
+        "entry": "Gruba git…",
+        "title": "Gruplar",
+        "placeholder": "Grupları arayın...",
+        "empty": "Henüz grup yok."
+      }
+    },
+    "emptyFor": "“{{query}}” için sonuç yok.",
+    "emptyHint": "Sayfa, profil, grup ve işlem arayın.",
+    "emptyPageHint": "Esc tüm komutlara geri döner.",
+    "footer": {
+      "move": "Gezin",
+      "run": "Çalıştır",
+      "open": "Aç",
+      "back": "Geri",
+      "close": "Kapat"
+    },
+    "keywords": {
+      "openPalette": "komut ara bul çalıştır",
+      "openShortcuts": "klavye tuşlar kısayol yardım",
+      "openTips": "ipuçları yardım öğren özellikler",
+      "sendFeedback": "hata bildir sorun destek iletişim fikir",
+      "openTotp": "iki adımlı 2fa otp totp doğrulayıcı kod mfa",
+      "importProfile": "içe aktar ekle yükle taşı chrome firefox",
+      "goProfiles": "ana sayfa tarayıcılar liste tümü",
+      "goProxies": "proxy vpn wireguard ağ socks http",
+      "goExtensions": "uzantılar eklentiler",
+      "goGroups": "gruplar klasörler düzenle",
+      "goCookieBot": "çerezler ısıtma bot gezinme",
+      "goAgent": "yapay zeka mcp asistan otomasyon",
+      "goIntegrations": "api mcp rest token entegrasyonlar otomasyon",
+      "goAccount": "hesap bulut giriş abonelik plan fatura ekip senkronizasyon",
+      "goSettings": "tercihler seçenekler tema dil sesler görünüm",
+      "goTrash": "çöp kutusu silinenler geri yükle",
+      "createProfile": "yeni ekle profil tarayıcı",
+      "about": "sürüm lisans hakkında",
+      "launch": "başlat aç çalıştır tarayıcı",
+      "stop": "durdur kapat sonlandır",
+      "info": "ayrıntılar bilgi düzenle profil",
+      "group": "grup filtre değiştir klasör"
     }
   },
   "shortcuts": {
@@ -3010,7 +3114,7 @@
   },
   "cookieBot": {
     "title": "Cookie Bot",
-    "description": "Uzak bir makinede gece boyunca profil ısıtma.",
+    "description": "Profilleri zamanlamanıza göre uzak bir makinede ısıtır.",
     "tabs": {
       "overview": "Genel bakış",
       "schedule": "Zamanlama",
@@ -3019,64 +3123,54 @@
     },
     "locked": {
       "title": "Cookie Bot",
-      "hint": "Cookie Bot, profillerinizi gece boyunca uzak bir makinede ısıtır; böylece bilgisayarınız açık olmadan çerezlerini ve geçmişlerini korurlar."
+      "hint": "Cookie Bot, profillerinizi seçtiğiniz saatlerde uzak bir makinede ısıtır; böylece bilgisayarınız açık olmadan çerezlerini ve geçmişlerini korurlar."
     },
     "empty": {
       "title": "Kayıtlı profil yok",
-      "hint": "Bir profil seçin, bot onu gece boyunca uzak bir makinede ısıtsın. Bilgisayarınız kapalı olabilir.",
+      "hint": "Bir profil seçin, bot onu belirlediğiniz saatlerde uzak bir makinede ısıtsın. Bilgisayarınız kapalı olabilir.",
       "cta": "Profil kaydet"
     },
-    "tonight": {
-      "label": "Bu gece",
-      "nextRun": "Sonraki çalışma {{time}}",
-      "dueCount_one": "{{count}} profil sırada",
-      "dueCount_other": "{{count}} profil sırada",
-      "nothingScheduled": "Zamanlanmış bir şey yok"
-    },
     "lastDay": {
-      "label": "Son 24 saat",
-      "none": "Henüz çalışma yok",
-      "ran_one": "{{count}} çalıştı",
-      "ran_other": "{{count}} çalıştı",
-      "partial_one": "{{count}} kısmi",
-      "partial_other": "{{count}} kısmi",
-      "failed_one": "{{count}} başarısız",
-      "failed_other": "{{count}} başarısız"
+      "label": "Son 24 saat"
     },
     "chart": {
-      "machineTime": "Gece başına makine süresi",
-      "minutes": "{{minutes}} dk"
+      "machineTime": "Gün başına makine süresi",
+      "minutes": "{{minutes}} dk",
+      "total": "Toplam {{duration}}",
+      "empty": "Bu dönemde çalışma yok",
+      "noRuns": "Çalışma yok",
+      "runs_one": "{{count}} çalışma",
+      "runs_other": "{{count}} çalışma"
     },
     "hours": {
       "label": "Uzak saatler",
-      "remaining": "{{total}} saatin {{remaining}} saati kaldı",
       "remainingOf": "/ {{total}} sa",
       "used": "{{total}} saatin {{used}} saati kullanıldı",
       "resets": "{{date}} tarihinde sıfırlanır",
       "exhausted": "Uzak saat kalmadı. Zamanlamalar kayıtlı kalır ve sonraki döngüde devam eder.",
       "exhaustedOn": "Uzak saat kalmadı. Zamanlamalar kayıtlı kalır ve {{date}} tarihinde devam eder.",
       "estimate": "Haftada yaklaşık {{hours}} sa · bu döngüde {{remaining}} sa kaldı",
-      "estimateOverBudget": "Haftada yaklaşık {{hours}} sa gerekiyor — yalnızca {{remaining}} sa kaldı",
-      "estimateOnly": "Haftada yaklaşık {{hours}} sa"
+      "estimateOverBudget": "Haftada yaklaşık {{hours}} sa gerekiyor, yalnızca {{remaining}} sa kaldı",
+      "estimateOnly": "Haftada yaklaşık {{hours}} sa",
+      "left": "{{hours}} sa kaldı"
     },
     "enrolled": {
       "columnProfile": "Profil",
-      "columnCadence": "Sıklık",
-      "columnTime": "Saat",
       "columnNextRun": "Sonraki çalışma",
       "columnLastRun": "Son çalışma",
       "enrolProfiles": "Profilleri kaydet",
       "edit": "Zamanlamayı düzenle",
       "neverRun": "Hiç",
-      "pausedNoHours": "Duraklatıldı — saat kalmadı",
+      "pausedNoHours": "Duraklatıldı: saat kalmadı",
       "profileMissing": "Bu profil bu bilgisayarda değil."
     },
     "schedule": {
       "empty": "Henüz hiçbir şey zamanlanmadı.",
       "unenrol": "Cookie Bot'tan çıkar",
       "unenrolTitle": "{{name}} Cookie Bot'tan çıkarılsın mı?",
-      "unenrolDescription": "Bu gece ısıtma duracak. Geçmiş çalışmalar Etkinlik sekmesinde kalır.",
-      "unenrolled": "Cookie Bot'tan çıkarıldı"
+      "unenrolDescription": "Yaklaşan çalışmaları durur. Geçmiş çalışmalar Etkinlik sekmesinde kalır.",
+      "unenrolled": "Cookie Bot'tan çıkarıldı",
+      "localTime": "Şu an {{time}}"
     },
     "status": {
       "provisioning": "Makine hazırlanıyor",
@@ -3103,7 +3197,7 @@
     "live": {
       "idle": "Şu anda çalışan bir şey yok",
       "streamOffline": "Canlı güncellemeler çevrimdışı",
-      "streamOfflineDetail": "Canlı güncellemeler çevrimdışı — yeniden bağlanılıyor. Aşağıdaki çalışmalar güncel olmayabilir.",
+      "streamOfflineDetail": "Canlı güncellemeler çevrimdışı, yeniden bağlanılıyor. Aşağıdaki çalışmalar güncel olmayabilir.",
       "unnamedSession": "Uzak oturum",
       "notStartedYet": "Makine henüz bir başlangıç saati bildirmedi.",
       "sitesProgress": "{{total}} sitenin {{visited}} tanesi",
@@ -3147,7 +3241,7 @@
     },
     "picker": {
       "title": "Profilleri kaydet",
-      "description": "Botun gece boyunca ısıtacağı profilleri seçin.",
+      "description": "Botun ısıtacağı profilleri seçin.",
       "searchPlaceholder": "Profillerde ara…",
       "noProfiles": "Eşleşen profil yok.",
       "alreadyEnrolled": "Kayıtlı",
@@ -3160,25 +3254,25 @@
       "titleCount_other": "{{count}} profili kaydet",
       "editTitle": "Zamanlamayı düzenle",
       "description": "Bot, profili uzak bir makinede açar ve listelediğiniz siteleri gezer. Bilgisayarınız kapalı olabilir.",
-      "summaryNightly": "Her gece {{time}} saatinde, her seferinde en fazla {{minutes}} dk çalışır.",
+      "summaryNightly": "Her gün {{time}} saatinde, her seferinde en fazla {{minutes}} dk çalışır.",
       "summaryWeeknights": "Pazartesiden cumaya {{time}} saatinde, her seferinde en fazla {{minutes}} dk çalışır.",
       "summaryAlternate": "Gün aşırı {{time}} saatinde, her seferinde en fazla {{minutes}} dk çalışır.",
-      "summaryCustom_one": "Haftada {{count}} gece {{time}} saatinde, her seferinde en fazla {{minutes}} dk çalışır.",
-      "summaryCustom_other": "Haftada {{count}} gece {{time}} saatinde, her seferinde en fazla {{minutes}} dk çalışır.",
-      "confirm": "Bu gece için kaydet",
-      "confirmSome": "Bu gece {{total}} profilden {{eligible}} tanesini kaydet",
+      "summaryCustom_one": "Haftada {{count}} gün {{time}} saatinde, her seferinde en fazla {{minutes}} dk çalışır.",
+      "summaryCustom_other": "Haftada {{count}} gün {{time}} saatinde, her seferinde en fazla {{minutes}} dk çalışır.",
+      "confirm": "Kaydet",
+      "confirmSome": "{{total}} profilden {{eligible}} tanesini kaydet",
       "fixFirst": "Önce bunları düzeltin",
       "saving": "Kaydediliyor…",
       "saved": "Zamanlama kaydedildi",
       "enrolled_one": "{{count}} profil kaydedildi",
       "enrolled_other": "{{count}} profil kaydedildi",
-      "adjust": "Zamanlamayı ayarla",
+      "adjust": "Süre ve derinlik",
       "cadenceLabel": "Sıklık",
-      "cadenceNightly": "Her gece",
-      "cadenceWeeknights": "Hafta içi geceler",
+      "cadenceNightly": "Her gün",
+      "cadenceWeeknights": "Hafta içi",
       "cadenceAlternate": "Gün aşırı",
-      "cadenceCustom_one": "Haftada {{count}} gece",
-      "cadenceCustom_other": "Haftada {{count}} gece",
+      "cadenceCustom_one": "Haftada {{count}} gün",
+      "cadenceCustom_other": "Haftada {{count}} gün",
       "timeLabel": "Başlangıç saati",
       "timeHint": "Her profilin parmak izi saat dilimine göre.",
       "maxMinutesLabel": "En fazla dakika",
@@ -3191,8 +3285,8 @@
       "presetsUnavailable": "Derinlik ön ayarları yüklenemedi. Birazdan tekrar deneyin.",
       "confirmBulkTitle_one": "{{count}} profil Cookie Bot'a kaydedilsin mi?",
       "confirmBulkTitle_other": "{{count}} profil Cookie Bot'a kaydedilsin mi?",
-      "confirmBulkDescription_one": "Bu, ortak uzak saatlerinizden bir gecelik çalışma ayırır. Saati ve siteleri sonraki adımda seçersiniz.",
-      "confirmBulkDescription_other": "Bu, ortak uzak saatlerinizden {{count}} gecelik çalışma ayırır. Saati ve siteleri sonraki adımda seçersiniz.",
+      "confirmBulkDescription_one": "Bu, ortak uzak saatlerinizden bir günlük çalışma ayırır. Saati ve siteleri sonraki adımda seçersiniz.",
+      "confirmBulkDescription_other": "Bu, ortak uzak saatlerinizden {{count}} günlük çalışma ayırır. Saati ve siteleri sonraki adımda seçersiniz.",
       "confirmBulkButton_one": "{{count}} profille devam et",
       "confirmBulkButton_other": "{{count}} profille devam et",
       "sitesRequired": "En az bir site ekleyin.",
@@ -3202,7 +3296,7 @@
       "sourceCurated": "Seçilmiş",
       "sourceSaved": "Kayıtlı",
       "curatedEmpty": "Şu anda kullanılabilir seçilmiş liste yok.",
-      "curatedNote": "Güncel tuttuğumuz seçilmiş bir liste. Her profil kendi örneklemini alır, bu yüzden iki profil aynı kümeyi gezmez — listenin kendisinin bir imzaya dönüşmesini engelleyen şey budur. Adresler bizim tarafımızda kalır.",
+      "curatedNote": "Güncel tuttuğumuz seçilmiş bir liste. Her profil kendi örneklemini alır, bu yüzden iki profil aynı kümeyi gezmez; listenin kendisinin bir imzaya dönüşmesini engelleyen de budur. Adresler bizim tarafımızda kalır.",
       "savedEmpty": "Henüz kaydedilmiş bir şey yok. Kendi listem sekmesinde bir liste yazıp oradan kaydedin.",
       "savedNote": "Siteler programı kaydettiğinizde programa kopyalanır; listeyi sonradan düzenlemeniz mevcut programları etkilemez.",
       "savedUnavailable": "Kayıtlı listeleriniz yüklenemedi.",
@@ -3228,7 +3322,12 @@
       "listSites_other": "{{count}} site",
       "summarySlots_one": "Haftada {{count}} kez, her seferinde en fazla {{minutes}} dk çalışır.",
       "summarySlots_other": "Haftada {{count}} kez, her seferinde en fazla {{minutes}} dk çalışır.",
-      "templateNameInvalidNoMax": "Bu ad kayıtlı bir liste için kullanılamaz."
+      "templateNameInvalidNoMax": "Bu ad kayıtlı bir liste için kullanılamaz.",
+      "shuffleTime": "Başka bir saat seç",
+      "ownTimes": "Her profil için farklı bir saat",
+      "timeRandom": "Profil başına rastgele",
+      "summaryOwnTimes_one": "Her profil haftada {{count}} kez kendi rastgele saatinde, her seferinde en fazla {{minutes}} dk çalışır.",
+      "summaryOwnTimes_other": "Her profil haftada {{count}} kez kendi rastgele saatinde, her seferinde en fazla {{minutes}} dk çalışır."
     },
     "preset": {
       "light": "Hafif",
@@ -3245,7 +3344,7 @@
       "reasonSync": "Eşitleme kapalı",
       "reasonEncrypted": "Uçtan uca şifreli",
       "reasonNoFingerprint": "Kayıtlı işletim sistemi yok",
-      "reasonCrossOs": "{{os}} için oluşturuldu — eşleşen uzak makine yok",
+      "reasonCrossOs": "{{os}} için oluşturuldu: eşleşen uzak makine yok",
       "reasonNoExitNode": "Proxy veya VPN yok",
       "fixSync": "Eşitlemeyi aç",
       "fixEncrypted": "Eşitleme ayarlarını aç",
@@ -3317,13 +3416,27 @@
       "profileLocked": "Profil başka bir yerde açıktı",
       "noCapacity": "Boş makine yoktu",
       "managerError": "Filo tarayıcıyı başlatamadı",
-      "budgetExceeded": "Gecenin süresi doldu",
-      "browsingIncomplete": "Tarayıcı açıldı ama gecenin gezinmesi tamamlanmadı",
+      "budgetExceeded": "Çalışmanın süresi doldu",
+      "browsingIncomplete": "Tarayıcı açıldı ama gezinme tamamlanmadı",
       "proxyUnsupported": "Hiçbir sunucu bu proxy türünü kullanamaz, HTTP, SOCKS veya WireGuard çıkışı kullanın",
       "profileNotSynced": "Buluttaki kopya eksik, eşitlemeyi bir masaüstünden tamamlayın",
       "profileOsMismatch": "Profil, onu çalıştıran sunucudan farklı bir işletim sisteminde oluşturulmuş",
       "cancelledByUser": "Elle durduruldu",
       "unknown": "Bilinmeyen neden ({{code}})"
+    },
+    "next": {
+      "label": "Sonraki çalışma",
+      "now": "Şimdi başlıyor",
+      "inMinutes_one": "{{count}} dk sonra",
+      "inMinutes_other": "{{count}} dk sonra",
+      "inHours_one": "{{count}} sa sonra",
+      "inHours_other": "{{count}} sa sonra",
+      "today": "Bugün",
+      "tomorrow": "Yarın",
+      "dueSoon_one": "Önümüzdeki 24 saatte {{count}} profil",
+      "dueSoon_other": "Önümüzdeki 24 saatte {{count}} profil",
+      "nothingScheduled": "Zamanlanmış bir şey yok",
+      "blocked": "Hiçbir profil çalışamıyor. Aşağıdaki listeye bakın."
     }
   },
   "prelaunchGate": {
@@ -3466,7 +3579,11 @@
     "confirmed": "Evet",
     "unavailable": "Hayır",
     "apiProbeScope": "Çalışan yerel API kayıtlı kimlik bilgisiyle kontrol edilir. Profil başlatılmaz.",
-    "remoteProbeScope": "Kayıtlı MCP kimlik bilgisi kontrol edilir. Uzaktan kontrol için bağlı bir cihaz ve uygun plan da gerekir; yapılandırılmış istemci etkin oturum anlamına gelmez."
+    "remoteProbeScope": "Kayıtlı MCP kimlik bilgisi kontrol edilir. Uzaktan kontrol için bağlı bir cihaz ve uygun plan da gerekir; yapılandırılmış istemci etkin oturum anlamına gelmez.",
+    "probeNotConfigured": "Kayıtlı kimlik bilgisi yok.",
+    "probeUnreachable": "Sunucu yanıt vermedi.",
+    "probeRefused": "Sunucu kimlik bilgisini reddetti.",
+    "probeUnverified": "Sunucu HTTP {{status}} ile yanıt verdi, bu yüzden kimlik bilgisi kontrol edilmedi."
   },
   "easterEgg": {
     "konami": {
@@ -3817,13 +3934,11 @@
   },
   "tips": {
     "title": "İpuçları",
-    "essentials": "Temeller",
-    "planSection": "Planınıza dahil",
     "count": "{{current}} / {{total}}",
     "previous": "Önceki ipucu",
     "next": "Sonraki ipucu",
     "done": "Bitti",
-    "autoShow": "Birkaç günde bir ipucu göster",
+    "autoShow": "Profiller sayfasında ipuçları göster",
     "items": {
       "dnsBlocklist": {
         "label": "DNS engelleme",
@@ -3911,7 +4026,7 @@
       },
       "cookieBot": {
         "label": "Cookie Bot",
-        "title": "Profilleri gece boyunca ısıtın",
+        "title": "Profilleri bir zamanlamayla ısıtın",
         "body": "Cookie Bot uzak bir ana bilgisayardan bir programa göre gerçek siteleri gezer; böylece yeni bir profil siz kullanmadan önce doğal bir geçmiş oluşturur.",
         "action": "Cookie Bot'u aç"
       },
@@ -3950,7 +4065,75 @@
         "title": "Ekibe sırada neyin düzeltileceğini söyleyin",
         "body": "Bir şey bozuk mu ya da eksik mi? Diğer menüsünden geri bildirim gönderin. Tek bir anahtar günlüklerinizi ekler, böylece ekip neyin ters gittiğini tam olarak görür.",
         "action": "Geri bildirim gönder"
+      },
+      "searchSyntax": {
+        "label": "Arama alanları",
+        "title": "Profilleri alana göre filtreleyin",
+        "body": "Arama kutusuna tag:work, proxy:none veya status:running gibi bir alan yazın. Önüne eksi koymak hariç tutar: -tag:old.",
+        "action": "proxy:none deneyin"
+      },
+      "shortcuts": {
+        "label": "Kısayollar",
+        "title": "Eller klavyede kalsın",
+        "body": "Her sayfanın, içe aktarmanın, geri bildirimin ve ipuçlarının kendi kısayolu var. {{mod}}+/ hepsini listeler.",
+        "action": "Tüm kısayollar"
+      },
+      "statuses": {
+        "label": "Durumlar",
+        "title": "Her hesabın durumunu işaretleyin",
+        "body": "Durum sütununda profile Aktif veya Yasaklı gibi bir durum verin. Her durumun bir rengi vardır ve diğer cihazlarınızla eşitlenir.",
+        "action": "Profilleri aç"
+      },
+      "templates": {
+        "label": "Şablonlar",
+        "title": "Bir kez kurun, çok oluşturun",
+        "body": "Bir profilin ayarlarını menüsündeki Şablon olarak kaydet ile saklayın. Yeni profiller şablondan başlar, tek seferde birçoğu, her biri kendi cihazıyla.",
+        "action": "Yeni profil"
+      },
+      "vpn": {
+        "label": "VPN",
+        "title": "Bir profili VPN üzerinden geçirin",
+        "body": "Ağ sayfasında bir WireGuard dosyası veya VLESS, VMess, Trojan ya da Hysteria2 bağlantısı içe aktarın. Sonra onu bir profil için seçin: tüneli yalnızca o profil kullanır.",
+        "action": "VPN'leri aç"
+      },
+      "requireRoute": {
+        "label": "Doğrudan başlatmayı engelle",
+        "title": "Asla kendi IP'nizden başlatmayın",
+        "body": "Gizlilik ayarlarında Proxy veya VPN olmadan başlatmayı engelle seçeneğini açın. Proxy'si olmayan ya da proxy'si veya VPN'i kaybolan bir profil o zaman başlamaz.",
+        "action": "Gizlilik ayarlarını aç"
+      },
+      "totp": {
+        "label": "2FA kodları",
+        "title": "2FA kodlarını profille birlikte tutun",
+        "body": "Profil bilgisine bir hesabın 2FA anahtarını ekleyin, Donut güncel kodu kopyalamaya hazır gösterir. Anahtarlar bu cihazda şifreli kalır.",
+        "action": "Bir 2FA anahtarı deneyin"
+      },
+      "synchronizer": {
+        "label": "Eşitleyici",
+        "title": "Birçok profili aynı anda yönetin",
+        "body": "Bir profilin menüsünden Eşitleyici ile Başlat'ı seçin ve takipçileri belirleyin. Liderdeki her tıklama ve tuş vuruşu her takipçide tekrarlanır.",
+        "action": "Profilleri aç"
       }
+    },
+    "sections": {
+      "everyday": "Günlük",
+      "network": "Ağ",
+      "privacy": "Gizlilik ve veriler",
+      "connect": "Bağlantılar",
+      "plan": "Planınıza dahil"
+    },
+    "progress": "{{total}} ipucundan {{read}} tanesi okundu",
+    "unread": "Henüz okunmadı",
+    "nextShort": "İleri",
+    "inline": {
+      "label": "Özellik ipucu",
+      "eyebrow": "İpucu",
+      "more": "Diğer ipucu seçenekleri",
+      "allTips": "Tüm ipuçları",
+      "turnOff": "İpuçlarını gösterme",
+      "dismiss": "İpucunu kapat",
+      "offTitle": "İpuçları kapalı",
+      "offBody": "İpuçları bölümünden ({{shortcut}}) yeniden açabilirsiniz."
     }
   },
   "paidWelcome": {
@@ -4170,6 +4353,35 @@
     "kind": {
       "auto": "Günlük",
       "manual": "Elle"
+    }
+  },
+  "entities": {
+    "empty": {
+      "proxies": {
+        "title": "Henüz proxy yok",
+        "body": "Proxy, bir profilin trafiğini başka bir sunucu üzerinden gönderir. Her profil kendi proxy'sini kullanabilir."
+      },
+      "vpns": {
+        "title": "Henüz VPN yok",
+        "body": "WireGuard VPN, bir profilin trafiğini şifreli bir tünelden geçirir."
+      },
+      "groups": {
+        "title": "Henüz grup yok",
+        "body": "Gruplar profilleri müşteriye, projeye veya işe göre ayırır. Gruptaki her profil grubun yer imlerini alır."
+      },
+      "extensions": {
+        "title": "Henüz uzantı yok",
+        "body": "Bir dosyadan, klasörden veya Web Store bağlantısından uzantı ekleyin. Profillerde kullanmak için bir uzantı grubuna koyun."
+      },
+      "extensionGroups": {
+        "title": "Henüz uzantı grubu yok",
+        "body": "Uzantı grubu bir uzantı kümesidir. Grubu kullanan profiller bu kümeyi başlangıçta alır."
+      }
+    },
+    "check": {
+      "notChecked": "Kontrol edilmedi",
+      "valid": "Geçerli",
+      "invalid": "Geçersiz"
     }
   }
 }

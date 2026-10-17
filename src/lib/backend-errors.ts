@@ -56,6 +56,7 @@ export type BackendErrorCode =
   | "COOKIE_IMPORT_REMOTE_SESSION"
   | "COOKIE_IMPORT_NO_COOKIES"
   | "SELF_HOSTED_REQUIRES_LOGOUT"
+  | "SELF_HOSTED_TEAM_SEAT"
   | "ACCOUNT_SYNC_SIGN_IN_REQUIRED"
   | "ACCOUNT_SYNC_PLAN_REQUIRED"
   | "ACCOUNT_SYNC_UNAVAILABLE"
@@ -496,6 +497,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.cookieImportNoCookies");
     case "SELF_HOSTED_REQUIRES_LOGOUT":
       return t("backendErrors.selfHostedRequiresLogout");
+    case "SELF_HOSTED_TEAM_SEAT":
+      return t("backendErrors.selfHostedTeamSeat");
     case "ACCOUNT_SYNC_SIGN_IN_REQUIRED":
       return t("backendErrors.accountSyncSignInRequired");
     case "ACCOUNT_SYNC_PLAN_REQUIRED":

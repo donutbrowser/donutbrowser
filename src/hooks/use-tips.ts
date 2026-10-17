@@ -1,15 +1,23 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { TipsDialogMode } from "@/components/tips-dialog";
+import type { AppPage } from "@/components/rail-nav";
 import { getAgentConsole } from "@/lib/agent-console";
-import { effectivePlanOf, getEntitlements } from "@/lib/entitlements";
+import {
+  effectivePlanOf,
+  getEntitlements,
+  isTeamLauncher,
+} from "@/lib/entitlements";
 import { getCurrentOS } from "@/lib/platform";
+import { parseProfileSearch } from "@/lib/profile-search";
 import {
   type FeatureUsage,
   FRESH_LOGIN_WINDOW_MS,
+  INLINE_TIP_DELAY_MS,
   isPlanTip,
-  pickAutoTip,
-  TIP_AUTO_DELAY_MS,
+  type NotedFeature,
+  pickInlineTip,
+  pinnedTipFate,
+  type TipAction,
   type TipDefinition,
   type TipId,
   type TipProfile,
@@ -21,6 +29,8 @@ import type { CloudUser } from "@/types";
 export interface TipsState {
   auto_show: boolean;
   seen: string[];
+  used: string[];
+  inline_tip: string | null;
   last_auto_shown_at: number | null;
   next_auto_show_at: number | null;
   auto_due: boolean;
@@ -33,9 +43,22 @@ export interface TipUsageSource {
   profiles: readonly TipProfile[];
   groupCount: number;
   extensionGroupCount: number;
+  vpnCount: number;
   cookieBotEnrolled: boolean;
   syncServerConfigured: boolean;
   proxyIds: readonly string[];
+}
+
+/**
+ * What the person is doing right now. Some features leave no trace in the
+ * data, so the tips note them here, once, as they are used.
+ */
+export interface TipActivity {
+  page: AppPage;
+  paletteOpen: boolean;
+  searchQuery: string;
+  totpOpen: boolean;
+  synchronizing: boolean;
 }
 
 /** The settings fields the relevance checks read. */
@@ -43,12 +66,19 @@ interface UsageSettings {
   api_enabled?: boolean;
   mcp_remote_enabled?: boolean;
   fingerprint_gate_disabled?: boolean;
+  require_route_for_launch?: boolean;
   feedback_sent_at?: number | null;
 }
 
 /** A slow read must not hold the tip back for long. */
 const USAGE_READ_TIMEOUT_MS = 5000;
 const PROXY_HISTORY_BATCH = 16;
+/** How often a long session looks again for the next day's tip. */
+const INLINE_TIP_RECHECK_MS = 15 * 60 * 1000;
+/** Backend facts behind the tip on the page are read again at most this often. */
+const FACTS_REFRESH_MS = 60 * 1000;
+/** The inline tip's exit; it is removed after this even if no frame ran. */
+export const INLINE_TIP_EXIT_MS = 220;
 
 /**
  * The answer of one usage read, or undefined when it fails or is too slow.
@@ -84,70 +114,112 @@ async function anyProxyChecked(proxyIds: readonly string[]): Promise<boolean> {
   return false;
 }
 
+/** The part of the usage facts the app holds in memory, read every render. */
+function liveUsage(
+  source: TipUsageSource,
+  inTeam: boolean,
+  noted: readonly string[],
+): FeatureUsage {
+  return {
+    profiles: source.profiles,
+    currentOs: getCurrentOS(),
+    groupCount: source.groupCount,
+    extensionGroupCount: source.extensionGroupCount,
+    vpnCount: source.vpnCount,
+    inTeam,
+    cookieBotEnrolled: source.cookieBotEnrolled,
+    syncServerConfigured: source.syncServerConfigured,
+    noted,
+  };
+}
+
 /**
  * The usage facts for the tips in `candidates`. The backend is asked only
  * for what a candidate's relevance check reads, so a user who has seen the
  * proxy tip never pays for a read of every proxy's check history.
  */
 async function loadFeatureUsage(
-  source: TipUsageSource,
-  inTeam: boolean,
+  live: FeatureUsage,
+  proxyIds: readonly string[],
   candidates: ReadonlySet<TipId>,
 ): Promise<FeatureUsage> {
   const wants = (...ids: TipId[]) => ids.some((id) => candidates.has(id));
-  const [settings, proxyChecked, isDefaultBrowser, trashUsed, agentUsed] =
-    await Promise.all([
-      wants(
-        "localApi",
-        "automation",
-        "remoteControl",
-        "fingerprintGate",
-        "feedback",
-      )
-        ? known(invoke<UsageSettings>("get_app_settings"))
-        : undefined,
-      wants("proxyCheck") ? known(anyProxyChecked(source.proxyIds)) : undefined,
-      wants("defaultBrowser")
-        ? known(invoke<boolean>("is_default_browser"))
-        : undefined,
-      wants("trash")
-        ? known(
-            invoke<unknown[]>("list_trashed_profiles").then(
-              (trashed) => trashed.length > 0,
-            ),
-          )
-        : undefined,
-      wants("agent")
-        ? known(
-            getAgentConsole().then((snapshot) => snapshot.sessions.length > 0),
-          )
-        : undefined,
-    ]);
-  return {
-    profiles: source.profiles,
-    currentOs: getCurrentOS(),
-    groupCount: source.groupCount,
-    extensionGroupCount: source.extensionGroupCount,
-    inTeam,
-    cookieBotEnrolled: source.cookieBotEnrolled,
-    syncServerConfigured: source.syncServerConfigured,
-    apiEnabled: settings?.api_enabled,
-    remoteControlEnabled: settings?.mcp_remote_enabled,
-    fingerprintGateChanged: settings?.fingerprint_gate_disabled,
+  const [
+    settings,
     proxyChecked,
     isDefaultBrowser,
     trashUsed,
+    templatesSaved,
+    agentUsed,
+  ] = await Promise.all([
+    wants(
+      "localApi",
+      "automation",
+      "remoteControl",
+      "fingerprintGate",
+      "requireRoute",
+      "feedback",
+    )
+      ? known(invoke<UsageSettings>("get_app_settings"))
+      : undefined,
+    wants("proxyCheck") ? known(anyProxyChecked(proxyIds)) : undefined,
+    wants("defaultBrowser")
+      ? known(invoke<boolean>("is_default_browser"))
+      : undefined,
+    wants("trash")
+      ? known(
+          invoke<unknown[]>("list_trashed_profiles").then(
+            (trashed) => trashed.length > 0,
+          ),
+        )
+      : undefined,
+    wants("templates")
+      ? known(
+          invoke<unknown[]>("list_profile_templates").then(
+            (templates) => templates.length > 0,
+          ),
+        )
+      : undefined,
+    wants("agent")
+      ? known(
+          getAgentConsole().then((snapshot) => snapshot.sessions.length > 0),
+        )
+      : undefined,
+  ]);
+  return {
+    ...live,
+    apiEnabled: settings?.api_enabled,
+    remoteControlEnabled: settings?.mcp_remote_enabled,
+    fingerprintGateChanged: settings?.fingerprint_gate_disabled,
+    routeRequired: settings?.require_route_for_launch,
+    proxyChecked,
+    isDefaultBrowser,
+    trashUsed,
+    templatesSaved,
     agentUsed,
     feedbackSent:
       settings === undefined ? undefined : settings.feedback_sent_at != null,
   };
 }
 
+/** A query that uses at least one field, such as `tag:work`. */
+function searchUsesFields(query: string): boolean {
+  if (!query.includes(":")) return false;
+  return parseProfileSearch(query).groups.some((group) =>
+    group.some((term) => term.type === "field"),
+  );
+}
+
+/** Something modal is open, so the inline tip waits. */
+function modalOpen(): boolean {
+  return Boolean(
+    document.querySelector('[role="dialog"], [role="alertdialog"]'),
+  );
+}
+
 export interface TipsDialogState {
   open: boolean;
-  mode: TipsDialogMode;
   initialTipId: TipId | null;
-  auto: boolean;
   /** Bumped on every open so the dialog remounts with fresh navigation state. */
   session: number;
 }
@@ -157,43 +229,58 @@ interface PaidWelcomeState {
   status: "pending" | "open" | "done";
 }
 
+interface InlineState {
+  id: TipId;
+  leaving: boolean;
+}
+
 interface UseTipsOptions {
   cloudUser: CloudUser | null;
+  /** The account is still loading, so the plan's tips are not known yet. */
+  accountLoading: boolean;
   loggedInAt: string | null;
   /**
-   * The app is settled enough to put a dialog in front of the user: not the
-   * first-run session, terms accepted, nothing else blocking.
+   * The app is settled enough to show something unasked: not the first-run
+   * session, terms accepted, nothing else blocking.
    */
   ready: boolean;
-  /** Read when the automatic tip is chosen, to skip features already in use. */
+  /** Read when the inline tip is chosen, to skip features already in use. */
   usage: TipUsageSource;
+  activity: TipActivity;
 }
 
 /**
  * The tips flow: which tips this install may see, what has been seen, the
- * single tip that opens by itself every few days, and the welcome for an
+ * one tip a day that sits on the Profiles page, and the welcome for an
  * account that just turned paid. State lives in the app settings; this hook
  * only decides.
  */
 export function useTips({
   cloudUser,
+  accountLoading,
   loggedInAt,
   ready,
   usage,
+  activity,
 }: UseTipsOptions) {
   const [state, setState] = useState<TipsState | null>(null);
   const [dialog, setDialog] = useState<TipsDialogState>({
     open: false,
-    mode: "browse",
     initialTipId: null,
-    auto: false,
     session: 0,
   });
   const [paidWelcome, setPaidWelcome] = useState<PaidWelcomeState | null>(null);
+  const [inline, setInline] = useState<InlineState | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
 
   const entitlements = useMemo(() => getEntitlements(cloudUser), [cloudUser]);
-  const tips = useMemo(() => tipsFor(entitlements), [entitlements]);
+  const launcher = isTeamLauncher(cloudUser);
+  const tips = useMemo(
+    () => tipsFor(entitlements, launcher),
+    [entitlements, launcher],
+  );
   const planTips = useMemo(() => tips.filter(isPlanTip), [tips]);
+  const inTeam = Boolean(cloudUser?.teamId);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,21 +296,21 @@ export function useTips({
     };
   }, []);
 
-  const openTips = useCallback(
-    (
-      initialTipId: TipId | null = null,
-      options: { mode?: TipsDialogMode; auto?: boolean } = {},
-    ) => {
-      setDialog((previous) => ({
-        open: true,
-        mode: options.mode ?? "browse",
-        initialTipId,
-        auto: options.auto ?? false,
-        session: previous.session + 1,
-      }));
-    },
-    [],
-  );
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setClock(Date.now()),
+      INLINE_TIP_RECHECK_MS,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const openTips = useCallback((initialTipId: TipId | null = null) => {
+    setDialog((previous) => ({
+      open: true,
+      initialTipId,
+      session: previous.session + 1,
+    }));
+  }, []);
 
   const closeTips = useCallback(() => {
     setDialog((previous) =>
@@ -257,65 +344,276 @@ export function useTips({
       });
   }, [cloudUser, entitlements.active, loggedInAt]);
 
-  // The welcome waits for a quiet moment: the app settled and no tip open.
+  // The welcome waits for a quiet moment: the app settled and no tips open.
   useEffect(() => {
     if (!ready || dialog.open || paidWelcome?.status !== "pending") return;
     setPaidWelcome({ plan: paidWelcome.plan, status: "open" });
   }, [ready, dialog.open, paidWelcome]);
 
+  // Features with no trace in the data are noted once, as they are used.
+  const notingRef = useRef(new Set<string>());
+  const used = state?.used;
+  const noteFeature = useCallback(
+    (feature: NotedFeature) => {
+      if (!used || used.includes(feature)) return;
+      if (notingRef.current.has(feature)) return;
+      notingRef.current.add(feature);
+      invoke<TipsState>("note_tip_feature_used", { tipId: feature })
+        .then(setState)
+        .catch((error: unknown) => {
+          console.warn("Failed to note a feature in use:", error);
+        })
+        .finally(() => notingRef.current.delete(feature));
+    },
+    [used],
+  );
+  const fieldSearch = useMemo(
+    () => searchUsesFields(activity.searchQuery),
+    [activity.searchQuery],
+  );
+  useEffect(() => {
+    if (activity.paletteOpen) noteFeature("commandPalette");
+    if (fieldSearch) noteFeature("searchSyntax");
+    if (activity.page === "shortcuts") noteFeature("shortcuts");
+    if (activity.page === "import") noteFeature("importProfiles");
+    if (activity.totpOpen) noteFeature("totp");
+    if (activity.synchronizing) noteFeature("synchronizer");
+  }, [
+    activity.paletteOpen,
+    fieldSearch,
+    activity.page,
+    activity.totpOpen,
+    activity.synchronizing,
+    noteFeature,
+  ]);
+
   // The usage lists change all the time (a profile starts, a group count
   // moves); they are read when the tip is chosen, not watched, so a change
   // does not restart the delay below.
   const usageRef = useRef(usage);
+  const stateRef = useRef(state);
+  const inlineRef = useRef(inline);
   useEffect(() => {
     usageRef.current = usage;
+    stateRef.current = state;
+    inlineRef.current = inline;
   });
-  const inTeam = Boolean(cloudUser?.teamId);
 
-  // The automatic tip: one random unseen tip for a feature the user does not
-  // use yet, a moment after the app settles, never on top of the paid
-  // welcome. Marked handled only once it opens, so a welcome arriving during
-  // the delay simply takes its place.
-  const autoHandledRef = useRef(false);
+  const [facts, setFacts] = useState<FeatureUsage | null>(null);
+  const factsReadAtRef = useRef(0);
+  /** Tips closed in this session; a stale state never brings one back. */
+  const resolvedRef = useRef(new Set<string>());
+  const attemptedAtRef = useRef<number | null>(null);
+
+  const resolveInline = useCallback(async (id: string) => {
+    resolvedRef.current.add(id);
+    try {
+      setState(await invoke<TipsState>("mark_tip_seen", { tipId: id }));
+    } catch (error) {
+      console.error("Failed to close the inline tip:", error);
+    }
+  }, []);
+
+  const leaveInline = useCallback(() => {
+    setInline((previous) =>
+      previous && !previous.leaving ? { ...previous, leaving: true } : previous,
+    );
+  }, []);
+
   useEffect(() => {
-    if (!ready || !usage.loaded || !state || autoHandledRef.current) return;
-    if (!state.auto_due || dialog.open) return;
-    if (paidWelcome && paidWelcome.status !== "done") return;
-    const unseen = tips.filter((tip) => !state.seen.includes(tip.id));
-    if (unseen.length === 0) return;
+    if (!inline?.leaving) return;
+    const timer = window.setTimeout(() => setInline(null), INLINE_TIP_EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [inline?.leaving]);
+
+  const pinned = (state?.inline_tip ?? null) as TipId | null;
+  const due =
+    !!state &&
+    state.auto_show &&
+    !pinned &&
+    (state.next_auto_show_at === null ||
+      clock / 1000 >= state.next_auto_show_at);
+  const onProfiles = activity.page === "profiles" && usage.profiles.length > 0;
+  const welcomeBusy = paidWelcome !== null && paidWelcome.status !== "done";
+
+  // The inline tip: the pinned one comes back after a restart, and a new one
+  // is picked at most once a day. Both wait until the Profiles page has sat
+  // quiet for a moment with nothing modal on it.
+  useEffect(() => {
+    if (!ready || accountLoading || !usage.loaded) return;
+    if (!state?.auto_show || inline) return;
+    if (!onProfiles || dialog.open || welcomeBusy) return;
+    if (!pinned && !due) return;
+    if (!pinned && attemptedAtRef.current === clock) return;
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    let timer = 0;
+    const attempt = () => {
+      if (modalOpen()) {
+        timer = window.setTimeout(attempt, INLINE_TIP_DELAY_MS);
+        return;
+      }
       void (async () => {
-        const facts = await loadFeatureUsage(
-          usageRef.current,
-          inTeam,
+        const current = stateRef.current;
+        if (!current) return;
+        const live = liveUsage(usageRef.current, inTeam, current.used);
+        const proxyIds = usageRef.current.proxyIds;
+        if (pinned) {
+          const fate = pinnedTipFate(pinned, tips);
+          if (fate === "close") {
+            await resolveInline(pinned);
+            return;
+          }
+          if (fate === "release") {
+            // Unread, back to the pool; the day rule then picks another.
+            const next = await invoke<TipsState>("release_inline_tip", {
+              tipId: pinned,
+            }).catch((error: unknown) => {
+              console.error("Failed to release the inline tip:", error);
+              return null;
+            });
+            if (next) setState(next);
+            return;
+          }
+          const tip = tips.find((item) => item.id === pinned);
+          if (!tip) return;
+          const loaded = await loadFeatureUsage(
+            live,
+            proxyIds,
+            new Set([tip.id]),
+          );
+          if (cancelled) return;
+          if (
+            resolvedRef.current.has(tip.id) ||
+            current.seen.includes(tip.id) ||
+            tip.inUse(loaded)
+          ) {
+            await resolveInline(tip.id);
+            return;
+          }
+          factsReadAtRef.current = Date.now();
+          setFacts(loaded);
+          setInline({ id: tip.id, leaving: false });
+          return;
+        }
+        const unseen = tips.filter((tip) => !current.seen.includes(tip.id));
+        const loaded = await loadFeatureUsage(
+          live,
+          proxyIds,
           new Set(unseen.map((tip) => tip.id)),
         );
-        if (cancelled || autoHandledRef.current) return;
-        const tip = pickAutoTip(tips, state.seen, facts);
+        if (cancelled) return;
+        attemptedAtRef.current = clock;
+        const tip = pickInlineTip(tips, current.seen, loaded);
         if (!tip) return;
-        autoHandledRef.current = true;
-        openTips(tip.id, { mode: "single", auto: true });
+        const next = await invoke<TipsState>("show_inline_tip", {
+          tipId: tip.id,
+        }).catch((error: unknown) => {
+          console.error("Failed to show the inline tip:", error);
+          return null;
+        });
+        if (!next || cancelled) return;
+        setState(next);
+        if (next.inline_tip !== tip.id) return;
+        factsReadAtRef.current = Date.now();
+        setFacts(loaded);
+        setInline({ id: tip.id, leaving: false });
       })();
-    }, TIP_AUTO_DELAY_MS);
+    };
+    timer = window.setTimeout(attempt, INLINE_TIP_DELAY_MS);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
   }, [
     ready,
+    accountLoading,
     usage.loaded,
-    state,
+    state?.auto_show,
+    inline,
+    onProfiles,
     dialog.open,
-    paidWelcome,
+    welcomeBusy,
+    pinned,
+    due,
+    clock,
     tips,
     inTeam,
-    openTips,
+    resolveInline,
   ]);
 
-  const markSeen = useCallback(async (id: TipId, auto: boolean) => {
+  const inlineTip = inline
+    ? (tips.find((tip) => tip.id === inline.id) ?? null)
+    : null;
+
+  // The card leaves on its own once its tip is done with: read in the
+  // catalog, tips switched off, or the feature put to use.
+  useEffect(() => {
+    if (!inline || inline.leaving || !state) return;
+    if (!inlineTip || !state.auto_show || state.inline_tip !== inline.id) {
+      leaveInline();
+      return;
+    }
+    if (!facts) return;
+    const now = {
+      ...facts,
+      ...liveUsage(usage, inTeam, state.used),
+    };
+    if (inlineTip.inUse(now)) {
+      leaveInline();
+      void resolveInline(inline.id);
+    }
+  }, [
+    inline,
+    inlineTip,
+    state,
+    facts,
+    usage,
+    inTeam,
+    leaveInline,
+    resolveInline,
+  ]);
+
+  // Facts read from the backend (a proxy check, the API switch, the trash)
+  // can change while the card is up. They are read again when the person
+  // comes back to the Profiles page or to the window, at most once a minute.
+  const [returnedAt, setReturnedAt] = useState(0);
+  useEffect(() => {
+    const onFocus = () => setReturnedAt(Date.now());
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+  useEffect(() => {
+    if (activity.page === "profiles") setReturnedAt(Date.now());
+  }, [activity.page]);
+  const shownId = inline && !inline.leaving ? inline.id : null;
+  useEffect(() => {
+    const current = stateRef.current;
+    if (!shownId || !current) return;
+    if (returnedAt - factsReadAtRef.current < FACTS_REFRESH_MS) return;
+    factsReadAtRef.current = returnedAt;
+    let cancelled = false;
+    void loadFeatureUsage(
+      liveUsage(usageRef.current, inTeam, current.used),
+      usageRef.current.proxyIds,
+      new Set([shownId]),
+    ).then((loaded) => {
+      if (!cancelled && inlineRef.current?.id === shownId) setFacts(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [shownId, returnedAt, inTeam]);
+
+  const dismissInlineTip = useCallback(() => {
+    const current = inlineRef.current;
+    if (!current || current.leaving) return;
+    leaveInline();
+    void resolveInline(current.id);
+  }, [leaveInline, resolveInline]);
+
+  const markSeen = useCallback(async (id: TipId) => {
     try {
-      setState(await invoke<TipsState>("mark_tip_seen", { tipId: id, auto }));
+      setState(await invoke<TipsState>("mark_tip_seen", { tipId: id }));
     } catch (error) {
       console.error("Failed to remember the tip as seen:", error);
     }
@@ -324,8 +622,10 @@ export function useTips({
   const setAutoShow = useCallback(async (enabled: boolean) => {
     try {
       setState(await invoke<TipsState>("set_tips_auto_show", { enabled }));
+      return true;
     } catch (error) {
       console.error("Failed to save the tips preference:", error);
+      return false;
     }
   }, []);
 
@@ -345,6 +645,10 @@ export function useTips({
     closeTips,
     markSeen,
     setAutoShow,
+    inlineTip: inlineTip
+      ? { tip: inlineTip, leaving: inline?.leaving ?? false }
+      : null,
+    dismissInlineTip,
     paidWelcome: {
       open: paidWelcome?.status === "open",
       plan: paidWelcome?.plan ?? "",
@@ -354,4 +658,4 @@ export function useTips({
 }
 
 export type TipsFlow = ReturnType<typeof useTips>;
-export type { TipDefinition };
+export type { TipAction, TipDefinition };

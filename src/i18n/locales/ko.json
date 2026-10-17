@@ -82,7 +82,17 @@
       "hideToken": "토큰 숨기기"
     },
     "keys": {
-      "escape": "Escape"
+      "escape": "Escape",
+      "command": "Command",
+      "control": "Control",
+      "shift": "Shift",
+      "option": "Option",
+      "alt": "Alt",
+      "enter": "Enter",
+      "backspace": "백스페이스",
+      "arrowUp": "위쪽 화살표",
+      "arrowDown": "아래쪽 화살표",
+      "tab": "Tab"
     },
     "errors": {
       "unknown": "알 수 없는 오류가 발생했습니다"
@@ -353,6 +363,32 @@
       "a": "한 그룹에서 실행 중인 프로필",
       "b": "태그가 없고 프록시가 있는 프로필",
       "c": "30일 넘게 실행하지 않은 프로필, 보관된 것은 제외"
+    },
+    "suggest": {
+      "label": "검색 제안",
+      "matches": "일치 항목",
+      "recent": "최근 검색",
+      "none": "설정 안 됨",
+      "any": "아무 값",
+      "dates": {
+        "last7d": "최근 7일",
+        "last30d": "최근 30일",
+        "over30d": "30일 이전",
+        "over90d": "90일 이전",
+        "thisYear": "올해",
+        "never": "없음"
+      },
+      "keys": {
+        "choose": "선택",
+        "complete": "완성"
+      }
+    },
+    "issues": {
+      "unknownField": "{{name}}은(는) 필드가 아니므로 텍스트로 검색합니다. {{field}}을(를) 의미하셨나요?",
+      "compare": "{{field}}은(는) 비교할 수 없으므로 텍스트로 검색합니다. 날짜와 버전만 비교할 수 있습니다.",
+      "date": "{{field}}에는 2026-01-31 같은 날짜나 최근 7일을 뜻하는 7d를 입력합니다.",
+      "enum": "{{field}}에 사용할 수 있는 값: {{values}}.",
+      "boolean": "{{field}}에 사용할 수 있는 값: yes 또는 no."
     }
   },
   "profiles": {
@@ -571,7 +607,6 @@
       "tabVpns": "VPN",
       "create": "생성",
       "loading": "프록시 불러오는 중...",
-      "noneCreated": "아직 생성된 프록시가 없습니다. 위의 버튼을 사용하여 첫 번째 프록시를 생성하세요.",
       "usage": "사용량",
       "syncCol": "동기화",
       "syncCannotDisable": "이 프록시가 동기화된 프로필에서 사용 중이므로 동기화를 비활성화할 수 없습니다",
@@ -597,7 +632,9 @@
       "firstHopPlaintextTooltip": "첫 구간 평문: 이 프록시로의 연결은 암호화되지 않습니다.",
       "firstHopEncryptedTooltip": "첫 구간 암호화됨: 이 프록시로의 연결은 암호화됩니다. 제공업체는 접속 대상을 여전히 볼 수 있습니다.",
       "firstHopCipherTooltip": "첫 구간은 암호화 방식에 달림: 이 프록시에는 암호화 방식이 기록되어 있지 않아 연결이 암호화되는지 아직 정해지지 않았습니다. 편집해서 aes-256-gcm 같은 실제 암호화 방식을 지정하세요.",
-      "udpCol": "UDP"
+      "udpCol": "UDP",
+      "checkSelected": "선택 항목 확인",
+      "checkSummary": "확인 완료. 통과: {{passed}}. 실패: {{failed}}."
     },
     "add": "프록시 추가",
     "edit": "프록시 편집",
@@ -755,13 +792,11 @@
     "title": "그룹",
     "management": "그룹 관리",
     "add": "그룹 추가",
-    "edit": "그룹 편집",
     "delete": "그룹 삭제",
     "moveToDefault": "그룹에서 프로필 제거",
     "noGroupDescription": "그룹이 없는 프로필은 \"모두\" 필터에 표시됩니다.",
     "assignSuccess": "{{count}}개 프로필을 {{group}}에 할당했습니다",
     "noGroups": "생성된 그룹이 없습니다",
-    "noGroupsDescription": "프로필을 정리할 그룹을 생성하세요.",
     "form": {
       "name": "이름",
       "namePlaceholder": "그룹 이름 입력"
@@ -1692,10 +1727,8 @@
     "managedNotice": "여기서 관리되는 확장 프로그램은 실행 시 프로필에 수동으로 설치된 확장 프로그램을 대체합니다.",
     "proRequired": "확장 프로그램 관리는 Pro 기능입니다",
     "empty": "아직 업로드된 확장 프로그램이 없습니다.",
-    "noGroups": "아직 생성된 확장 프로그램 그룹이 없습니다.",
     "createGroup": "그룹 생성",
     "newGroup": "새 그룹",
-    "addToGroup": "확장 프로그램 추가...",
     "removeFromGroup": "그룹에서 제거",
     "deleteGroup": "그룹 삭제",
     "extensionGroup": "확장 프로그램 그룹",
@@ -1780,7 +1813,9 @@
     "fetchedIdentity": "{{name}} · 버전 {{version}}",
     "fetchedFrom": "{{source}}에서 내려받았습니다",
     "fetchSuccess": "확장 프로그램을 내려받았습니다. 이름을 확인한 뒤 추가하세요.",
-    "fetchFailed": "확장 프로그램을 내려받지 못했습니다"
+    "fetchFailed": "확장 프로그램을 내려받지 못했습니다",
+    "searchExtensions": "확장 프로그램 검색",
+    "membersSelected": "{{total}}개 중 {{selected}}개 선택됨"
   },
   "pro": {
     "badge": "PRO",
@@ -1912,8 +1947,6 @@
     "namesHint": "프로필 이름은 이미 사용 중인 번호 다음부터 {{name}} 1, {{name}} 2 순서로 붙습니다.",
     "allowanceLeft_one": "이번 시간에 {{count}}개를 더 만들 수 있습니다.",
     "allowanceLeft_other": "이번 시간에 {{count}}개를 더 만들 수 있습니다.",
-    "createMany_one": "프로필 {{count}}개 만들기",
-    "createMany_other": "프로필 {{count}}개 만들기",
     "progress": "{{total}}개 중 {{done}}개 만드는 중",
     "stop": "중지",
     "created_one": "프로필 {{count}}개를 만들었습니다",
@@ -1984,7 +2017,6 @@
     },
     "management": {
       "loading": "VPN 불러오는 중...",
-      "noneCreated": "아직 생성된 VPN 구성이 없습니다. 위의 버튼을 사용하여 가져오거나 생성하세요.",
       "editVpn": "VPN 편집",
       "deleteVpn": "VPN 삭제",
       "cannotDelete_one": "삭제할 수 없습니다: {{count}}개 프로필에서 사용 중",
@@ -2100,7 +2132,9 @@
       "description": "{{count}}개의 그룹을 정말 삭제하시겠습니까? {{names}}. 프로필은 기본으로 이동됩니다.",
       "description_one": "{{count}}개의 그룹을 정말 삭제하시겠습니까? {{names}}. 프로필은 기본으로 이동됩니다.",
       "confirmButton": "그룹 삭제"
-    }
+    },
+    "newGroup": "새 그룹",
+    "bookmarksCol": "북마크"
   },
   "proxyAssignment": {
     "title": "프록시 / VPN 할당",
@@ -2712,7 +2746,8 @@
     "syncServerNoAccounts": "이 서버는 Donut 계정을 허용하지 않습니다. 서버에서 SYNC_PUBLIC_URL을 설정하세요.",
     "syncServerAddressMismatch": "서버 주소는 {{address}}입니다. 그 주소를 입력하세요.",
     "remoteNeedsDonutSync": "원격 세션과 Cookie Bot은 Donut 클라우드 동기화에서 프로필을 가져옵니다. 이 컴퓨터는 자체 서버와 동기화합니다.",
-    "accountSyncUnavailable": "Donut이 아직 자체 서버에 로그인할 수 없습니다. 나중에 다시 시도하세요."
+    "accountSyncUnavailable": "Donut이 아직 자체 서버에 로그인할 수 없습니다. 나중에 다시 시도하세요.",
+    "selfHostedTeamSeat": "팀 계정은 동기화 토큰을 사용하는 서버와 동기화할 수 없습니다."
   },
   "rail": {
     "profiles": "프로필",
@@ -2818,31 +2853,40 @@
     "automationActiveHere": "이 기기에서 브라우저 자동화가 활성화되어 있습니다.",
     "viewTeamUsage": "팀 사용량 보기",
     "ownServer": {
-      "title": "자체 동기화 서버",
-      "description": "이 계정을 Donut 클라우드가 아니라 직접 운영하는 donut-sync 서버와 동기화합니다. 플랜의 프로필 한도와 팀의 역할 및 그룹 접근 권한은 그대로 유지됩니다.",
-      "current": "{{server}}와(과) 동기화 중",
-      "currentCloud": "Donut 클라우드와 동기화 중",
       "donutCloud": "Donut 클라우드",
-      "useDonutCloud": "Donut 클라우드 사용",
       "accountsOn": "이 서버는 Donut 계정을 허용합니다.",
       "cloudOnly": "원격 세션과 Cookie Bot에는 Donut 클라우드 동기화가 필요합니다.",
       "teamNote": "팀의 모든 구성원이 같은 서버를 사용해야 합니다.",
-      "saved": "동기화 서버를 저장했습니다.",
-      "backToCloud": "다시 Donut 클라우드와 동기화합니다."
+      "backToCloud": "다시 Donut 클라우드와 동기화합니다.",
+      "label": "동기화 서버",
+      "change": "변경",
+      "remove": "제거",
+      "removed": "동기화 서버를 제거했습니다.",
+      "switched": "{{server}}와(과) 동기화합니다.",
+      "tokenServer": "{{host}} (동기화 토큰)"
     }
   },
   "shortcutsPage": {
     "title": "키보드 단축키",
-    "description": "이 단축키로 작업 흐름을 빠르게 하세요."
+    "description": "이 단축키로 작업 흐름을 빠르게 하세요.",
+    "paletteHint": "모든 페이지, 프로필, 작업을 검색합니다.",
+    "holdHint": "이 키를 누르고 있으면 해당 키를 쓰는 단축키가 표시됩니다.",
+    "paletteKeys": {
+      "title": "명령 팔레트에서",
+      "move": "결과 사이 이동",
+      "run": "선택한 명령 실행",
+      "back": "검색어가 비어 있을 때 뒤로",
+      "close": "팔레트 닫기"
+    }
   },
   "commandPalette": {
     "placeholder": "명령을 입력하거나 검색...",
-    "empty": "결과를 찾을 수 없습니다.",
     "groups": {
       "navigation": "탐색",
       "profiles": "프로필",
       "actions": "작업",
-      "profileGroups": "프로필 그룹"
+      "profileGroups": "프로필 그룹",
+      "recent": "최근"
     },
     "actions": {
       "launchProfile": "{{name}} 실행",
@@ -2850,6 +2894,66 @@
       "profileInfo": "정보 — {{name}}",
       "createProfile": "프로필 생성",
       "about": "Donut Browser 정보"
+    },
+    "pages": {
+      "launch": {
+        "entry": "프로필 실행…",
+        "title": "실행",
+        "placeholder": "실행할 프로필 검색...",
+        "empty": "모든 프로필이 이미 실행 중입니다."
+      },
+      "stop": {
+        "entry": "프로필 중지…",
+        "title": "중지",
+        "placeholder": "실행 중인 프로필 검색...",
+        "empty": "실행 중인 프로필이 없습니다."
+      },
+      "info": {
+        "entry": "프로필 정보 열기…",
+        "title": "프로필 정보",
+        "placeholder": "프로필 검색...",
+        "empty": "아직 프로필이 없습니다."
+      },
+      "group": {
+        "entry": "그룹으로 이동…",
+        "title": "그룹",
+        "placeholder": "그룹 검색...",
+        "empty": "아직 그룹이 없습니다."
+      }
+    },
+    "emptyFor": "“{{query}}”에 대한 결과가 없습니다.",
+    "emptyHint": "페이지, 프로필, 그룹, 작업을 검색할 수 있습니다.",
+    "emptyPageHint": "Esc를 누르면 전체 명령으로 돌아갑니다.",
+    "footer": {
+      "move": "이동",
+      "run": "실행",
+      "open": "열기",
+      "back": "뒤로",
+      "close": "닫기"
+    },
+    "keywords": {
+      "openPalette": "명령 검색 찾기 실행",
+      "openShortcuts": "키보드 키 단축키 도움말",
+      "openTips": "팁 도움말 배우기 기능",
+      "sendFeedback": "버그 신고 문제 지원 문의 아이디어",
+      "openTotp": "2단계 2fa otp totp 인증 코드 mfa",
+      "importProfile": "가져오기 추가 불러오기 이전 chrome firefox",
+      "goProfiles": "홈 브라우저 목록 전체",
+      "goProxies": "프록시 vpn wireguard 네트워크 socks http",
+      "goExtensions": "확장 프로그램 애드온 플러그인",
+      "goGroups": "그룹 폴더 정리",
+      "goCookieBot": "쿠키 워밍업 봇 탐색",
+      "goAgent": "ai mcp 어시스턴트 자동화",
+      "goIntegrations": "api mcp rest 토큰 연동 자동화",
+      "goAccount": "계정 클라우드 로그인 구독 요금제 결제 팀 동기화",
+      "goSettings": "환경설정 옵션 테마 언어 소리 모양",
+      "goTrash": "휴지통 삭제됨 복원",
+      "createProfile": "새로 추가 프로필 브라우저 만들기",
+      "about": "버전 라이선스 정보",
+      "launch": "실행 시작 열기 브라우저",
+      "stop": "중지 종료 닫기",
+      "info": "세부 정보 편집 프로필",
+      "group": "그룹 필터 전환 폴더"
     }
   },
   "shortcuts": {
@@ -3010,7 +3114,7 @@
   },
   "cookieBot": {
     "title": "Cookie Bot",
-    "description": "원격 머신에서 밤새 프로필을 예열합니다.",
+    "description": "일정에 맞춰 원격 머신에서 프로필을 예열합니다.",
     "tabs": {
       "overview": "개요",
       "schedule": "일정",
@@ -3019,37 +3123,27 @@
     },
     "locked": {
       "title": "Cookie Bot",
-      "hint": "Cookie Bot은 원격 머신에서 밤새 프로필을 예열해, 내 컴퓨터를 켜 두지 않아도 쿠키와 방문 기록이 유지됩니다."
+      "hint": "Cookie Bot은 선택한 시간에 원격 머신에서 프로필을 예열해, 내 컴퓨터를 켜 두지 않아도 쿠키와 방문 기록이 유지됩니다."
     },
     "empty": {
       "title": "등록된 프로필이 없습니다",
-      "hint": "프로필을 선택하면 봇이 밤새 원격 머신에서 예열합니다. 내 컴퓨터는 꺼져 있어도 됩니다.",
+      "hint": "프로필을 선택하면 봇이 정한 시간에 원격 머신에서 예열합니다. 내 컴퓨터는 꺼져 있어도 됩니다.",
       "cta": "프로필 등록"
     },
-    "tonight": {
-      "label": "오늘 밤",
-      "nextRun": "다음 실행 {{time}}",
-      "dueCount_one": "프로필 {{count}}개 예정",
-      "dueCount_other": "프로필 {{count}}개 예정",
-      "nothingScheduled": "예정된 작업 없음"
-    },
     "lastDay": {
-      "label": "최근 24시간",
-      "none": "아직 실행 없음",
-      "ran_one": "{{count}}건 실행",
-      "ran_other": "{{count}}건 실행",
-      "partial_one": "{{count}}건 일부 완료",
-      "partial_other": "{{count}}건 일부 완료",
-      "failed_one": "{{count}}건 실패",
-      "failed_other": "{{count}}건 실패"
+      "label": "최근 24시간"
     },
     "chart": {
-      "machineTime": "하룻밤당 머신 시간",
-      "minutes": "{{minutes}}분"
+      "machineTime": "하루당 머신 시간",
+      "minutes": "{{minutes}}분",
+      "total": "총 {{duration}}",
+      "empty": "이 기간에 실행 없음",
+      "noRuns": "실행 없음",
+      "runs_one": "{{count}}회",
+      "runs_other": "{{count}}회"
     },
     "hours": {
       "label": "원격 시간",
-      "remaining": "{{total}}시간 중 {{remaining}}시간 남음",
       "remainingOf": "/ {{total}}시간",
       "used": "{{total}}시간 중 {{used}}시간 사용",
       "resets": "{{date}}에 초기화",
@@ -3057,26 +3151,26 @@
       "exhaustedOn": "남은 원격 시간이 없습니다. 일정은 그대로 등록되어 있으며 {{date}}에 재개됩니다.",
       "estimate": "주당 약 {{hours}}시간 · 이번 주기에 {{remaining}}시간 남음",
       "estimateOverBudget": "주당 약 {{hours}}시간이 필요하지만 {{remaining}}시간만 남았습니다",
-      "estimateOnly": "주당 약 {{hours}}시간"
+      "estimateOnly": "주당 약 {{hours}}시간",
+      "left": "{{hours}}시간 남음"
     },
     "enrolled": {
       "columnProfile": "프로필",
-      "columnCadence": "주기",
-      "columnTime": "시각",
       "columnNextRun": "다음 실행",
       "columnLastRun": "마지막 실행",
       "enrolProfiles": "프로필 등록",
       "edit": "일정 편집",
       "neverRun": "없음",
-      "pausedNoHours": "일시 중지 — 시간 소진",
+      "pausedNoHours": "일시 중지: 시간 소진",
       "profileMissing": "해당 프로필은 이 컴퓨터에 없습니다."
     },
     "schedule": {
       "empty": "아직 예정된 작업이 없습니다.",
       "unenrol": "Cookie Bot에서 제거",
       "unenrolTitle": "{{name}}을(를) Cookie Bot에서 제거할까요?",
-      "unenrolDescription": "오늘 밤부터 예열이 중단됩니다. 지난 실행 기록은 활동 탭에 남습니다.",
-      "unenrolled": "Cookie Bot에서 제거했습니다"
+      "unenrolDescription": "예정된 실행이 중단됩니다. 지난 실행 기록은 활동 탭에 남습니다.",
+      "unenrolled": "Cookie Bot에서 제거했습니다",
+      "localTime": "현재 {{time}}"
     },
     "status": {
       "provisioning": "머신 준비 중",
@@ -3147,7 +3241,7 @@
     },
     "picker": {
       "title": "프로필 등록",
-      "description": "봇이 밤새 예열할 프로필을 선택하세요.",
+      "description": "봇이 예열할 프로필을 선택하세요.",
       "searchPlaceholder": "프로필 검색…",
       "noProfiles": "일치하는 프로필이 없습니다.",
       "alreadyEnrolled": "등록됨",
@@ -3160,25 +3254,25 @@
       "titleCount_other": "프로필 {{count}}개 등록",
       "editTitle": "일정 편집",
       "description": "봇이 원격 머신에서 프로필을 열고 지정한 사이트를 둘러봅니다. 내 컴퓨터는 꺼져 있어도 됩니다.",
-      "summaryNightly": "매일 밤 {{time}}에 회당 최대 {{minutes}}분 실행합니다.",
+      "summaryNightly": "매일 {{time}}에 회당 최대 {{minutes}}분 실행합니다.",
       "summaryWeeknights": "월요일부터 금요일까지 {{time}}에 회당 최대 {{minutes}}분 실행합니다.",
-      "summaryAlternate": "하루 걸러 {{time}}에 회당 최대 {{minutes}}분 실행합니다.",
-      "summaryCustom_one": "주 {{count}}회 밤 {{time}}에 회당 최대 {{minutes}}분 실행합니다.",
-      "summaryCustom_other": "주 {{count}}회 밤 {{time}}에 회당 최대 {{minutes}}분 실행합니다.",
-      "confirm": "오늘 밤부터 등록",
-      "confirmSome": "오늘 밤 {{total}}개 중 {{eligible}}개 등록",
+      "summaryAlternate": "이틀에 한 번 {{time}}에 회당 최대 {{minutes}}분 실행합니다.",
+      "summaryCustom_one": "주 {{count}}일 {{time}}에 회당 최대 {{minutes}}분 실행합니다.",
+      "summaryCustom_other": "주 {{count}}일 {{time}}에 회당 최대 {{minutes}}분 실행합니다.",
+      "confirm": "등록",
+      "confirmSome": "{{total}}개 중 {{eligible}}개 등록",
       "fixFirst": "먼저 이 문제를 해결하세요",
       "saving": "등록 중…",
       "saved": "일정을 저장했습니다",
       "enrolled_one": "프로필 {{count}}개를 등록했습니다",
       "enrolled_other": "프로필 {{count}}개를 등록했습니다",
-      "adjust": "일정 조정",
+      "adjust": "시간과 깊이",
       "cadenceLabel": "주기",
-      "cadenceNightly": "매일 밤",
-      "cadenceWeeknights": "평일 밤",
-      "cadenceAlternate": "하루 걸러",
-      "cadenceCustom_one": "주 {{count}}회 밤",
-      "cadenceCustom_other": "주 {{count}}회 밤",
+      "cadenceNightly": "매일",
+      "cadenceWeeknights": "평일",
+      "cadenceAlternate": "이틀에 한 번",
+      "cadenceCustom_one": "주 {{count}}일",
+      "cadenceCustom_other": "주 {{count}}일",
       "timeLabel": "시작 시각",
       "timeHint": "각 프로필 지문의 시간대 기준입니다.",
       "maxMinutesLabel": "최대 분",
@@ -3191,8 +3285,8 @@
       "presetsUnavailable": "깊이 프리셋을 불러오지 못했습니다. 잠시 후 다시 시도하세요.",
       "confirmBulkTitle_one": "프로필 {{count}}개를 Cookie Bot에 등록할까요?",
       "confirmBulkTitle_other": "프로필 {{count}}개를 Cookie Bot에 등록할까요?",
-      "confirmBulkDescription_one": "공유 원격 시간에서 야간 실행 1건을 예약합니다. 시각과 사이트는 다음 단계에서 선택합니다.",
-      "confirmBulkDescription_other": "공유 원격 시간에서 야간 실행 {{count}}건을 예약합니다. 시각과 사이트는 다음 단계에서 선택합니다.",
+      "confirmBulkDescription_one": "공유 원격 시간에서 매일 실행 1건을 예약합니다. 시각과 사이트는 다음 단계에서 선택합니다.",
+      "confirmBulkDescription_other": "공유 원격 시간에서 매일 실행 {{count}}건을 예약합니다. 시각과 사이트는 다음 단계에서 선택합니다.",
       "confirmBulkButton_one": "프로필 {{count}}개로 계속",
       "confirmBulkButton_other": "프로필 {{count}}개로 계속",
       "sitesRequired": "사이트를 하나 이상 추가하세요.",
@@ -3228,7 +3322,12 @@
       "listSites_other": "사이트 {{count}}개",
       "summarySlots_one": "주 {{count}}회, 회당 최대 {{minutes}}분 실행합니다.",
       "summarySlots_other": "주 {{count}}회, 회당 최대 {{minutes}}분 실행합니다.",
-      "templateNameInvalidNoMax": "저장된 목록에 그 이름은 사용할 수 없습니다."
+      "templateNameInvalidNoMax": "저장된 목록에 그 이름은 사용할 수 없습니다.",
+      "shuffleTime": "다른 시간 고르기",
+      "ownTimes": "프로필마다 다른 시간",
+      "timeRandom": "프로필마다 무작위",
+      "summaryOwnTimes_one": "각 프로필이 주 {{count}}회, 각자 무작위 시간에 회당 최대 {{minutes}}분 실행합니다.",
+      "summaryOwnTimes_other": "각 프로필이 주 {{count}}회, 각자 무작위 시간에 회당 최대 {{minutes}}분 실행합니다."
     },
     "preset": {
       "light": "가볍게",
@@ -3245,7 +3344,7 @@
       "reasonSync": "동기화가 꺼져 있음",
       "reasonEncrypted": "종단 간 암호화",
       "reasonNoFingerprint": "기록된 운영체제 없음",
-      "reasonCrossOs": "{{os}}용으로 생성됨 — 일치하는 원격 머신 없음",
+      "reasonCrossOs": "{{os}}용으로 생성됨: 일치하는 원격 머신 없음",
       "reasonNoExitNode": "프록시나 VPN 없음",
       "fixSync": "동기화 켜기",
       "fixEncrypted": "동기화 설정 열기",
@@ -3317,13 +3416,27 @@
       "profileLocked": "프로필이 다른 곳에서 열려 있었습니다",
       "noCapacity": "여유 머신이 없었습니다",
       "managerError": "플릿이 브라우저를 시작하지 못했습니다",
-      "budgetExceeded": "그날 밤의 시간 예산이 소진되었습니다",
-      "browsingIncomplete": "브라우저는 열렸지만 그날 밤의 탐색이 끝나지 않았습니다",
+      "budgetExceeded": "실행 시간 예산이 소진되었습니다",
+      "browsingIncomplete": "브라우저는 열렸지만 탐색이 끝나지 않았습니다",
       "proxyUnsupported": "어떤 호스트도 이 프록시 종류를 사용할 수 없으니 HTTP, SOCKS 또는 WireGuard 출구를 사용하세요",
       "profileNotSynced": "클라우드 사본이 불완전하니 데스크톱에서 동기화를 마치세요",
       "profileOsMismatch": "프로필이 실행한 호스트와 다른 운영체제에서 만들어졌습니다",
       "cancelledByUser": "직접 중지했습니다",
       "unknown": "알 수 없는 이유 ({{code}})"
+    },
+    "next": {
+      "label": "다음 실행",
+      "now": "곧 시작",
+      "inMinutes_one": "{{count}}분 후",
+      "inMinutes_other": "{{count}}분 후",
+      "inHours_one": "{{count}}시간 후",
+      "inHours_other": "{{count}}시간 후",
+      "today": "오늘",
+      "tomorrow": "내일",
+      "dueSoon_one": "향후 24시간 내 프로필 {{count}}개",
+      "dueSoon_other": "향후 24시간 내 프로필 {{count}}개",
+      "nothingScheduled": "예정된 작업 없음",
+      "blocked": "실행할 수 있는 프로필이 없습니다. 아래 목록을 확인하세요."
     }
   },
   "prelaunchGate": {
@@ -3466,7 +3579,11 @@
     "confirmed": "예",
     "unavailable": "아니요",
     "apiProbeScope": "저장된 인증 정보로 실행 중인 로컬 API를 확인합니다. 프로필은 실행하지 않습니다.",
-    "remoteProbeScope": "저장된 MCP 인증 정보를 확인합니다. 원격 제어에는 연결된 기기와 지원 요금제도 필요합니다. 클라이언트 설정이 활성 세션을 의미하지는 않습니다."
+    "remoteProbeScope": "저장된 MCP 인증 정보를 확인합니다. 원격 제어에는 연결된 기기와 지원 요금제도 필요합니다. 클라이언트 설정이 활성 세션을 의미하지는 않습니다.",
+    "probeNotConfigured": "저장된 인증 정보가 없습니다.",
+    "probeUnreachable": "서버가 응답하지 않았습니다.",
+    "probeRefused": "서버가 인증 정보를 거부했습니다.",
+    "probeUnverified": "서버가 HTTP {{status}}(으)로 응답해 인증 정보를 확인하지 못했습니다."
   },
   "easterEgg": {
     "konami": {
@@ -3817,13 +3934,11 @@
   },
   "tips": {
     "title": "팁",
-    "essentials": "기본",
-    "planSection": "내 플랜에 포함",
     "count": "{{current}} / {{total}}",
     "previous": "이전 팁",
     "next": "다음 팁",
     "done": "완료",
-    "autoShow": "며칠마다 팁 표시",
+    "autoShow": "프로필 페이지에 팁 표시",
     "items": {
       "dnsBlocklist": {
         "label": "DNS 차단",
@@ -3911,7 +4026,7 @@
       },
       "cookieBot": {
         "label": "Cookie Bot",
-        "title": "밤사이 프로필 워밍",
+        "title": "일정에 맞춰 프로필 워밍",
         "body": "Cookie Bot은 원격 호스트에서 일정에 따라 실제 사이트를 탐색해, 새 프로필이 사용 전에 자연스러운 기록을 쌓게 합니다.",
         "action": "Cookie Bot 열기"
       },
@@ -3950,7 +4065,75 @@
         "title": "다음에 고칠 점을 팀에 알려 주세요",
         "body": "고장 난 기능이나 아쉬운 점이 있나요? 더 보기 메뉴에서 피드백을 보내세요. 스위치 하나로 로그를 첨부하면 팀이 무엇이 잘못되었는지 정확히 알 수 있습니다.",
         "action": "피드백 보내기"
+      },
+      "searchSyntax": {
+        "label": "검색 필드",
+        "title": "필드로 프로필 필터링",
+        "body": "검색창에 tag:work, proxy:none, status:running 같은 필드를 입력하세요. 앞에 빼기 기호를 붙이면 제외합니다: -tag:old.",
+        "action": "proxy:none 해 보기"
+      },
+      "shortcuts": {
+        "label": "단축키",
+        "title": "손은 키보드 위에",
+        "body": "모든 페이지에 단축키가 있고, 가져오기, 피드백, 팁에도 있습니다. {{mod}}+/로 전체 목록을 봅니다.",
+        "action": "모든 단축키 보기"
+      },
+      "statuses": {
+        "label": "상태",
+        "title": "계정마다 현재 상태 표시",
+        "body": "상태 열에서 프로필에 활성이나 차단됨 같은 상태를 지정하세요. 상태마다 색이 있고 다른 기기와 동기화됩니다.",
+        "action": "프로필 열기"
+      },
+      "templates": {
+        "label": "템플릿",
+        "title": "한 번 설정하고 여러 개 만들기",
+        "body": "프로필 메뉴의 '템플릿으로 저장'으로 설정을 보관하세요. 새 프로필은 템플릿에서 시작하며, 한 번에 여러 개를 만들 수 있고 각각 고유한 기기를 가집니다.",
+        "action": "새 프로필"
+      },
+      "vpn": {
+        "label": "VPN",
+        "title": "프로필을 VPN으로 연결",
+        "body": "네트워크 페이지에서 WireGuard 파일이나 VLESS, VMess, Trojan, Hysteria2 링크를 가져오세요. 그런 다음 프로필에 지정하면 그 프로필만 터널을 사용합니다.",
+        "action": "VPN 열기"
+      },
+      "requireRoute": {
+        "label": "직접 실행 차단",
+        "title": "내 IP로는 절대 실행하지 않기",
+        "body": "개인정보 설정에서 '프록시나 VPN 없는 실행 차단'을 켜세요. 프록시가 없거나 프록시나 VPN이 사라진 프로필은 실행되지 않습니다.",
+        "action": "개인정보 설정 열기"
+      },
+      "totp": {
+        "label": "2FA 코드",
+        "title": "2FA 코드를 프로필과 함께 보관",
+        "body": "프로필 정보에 계정의 2FA 키를 추가하면 Donut이 현재 코드를 보여 주고 바로 복사할 수 있습니다. 키는 이 기기에 암호화되어 남습니다.",
+        "action": "2FA 키 해 보기"
+      },
+      "synchronizer": {
+        "label": "동기화 모드",
+        "title": "여러 프로필을 한 번에 조작",
+        "body": "프로필 메뉴에서 '동기화 모드로 실행'을 고르고 팔로워를 선택하세요. 리더에서의 클릭과 입력이 모든 팔로워에서 반복됩니다.",
+        "action": "프로필 열기"
       }
+    },
+    "sections": {
+      "everyday": "일상",
+      "network": "네트워크",
+      "privacy": "개인정보와 데이터",
+      "connect": "연결",
+      "plan": "요금제에 포함"
+    },
+    "progress": "{{total}}개 중 {{read}}개 읽음",
+    "unread": "읽지 않음",
+    "nextShort": "다음",
+    "inline": {
+      "label": "기능 팁",
+      "eyebrow": "팁",
+      "more": "팁 옵션 더 보기",
+      "allTips": "모든 팁",
+      "turnOff": "팁 표시 안 함",
+      "dismiss": "팁 닫기",
+      "offTitle": "팁이 꺼졌습니다",
+      "offBody": "팁({{shortcut}})에서 다시 켤 수 있습니다."
     }
   },
   "paidWelcome": {
@@ -4170,6 +4353,35 @@
     "kind": {
       "auto": "매일",
       "manual": "수동"
+    }
+  },
+  "entities": {
+    "empty": {
+      "proxies": {
+        "title": "아직 프록시가 없습니다",
+        "body": "프록시는 프로필의 트래픽을 다른 서버를 거쳐 보냅니다. 프로필마다 다른 프록시를 쓸 수 있습니다."
+      },
+      "vpns": {
+        "title": "아직 VPN이 없습니다",
+        "body": "WireGuard VPN은 프로필의 트래픽을 암호화된 터널로 전달합니다."
+      },
+      "groups": {
+        "title": "아직 그룹이 없습니다",
+        "body": "그룹은 프로필을 고객, 프로젝트, 작업별로 나눕니다. 그룹의 모든 프로필이 그룹의 북마크를 받습니다."
+      },
+      "extensions": {
+        "title": "아직 확장 프로그램이 없습니다",
+        "body": "파일, 폴더 또는 웹 스토어 링크로 확장 프로그램을 추가하세요. 프로필에서 쓰려면 확장 프로그램 그룹에 넣으세요."
+      },
+      "extensionGroups": {
+        "title": "아직 확장 프로그램 그룹이 없습니다",
+        "body": "확장 프로그램 그룹은 확장 프로그램 묶음입니다. 그룹을 쓰는 프로필은 실행할 때 이 묶음을 받습니다."
+      }
+    },
+    "check": {
+      "notChecked": "확인 안 함",
+      "valid": "유효",
+      "invalid": "유효하지 않음"
     }
   }
 }

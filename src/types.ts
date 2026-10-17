@@ -91,6 +91,17 @@ export type SyncStatus = "Disabled" | "Syncing" | "Synced" | "Error";
 export interface SyncSettings {
   sync_server_url?: string;
   sync_token?: string;
+  source?: SyncSourceKind | null;
+}
+
+/** Where a device syncs: Donut cloud, the account's own server, or a server with a shared token. */
+export type SyncSourceKind = "cloud" | "account" | "self_hosted";
+
+/** Result of `get_sync_source`: the stored servers and the source in use. */
+export interface SyncSourceState {
+  active: SyncSourceKind | null;
+  account_server: string | null;
+  self_hosted_server: string | null;
 }
 
 /**
@@ -930,6 +941,7 @@ export interface VpnConfig {
   last_used?: number;
   sync_enabled?: boolean;
   last_sync?: number;
+  updated_at?: number;
 }
 
 export interface VpnImportResult {

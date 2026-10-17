@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { LuChevronRight } from "react-icons/lu";
 import { Logo } from "@/components/icons/logo";
+import { TipIcon } from "@/components/tips/tip-icon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useInputModality } from "@/hooks/use-input-modality";
@@ -107,8 +108,14 @@ export function PaidWelcomeDialog({
                         duration: animate ? 0.3 : 0,
                         ease: MOTION_EASE_OUT,
                       }}
-                      className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors duration-100 hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                      className="group/item flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors duration-150 hover:bg-foreground/5 focus-visible:outline-2 focus-visible:outline-ring"
                     >
+                      <span
+                        aria-hidden="true"
+                        className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary-text [&_svg]:size-4"
+                      >
+                        <TipIcon id={tip.id} />
+                      </span>
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-sm font-medium">
                           {t(keys.title, { mod })}
@@ -119,7 +126,7 @@ export function PaidWelcomeDialog({
                       </span>
                       <LuChevronRight
                         aria-hidden="true"
-                        className="size-4 shrink-0 text-muted-foreground"
+                        className="size-4 shrink-0 text-muted-foreground transition-transform duration-150 ease-[var(--ease-out)] group-hover/item:translate-x-0.5 motion-reduce:transition-none"
                       />
                     </motion.button>
                   </li>

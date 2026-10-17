@@ -6,32 +6,62 @@ import {
   type Transition,
   useReducedMotion,
 } from "motion/react";
-import type { ReactNode } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 import { cn } from "@/lib/utils";
+
+/** A faint dot grid behind a drawing, in the theme's own foreground. */
+export const SCENE_GRID_CLASS =
+  "[background-image:radial-gradient(color-mix(in_oklab,var(--foreground)_11%,transparent)_1px,transparent_1.2px)] [background-size:16px_16px] [background-position:8px_8px]";
 
 export const VIEW_W = 320;
 export const VIEW_H = 160;
+
+const ScenePlaybackContext = createContext(true);
+
+/**
+ * Pauses every scene inside on its resting frame. The inline tip plays its
+ * scene a few times and then rests, so the main page does not run an
+ * animation all day.
+ */
+export function ScenePlayback({
+  playing,
+  children,
+}: {
+  playing: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <ScenePlaybackContext.Provider value={playing}>
+      {children}
+    </ScenePlaybackContext.Provider>
+  );
+}
 
 /**
  * Shared timing for one looping scene. Every element in a scene keys off the
  * same duration and its own `times`, so the parts stay in step without any
  * orchestration. With reduced motion a scene shows its resting frame: the
- * last keyframe of every value, no loop.
+ * last keyframe of every value, no loop. A paused scene eases into the same
+ * frame.
  */
 export function useScene(duration: number) {
-  const reduce = useReducedMotion() ?? false;
+  const reduceMotion = useReducedMotion() ?? false;
+  const playing = useContext(ScenePlaybackContext);
+  const reduce = reduceMotion || !playing;
   const kf = <T,>(values: T[]): T | T[] =>
     reduce ? (values[values.length - 1] as T) : values;
   const tr = (times: number[], extra?: Transition): Transition =>
-    reduce
+    reduceMotion
       ? { duration: 0 }
-      : {
-          duration,
-          times,
-          repeat: Number.POSITIVE_INFINITY,
-          ease: "easeInOut",
-          ...extra,
-        };
+      : !playing
+        ? { duration: 0.4, ease: "easeOut" }
+        : {
+            duration,
+            times,
+            repeat: Number.POSITIVE_INFINITY,
+            ease: "easeInOut",
+            ...extra,
+          };
   return { reduce, kf, tr };
 }
 

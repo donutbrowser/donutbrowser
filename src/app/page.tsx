@@ -56,6 +56,7 @@ import { SyncFollowerDialog } from "@/components/sync-follower-dialog";
 import { SynchronizerPanel } from "@/components/synchronizer-panel";
 import { TableFilterControls } from "@/components/table-controls";
 import { ThankYouDialog } from "@/components/thank-you-dialog";
+import { InlineTip } from "@/components/tips/inline-tip";
 import { TipsDialog } from "@/components/tips-dialog";
 import { TotpToolDialog } from "@/components/totp-code";
 import { TrashPage } from "@/components/trash-page";
@@ -349,7 +350,11 @@ export default function Home() {
   } = useCommercialTrial();
 
   // Cloud auth for cross-OS unlock
-  const { user: cloudUser, loggedInAt: cloudLoggedInAt } = useCloudAuth();
+  const {
+    user: cloudUser,
+    loggedInAt: cloudLoggedInAt,
+    isLoading: cloudAuthLoading,
+  } = useCloudAuth();
   const crossOsUnlocked = getEntitlements(cloudUser).crossOsFingerprints;
   // Shown once when the commercial trial runs out; modal, so it goes first.
   const commercialTrialModalOpen =
@@ -381,7 +386,9 @@ export default function Home() {
       const hasConfig = Boolean(
         settings.sync_server_url && settings.sync_token,
       );
-      setSelfHostedSyncConfigured(hasConfig && !cloudUser);
+      setSelfHostedSyncConfigured(
+        hasConfig && (settings.source === "self_hosted" || !cloudUser),
+      );
     } catch {
       setSelfHostedSyncConfigured(false);
     }
@@ -396,13 +403,14 @@ export default function Home() {
 
   // Feature tips and the paid-plan welcome wait for a settled app: not the
   // first-run session, terms accepted, nothing modal in the way. The usage
-  // lists let the automatic tip skip a feature the user already has in use.
+  // lists let the inline tip skip a feature the user already has in use.
   const tipUsage = useMemo(
     () => ({
       loaded: !groupsLoading && !proxiesLoading && !cookieBotLoading,
       profiles,
       groupCount: groupsData.length,
       extensionGroupCount: extensionGroups.length,
+      vpnCount: vpnConfigs.length,
       cookieBotEnrolled:
         Object.keys(cookieBotSchedules).length > 0 ||
         Object.keys(cookieBotLiveSessions).length > 0,
@@ -416,6 +424,7 @@ export default function Home() {
       profiles,
       groupsData.length,
       extensionGroups.length,
+      vpnConfigs.length,
       cookieBotSchedules,
       cookieBotLiveSessions,
       selfHostedSyncConfigured,
@@ -431,13 +440,6 @@ export default function Home() {
     !termsLoading &&
     termsAccepted === true &&
     !commercialTrialModalOpen;
-  const tipsFlow = useTips({
-    cloudUser,
-    loggedInAt: cloudLoggedInAt,
-    ready: settledLaunch,
-    usage: tipUsage,
-  });
-  const { openTips, closeTips } = tipsFlow;
 
   const [currentPage, setCurrentPage] = useState<AppPage>("profiles");
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
@@ -670,6 +672,22 @@ export default function Home() {
     pageVisible: currentPage === "agent",
   });
 
+  const tipsFlow = useTips({
+    cloudUser,
+    accountLoading: cloudAuthLoading,
+    loggedInAt: cloudLoggedInAt,
+    ready: settledLaunch,
+    usage: tipUsage,
+    activity: {
+      page: currentPage,
+      paletteOpen: commandPaletteOpen,
+      searchQuery,
+      totpOpen: totpToolOpen,
+      synchronizing: syncSessions.length > 0,
+    },
+  });
+  const { openTips, closeTips } = tipsFlow;
+
   const runTipAction = useCallback(
     (action: TipAction) => {
       closeTips();
@@ -689,9 +707,21 @@ export default function Home() {
         case "feedback":
           setFeedbackDialogOpen(true);
           break;
+        case "search":
+          handleRailNavigate("profiles");
+          setSelectedProfiles([]);
+          setSearchQuery(action.query);
+          break;
+        case "createProfile":
+          handleRailNavigate("profiles");
+          openCreateProfile();
+          break;
+        case "totp":
+          setTotpToolOpen(true);
+          break;
       }
     },
-    [closeTips, handleRailNavigate],
+    [closeTips, handleRailNavigate, openCreateProfile],
   );
 
   const runShortcut = useCallback(
@@ -2293,9 +2323,18 @@ export default function Home() {
     }
   }, [isInitialized, firstRunOnboarding, checkAllPermissions]);
 
-  // Check self-hosted sync config on mount and when cloud user changes
+  // Check self-hosted sync config on mount, when cloud user changes, and when
+  // a signed-in device picks where it syncs.
   useEffect(() => {
     void checkSelfHostedSync();
+    const unlisten = listen("sync-source-changed", () => {
+      void checkSelfHostedSync();
+    });
+    return () => {
+      void unlisten.then((stop) => {
+        stop();
+      });
+    };
   }, [checkSelfHostedSync]);
 
   // A profile stores ids, and the query asks about names, so the matcher is
@@ -2368,6 +2407,8 @@ export default function Home() {
           canCreateProfiles={!teamReadOnly}
           searchQuery={searchQuery}
           onSearchQueryChange={changeProfileSearch}
+          searchProfiles={profilesInGroup}
+          searchContext={searchContext}
           groups={groupsData}
           totalProfiles={profiles.length}
           selectedGroupId={selectedGroupId}
@@ -2473,12 +2514,22 @@ export default function Home() {
                     handleRailNavigate("import");
                   }}
                 />
+                <InlineTip
+                  flow={tipsFlow}
+                  page={currentPage}
+                  onAction={runTipAction}
+                />
               </div>
             )}
 
             {currentPage === "shortcuts" && (
               <div className="flex min-h-0 flex-1 flex-col">
-                <ShortcutsPage groupTargets={orderedGroupTargets} />
+                <ShortcutsPage
+                  groupTargets={orderedGroupTargets}
+                  onOpenPalette={() => {
+                    setCommandPaletteOpen(true);
+                  }}
+                />
               </div>
             )}
 
@@ -2732,11 +2783,9 @@ export default function Home() {
         <TipsDialog
           key={tipsFlow.dialog.session}
           open={tipsFlow.dialog.open}
-          mode={tipsFlow.dialog.mode}
           tips={tipsFlow.tips}
           seen={tipsFlow.seen}
           initialTipId={tipsFlow.dialog.initialTipId}
-          auto={tipsFlow.dialog.auto}
           autoShow={tipsFlow.autoShow}
           onOpenChange={(open) => {
             if (!open) closeTips();

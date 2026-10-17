@@ -157,6 +157,11 @@ pub struct AppSettings {
   /// `set_account_sync_server`, never by a settings save.
   #[serde(default)]
   pub account_sync_server_url: Option<String>,
+  /// The source a signed-in device syncs with, when its person picked one
+  /// (`sync::account_server`). Owned by `set_sync_source` and
+  /// `set_account_sync_server`, never by a settings save.
+  #[serde(default)]
+  pub sync_source: Option<crate::sync::account_server::SyncSourceKind>,
   #[serde(default)]
   pub first_launch_timestamp: Option<u64>, // Unix epoch seconds when app was first launched
   #[serde(default)]
@@ -205,23 +210,31 @@ pub struct AppSettings {
   /// copy is always re-encrypted regardless of this flag.
   #[serde(default)]
   pub keep_decrypted_profiles_in_ram: bool,
-  /// Feature tips. Whether one tip the user has not seen yet may open by
-  /// itself shortly after launch. Off is the user's choice, made in the tips
-  /// dialog.
+  /// Feature tips. Whether a tip may appear on the Profiles page, at most
+  /// one a day. Off is the user's choice, made in the tips catalog or on the
+  /// tip itself.
   #[serde(default = "default_tips_auto_show")]
   pub tips_auto_show: bool,
-  /// Ids of the tips that have been shown, in the automatic or the browse
-  /// flow, so the automatic flow never repeats one.
+  /// Ids of the tips that have been read: shown in the catalog, or dismissed
+  /// or acted on where they appeared. The inline tip never repeats one.
   #[serde(default)]
   pub tips_seen: Vec<String>,
-  /// Unix seconds of the last tip that opened by itself.
+  /// Unix seconds when the last inline tip appeared.
   #[serde(default)]
   pub tips_last_auto_shown_at: Option<u64>,
-  /// Unix seconds before which no tip opens by itself. Drawn once, when an
-  /// automatic tip opens, a random 2 to 5 days later, so a restart keeps the
-  /// same wait.
+  /// Unix seconds before which no new inline tip appears. Set when one is
+  /// closed: the next local day, and at least `TIPS_INLINE_MIN_GAP_SECS`
+  /// later, so a restart keeps the same wait.
   #[serde(default)]
   pub tips_next_auto_show_at: Option<u64>,
+  /// The tip on the Profiles page now. It stays, across restarts, until it is
+  /// dismissed, acted on, or read in the catalog.
+  #[serde(default)]
+  pub tips_inline: Option<String>,
+  /// Features seen in use that leave no other trace, such as the command
+  /// palette or a field search. Their tips are not shown.
+  #[serde(default)]
+  pub tips_used: Vec<String>,
   /// Unix seconds when the person last sent feedback from the app. Only the
   /// feedback command writes it; the feedback tip is not offered once set.
   #[serde(default)]
@@ -277,6 +290,8 @@ pub struct AppSettings {
 pub struct SyncSettings {
   pub sync_server_url: Option<String>,
   pub sync_token: Option<String>, // Only populated when reading, not stored in JSON
+  #[serde(default)]
+  pub source: Option<crate::sync::account_server::SyncSourceKind>,
 }
 
 fn default_theme() -> String {
@@ -327,11 +342,10 @@ where
   Ok(volume.round().clamp(0.0, f64::from(MAX_UI_SOUND_VOLUME)) as u8)
 }
 
-/// The automatic tip flow waits a random gap between two tips, drawn from
-/// this range (both ends included), so tips arrive now and then instead of on
-/// a fixed day and a busy day of restarts never turns into a tip per launch.
-pub const TIPS_AUTO_GAP_MIN_SECS: u64 = 2 * 24 * 60 * 60;
-pub const TIPS_AUTO_GAP_MAX_SECS: u64 = 5 * 24 * 60 * 60;
+/// The shortest wait between closing one inline tip and the next one. With
+/// the next-day rule, a tip closed late in the evening does not make room for
+/// another a few minutes later, just after midnight.
+pub const TIPS_INLINE_MIN_GAP_SECS: u64 = 12 * 60 * 60;
 
 /// The plan status remembered per cloud user.
 const PLAN_STATUS_PAID: &str = "paid";
@@ -348,6 +362,7 @@ impl Default for AppSettings {
       api_token: None,
       sync_server_url: None,
       account_sync_server_url: None,
+      sync_source: None,
       first_launch_timestamp: None,
       commercial_trial_acknowledged: false,
       mcp_remote_enabled: false,
@@ -364,6 +379,8 @@ impl Default for AppSettings {
       tips_seen: Vec::new(),
       tips_last_auto_shown_at: None,
       tips_next_auto_show_at: None,
+      tips_inline: None,
+      tips_used: Vec::new(),
       feedback_sent_at: None,
       paid_welcome_seen_for: Vec::new(),
       cloud_plan_memory: std::collections::HashMap::new(),
@@ -658,14 +675,6 @@ impl SettingsManager {
     Ok(())
   }
 
-  pub fn get_sync_settings(&self) -> Result<SyncSettings, Box<dyn std::error::Error>> {
-    let settings = self.load_settings()?;
-    Ok(SyncSettings {
-      sync_server_url: settings.sync_server_url,
-      sync_token: None, // Token needs to be loaded separately via async method
-    })
-  }
-
   pub fn save_sync_server_url(
     &self,
     url: Option<String>,
@@ -755,19 +764,26 @@ pub async fn save_app_settings(
   // never the frontend's to write.
   settings.trash_retention_days = settings.trash_retention_days.min(MAX_TRASH_RETENTION_DAYS);
   let mut previous_retention = None;
+  // A tips command between this read and the save below would be lost.
+  let tips_serial = TIPS_WRITE
+    .lock()
+    .unwrap_or_else(|poisoned| poisoned.into_inner());
   if let Ok(content) = std::fs::read_to_string(manager.get_settings_file()) {
     if let Ok(current) = serde_json::from_str::<AppSettings>(&content) {
       previous_retention = Some(current.trash_retention_days);
+      keep_tips_state(&mut settings, &current);
       settings.window_resize_warning_dismissed = current.window_resize_warning_dismissed;
       settings.mcp_remote_enabled = current.mcp_remote_enabled;
       settings.mcp_remote_key_id = current.mcp_remote_key_id;
       settings.feedback_sent_at = current.feedback_sent_at;
       settings.account_sync_server_url = current.account_sync_server_url;
+      settings.sync_source = current.sync_source;
     }
   } else {
     settings.mcp_remote_enabled = false;
     settings.mcp_remote_key_id = None;
     settings.account_sync_server_url = None;
+    settings.sync_source = None;
   }
 
   let mut persist_settings = settings.clone();
@@ -786,6 +802,7 @@ pub async fn save_app_settings(
   manager
     .save_settings(&persist_settings)
     .map_err(|e| format!("Failed to save settings: {e}"))?;
+  drop(tips_serial);
 
   // A shorter retention applies to what is already in the trash. Sweep now
   // rather than at the next six-hourly pass, so "delete after 1 day" does not
@@ -945,40 +962,38 @@ pub async fn save_table_sorting_settings(sorting: TableSortingSettings) -> Resul
 
 #[tauri::command]
 pub async fn get_sync_settings(app_handle: tauri::AppHandle) -> Result<SyncSettings, String> {
-  // Cloud auth takes priority over self-hosted settings
-  if let Some(server) = crate::sync::account_server::configured().await {
-    let sync_token = crate::cloud_auth::CLOUD_AUTH
-      .server_sync_token(&server)
-      .await
-      .ok();
-    return Ok(SyncSettings {
-      sync_server_url: Some(server),
-      sync_token,
-    });
-  }
-  if crate::cloud_auth::CLOUD_AUTH.is_logged_in().await {
-    let sync_token = crate::cloud_auth::CLOUD_AUTH
-      .get_or_refresh_sync_token()
-      .await
-      .map_err(|e| format!("Failed to get cloud sync token: {e}"))?;
-    return Ok(SyncSettings {
-      sync_server_url: Some(crate::cloud_auth::CLOUD_SYNC_URL.to_string()),
-      sync_token,
-    });
-  }
+  use crate::sync::account_server::SyncSource;
 
-  // Fall back to self-hosted settings
-  let manager = SettingsManager::instance();
-  let mut sync_settings = manager
-    .get_sync_settings()
-    .map_err(|e| format!("Failed to load sync settings: {e}"))?;
-
-  sync_settings.sync_token = manager
-    .get_sync_token(&app_handle)
-    .await
-    .map_err(|e| format!("Failed to load sync token: {e}"))?;
-
-  Ok(sync_settings)
+  let source = crate::sync::account_server::current().await;
+  let (sync_server_url, sync_token) = match &source {
+    Some(SyncSource::Account(server)) => (
+      Some(server.clone()),
+      crate::cloud_auth::CLOUD_AUTH
+        .server_sync_token(server)
+        .await
+        .ok(),
+    ),
+    Some(SyncSource::Cloud) => (
+      Some(crate::cloud_auth::CLOUD_SYNC_URL.to_string()),
+      crate::cloud_auth::CLOUD_AUTH
+        .get_or_refresh_sync_token()
+        .await
+        .map_err(|e| format!("Failed to get cloud sync token: {e}"))?,
+    ),
+    Some(SyncSource::SelfHosted(server)) => (
+      Some(server.clone()),
+      SettingsManager::instance()
+        .get_sync_token(&app_handle)
+        .await
+        .map_err(|e| format!("Failed to load sync token: {e}"))?,
+    ),
+    None => (None, None),
+  };
+  Ok(SyncSettings {
+    sync_server_url,
+    sync_token,
+    source: source.map(|source| source.kind()),
+  })
 }
 
 #[tauri::command]
@@ -1019,6 +1034,9 @@ pub async fn save_sync_settings(
   Ok(SyncSettings {
     sync_server_url,
     sync_token,
+    source: crate::sync::account_server::current()
+      .await
+      .map(|source| source.kind()),
   })
 }
 
@@ -1064,45 +1082,73 @@ pub async fn complete_onboarding() -> Result<(), String> {
     .map_err(|e| format!("Failed to save settings: {e}"))
 }
 
-/// What the tips dialog needs to decide what to open and what to skip.
+/// What the tips flow needs to decide what to show and what to skip.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct TipsState {
   pub auto_show: bool,
   pub seen: Vec<String>,
+  /// Features seen in use that leave no other trace.
+  pub used: Vec<String>,
+  /// The tip on the Profiles page now, if any.
+  pub inline_tip: Option<String>,
   pub last_auto_shown_at: Option<u64>,
-  /// Unix seconds from which the next automatic tip may open, or `None`
-  /// before the first one.
+  /// Unix seconds from which a new inline tip may appear, or `None` before
+  /// the first one closes.
   pub next_auto_show_at: Option<u64>,
-  /// Whether the automatic flow may open a tip right now: it is switched on
-  /// and the wait after the last automatic tip is over.
+  /// Whether a new inline tip may appear right now: tips are on, none is on
+  /// the page, and the wait after the last one is over.
   pub auto_due: bool,
 }
 
 impl TipsState {
   fn of(settings: &AppSettings, now: u64) -> Self {
-    // Settings written before the random gap existed carry only the time of
-    // the last automatic tip; the shortest gap applies to those.
+    // Settings from versions that stored no wait carry only the time of the
+    // last automatic tip; the shortest wait applies to those. A tip on the
+    // page has no wait yet: closing it sets one.
     let next_auto_show_at = settings.tips_next_auto_show_at.or_else(|| {
       settings
         .tips_last_auto_shown_at
-        .map(|last| last.saturating_add(TIPS_AUTO_GAP_MIN_SECS))
+        .filter(|_| settings.tips_inline.is_none())
+        .map(|last| last.saturating_add(TIPS_INLINE_MIN_GAP_SECS))
     });
     Self {
       auto_show: settings.tips_auto_show,
       seen: settings.tips_seen.clone(),
+      used: settings.tips_used.clone(),
+      inline_tip: settings.tips_inline.clone(),
       last_auto_shown_at: settings.tips_last_auto_shown_at,
       next_auto_show_at,
-      auto_due: settings.tips_auto_show && next_auto_show_at.is_none_or(|next| now >= next),
+      auto_due: settings.tips_auto_show
+        && settings.tips_inline.is_none()
+        && next_auto_show_at.is_none_or(|next| now >= next),
     }
   }
 }
 
-/// When the next automatic tip may open, after one opened at `now`. `roll` is
-/// any random number; it selects a gap from `TIPS_AUTO_GAP_MIN_SECS` to
-/// `TIPS_AUTO_GAP_MAX_SECS`.
-fn next_auto_tip_at(now: u64, roll: u64) -> u64 {
-  let span = TIPS_AUTO_GAP_MAX_SECS - TIPS_AUTO_GAP_MIN_SECS + 1;
-  now.saturating_add(TIPS_AUTO_GAP_MIN_SECS + roll % span)
+/// When the next inline tip may appear, after one closed at `now`: the start
+/// of the next day in `tz`, and never sooner than `TIPS_INLINE_MIN_GAP_SECS`.
+/// A midnight that a clock change repeats counts at its first occurrence; one
+/// it skips moves to the first local time that exists.
+fn next_inline_tip_at<Tz: chrono::TimeZone>(now: u64, tz: &Tz) -> u64 {
+  let earliest = now.saturating_add(TIPS_INLINE_MIN_GAP_SECS);
+  let Some(today) = i64::try_from(now)
+    .ok()
+    .and_then(|secs| tz.timestamp_opt(secs, 0).earliest())
+    .map(|local| local.date_naive())
+  else {
+    return earliest;
+  };
+  let next_day = today
+    .succ_opt()
+    .and_then(|day| day.and_hms_opt(0, 0, 0))
+    .and_then(|midnight| {
+      (0..=24).find_map(|quarter| {
+        tz.from_local_datetime(&(midnight + chrono::Duration::minutes(15 * quarter)))
+          .earliest()
+      })
+    })
+    .and_then(|start| u64::try_from(start.timestamp()).ok());
+  next_day.map_or(earliest, |start| start.max(earliest))
 }
 
 /// Serialises every read-modify-write of the tips fields. Two tips shown in
@@ -1117,22 +1163,109 @@ fn unix_now() -> u64 {
     .unwrap_or(0)
 }
 
-/// Remembers a tip as shown. `auto` marks it as the tip that opened by
-/// itself, which starts a new random wait (see `next_auto_tip_at`) unless
-/// one is still running, so a repeated report of the same tip draws nothing.
-fn record_tip_seen(settings: &mut AppSettings, tip_id: &str, auto: bool, now: u64, roll: u64) {
-  if !settings.tips_seen.iter().any(|id| id == tip_id) {
+fn listed(list: &[String], id: &str) -> bool {
+  list.iter().any(|item| item == id)
+}
+
+/// Takes the inline tip off the page when it is `tip_id`, and starts the
+/// wait for the next one.
+fn close_inline_tip<Tz: chrono::TimeZone>(
+  settings: &mut AppSettings,
+  tip_id: &str,
+  now: u64,
+  tz: &Tz,
+) {
+  if settings.tips_inline.as_deref() != Some(tip_id) {
+    return;
+  }
+  settings.tips_inline = None;
+  settings.tips_next_auto_show_at = Some(next_inline_tip_at(now, tz));
+}
+
+/// Remembers a tip as read: shown in the catalog, or dismissed or acted on
+/// on the Profiles page. Reading the inline tip closes it.
+fn record_tip_seen<Tz: chrono::TimeZone>(
+  settings: &mut AppSettings,
+  tip_id: &str,
+  now: u64,
+  tz: &Tz,
+) {
+  if !listed(&settings.tips_seen, tip_id) {
     settings.tips_seen.push(tip_id.to_string());
   }
-  if auto {
-    settings.tips_last_auto_shown_at = Some(now);
-    if settings
-      .tips_next_auto_show_at
-      .is_none_or(|next| next <= now)
-    {
-      settings.tips_next_auto_show_at = Some(next_auto_tip_at(now, roll));
+  close_inline_tip(settings, tip_id, now, tz);
+}
+
+/// Puts `tip_id` on the Profiles page if a new tip is due and the tip is
+/// neither read nor about a feature in use. Answers whether it did.
+fn pin_inline_tip(settings: &mut AppSettings, tip_id: &str, now: u64) -> bool {
+  if !TipsState::of(settings, now).auto_due
+    || listed(&settings.tips_seen, tip_id)
+    || listed(&settings.tips_used, tip_id)
+  {
+    return false;
+  }
+  settings.tips_inline = Some(tip_id.to_string());
+  settings.tips_last_auto_shown_at = Some(now);
+  true
+}
+
+/// Takes the inline tip off the page unread, when this seat may no longer see
+/// it (the plan that offered it is gone). It goes back to the pool, and the
+/// next tip still waits for the day after this one appeared.
+fn unpin_inline_tip<Tz: chrono::TimeZone>(settings: &mut AppSettings, tip_id: &str, tz: &Tz) {
+  if settings.tips_inline.as_deref() != Some(tip_id) {
+    return;
+  }
+  settings.tips_inline = None;
+  settings.tips_next_auto_show_at = settings
+    .tips_last_auto_shown_at
+    .map(|shown| next_inline_tip_at(shown, tz));
+}
+
+/// Notes a feature in use. Its tip is not shown again, and leaves the page
+/// if it is there.
+fn note_feature_used<Tz: chrono::TimeZone>(
+  settings: &mut AppSettings,
+  tip_id: &str,
+  now: u64,
+  tz: &Tz,
+) {
+  if !listed(&settings.tips_used, tip_id) {
+    settings.tips_used.push(tip_id.to_string());
+  }
+  close_inline_tip(settings, tip_id, now, tz);
+}
+
+/// Switched off, tips stop appearing and the one on the page goes, unread.
+/// It counts as the day's tip, so switching back on brings none before the
+/// next day.
+fn apply_tips_auto_show<Tz: chrono::TimeZone>(
+  settings: &mut AppSettings,
+  enabled: bool,
+  now: u64,
+  tz: &Tz,
+) {
+  settings.tips_auto_show = enabled;
+  if !enabled {
+    if let Some(tip_id) = settings.tips_inline.clone() {
+      close_inline_tip(settings, &tip_id, now, tz);
     }
   }
+}
+
+/// The tips and paid-welcome fields are written only by their own commands.
+/// A settings save carries the copy the Settings page loaded, which can be
+/// older, so these come from the stored settings instead.
+fn keep_tips_state(settings: &mut AppSettings, current: &AppSettings) {
+  settings.tips_auto_show = current.tips_auto_show;
+  settings.tips_seen = current.tips_seen.clone();
+  settings.tips_used = current.tips_used.clone();
+  settings.tips_inline = current.tips_inline.clone();
+  settings.tips_last_auto_shown_at = current.tips_last_auto_shown_at;
+  settings.tips_next_auto_show_at = current.tips_next_auto_show_at;
+  settings.paid_welcome_seen_for = current.paid_welcome_seen_for.clone();
+  settings.cloud_plan_memory = current.cloud_plan_memory.clone();
 }
 
 /// Records the plan status seen for a cloud account and answers whether the
@@ -1186,8 +1319,9 @@ pub async fn get_tips_state() -> Result<TipsState, String> {
   Ok(TipsState::of(&settings, unix_now()))
 }
 
-#[tauri::command]
-pub async fn mark_tip_seen(tip_id: String, auto: bool) -> Result<TipsState, String> {
+/// Loads the settings, applies `change` under the tips lock, saves them, and
+/// answers the new tips state.
+fn update_tips(change: impl FnOnce(&mut AppSettings, u64)) -> Result<TipsState, String> {
   let _serial = TIPS_WRITE
     .lock()
     .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -1196,11 +1330,33 @@ pub async fn mark_tip_seen(tip_id: String, auto: bool) -> Result<TipsState, Stri
     .load_settings()
     .map_err(|e| format!("Failed to load settings: {e}"))?;
   let now = unix_now();
-  record_tip_seen(&mut settings, &tip_id, auto, now, rand::random::<u64>());
+  change(&mut settings, now);
   manager
     .save_settings(&settings)
     .map_err(|e| format!("Failed to save settings: {e}"))?;
   Ok(TipsState::of(&settings, now))
+}
+
+#[tauri::command]
+pub async fn mark_tip_seen(tip_id: String) -> Result<TipsState, String> {
+  update_tips(|settings, now| record_tip_seen(settings, &tip_id, now, &chrono::Local))
+}
+
+#[tauri::command]
+pub async fn show_inline_tip(tip_id: String) -> Result<TipsState, String> {
+  update_tips(|settings, now| {
+    pin_inline_tip(settings, &tip_id, now);
+  })
+}
+
+#[tauri::command]
+pub async fn release_inline_tip(tip_id: String) -> Result<TipsState, String> {
+  update_tips(|settings, _| unpin_inline_tip(settings, &tip_id, &chrono::Local))
+}
+
+#[tauri::command]
+pub async fn note_tip_feature_used(tip_id: String) -> Result<TipsState, String> {
+  update_tips(|settings, now| note_feature_used(settings, &tip_id, now, &chrono::Local))
 }
 
 /// Remember that the person has sent feedback, so the feedback tip is not
@@ -1221,18 +1377,7 @@ pub(crate) fn note_feedback_sent() {
 
 #[tauri::command]
 pub async fn set_tips_auto_show(enabled: bool) -> Result<TipsState, String> {
-  let _serial = TIPS_WRITE
-    .lock()
-    .unwrap_or_else(|poisoned| poisoned.into_inner());
-  let manager = SettingsManager::instance();
-  let mut settings = manager
-    .load_settings()
-    .map_err(|e| format!("Failed to load settings: {e}"))?;
-  settings.tips_auto_show = enabled;
-  manager
-    .save_settings(&settings)
-    .map_err(|e| format!("Failed to save settings: {e}"))?;
-  Ok(TipsState::of(&settings, unix_now()))
+  update_tips(|settings, now| apply_tips_auto_show(settings, enabled, now, &chrono::Local))
 }
 
 #[tauri::command]
@@ -1326,91 +1471,276 @@ mod tests {
     let (_manager, _temp_dir, _guard) = create_test_settings_manager();
   }
 
+  const HOUR: u64 = 60 * 60;
+  const DAY: u64 = 24 * HOUR;
+  /// A UTC midnight.
+  const MIDNIGHT: u64 = 20_000 * DAY;
+
   #[test]
-  fn tips_state_defaults_to_automatic_and_due() {
-    let settings = AppSettings::default();
-    let state = TipsState::of(&settings, 1_000_000);
+  fn tips_state_defaults_to_on_and_due() {
+    let state = TipsState::of(&AppSettings::default(), 1_000_000);
     assert!(state.auto_show);
-    assert!(state.seen.is_empty());
-    assert_eq!(state.last_auto_shown_at, None);
+    assert!(state.seen.is_empty() && state.used.is_empty());
+    assert_eq!(state.inline_tip, None);
     assert_eq!(state.next_auto_show_at, None);
     assert!(state.auto_due, "a fresh install owes its first tip");
   }
 
   #[test]
-  fn the_gap_between_automatic_tips_is_two_to_five_days() {
-    const DAY: u64 = 24 * 60 * 60;
-    let now = 1_000;
-    assert_eq!(next_auto_tip_at(now, 0), now + 2 * DAY);
-    let span = TIPS_AUTO_GAP_MAX_SECS - TIPS_AUTO_GAP_MIN_SECS + 1;
-    assert_eq!(next_auto_tip_at(now, span - 1), now + 5 * DAY);
-    assert_eq!(next_auto_tip_at(now, span), now + 2 * DAY, "the roll wraps");
-    for roll in [1, 7, DAY, 3 * DAY + 11, u64::MAX / 3, u64::MAX] {
-      let next = next_auto_tip_at(now, roll);
-      assert!(
-        (now + 2 * DAY..=now + 5 * DAY).contains(&next),
-        "roll {roll} gave a gap of {} seconds",
-        next - now
-      );
+  fn the_next_inline_tip_waits_for_the_next_local_day() {
+    let utc = chrono::Utc;
+    let zone = |hours: i32| chrono::FixedOffset::east_opt(hours * 3600).expect("offset");
+    assert_eq!(
+      next_inline_tip_at(MIDNIGHT + 9 * HOUR, &utc),
+      MIDNIGHT + DAY,
+      "closed in the morning, the next may come at midnight"
+    );
+    assert_eq!(
+      next_inline_tip_at(MIDNIGHT + 23 * HOUR, &utc),
+      MIDNIGHT + DAY + 11 * HOUR,
+      "closed late, the next waits the shortest gap"
+    );
+    assert_eq!(
+      next_inline_tip_at(MIDNIGHT + 5 * HOUR, &zone(4)),
+      MIDNIGHT + 20 * HOUR,
+      "UTC+4: 09:00 local, so the local midnight is 20:00 UTC"
+    );
+    assert_eq!(
+      next_inline_tip_at(MIDNIGHT + 16 * HOUR, &zone(-7)),
+      MIDNIGHT + DAY + 7 * HOUR,
+      "UTC-7: 09:00 local, so the local midnight is 07:00 UTC"
+    );
+    for seconds in [-12 * 3600, -7 * 3600, 0, 5 * 3600 + 1800, 14 * 3600] {
+      let tz = chrono::FixedOffset::east_opt(seconds).expect("offset");
+      let local_day = |at: u64| (at as i64 + i64::from(seconds)).div_euclid(DAY as i64);
+      for minute in (0..24 * 60).step_by(17) {
+        let now = MIDNIGHT + minute * 60;
+        let next = next_inline_tip_at(now, &tz);
+        assert!(
+          local_day(next) > local_day(now),
+          "offset {seconds}, minute {minute}: never the same local day"
+        );
+        assert!(next >= now + TIPS_INLINE_MIN_GAP_SECS);
+        assert!(next <= now + DAY);
+      }
     }
-    assert_eq!(next_auto_tip_at(u64::MAX - 1, 5), u64::MAX, "no overflow");
+    assert_eq!(
+      next_inline_tip_at(u64::MAX - 1, &utc),
+      u64::MAX,
+      "no overflow"
+    );
   }
 
   #[test]
-  fn tips_seen_dedupes_and_paces_the_automatic_flow() {
-    const DAY: u64 = 24 * 60 * 60;
-    let mut settings = AppSettings::default();
-    record_tip_seen(&mut settings, "dns", false, 100, 0);
-    record_tip_seen(&mut settings, "dns", false, 200, 0);
-    assert_eq!(settings.tips_seen, vec!["dns".to_string()]);
+  fn the_next_day_survives_clock_changes_at_midnight() {
+    use chrono::TimeZone;
+    let tz = chrono_tz::America::Sao_Paulo;
+    let at = |y, m, d, h| {
+      u64::try_from(
+        chrono::Utc
+          .with_ymd_and_hms(y, m, d, h, 0, 0)
+          .single()
+          .expect("utc time")
+          .timestamp(),
+      )
+      .expect("after 1970")
+    };
+    // 2019-02-17 00:00 (UTC-2) went back to 2019-02-16 23:00 (UTC-3). The
+    // offset of the morning would put the next day at 23:00 the same day.
     assert_eq!(
-      settings.tips_last_auto_shown_at, None,
-      "a browsed tip must not start a wait"
+      next_inline_tip_at(at(2019, 2, 16, 12), &tz),
+      at(2019, 2, 17, 3),
+      "the next day starts at 00:00 UTC-3"
+    );
+    // 2018-11-04 00:00 (UTC-3) jumped to 01:00 (UTC-2): no midnight that day.
+    assert_eq!(
+      next_inline_tip_at(at(2018, 11, 3, 13), &tz),
+      at(2018, 11, 4, 3),
+      "the next day starts at its first local time, 01:00 UTC-2"
+    );
+  }
+
+  #[test]
+  fn one_inline_tip_stays_until_closed_and_the_next_waits_a_day() {
+    let mut settings = AppSettings::default();
+    let now = MIDNIGHT + 10 * HOUR;
+    assert!(pin_inline_tip(&mut settings, "vpn", now));
+    assert_eq!(settings.tips_last_auto_shown_at, Some(now));
+    let later = TipsState::of(&settings, now + 3 * DAY);
+    assert_eq!(later.next_auto_show_at, None, "no wait while it is up");
+    assert_eq!(
+      later.inline_tip.as_deref(),
+      Some("vpn"),
+      "it stays across restarts"
+    );
+    assert!(!later.auto_due, "one tip at a time");
+    assert!(!pin_inline_tip(&mut settings, "trash", now + HOUR));
+    assert_eq!(settings.tips_inline.as_deref(), Some("vpn"));
+
+    record_tip_seen(&mut settings, "groups", now + HOUR, &chrono::Utc);
+    assert_eq!(
+      settings.tips_inline.as_deref(),
+      Some("vpn"),
+      "reading another tip in the catalog leaves the inline one"
     );
     assert_eq!(settings.tips_next_auto_show_at, None);
 
-    // A roll of one day past the minimum: this tip's gap is three days.
-    record_tip_seen(&mut settings, "proxy", true, 1_000, DAY);
-    assert_eq!(settings.tips_last_auto_shown_at, Some(1_000));
-    let next = 1_000 + 3 * DAY;
-    assert_eq!(settings.tips_next_auto_show_at, Some(next));
-    let state = TipsState::of(&settings, next - 1);
-    assert_eq!(state.next_auto_show_at, Some(next));
-    assert!(!state.auto_due, "the next automatic tip waits out the gap");
-    assert!(TipsState::of(&settings, next).auto_due);
-
-    // The same automatic tip reported again, or a browsed one, while the gap
-    // runs does not draw a new one.
-    record_tip_seen(&mut settings, "proxy", true, 1_500, 0);
-    record_tip_seen(&mut settings, "groups", false, 1_600, 0);
-    assert_eq!(settings.tips_next_auto_show_at, Some(next));
-
-    // Once the gap is over, the next automatic tip draws a fresh one.
-    record_tip_seen(&mut settings, "groups", true, next + 10, 0);
+    record_tip_seen(&mut settings, "vpn", now + 2 * HOUR, &chrono::Utc);
+    assert_eq!(settings.tips_inline, None);
     assert_eq!(
-      settings.tips_next_auto_show_at,
-      Some(next + 10 + TIPS_AUTO_GAP_MIN_SECS)
+      settings.tips_seen,
+      vec!["groups".to_string(), "vpn".to_string()]
+    );
+    assert_eq!(settings.tips_next_auto_show_at, Some(MIDNIGHT + DAY));
+    assert!(
+      !TipsState::of(&settings, MIDNIGHT + DAY - 1).auto_due,
+      "not again the same day"
+    );
+    assert!(!pin_inline_tip(&mut settings, "trash", MIDNIGHT + DAY - 1));
+    assert!(TipsState::of(&settings, MIDNIGHT + DAY).auto_due);
+
+    assert!(
+      !pin_inline_tip(&mut settings, "vpn", MIDNIGHT + DAY),
+      "a read tip never comes back"
+    );
+    assert!(pin_inline_tip(&mut settings, "trash", MIDNIGHT + DAY));
+    record_tip_seen(&mut settings, "groups", MIDNIGHT + DAY, &chrono::Utc);
+    assert_eq!(
+      settings
+        .tips_seen
+        .iter()
+        .filter(|id| id.as_str() == "groups")
+        .count(),
+      1
+    );
+  }
+
+  #[test]
+  fn a_feature_put_to_use_takes_its_tip_away_unread() {
+    let mut settings = AppSettings::default();
+    let now = MIDNIGHT + 10 * HOUR;
+    assert!(pin_inline_tip(&mut settings, "commandPalette", now));
+    note_feature_used(&mut settings, "commandPalette", now + 60, &chrono::Utc);
+    note_feature_used(&mut settings, "commandPalette", now + 120, &chrono::Utc);
+    assert_eq!(settings.tips_used, vec!["commandPalette".to_string()]);
+    assert_eq!(settings.tips_inline, None);
+    assert!(settings.tips_seen.is_empty());
+    assert_eq!(settings.tips_next_auto_show_at, Some(MIDNIGHT + DAY));
+    assert!(
+      !pin_inline_tip(&mut settings, "commandPalette", MIDNIGHT + 2 * DAY),
+      "a feature in use gets no tip"
+    );
+  }
+
+  #[test]
+  fn a_tip_the_seat_lost_goes_back_unread_and_the_day_rule_holds() {
+    let mut settings = AppSettings::default();
+    let now = MIDNIGHT + 10 * HOUR;
+    assert!(pin_inline_tip(&mut settings, "cookieBot", now));
+    unpin_inline_tip(&mut settings, "trash", &chrono::Utc);
+    assert_eq!(
+      settings.tips_inline.as_deref(),
+      Some("cookieBot"),
+      "only the tip on the page is released"
+    );
+    unpin_inline_tip(&mut settings, "cookieBot", &chrono::Utc);
+    assert_eq!(settings.tips_inline, None);
+    assert!(settings.tips_seen.is_empty(), "released is not read");
+    assert!(
+      !TipsState::of(&settings, now + HOUR).auto_due,
+      "no second tip the day one was shown"
+    );
+    assert!(pin_inline_tip(&mut settings, "trash", MIDNIGHT + DAY));
+    record_tip_seen(&mut settings, "trash", MIDNIGHT + DAY, &chrono::Utc);
+    assert!(
+      pin_inline_tip(&mut settings, "cookieBot", MIDNIGHT + 2 * DAY),
+      "the released tip can come back"
     );
 
-    settings.tips_auto_show = false;
+    let mut old = AppSettings::default();
+    assert!(pin_inline_tip(&mut old, "cookieBot", MIDNIGHT));
+    unpin_inline_tip(&mut old, "cookieBot", &chrono::Utc);
     assert!(
-      !TipsState::of(&settings, next + 10 * DAY).auto_due,
+      TipsState::of(&old, MIDNIGHT + 3 * DAY).auto_due,
+      "a tip shown days ago leaves room for a new one at once"
+    );
+  }
+
+  #[test]
+  fn turning_tips_off_takes_the_inline_tip_away() {
+    let mut settings = AppSettings::default();
+    let now = MIDNIGHT + 10 * HOUR;
+    assert!(pin_inline_tip(&mut settings, "vpn", now));
+    apply_tips_auto_show(&mut settings, false, now, &chrono::Utc);
+    assert_eq!(settings.tips_inline, None);
+    assert!(settings.tips_seen.is_empty(), "turned off is not read");
+    assert!(
+      !TipsState::of(&settings, 10 * DAY).auto_due,
       "switched off means never due"
     );
+    assert!(!pin_inline_tip(&mut settings, "trash", 10 * DAY));
+    apply_tips_auto_show(&mut settings, true, now + HOUR, &chrono::Utc);
+    assert!(
+      !TipsState::of(&settings, now + 2 * HOUR).auto_due,
+      "off and on again brings no second tip the same day"
+    );
+    assert!(TipsState::of(&settings, MIDNIGHT + DAY).auto_due);
   }
 
   #[test]
-  fn settings_from_before_the_random_gap_wait_the_shortest_gap() {
+  fn a_settings_save_keeps_the_stored_tips_state() {
+    let mut stored = AppSettings::default();
+    assert!(pin_inline_tip(&mut stored, "vpn", MIDNIGHT));
+    record_tip_seen(&mut stored, "groups", MIDNIGHT, &chrono::Utc);
+    note_feature_used(&mut stored, "commandPalette", MIDNIGHT, &chrono::Utc);
+    assert!(paid_welcome_due(&mut stored, "u1", true, true));
+
+    // The copy the Settings page loaded before any of that.
+    let mut saved = AppSettings {
+      theme: "dark".to_string(),
+      ..AppSettings::default()
+    };
+    keep_tips_state(&mut saved, &stored);
+    assert_eq!(saved.theme, "dark", "the page's own fields are its to save");
+    assert_eq!(saved.tips_inline.as_deref(), Some("vpn"));
+    assert_eq!(saved.tips_seen, vec!["groups".to_string()]);
+    assert_eq!(saved.tips_used, vec!["commandPalette".to_string()]);
+    assert_eq!(saved.tips_last_auto_shown_at, Some(MIDNIGHT));
+    assert_eq!(saved.paid_welcome_seen_for, vec!["u1".to_string()]);
+    assert!(
+      !paid_welcome_due(&mut saved, "u1", true, true),
+      "the welcome is not shown twice"
+    );
+
+    let mut off = stored.clone();
+    off.tips_auto_show = false;
+    off.tips_next_auto_show_at = Some(MIDNIGHT + DAY);
+    keep_tips_state(&mut saved, &off);
+    assert!(!saved.tips_auto_show);
+    assert_eq!(saved.tips_next_auto_show_at, Some(MIDNIGHT + DAY));
+  }
+
+  #[test]
+  fn settings_from_older_versions_keep_their_wait() {
     let settings: AppSettings =
       serde_json::from_str(r#"{ "tips_last_auto_shown_at": 1000 }"#).expect("old settings parse");
-    assert_eq!(settings.tips_next_auto_show_at, None);
-    let state = TipsState::of(&settings, 1_000 + TIPS_AUTO_GAP_MIN_SECS - 1);
+    assert_eq!(settings.tips_inline, None);
+    assert!(settings.tips_used.is_empty());
+    let state = TipsState::of(&settings, 1_000 + TIPS_INLINE_MIN_GAP_SECS - 1);
     assert_eq!(
       state.next_auto_show_at,
-      Some(1_000 + TIPS_AUTO_GAP_MIN_SECS)
+      Some(1_000 + TIPS_INLINE_MIN_GAP_SECS)
     );
     assert!(!state.auto_due);
-    assert!(TipsState::of(&settings, 1_000 + TIPS_AUTO_GAP_MIN_SECS).auto_due);
+    assert!(TipsState::of(&settings, 1_000 + TIPS_INLINE_MIN_GAP_SECS).auto_due);
+
+    let drawn: AppSettings = serde_json::from_str(r#"{ "tips_next_auto_show_at": 500000 }"#)
+      .expect("a wait from the old flow parses");
+    assert!(
+      !TipsState::of(&drawn, 499_999).auto_due,
+      "a wait drawn by the old flow still holds"
+    );
+    assert!(TipsState::of(&drawn, 500_000).auto_due);
   }
 
   #[test]
@@ -1513,6 +1843,7 @@ mod tests {
       api_token: None,
       sync_server_url: None,
       account_sync_server_url: None,
+      sync_source: None,
       first_launch_timestamp: None,
       commercial_trial_acknowledged: false,
       mcp_remote_enabled: false,
@@ -1529,6 +1860,8 @@ mod tests {
       tips_seen: Vec::new(),
       tips_last_auto_shown_at: None,
       tips_next_auto_show_at: None,
+      tips_inline: None,
+      tips_used: Vec::new(),
       feedback_sent_at: None,
       paid_welcome_seen_for: Vec::new(),
       cloud_plan_memory: std::collections::HashMap::new(),

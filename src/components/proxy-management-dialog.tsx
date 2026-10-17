@@ -13,7 +13,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
 import {
+  LuActivity,
   LuDownload,
+  LuLock,
   LuPencil,
   LuRefreshCcwDot,
   LuRefreshCw,
@@ -28,6 +30,19 @@ import {
 } from "@/components/data-table-action-bar";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import {
+  EntityEmptyState,
+  VpnTunnelScene,
+} from "@/components/entity-empty-state";
+import {
+  KindBadge,
+  PageAction,
+  RowAction,
+  RowActions,
+  SyncCell,
+  type SyncStatus,
+  TickingCount,
+} from "@/components/entity-page";
+import {
   configureEntityColumns,
   ManagedDataTable,
   useEntityTableTools,
@@ -37,16 +52,13 @@ import { ProxyExportDialog } from "@/components/proxy-export-dialog";
 import { ProxyFormDialog } from "@/components/proxy-form-dialog";
 import { ProxyImportDialog } from "@/components/proxy-import-dialog";
 import { SortableColumnHeader } from "@/components/table-controls";
-import { AnimatedSwitch } from "@/components/ui/animated-switch";
+import { ProxyRouteScene } from "@/components/tips/scenes-essentials";
 import {
   AnimatedTabs,
   AnimatedTabsContent,
   AnimatedTabsList,
   AnimatedTabsTrigger,
 } from "@/components/ui/animated-tabs";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -64,67 +76,17 @@ import { useProfileReferences } from "@/hooks/use-profile-references";
 import { useProxyEvents } from "@/hooks/use-proxy-events";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
+import { runProxyCheck } from "@/lib/proxy-check-store";
 import { rotateProxyIps } from "@/lib/proxy-rotation";
 import { isFirstHopEncrypted, proxyProtocolToken } from "@/lib/proxy-string";
-import { canonicalProxyType } from "@/lib/proxy-type";
+import { canonicalProxyType, proxyTypeLabelKey } from "@/lib/proxy-type";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
-import { cn } from "@/lib/utils";
 import type { StoredProxy, VpnConfig } from "@/types";
 import { ProxyCheckButton, ProxyUdpBadge } from "./proxy-check-button";
 import { RippleButton } from "./ui/ripple";
 import { VpnCheckButton } from "./vpn-check-button";
 import { VpnFormDialog } from "./vpn-form-dialog";
 import { VpnImportDialog } from "./vpn-import-dialog";
-
-type SyncStatus = "disabled" | "syncing" | "synced" | "error" | "waiting";
-
-function getSyncStatusDot(
-  item: { sync_enabled?: boolean; last_sync?: number },
-  liveStatus: SyncStatus | undefined,
-  t: (key: string, options?: Record<string, unknown>) => string,
-  errorMessage?: string,
-): { color: string; tooltip: string; animate: boolean } {
-  const status = liveStatus ?? (item.sync_enabled ? "synced" : "disabled");
-
-  switch (status) {
-    case "syncing":
-      return {
-        color: "bg-warning",
-        tooltip: t("syncTooltips.syncing"),
-        animate: true,
-      };
-    case "synced":
-      return {
-        color: "bg-success",
-        tooltip: item.last_sync
-          ? t("syncTooltips.syncedAt", {
-              time: new Date(item.last_sync * 1000).toLocaleString(),
-            })
-          : t("syncTooltips.synced"),
-        animate: false,
-      };
-    case "waiting":
-      return {
-        color: "bg-warning",
-        tooltip: t("syncTooltips.waiting"),
-        animate: false,
-      };
-    case "error":
-      return {
-        color: "bg-destructive",
-        tooltip: errorMessage
-          ? t("syncTooltips.errorWith", { error: errorMessage })
-          : t("syncTooltips.error"),
-        animate: false,
-      };
-    default:
-      return {
-        color: "bg-muted-foreground",
-        tooltip: t("syncTooltips.notSynced"),
-        animate: false,
-      };
-  }
-}
 
 interface ProxyManagementDialogProps {
   isOpen: boolean;
@@ -167,7 +129,6 @@ export function ProxyManagementDialog({
   const [editingVpn, setEditingVpn] = useState<VpnConfig | null>(null);
   const [vpnToDelete, setVpnToDelete] = useState<VpnConfig | null>(null);
   const [isDeletingVpn, setIsDeletingVpn] = useState(false);
-  const [checkingVpnId, setCheckingVpnId] = useState<string | null>(null);
   const [vpnSyncStatus, setVpnSyncStatus] = useState<
     Record<string, SyncStatus>
   >({});
@@ -282,19 +243,18 @@ export function ProxyManagementDialog({
   // Load whether sync is required by an assigned profile.
   useEffect(() => {
     const loadProxyInUse = async () => {
-      const inUse: Record<string, boolean> = {};
-      for (const proxy of storedProxies) {
-        try {
-          const inUseBySynced = await invoke<boolean>(
-            "is_proxy_in_use_by_synced_profile",
-            { proxyId: proxy.id },
-          );
-          inUse[proxy.id] = inUseBySynced;
-        } catch (_error) {
-          // Ignore errors
-        }
-      }
-      setProxyInUse(inUse);
+      const inUse = await Promise.all(
+        storedProxies.map((proxy) =>
+          invoke<boolean>("is_proxy_in_use_by_synced_profile", {
+            proxyId: proxy.id,
+          }).catch(() => false),
+        ),
+      );
+      setProxyInUse(
+        Object.fromEntries(
+          storedProxies.map((proxy, i) => [proxy.id, inUse[i]]),
+        ),
+      );
     };
     if (storedProxies.length > 0) {
       void loadProxyInUse();
@@ -304,19 +264,16 @@ export function ProxyManagementDialog({
   // Load VPN in-use status
   useEffect(() => {
     const loadVpnInUse = async () => {
-      const inUse: Record<string, boolean> = {};
-      for (const vpn of vpnConfigs) {
-        try {
-          const inUseBySynced = await invoke<boolean>(
-            "is_vpn_in_use_by_synced_profile",
-            { vpnId: vpn.id },
-          );
-          inUse[vpn.id] = inUseBySynced;
-        } catch (_error) {
-          // Ignore errors
-        }
-      }
-      setVpnInUse(inUse);
+      const inUse = await Promise.all(
+        vpnConfigs.map((vpn) =>
+          invoke<boolean>("is_vpn_in_use_by_synced_profile", {
+            vpnId: vpn.id,
+          }).catch(() => false),
+        ),
+      );
+      setVpnInUse(
+        Object.fromEntries(vpnConfigs.map((vpn, i) => [vpn.id, inUse[i]])),
+      );
     };
     if (vpnConfigs.length > 0) {
       void loadVpnInUse();
@@ -451,38 +408,10 @@ export function ProxyManagementDialog({
     [t],
   );
 
+  const hasRotation = storedProxies.some((proxy) => proxy.rotation_url);
   const proxyColumns = useMemo<ColumnDef<StoredProxy>[]>(
     () => [
-      {
-        id: "select",
-        size: 36,
-        enableSorting: false,
-        header: ({ table }) => (
-          <Checkbox
-            checked={
-              table.getIsAllRowsSelected()
-                ? true
-                : table.getIsSomeRowsSelected()
-                  ? "indeterminate"
-                  : false
-            }
-            onCheckedChange={(value) => {
-              table.toggleAllRowsSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectAll")}
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            disabled={!row.getCanSelect()}
-            onCheckedChange={(value) => {
-              row.toggleSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectRow")}
-          />
-        ),
-      },
+      { id: "select", size: 36, enableSorting: false },
       {
         accessorKey: "name",
         enableSorting: true,
@@ -494,34 +423,36 @@ export function ProxyManagementDialog({
           />
         ),
         cell: ({ row }) => (
-          <span className="block truncate font-medium">
+          <button
+            type="button"
+            className="block max-w-full min-w-0 truncate rounded-sm text-left font-medium hover:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            onClick={() => {
+              handleEditProxy(row.original);
+            }}
+          >
             {row.original.name}
-          </span>
+          </button>
         ),
       },
       {
         id: "protocol",
-        size: 96,
+        size: 100,
         enableSorting: false,
         header: () => t("proxies.management.protocolCol"),
         cell: ({ row }) => {
-          const proxyType = row.original.proxy_settings.proxy_type;
+          const settings = row.original.proxy_settings;
+          const proxyType = settings.proxy_type;
           // Shadowsocks keeps its cipher in `username`, and the cipher is what
           // decides this hop.
-          const cipher = row.original.proxy_settings.username;
+          const cipher = settings.username;
           const encrypted = isFirstHopEncrypted(
             proxyType,
             cipher,
-            row.original.proxy_settings.vless_uri,
+            settings.vless_uri,
           );
-          // A stored Shadowsocks proxy can carry no cipher at all -
-          // `parse_txt_proxies` reads `ss://host:8388` as username None, and
-          // `import_proxies_json` stores proxy_type and username verbatim, and
-          // with none recorded the honest answer is "undecided", not
-          // "plaintext". The add/edit form says exactly that, so this cell
-          // saying "not encrypted" made the app contradict itself about one
-          // proxy. Only the sentence changes: `encrypted` stays false, so the
-          // warning tint and everything downstream still fail closed.
+          // A stored Shadowsocks proxy can carry no cipher at all, and with
+          // none recorded the honest answer is "undecided", not "plaintext",
+          // which is what the add/edit form says too.
           const cipherUndecided =
             !encrypted &&
             canonicalProxyType(proxyType) === "ss" &&
@@ -529,21 +460,27 @@ export function ProxyManagementDialog({
           // The type is free text from the REST API, so an unrecognised one
           // still prints itself; only a blank one falls back to the label.
           const protocolLabel =
-            proxyProtocolToken(proxyType) ||
+            proxyProtocolToken(canonicalProxyType(proxyType)) ||
             t("proxies.management.protocolUnknown");
+          const typeName = proxyTypeLabelKey(proxyType);
           return (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span
-                  className={cn(
-                    "font-mono text-[10px] tracking-wider uppercase",
-                    encrypted ? "text-muted-foreground" : "text-warning-text",
-                  )}
+                <KindBadge
+                  data-first-hop={
+                    encrypted
+                      ? "encrypted"
+                      : cipherUndecided
+                        ? "cipher"
+                        : "plaintext"
+                  }
+                  icon={encrypted ? <LuLock aria-hidden="true" /> : null}
                 >
                   {protocolLabel}
-                </span>
+                </KindBadge>
               </TooltipTrigger>
               <TooltipContent>
+                {typeName && <p className="font-medium">{t(typeName)}</p>}
                 <p>
                   {encrypted
                     ? t("proxies.management.firstHopEncryptedTooltip")
@@ -558,6 +495,7 @@ export function ProxyManagementDialog({
       },
       {
         id: "hostPort",
+        size: 132,
         enableSorting: false,
         header: () => t("proxies.management.hostPort"),
         cell: ({ row }) => (
@@ -568,18 +506,26 @@ export function ProxyManagementDialog({
         ),
       },
       {
+        id: "check",
+        size: 120,
+        enableSorting: false,
+        header: () => t("common.labels.status"),
+        cell: ({ row }) => (
+          <ProxyCheckButton proxy={row.original} variant="status" />
+        ),
+      },
+      {
         // WebRTC is UDP, so whether this proxy carries it decides whether a
-        // profile on it can route WebRTC at all. That belongs in the table,
-        // not only behind the check popover.
+        // profile on it can route WebRTC at all.
         id: "udp",
-        size: 72,
+        size: 64,
         enableSorting: false,
         header: () => t("proxies.management.udpCol"),
         cell: ({ row }) => <ProxyUdpBadge proxy={row.original} />,
       },
       {
         id: "usage",
-        size: 80,
+        size: 64,
         enableSorting: false,
         header: () => t("proxies.management.usage"),
         cell: ({ row }) => (
@@ -598,139 +544,80 @@ export function ProxyManagementDialog({
       },
       {
         id: "sync",
-        size: 96,
+        size: 80,
         enableSorting: false,
         header: () => t("proxies.management.syncCol"),
         cell: ({ row }) => {
           const proxy = row.original;
-          const locked = proxyInUse[proxy.id];
-          const syncDot = getSyncStatusDot(
-            proxy,
-            proxySyncStatus[proxy.id],
-            t,
-            proxySyncErrors[proxy.id],
-          );
           return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span
-                  className="inline-flex items-center gap-2"
-                  title={syncDot.tooltip}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "size-2 shrink-0 rounded-full",
-                      syncDot.color,
-                    )}
-                  />
-                  <AnimatedSwitch
-                    aria-label={`${t("proxies.management.syncCol")}: ${proxy.name}`}
-                    checked={proxy.sync_enabled}
-                    onCheckedChange={() => void handleToggleSync(proxy)}
-                    disabled={isTogglingSync[proxy.id] || locked}
-                  />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                {locked ? (
-                  <p>{t("syncTooltips.lockedInUse")}</p>
-                ) : (
-                  <p>
-                    {proxy.sync_enabled
-                      ? t("syncTooltips.disable")
-                      : t("syncTooltips.enable")}
-                  </p>
-                )}
-              </TooltipContent>
-            </Tooltip>
+            <SyncCell
+              name={proxy.name}
+              enabled={Boolean(proxy.sync_enabled)}
+              lastSync={proxy.last_sync}
+              status={proxySyncStatus[proxy.id]}
+              error={proxySyncErrors[proxy.id]}
+              busy={isTogglingSync[proxy.id]}
+              lockedReason={
+                proxyInUse[proxy.id] ? t("syncTooltips.lockedInUse") : undefined
+              }
+              onToggle={() => void handleToggleSync(proxy)}
+            />
           );
         },
       },
       {
         id: "actions",
-        size: 144,
+        // Room for Change IP only when some proxy has a rotation link.
+        size: hasRotation ? 104 : 76,
         enableSorting: false,
-        header: () => t("common.labels.actions"),
+        header: () => (
+          <span className="sr-only">{t("common.labels.actions")}</span>
+        ),
         cell: ({ row }) => {
           const proxy = row.original;
+          const usage = proxyUsage[proxy.id] ?? 0;
           return (
-            <div className="flex gap-1">
-              <ProxyCheckButton proxy={proxy} />
+            <RowActions>
               {proxy.rotation_url && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      data-slot="proxy-rotate"
-                      aria-label={t("proxies.rotation.action")}
-                      onClick={() => {
-                        void rotateProxyIps([proxy], t);
-                      }}
-                    >
-                      <LuRefreshCcwDot className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t("proxies.rotation.actionTooltip")}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <RowAction
+                  data-slot="proxy-rotate"
+                  label={t("proxies.rotation.action")}
+                  tooltip={t("proxies.rotation.actionTooltip")}
+                  icon={<LuRefreshCcwDot />}
+                  onClick={() => {
+                    void rotateProxyIps([proxy], t);
+                  }}
+                />
               )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      handleEditProxy(proxy);
-                    }}
-                  >
-                    <LuPencil className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t("proxies.management.editProxy")}</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        handleDeleteProxy(proxy);
-                      }}
-                      disabled={(proxyUsage[proxy.id] ?? 0) > 0}
-                    >
-                      <LuTrash2 className="size-4" />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {(proxyUsage[proxy.id] ?? 0) > 0 ? (
-                    <p>
-                      {(proxyUsage[proxy.id] ?? 0) === 1
-                        ? t("proxies.management.cannotDelete_one", {
-                            count: proxyUsage[proxy.id],
-                          })
-                        : t("proxies.management.cannotDelete_other", {
-                            count: proxyUsage[proxy.id],
-                          })}
-                    </p>
-                  ) : (
-                    <p>{t("proxies.management.deleteProxy")}</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            </div>
+              <RowAction
+                label={t("proxies.management.editProxy")}
+                icon={<LuPencil />}
+                onClick={() => {
+                  handleEditProxy(proxy);
+                }}
+              />
+              <RowAction
+                label={t("proxies.management.deleteProxy")}
+                tooltip={
+                  usage > 0
+                    ? t("proxies.management.cannotDelete", { count: usage })
+                    : undefined
+                }
+                icon={<LuTrash2 />}
+                tone="destructive"
+                disabled={usage > 0}
+                onClick={() => {
+                  handleDeleteProxy(proxy);
+                }}
+              />
+            </RowActions>
           );
         },
       },
     ],
     [
       t,
+      hasRotation,
       referencedProfiles,
       referencesFailed,
       proxySyncStatus,
@@ -773,36 +660,7 @@ export function ProxyManagementDialog({
 
   const vpnColumns = useMemo<ColumnDef<VpnConfig>[]>(
     () => [
-      {
-        id: "select",
-        size: 36,
-        enableSorting: false,
-        header: ({ table }) => (
-          <Checkbox
-            checked={
-              table.getIsAllRowsSelected()
-                ? true
-                : table.getIsSomeRowsSelected()
-                  ? "indeterminate"
-                  : false
-            }
-            onCheckedChange={(value) => {
-              table.toggleAllRowsSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectAll")}
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            disabled={!row.getCanSelect()}
-            onCheckedChange={(value) => {
-              row.toggleSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectRow")}
-          />
-        ),
-      },
+      { id: "select", size: 36, enableSorting: false },
       {
         accessorKey: "name",
         enableSorting: true,
@@ -813,24 +671,39 @@ export function ProxyManagementDialog({
             label={t("common.labels.name")}
           />
         ),
-        cell: ({ row }) => {
-          return (
-            <span className="block truncate font-medium">
-              {row.original.name}
-            </span>
-          );
-        },
+        cell: ({ row }) => (
+          <button
+            type="button"
+            className="block max-w-full min-w-0 truncate rounded-sm text-left font-medium hover:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            onClick={() => {
+              handleEditVpn(row.original);
+            }}
+          >
+            {row.original.name}
+          </button>
+        ),
       },
       {
         id: "type",
-        size: 96,
+        size: 104,
         enableSorting: false,
         header: () => t("common.labels.type"),
-        cell: () => <Badge variant="soft">WG</Badge>,
+        cell: ({ row }) => (
+          <KindBadge icon={<LuLock aria-hidden="true" />}>
+            {row.original.vpn_type}
+          </KindBadge>
+        ),
+      },
+      {
+        id: "check",
+        size: 72,
+        enableSorting: false,
+        header: () => t("common.labels.status"),
+        cell: ({ row }) => <VpnCheckButton vpn={row.original} />,
       },
       {
         id: "usage",
-        size: 80,
+        size: 64,
         enableSorting: false,
         header: () => t("proxies.management.usage"),
         cell: ({ row }) => (
@@ -849,118 +722,61 @@ export function ProxyManagementDialog({
       },
       {
         id: "sync",
-        size: 96,
+        size: 80,
         enableSorting: false,
         header: () => t("proxies.management.syncCol"),
         cell: ({ row }) => {
           const vpn = row.original;
-          const locked = vpnInUse[vpn.id];
-          const syncDot = getSyncStatusDot(
-            vpn,
-            vpnSyncStatus[vpn.id],
-            t,
-            vpnSyncErrors[vpn.id],
-          );
           return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span
-                  className="inline-flex items-center gap-2"
-                  title={syncDot.tooltip}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "size-2 shrink-0 rounded-full",
-                      syncDot.color,
-                    )}
-                  />
-                  <AnimatedSwitch
-                    aria-label={`${t("proxies.management.syncCol")}: ${vpn.name}`}
-                    checked={vpn.sync_enabled}
-                    onCheckedChange={() => void handleToggleVpnSync(vpn)}
-                    disabled={isTogglingVpnSync[vpn.id] || locked}
-                  />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                {locked ? (
-                  <p>{t("syncTooltips.lockedInUse")}</p>
-                ) : (
-                  <p>
-                    {vpn.sync_enabled
-                      ? t("syncTooltips.disable")
-                      : t("syncTooltips.enable")}
-                  </p>
-                )}
-              </TooltipContent>
-            </Tooltip>
+            <SyncCell
+              name={vpn.name}
+              enabled={Boolean(vpn.sync_enabled)}
+              lastSync={vpn.last_sync}
+              status={vpnSyncStatus[vpn.id]}
+              error={vpnSyncErrors[vpn.id]}
+              busy={isTogglingVpnSync[vpn.id]}
+              lockedReason={
+                vpnInUse[vpn.id] ? t("syncTooltips.lockedInUse") : undefined
+              }
+              onToggle={() => void handleToggleVpnSync(vpn)}
+            />
           );
         },
       },
       {
         id: "actions",
-        size: 144,
+        size: 76,
         enableSorting: false,
-        header: () => t("common.labels.actions"),
+        header: () => (
+          <span className="sr-only">{t("common.labels.actions")}</span>
+        ),
         cell: ({ row }) => {
           const vpn = row.original;
+          const usage = vpnUsage[vpn.id] ?? 0;
           return (
-            <div className="flex gap-1">
-              <VpnCheckButton
-                vpnId={vpn.id}
-                vpnName={vpn.name}
-                checkingVpnId={checkingVpnId}
-                setCheckingVpnId={setCheckingVpnId}
+            <RowActions>
+              <RowAction
+                label={t("vpns.management.editVpn")}
+                icon={<LuPencil />}
+                onClick={() => {
+                  handleEditVpn(vpn);
+                }}
               />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      handleEditVpn(vpn);
-                    }}
-                  >
-                    <LuPencil className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t("vpns.management.editVpn")}</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        handleDeleteVpn(vpn);
-                      }}
-                      disabled={(vpnUsage[vpn.id] ?? 0) > 0}
-                    >
-                      <LuTrash2 className="size-4" />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {(vpnUsage[vpn.id] ?? 0) > 0 ? (
-                    <p>
-                      {(vpnUsage[vpn.id] ?? 0) === 1
-                        ? t("vpns.management.cannotDelete_one", {
-                            count: vpnUsage[vpn.id],
-                          })
-                        : t("vpns.management.cannotDelete_other", {
-                            count: vpnUsage[vpn.id],
-                          })}
-                    </p>
-                  ) : (
-                    <p>{t("vpns.management.deleteVpn")}</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            </div>
+              <RowAction
+                label={t("vpns.management.deleteVpn")}
+                tooltip={
+                  usage > 0
+                    ? t("vpns.management.cannotDelete", { count: usage })
+                    : undefined
+                }
+                icon={<LuTrash2 />}
+                tone="destructive"
+                disabled={usage > 0}
+                onClick={() => {
+                  handleDeleteVpn(vpn);
+                }}
+              />
+            </RowActions>
           );
         },
       },
@@ -974,7 +790,6 @@ export function ProxyManagementDialog({
       vpnUsage,
       isTogglingVpnSync,
       vpnInUse,
-      checkingVpnId,
       handleToggleVpnSync,
       handleEditVpn,
       handleDeleteVpn,
@@ -1123,6 +938,32 @@ export function ProxyManagementDialog({
     await emit("stored-proxies-changed");
   }, [selectedProxies, proxyInUse, t]);
 
+  /** Checks the selection a few at a time, then reports the tally once. */
+  const handleBulkCheckProxies = useCallback(async () => {
+    const queue = [...selectedProxies];
+    if (queue.length === 0) return;
+    let passed = 0;
+    let failed = 0;
+    const worker = async () => {
+      for (let proxy = queue.shift(); proxy; proxy = queue.shift()) {
+        try {
+          const result = await runProxyCheck(proxy, (error) =>
+            translateBackendError(t, error),
+          );
+          if (result?.is_valid) passed += 1;
+          else if (result) failed += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: 4 }, worker));
+    const summary = t("proxies.management.checkSummary", { passed, failed });
+    if (failed === 0) showSuccessToast(summary);
+    else if (passed === 0) showErrorToast(summary);
+    else toast.warning(summary);
+  }, [selectedProxies, t]);
+
   const handleBulkToggleVpnsSync = useCallback(async () => {
     if (selectedVpns.length === 0) return;
     const allOn = selectedVpns.every((v) => v.sync_enabled);
@@ -1182,124 +1023,59 @@ export function ProxyManagementDialog({
                 <AnimatedTabsList>
                   <AnimatedTabsTrigger value="proxies">
                     <span>{t("proxies.management.tabProxies")}</span>
-                    <span className="text-xs tabular-nums">
-                      {storedProxies.length}
-                    </span>
+                    <TickingCount
+                      value={storedProxies.length}
+                      className="text-xs"
+                    />
                   </AnimatedTabsTrigger>
                   <AnimatedTabsTrigger value="vpns">
                     <span>{t("proxies.management.tabVpns")}</span>
-                    <span className="text-xs tabular-nums">
-                      {vpnConfigs.length}
-                    </span>
+                    <TickingCount
+                      value={vpnConfigs.length}
+                      className="text-xs"
+                    />
                   </AnimatedTabsTrigger>
                 </AnimatedTabsList>
                 <div className="flex items-center gap-2">
-                  {activeTab === "proxies" && (
+                  {activeTab === "proxies" ? (
                     <>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <RippleButton
-                            size="sm"
-                            variant="soft"
-                            onClick={() => {
-                              setShowImportDialog(true);
-                            }}
-                            className="flex items-center gap-2"
-                            aria-label={t("common.buttons.import")}
-                          >
-                            <LuUpload className="size-4" />
-                            <span className="hidden @2xl:inline">
-                              {t("common.buttons.import")}
-                            </span>
-                          </RippleButton>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{t("common.buttons.import")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <RippleButton
-                            size="sm"
-                            variant="soft"
-                            onClick={() => {
-                              setShowExportDialog(true);
-                            }}
-                            className="flex items-center gap-2"
-                            aria-label={t("common.buttons.export")}
-                            disabled={storedProxies.length === 0}
-                          >
-                            <LuDownload className="size-4" />
-                            <span className="hidden @2xl:inline">
-                              {t("common.buttons.export")}
-                            </span>
-                          </RippleButton>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{t("common.buttons.export")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <RippleButton
-                            size="sm"
-                            onClick={handleCreateProxy}
-                            className="flex items-center gap-2"
-                            aria-label={t("proxies.management.newProxy")}
-                          >
-                            <GoPlus className="size-4" />
-                            <span className="hidden @2xl:inline">
-                              {t("proxies.management.newProxy")}
-                            </span>
-                          </RippleButton>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{t("proxies.management.newProxy")}</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <PageAction
+                        icon={<LuUpload className="size-4" />}
+                        label={t("common.buttons.import")}
+                        onClick={() => {
+                          setShowImportDialog(true);
+                        }}
+                      />
+                      <PageAction
+                        icon={<LuDownload className="size-4" />}
+                        label={t("common.buttons.export")}
+                        disabled={storedProxies.length === 0}
+                        onClick={() => {
+                          setShowExportDialog(true);
+                        }}
+                      />
+                      <PageAction
+                        primary
+                        icon={<GoPlus className="size-4" />}
+                        label={t("proxies.management.newProxy")}
+                        onClick={handleCreateProxy}
+                      />
                     </>
-                  )}
-                  {activeTab === "vpns" && (
+                  ) : (
                     <>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <RippleButton
-                            size="sm"
-                            variant="soft"
-                            onClick={() => {
-                              setShowVpnImportDialog(true);
-                            }}
-                            className="flex items-center gap-2"
-                            aria-label={t("common.buttons.import")}
-                          >
-                            <LuUpload className="size-4" />
-                            <span className="hidden @2xl:inline">
-                              {t("common.buttons.import")}
-                            </span>
-                          </RippleButton>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{t("common.buttons.import")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <RippleButton
-                            size="sm"
-                            onClick={handleCreateVpn}
-                            className="flex items-center gap-2"
-                            aria-label={t("proxies.management.newVpn")}
-                          >
-                            <GoPlus className="size-4" />
-                            <span className="hidden @2xl:inline">
-                              {t("proxies.management.newVpn")}
-                            </span>
-                          </RippleButton>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{t("proxies.management.newVpn")}</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <PageAction
+                        icon={<LuUpload className="size-4" />}
+                        label={t("common.buttons.import")}
+                        onClick={() => {
+                          setShowVpnImportDialog(true);
+                        }}
+                      />
+                      <PageAction
+                        primary
+                        icon={<GoPlus className="size-4" />}
+                        label={t("proxies.management.newVpn")}
+                        onClick={handleCreateVpn}
+                      />
                     </>
                   )}
                 </div>
@@ -1309,28 +1085,78 @@ export function ProxyManagementDialog({
                 value="proxies"
                 className="mt-4 min-h-0 flex-1 flex-col data-[state=active]:flex"
               >
-                <div className="flex min-h-0 flex-1 flex-col gap-4">
-                  <ManagedDataTable
-                    table={proxiesTable}
-                    tools={proxiesTableTools}
-                    loading={isLoading}
-                    emptyText={t("proxies.management.noneCreated")}
-                  />
-                </div>
+                <ManagedDataTable
+                  table={proxiesTable}
+                  tools={proxiesTableTools}
+                  loading={isLoading}
+                  empty={
+                    <EntityEmptyState
+                      entity="proxies"
+                      scene={<ProxyRouteScene />}
+                      title={t("entities.empty.proxies.title")}
+                      description={t("entities.empty.proxies.body")}
+                    >
+                      <RippleButton
+                        size="sm"
+                        className="gap-2"
+                        onClick={handleCreateProxy}
+                      >
+                        <GoPlus className="size-4" />
+                        {t("proxies.management.newProxy")}
+                      </RippleButton>
+                      <RippleButton
+                        size="sm"
+                        variant="soft"
+                        className="gap-2"
+                        onClick={() => {
+                          setShowImportDialog(true);
+                        }}
+                      >
+                        <LuUpload className="size-4" />
+                        {t("common.buttons.import")}
+                      </RippleButton>
+                    </EntityEmptyState>
+                  }
+                />
               </AnimatedTabsContent>
 
               <AnimatedTabsContent
                 value="vpns"
                 className="mt-4 min-h-0 flex-1 flex-col data-[state=active]:flex"
               >
-                <div className="flex min-h-0 flex-1 flex-col gap-4">
-                  <ManagedDataTable
-                    table={vpnsTable}
-                    tools={vpnsTableTools}
-                    loading={isLoadingVpns}
-                    emptyText={t("vpns.management.noneCreated")}
-                  />
-                </div>
+                <ManagedDataTable
+                  table={vpnsTable}
+                  tools={vpnsTableTools}
+                  loading={isLoadingVpns}
+                  empty={
+                    <EntityEmptyState
+                      entity="vpns"
+                      scene={<VpnTunnelScene />}
+                      title={t("entities.empty.vpns.title")}
+                      description={t("entities.empty.vpns.body")}
+                    >
+                      <RippleButton
+                        size="sm"
+                        className="gap-2"
+                        onClick={handleCreateVpn}
+                      >
+                        <GoPlus className="size-4" />
+                        {t("proxies.management.newVpn")}
+                      </RippleButton>
+                      <RippleButton
+                        size="sm"
+                        variant="soft"
+                        className="gap-2"
+                        onClick={() => {
+                          setShowVpnImportDialog(true);
+                        }}
+                      >
+                        <LuUpload className="size-4" />
+                        {t("common.buttons.import")}
+                      </RippleButton>
+                    </EntityEmptyState>
+                  }
+                />
               </AnimatedTabsContent>
             </AnimatedTabs>
           </div>
@@ -1407,6 +1233,12 @@ export function ProxyManagementDialog({
             onClick={() => void handleBulkToggleProxiesSync()}
           >
             <LuRefreshCw />
+          </DataTableActionBarAction>
+          <DataTableActionBarAction
+            tooltip={t("proxies.management.checkSelected")}
+            onClick={() => void handleBulkCheckProxies()}
+          >
+            <LuActivity />
           </DataTableActionBarAction>
           <DataTableActionBarAction
             tooltip={t("proxies.rotation.action")}

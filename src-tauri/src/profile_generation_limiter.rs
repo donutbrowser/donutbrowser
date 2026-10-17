@@ -42,6 +42,8 @@ pub struct Allowance {
   /// Seconds until enough of them leave the window to allow one more, once
   /// `used` has reached `per_hour`.
   pub retry_after_secs: Option<u64>,
+  /// How many profiles one batch makes before it stops at the allowance.
+  pub remaining: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,6 +60,15 @@ fn free_per_hour(profiles: usize) -> u64 {
     .iter()
     .find(|(below, _)| profiles < *below)
     .map_or(FREE_FLOOR_PER_HOUR, |(_, per_hour)| *per_hour)
+}
+
+/// How many profiles a free batch makes: each one it makes counts as a
+/// generation and joins the profile count, which can lower the allowance
+/// before the batch is done.
+fn free_batch_room(profiles: usize, used: u64) -> u64 {
+  (0..)
+    .take_while(|made: &u64| used + made < free_per_hour(profiles + *made as usize))
+    .count() as u64
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -92,6 +103,7 @@ impl GenerationLog {
       per_hour,
       used,
       retry_after_secs,
+      remaining: per_hour.saturating_sub(used),
     }
   }
 
@@ -108,6 +120,8 @@ struct Policy {
   identity: String,
   enforcement: Enforcement,
   per_hour: u64,
+  /// The profile count a free allowance was read at.
+  profiles: Option<usize>,
 }
 
 async fn policy() -> Policy {
@@ -121,16 +135,19 @@ async fn policy() -> Policy {
         PRO_PER_HOUR
       },
       identity: state.user.id,
+      profiles: None,
     },
-    signed_in => Policy {
-      identity: signed_in.map_or_else(|| SIGNED_OUT.to_string(), |state| state.user.id),
-      enforcement: Enforcement::Soft,
-      per_hour: free_per_hour(
-        crate::profile::ProfileManager::instance()
-          .list_profiles()
-          .map_or(0, |profiles| profiles.len()),
-      ),
-    },
+    signed_in => {
+      let profiles = crate::profile::ProfileManager::instance()
+        .list_profiles()
+        .map_or(0, |profiles| profiles.len());
+      Policy {
+        identity: signed_in.map_or_else(|| SIGNED_OUT.to_string(), |state| state.user.id),
+        enforcement: Enforcement::Soft,
+        per_hour: free_per_hour(profiles),
+        profiles: Some(profiles),
+      }
+    }
   }
 }
 
@@ -187,7 +204,7 @@ pub async fn record_profile_generation() -> GenerationOutcome {
 #[tauri::command]
 pub async fn get_profile_creation_allowance() -> Allowance {
   let policy = policy().await;
-  GENERATION_LOG
+  let mut allowance = GENERATION_LOG
     .lock()
     .unwrap_or_else(|poisoned| poisoned.into_inner())
     .allowance(
@@ -195,7 +212,11 @@ pub async fn get_profile_creation_allowance() -> Allowance {
       policy.enforcement,
       policy.per_hour,
       crate::proxy_manager::now_secs(),
-    )
+    );
+  if let Some(profiles) = policy.profiles {
+    allowance.remaining = free_batch_room(profiles, allowance.used);
+  }
+  allowance
 }
 
 #[cfg(test)]
@@ -283,6 +304,42 @@ mod tests {
     ] {
       assert_eq!(free_per_hour(profiles), per_hour, "{profiles} profiles");
     }
+  }
+
+  #[test]
+  fn a_free_batch_stops_where_its_allowance_shrinks() {
+    assert_eq!(free_batch_room(0, 0), 8);
+    assert_eq!(free_batch_room(0, 3), 5);
+    // 38 profiles allow eight an hour, but two profiles into the batch there
+    // are 40, which allow six.
+    assert_eq!(free_batch_room(38, 0), 6);
+    assert_eq!(free_batch_room(38, 6), 2);
+    assert_eq!(free_batch_room(40, 6), 0);
+    assert_eq!(free_batch_room(500, 1), 1);
+    assert_eq!(free_batch_room(500, 9), 0);
+  }
+
+  #[test]
+  fn a_capped_plan_has_its_allowance_left_for_a_batch() {
+    let mut log = GenerationLog::default();
+    for i in 0..3 {
+      log.record("user-a", NOW + i);
+    }
+    assert_eq!(
+      log
+        .allowance("user-a", Enforcement::Hard, SOLO_PER_HOUR, NOW + 10)
+        .remaining,
+      7
+    );
+    for i in 3..12 {
+      log.record("user-a", NOW + i);
+    }
+    assert_eq!(
+      log
+        .allowance("user-a", Enforcement::Hard, SOLO_PER_HOUR, NOW + 20)
+        .remaining,
+      0
+    );
   }
 
   #[test]

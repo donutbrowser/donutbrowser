@@ -79,56 +79,108 @@ export function CloudSyncScene() {
   );
 }
 
-const SKY = travel(
-  bezier(
-    { x: 40, y: 60 },
-    { x: 100, y: -4 },
-    { x: 220, y: -4 },
-    { x: 280, y: 60 },
-    12,
-  ),
-  0.05,
-  0.75,
-);
+const DIAL = { cx: 62, cy: 80, r: 30 };
+/** Where on the dial the day's run is scheduled, in degrees from 12. */
+const RUN_AT = 135;
+const SWEEP = Array.from({ length: 25 }, (_, step) => (step * 360) / 24);
 
-/** The moon crosses the sky while the profile collects cookies and history. */
+function onDial(degrees: number, length: number) {
+  const radians = (degrees * Math.PI) / 180;
+  return {
+    x: DIAL.cx + Math.sin(radians) * length,
+    y: DIAL.cy - Math.cos(radians) * length,
+  };
+}
+
+/** The day turns on the dial; at the run's minute the profile fills with cookies. */
 export function CookieBotScene() {
-  const { kf, tr } = useScene(5);
+  const { kf, tr } = useScene(5.4);
+  const hand = SWEEP.map((degrees) => onDial(degrees, DIAL.r - 8));
+  const sweep = tr(
+    SWEEP.map((_, step) => step / 24),
+    { ease: "linear" },
+  );
+  const start = RUN_AT / 360;
+  const mark = onDial(RUN_AT, DIAL.r);
   return (
     <Scene>
-      <path d="M24 60 H296" strokeDasharray="2 5" />
-      <motion.g
+      <circle cx={DIAL.cx} cy={DIAL.cy} r={DIAL.r} />
+      {[0, 90, 180, 270].map((degrees) => {
+        const outer = onDial(degrees, DIAL.r - 2);
+        const inner = onDial(degrees, DIAL.r - 6);
+        return (
+          <path
+            key={degrees}
+            d={`M${outer.x} ${outer.y} L${inner.x} ${inner.y}`}
+          />
+        );
+      })}
+      <motion.line
+        x1={DIAL.cx}
+        y1={DIAL.cy}
+        strokeWidth={2}
         className="text-foreground"
         initial={false}
         animate={{
-          x: kf(SKY.cx.map((x) => x - 40)),
-          y: kf(SKY.cy.map((y) => y - 60)),
+          x2: kf(hand.map((point) => point.x)),
+          y2: kf(hand.map((point) => point.y)),
         }}
-        transition={tr(SKY.times, { ease: "linear" })}
-      >
-        <path d="M40 52 a8 8 0 1 0 6 13 a6 6 0 0 1 -6 -13 z" />
-      </motion.g>
-      <Window x={96} y={74} width={128} height={62} lines={0}>
+        transition={sweep}
+      />
+      <circle
+        cx={DIAL.cx}
+        cy={DIAL.cy}
+        r={2}
+        fill="currentColor"
+        stroke="none"
+        className="text-foreground"
+      />
+      <motion.circle
+        cx={mark.x}
+        cy={mark.y}
+        fill="currentColor"
+        stroke="none"
+        className="text-foreground"
+        initial={false}
+        animate={{ r: kf([3, 3, 5, 3, 3]) }}
+        transition={tr([0, start - 0.02, start + 0.02, start + 0.08, 1])}
+      />
+      <path d="M96 80 H118" strokeDasharray="2 5" />
+      <Window x={118} y={34} width={186} height={92} lines={0}>
         {[0, 1, 2, 3, 4].map((index) => {
-          const at = 0.12 + index * 0.13;
+          const at = start + 0.06 + index * 0.08;
+          const cx = 144 + index * 32;
           return (
-            <motion.circle
-              key={index}
-              cx={116 + index * 22}
-              cy={104}
-              initial={false}
-              animate={{ r: kf([0, 0, 5, 5]) }}
-              transition={tr([0, at, at + 0.08, 1])}
-            />
+            <g key={index}>
+              <motion.circle
+                cx={cx}
+                cy={78}
+                initial={false}
+                animate={{ r: kf([0, 0, 8, 7, 7]) }}
+                transition={tr([0, at, at + 0.05, at + 0.08, 1])}
+              />
+              <motion.g
+                fill="currentColor"
+                stroke="none"
+                initial={false}
+                animate={{ opacity: kf([0, 0, 1, 1]) }}
+                transition={tr([0, at + 0.04, at + 0.08, 1])}
+              >
+                <circle cx={cx - 2.5} cy={76} r={1} />
+                <circle cx={cx + 2} cy={80.5} r={1} />
+              </motion.g>
+            </g>
           );
         })}
         <motion.path
-          d="M108 122 h104"
+          d="M134 106 h154"
           strokeWidth={2}
           className="text-foreground"
           initial={false}
           animate={{ pathLength: kf([0, 0, 1, 1]) }}
-          transition={tr([0, 0.08, 0.76, 1], { ease: "linear" })}
+          transition={tr([0, start + 0.04, start + 0.46, 1], {
+            ease: "linear",
+          })}
         />
       </Window>
     </Scene>
@@ -314,6 +366,74 @@ export function RemoteScene() {
         animate={{ r: kf([0, 0, 4, 7, 0, 0]) }}
         transition={tr([0, 0.5, 0.53, 0.58, 0.62, 1])}
       />
+    </Scene>
+  );
+}
+
+const LEADER = { x: 16, y: 24, width: 136, height: 112 };
+const FOLLOWERS = [
+  { x: 180, y: 24, width: 124, height: 52 },
+  { x: 180, y: 84, width: 124, height: 52 },
+];
+type Frame = typeof LEADER;
+/** Spots on the leader's page, from its top-left corner. */
+const MOVES = [
+  { x: 44, y: 76 },
+  { x: 94, y: 46 },
+  { x: 54, y: 86 },
+];
+const MOVE_PATH = [0, 0, 1, 1, 2, 2].map((index) => MOVES[index]);
+const MOVE_TIMES = [0, 0.08, 0.3, 0.42, 0.62, 1];
+const CLICKS = [
+  { at: 0.32, spot: MOVES[1] },
+  { at: 0.64, spot: MOVES[2] },
+];
+
+/** The same spot on a smaller page: followers scale the leader's moves. */
+function place(frame: Frame, spot: { x: number; y: number }) {
+  return {
+    x: frame.x + (spot.x * frame.width) / LEADER.width,
+    y: frame.y + (spot.y * frame.height) / LEADER.height,
+  };
+}
+
+/** The leader clicks; both followers click the same spot at the same time. */
+export function SynchronizerScene() {
+  const { kf, tr } = useScene(4.8);
+  return (
+    <Scene>
+      <Window {...LEADER} lines={4} className="text-foreground" />
+      {FOLLOWERS.map((frame) => (
+        <Window key={frame.y} {...frame} lines={1} />
+      ))}
+      <path d="M152 50 H180 M152 110 H180" strokeDasharray="2 5" />
+      {[LEADER, ...FOLLOWERS].map((frame) => {
+        const path = MOVE_PATH.map((spot) => place(frame, spot));
+        return (
+          <g key={`${frame.x}-${frame.y}`} className="text-foreground">
+            {CLICKS.map(({ at, spot }) => {
+              const point = place(frame, spot);
+              return (
+                <motion.circle
+                  key={at}
+                  cx={point.x}
+                  cy={point.y}
+                  initial={false}
+                  animate={{ r: kf([0, 0, 3, 7, 0, 0]) }}
+                  transition={tr([0, at, at + 0.03, at + 0.08, at + 0.12, 1])}
+                />
+              );
+            })}
+            <Cursor
+              animate={{
+                x: kf(path.map((point) => point.x)),
+                y: kf(path.map((point) => point.y)),
+              }}
+              transition={tr(MOVE_TIMES)}
+            />
+          </g>
+        );
+      })}
     </Scene>
   );
 }

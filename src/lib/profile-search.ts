@@ -11,10 +11,11 @@
  *
  * Field names and values are ASCII slugs and are never translated, so a query
  * means the same thing in every locale; only the help panel's prose goes
- * through `t()`, keyed off the `labelKey` each field carries. The React layer
- * calls `parseProfileSearch` and `matchesProfile` and nothing else — every
- * lookup the matcher needs (a group's name for its id, which profiles are
- * running) arrives in the `ProfileSearchContext` the caller builds.
+ * through `t()`, keyed off the `labelKey` each field carries. The table calls
+ * `parseProfileSearch` and `matchesProfile`; the search box's suggestions
+ * (`profile-search-suggest.ts`) read the same fields and values. Every lookup
+ * the matcher needs (a group's name for its id, which profiles are running)
+ * arrives in the `ProfileSearchContext` the caller builds.
  *
  * Kept free of runtime imports so `profile-search.test.mjs` can load it
  * directly, the way `proxy-string.ts` is.
@@ -237,6 +238,13 @@ const FIELD_BY_TOKEN: ReadonlyMap<string, ProfileSearchField> = new Map(
     ),
   ),
 );
+
+/** The field a token names, by its key or an alias, in any case. */
+export function findProfileSearchField(
+  token: string,
+): ProfileSearchField | undefined {
+  return FIELD_BY_TOKEN.get(token.toLowerCase());
+}
 
 const RESERVED_NONE = "none";
 const RESERVED_ANY = "any";
@@ -484,6 +492,11 @@ type DateValue =
 const RELATIVE_PATTERN = /^(\d+)([hdwmy])$/;
 const ABSOLUTE_PATTERN = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/;
 
+/** Whether a date field accepts this value; the parser drops one it does not. */
+export function isProfileSearchDate(value: string): boolean {
+  return parseDateValue(value.toLowerCase()) !== null;
+}
+
 /** `null` for anything that is not a date, which is how a term gets dropped. */
 function parseDateValue(value: string): DateValue | null {
   if (value === RESERVED_NEVER || value === RESERVED_NONE) {
@@ -592,12 +605,18 @@ function parseBoolean(value: string): boolean | null {
   return null;
 }
 
-interface FieldValue {
+export function isProfileSearchBoolean(value: string): boolean {
+  return parseBoolean(value.toLowerCase()) !== null;
+}
+
+export interface ProfileSearchFieldValue {
   /** The profile has something here, even if its name cannot be resolved. */
   readonly present: boolean;
-  /** Lowercased text to compare against. */
+  /** The text a field compares against, in the case the table shows it. */
   readonly candidates: readonly string[];
 }
+
+type FieldValue = ProfileSearchFieldValue;
 
 function lookupValue(
   id: string | undefined,
@@ -605,20 +624,21 @@ function lookupValue(
 ): FieldValue {
   if (!id) return { present: false, candidates: [] };
   const name = names.get(id);
-  return {
-    present: true,
-    candidates: name ? [name.toLowerCase()] : [],
-  };
+  return { present: true, candidates: name ? [name] : [] };
 }
 
-function fieldValue(
+/**
+ * What a profile holds for a text, tag, id, lookup or enum field. Booleans and
+ * dates are not text, so they come back empty; the matcher reads those itself.
+ */
+export function profileSearchFieldValue(
   profile: BrowserProfile,
   field: ProfileSearchField,
   ctx: ProfileSearchContext,
 ): FieldValue {
   const one = (value: string | undefined | null): FieldValue =>
     value
-      ? { present: true, candidates: [value.toLowerCase()] }
+      ? { present: true, candidates: [value] }
       : { present: false, candidates: [] };
 
   switch (field.key) {
@@ -633,13 +653,10 @@ function fieldValue(
     case "email":
       return one(profile.created_by_email);
     case "id":
-      return { present: true, candidates: [profile.id.toLowerCase()] };
+      return { present: true, candidates: [profile.id] };
     case "tag": {
       const tags = profile.tags ?? [];
-      return {
-        present: tags.length > 0,
-        candidates: tags.map((tag) => tag.toLowerCase()),
-      };
+      return { present: tags.length > 0, candidates: tags };
     }
     case "group":
       return lookupValue(profile.group_id, ctx.groupNames);
@@ -725,8 +742,12 @@ function matchesFieldTerm(
     });
   }
 
-  const actual = fieldValue(profile, field, ctx);
-  return term.values.some((value) => matchesFieldValue(term, value, actual));
+  const value = profileSearchFieldValue(profile, field, ctx);
+  const actual: FieldValue = {
+    present: value.present,
+    candidates: value.candidates.map((candidate) => candidate.toLowerCase()),
+  };
+  return term.values.some((v) => matchesFieldValue(term, v, actual));
 }
 
 /**

@@ -2599,6 +2599,7 @@ test("the hourly profile allowance counts from a window that survives a restart"
       per_hour: 8,
       used: 0,
       retry_after_secs: null,
+      remaining: 8,
     });
 
     const now = Math.floor(Date.now() / 1000);
@@ -2623,6 +2624,7 @@ test("the hourly profile allowance counts from a window that survives a restart"
     assert.equal(full.enforcement, "soft");
     assert.equal(full.per_hour, 8);
     assert.equal(full.used, 8);
+    assert.equal(full.remaining, 0, "no batch fits past the allowance");
     // The oldest of the eight leaves the window about 50 minutes from now.
     assert.ok(
       full.retry_after_secs > 2_900 && full.retry_after_secs <= 3_000,

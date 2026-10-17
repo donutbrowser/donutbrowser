@@ -10,18 +10,30 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { FaChrome } from "react-icons/fa";
 import { GoPlus } from "react-icons/go";
 import {
+  LuArchive,
   LuExternalLink,
+  LuFolder,
   LuFolderOpen,
   LuGlobe,
+  LuInfo,
   LuLink,
   LuPencil,
   LuPuzzle,
   LuRefreshCw,
+  LuSearch,
   LuTrash2,
   LuUpload,
 } from "react-icons/lu";
@@ -32,20 +44,32 @@ import {
   DataTableActionBarSelection,
 } from "@/components/data-table-action-bar";
 import {
+  EntityEmptyState,
+  ExtensionDropScene,
+} from "@/components/entity-empty-state";
+import {
+  PageAction,
+  RowAction,
+  RowActions,
+  SyncCell,
+  type SyncStatus,
+  TickingCount,
+  useEntityMotion,
+} from "@/components/entity-page";
+import {
   configureEntityColumns,
   ManagedDataTable,
   useEntityTableTools,
 } from "@/components/managed-data-table";
 import { ProfileUsageButton } from "@/components/profile-usage-button";
 import { SortableColumnHeader } from "@/components/table-controls";
-import { AnimatedSwitch } from "@/components/ui/animated-switch";
+import { ExtensionsScene } from "@/components/tips/scenes-essentials";
 import {
   AnimatedTabs,
   AnimatedTabsContent,
   AnimatedTabsList,
   AnimatedTabsTrigger,
 } from "@/components/ui/animated-tabs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -61,25 +85,17 @@ import { Label } from "@/components/ui/label";
 import { ProBadge } from "@/components/ui/pro-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useProfileReferences } from "@/hooks/use-profile-references";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
+import { MOTION_EASE_OUT } from "@/lib/motion";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import type { Extension, ExtensionGroup, FetchedExtension } from "@/types";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { RippleButton } from "./ui/ripple";
-
-type SyncStatus = "disabled" | "syncing" | "synced" | "error" | "waiting";
 
 /** A payload staged in the UI, before it is handed to the backend. */
 type PendingSource =
@@ -88,54 +104,33 @@ type PendingSource =
 
 const ARCHIVE_EXTENSIONS = [".crx", ".zip"];
 
+/** Above this many extensions, the group editor offers a search field. */
+const MEMBER_SEARCH_THRESHOLD = 8;
+
 function pathBaseName(path: string): string {
   const segments = path.split(/[/\\]/).filter(Boolean);
   return segments[segments.length - 1] ?? path;
 }
 
-function getSyncStatusDot(
-  item: { sync_enabled?: boolean; last_sync?: number },
-  liveStatus: SyncStatus | undefined,
-  t: (key: string, options?: Record<string, unknown>) => string,
-): { color: string; tooltip: string; animate: boolean } {
-  const status = liveStatus ?? (item.sync_enabled ? "synced" : "disabled");
-
-  switch (status) {
-    case "syncing":
-      return {
-        color: "bg-warning",
-        tooltip: t("profileTable.syncTooltipSyncing"),
-        animate: true,
-      };
-    case "synced":
-      return {
-        color: "bg-success",
-        tooltip: item.last_sync
-          ? t("profileTable.syncTooltipSyncedAt", {
-              time: new Date(item.last_sync * 1000).toLocaleString(),
-            })
-          : t("profileTable.syncTooltipSynced"),
-        animate: false,
-      };
-    case "waiting":
-      return {
-        color: "bg-warning",
-        tooltip: t("profileTable.syncTooltipWaiting"),
-        animate: false,
-      };
-    case "error":
-      return {
-        color: "bg-destructive",
-        tooltip: t("profileTable.syncTooltipError"),
-        animate: false,
-      };
-    default:
-      return {
-        color: "bg-muted-foreground",
-        tooltip: t("profileTable.syncTooltipNotSynced"),
-        animate: false,
-      };
-  }
+/** A form that opens above the list; it slides in and out with its content. */
+function StagePanel({ slot, children }: { slot: string; children: ReactNode }) {
+  const animate = useEntityMotion();
+  return (
+    <motion.div
+      data-slot={slot}
+      initial={animate ? { opacity: 0, transform: "translateY(-4px)" } : false}
+      animate={{ opacity: 1, transform: "translateY(0px)" }}
+      exit={{
+        opacity: 0,
+        transform: animate ? "translateY(-4px)" : "translateY(0px)",
+        transition: { duration: animate ? 0.12 : 0 },
+      }}
+      transition={{ duration: 0.18, ease: MOTION_EASE_OUT }}
+      className="shrink-0 space-y-3 rounded-xl bg-foreground/3 p-3"
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 interface ExtensionManagementDialogProps {
@@ -157,10 +152,14 @@ export function ExtensionManagementDialog({
   const { t } = useTranslation();
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [extensionGroups, setExtensionGroups] = useState<ExtensionGroup[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!limitedMode);
 
   // Extension import state
   const [isUploading, setIsUploading] = useState(false);
+  /** Set before the first await, so a second Enter cannot add a second copy. */
+  const uploadingRef = useRef(false);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const creatingGroupRef = useRef(false);
   const [extensionName, setExtensionName] = useState("");
   const [pendingSource, setPendingSource] = useState<PendingSource | null>(
     null,
@@ -185,6 +184,7 @@ export function ExtensionManagementDialog({
   const [editGroupExtensionIds, setEditGroupExtensionIds] = useState<string[]>(
     [],
   );
+  const [memberQuery, setMemberQuery] = useState("");
 
   // Delete state
   const [extensionToDelete, setExtensionToDelete] = useState<Extension | null>(
@@ -511,6 +511,10 @@ export function ExtensionManagementDialog({
     setPendingSource({ kind: "folder", path: folder });
   }, [pickExtensionFolder]);
 
+  const pickArchive = useCallback(() => {
+    document.getElementById("ext-file-input")?.click();
+  }, []);
+
   const handleEditFolderSelect = useCallback(async () => {
     const folder = await pickExtensionFolder();
     if (!folder) return;
@@ -553,7 +557,8 @@ export function ExtensionManagementDialog({
   }, [urlInput, isFetchingUrl, showActionError, t]);
 
   const handleUpload = useCallback(async () => {
-    if (!pendingSource || !extensionName.trim()) return;
+    if (!pendingSource || !extensionName.trim() || uploadingRef.current) return;
+    uploadingRef.current = true;
     setIsUploading(true);
     try {
       if (pendingSource.kind === "folder") {
@@ -575,6 +580,7 @@ export function ExtensionManagementDialog({
     } catch (err) {
       showActionError(err, t("extensions.uploadFailed"));
     } finally {
+      uploadingRef.current = false;
       setIsUploading(false);
     }
   }, [
@@ -603,7 +609,9 @@ export function ExtensionManagementDialog({
   }, [extensionToDelete, loadData, showActionError, t]);
 
   const handleCreateGroup = useCallback(async () => {
-    if (!newGroupName.trim()) return;
+    if (!newGroupName.trim() || creatingGroupRef.current) return;
+    creatingGroupRef.current = true;
+    setIsCreatingGroup(true);
     try {
       await invoke("create_extension_group", { name: newGroupName.trim() });
       showSuccessToast(t("extensions.groupCreateSuccess"));
@@ -612,6 +620,9 @@ export function ExtensionManagementDialog({
       void loadData();
     } catch (err) {
       showActionError(err, t("extensions.groupCreateFailed"));
+    } finally {
+      creatingGroupRef.current = false;
+      setIsCreatingGroup(false);
     }
   }, [newGroupName, loadData, showActionError, t]);
 
@@ -849,8 +860,8 @@ export function ExtensionManagementDialog({
         return (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                <LuLink className="size-3 shrink-0" />
+              <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <LuLink aria-hidden="true" className="size-3 shrink-0" />
                 <span className="truncate">
                   {t("extensions.source.linked")}
                 </span>
@@ -866,53 +877,56 @@ export function ExtensionManagementDialog({
           </Tooltip>
         );
       }
+      const unpacked = ext.source_kind === "unpacked";
       return (
-        <span className="block min-w-0 truncate text-xs text-muted-foreground">
-          {ext.source_kind === "unpacked"
-            ? t("extensions.source.unpacked")
-            : t("extensions.source.archive")}
+        <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          {unpacked ? (
+            <LuFolder aria-hidden="true" className="size-3 shrink-0" />
+          ) : (
+            <LuArchive aria-hidden="true" className="size-3 shrink-0" />
+          )}
+          <span className="truncate">
+            {t(
+              unpacked
+                ? "extensions.source.unpacked"
+                : "extensions.source.archive",
+            )}
+          </span>
         </span>
       );
     },
     [t],
   );
 
+  const openExtensionEditor = useCallback((ext: Extension) => {
+    setEditingExtension(ext);
+    setEditExtensionName(ext.name);
+    setPendingUpdateSource(null);
+    setEditLinkFolder(Boolean(ext.linked_path));
+  }, []);
+
+  const openGroupEditor = useCallback((group: ExtensionGroup) => {
+    setEditingGroup(group);
+    setEditGroupName(group.name);
+    setEditGroupExtensionIds([...group.extension_ids]);
+    setMemberQuery("");
+  }, []);
+
   const MAX_VISIBLE_ICONS = 3;
 
   const extensionColumns = useMemo<ColumnDef<Extension>[]>(
     () => [
-      {
-        id: "select",
-        size: 36,
-        enableSorting: false,
-        header: ({ table }) => (
-          <Checkbox
-            checked={
-              table.getIsAllRowsSelected() ||
-              (table.getIsSomeRowsSelected() && "indeterminate")
-            }
-            onCheckedChange={(value) => {
-              table.toggleAllRowsSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectAll")}
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => {
-              row.toggleSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectRow")}
-          />
-        ),
-      },
+      { id: "select", size: 36, enableSorting: false },
       {
         id: "icon",
         size: 36,
         enableSorting: false,
         header: () => null,
-        cell: ({ row }) => renderExtensionIcon(row.original, "sm"),
+        cell: ({ row }) => (
+          <span className="flex items-center justify-center">
+            {renderExtensionIcon(row.original, "sm")}
+          </span>
+        ),
       },
       {
         accessorKey: "name",
@@ -927,21 +941,22 @@ export function ExtensionManagementDialog({
         cell: ({ row }) => (
           <button
             type="button"
-            className="block min-w-0 max-w-full rounded-sm text-left text-sm font-medium hover:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            className="block max-w-full min-w-0 rounded-sm text-left text-sm font-medium hover:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
             onClick={() => {
-              const ext = row.original;
-              setEditingExtension(ext);
-              setEditExtensionName(ext.name);
-              setPendingUpdateSource(null);
-              setEditLinkFolder(Boolean(ext.linked_path));
+              openExtensionEditor(row.original);
             }}
           >
             <span className="block truncate">{row.original.name}</span>
             <span className="block truncate text-xs font-normal text-muted-foreground">
-              {row.original.manifest_name &&
-              row.original.manifest_name !== row.original.name
-                ? row.original.manifest_name
-                : row.original.file_name}
+              {[
+                row.original.manifest_name &&
+                row.original.manifest_name !== row.original.name
+                  ? row.original.manifest_name
+                  : row.original.file_name,
+                row.original.version && `v${row.original.version}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </span>
           </button>
         ),
@@ -956,7 +971,7 @@ export function ExtensionManagementDialog({
       },
       {
         id: "source",
-        size: 128,
+        size: 136,
         enableSorting: false,
         header: () => t("appFeedback.source"),
         cell: ({ row }) => renderSource(row.original),
@@ -986,94 +1001,53 @@ export function ExtensionManagementDialog({
       },
       {
         id: "sync",
-        size: 88,
+        size: 80,
         enableSorting: false,
         header: () => t("proxies.management.syncCol"),
         cell: ({ row }) => {
           const ext = row.original;
-          const syncDot = getSyncStatusDot(ext, extSyncStatus[ext.id], t);
-          const isLinked = Boolean(ext.linked_path);
           return (
-            <div className="flex shrink-0 items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className={`size-2 rounded-full shrink-0 ${syncDot.color} ${
-                      syncDot.animate ? "animate-pulse" : ""
-                    }`}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{syncDot.tooltip}</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex shrink-0 items-center">
-                    <AnimatedSwitch
-                      checked={ext.sync_enabled}
-                      onCheckedChange={() => void handleToggleExtSync(ext)}
-                      disabled={isLinked || isTogglingExtSync[ext.id]}
-                    />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {isLinked
-                      ? t("extensions.linkedNoSync")
-                      : ext.sync_enabled
-                        ? t("syncTooltips.disable")
-                        : t("syncTooltips.enable")}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
+            <SyncCell
+              name={ext.name}
+              enabled={Boolean(ext.sync_enabled)}
+              lastSync={ext.last_sync}
+              status={extSyncStatus[ext.id]}
+              busy={isTogglingExtSync[ext.id]}
+              lockedReason={
+                ext.linked_path ? t("extensions.linkedNoSync") : undefined
+              }
+              onToggle={() => void handleToggleExtSync(ext)}
+            />
           );
         },
       },
       {
         id: "actions",
-        size: 80,
+        size: 76,
         enableSorting: false,
-        header: () => t("common.labels.actions"),
+        header: () => (
+          <span className="sr-only">{t("common.labels.actions")}</span>
+        ),
         cell: ({ row }) => {
           const ext = row.original;
           return (
-            <div className="flex shrink-0 justify-end gap-0.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0"
-                    onClick={() => {
-                      setEditingExtension(ext);
-                      setEditExtensionName(ext.name);
-                      setPendingUpdateSource(null);
-                      setEditLinkFolder(Boolean(ext.linked_path));
-                    }}
-                  >
-                    <LuPencil className="size-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("extensions.editExtension")}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0"
-                    onClick={() => {
-                      setExtensionToDelete(ext);
-                    }}
-                  >
-                    <LuTrash2 className="size-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("extensions.delete")}</TooltipContent>
-              </Tooltip>
-            </div>
+            <RowActions>
+              <RowAction
+                label={t("extensions.editExtension")}
+                icon={<LuPencil />}
+                onClick={() => {
+                  openExtensionEditor(ext);
+                }}
+              />
+              <RowAction
+                label={t("extensions.delete")}
+                icon={<LuTrash2 />}
+                tone="destructive"
+                onClick={() => {
+                  setExtensionToDelete(ext);
+                }}
+              />
+            </RowActions>
           );
         },
       },
@@ -1086,6 +1060,7 @@ export function ExtensionManagementDialog({
       extSyncStatus,
       isTogglingExtSync,
       handleToggleExtSync,
+      openExtensionEditor,
       renderExtensionIcon,
       renderCompatIcons,
       renderSource,
@@ -1121,32 +1096,7 @@ export function ExtensionManagementDialog({
 
   const groupColumns = useMemo<ColumnDef<ExtensionGroup>[]>(
     () => [
-      {
-        id: "select",
-        size: 36,
-        enableSorting: false,
-        header: ({ table }) => (
-          <Checkbox
-            checked={
-              table.getIsAllRowsSelected() ||
-              (table.getIsSomeRowsSelected() && "indeterminate")
-            }
-            onCheckedChange={(value) => {
-              table.toggleAllRowsSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectAll")}
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => {
-              row.toggleSelected(!!value);
-            }}
-            aria-label={t("common.aria.selectRow")}
-          />
-        ),
-      },
+      { id: "select", size: 36, enableSorting: false },
       {
         accessorKey: "name",
         enableSorting: true,
@@ -1160,11 +1110,9 @@ export function ExtensionManagementDialog({
         cell: ({ row }) => (
           <button
             type="button"
-            className="block min-w-0 max-w-full truncate rounded-sm text-left text-sm font-medium hover:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            className="block max-w-full min-w-0 truncate rounded-sm text-left text-sm font-medium hover:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
             onClick={() => {
-              setEditingGroup(row.original);
-              setEditGroupName(row.original.name);
-              setEditGroupExtensionIds([...row.original.extension_ids]);
+              openGroupEditor(row.original);
             }}
           >
             {row.original.name}
@@ -1173,7 +1121,7 @@ export function ExtensionManagementDialog({
       },
       {
         id: "extensions",
-        size: 120,
+        size: 136,
         enableSorting: false,
         header: () => t("extensions.extensionsTab"),
         cell: ({ row }) => {
@@ -1182,32 +1130,35 @@ export function ExtensionManagementDialog({
             .map((id) => extensions.find((e) => e.id === id))
             .filter(Boolean) as Extension[];
           const visibleExts = groupExts.slice(0, MAX_VISIBLE_ICONS);
-          const overflowCount = groupExts.length - MAX_VISIBLE_ICONS;
+          const overflow = groupExts.slice(MAX_VISIBLE_ICONS);
+          if (groupExts.length === 0)
+            return (
+              <span className="block min-w-0 truncate text-xs text-muted-foreground">
+                {t("extensions.noExtensionsInGroup")}
+              </span>
+            );
           return (
             <div className="flex min-w-0 items-center gap-1">
               {visibleExts.map((ext) => (
                 <Tooltip key={ext.id}>
                   <TooltipTrigger asChild>
-                    <span className="inline-flex">
+                    <span className="grid size-6 shrink-0 place-items-center rounded-md bg-foreground/5">
                       {renderExtensionIcon(ext, "sm")}
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>{ext.name}</TooltipContent>
                 </Tooltip>
               ))}
-              {overflowCount > 0 && (
+              {overflow.length > 0 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge
-                      variant="soft"
-                      className="h-5 shrink-0 px-1.5 text-xs"
-                    >
-                      +{overflowCount}
-                    </Badge>
+                    <span className="inline-flex h-6 shrink-0 items-center rounded-md bg-foreground/5 px-1.5 text-[11px] text-muted-foreground tabular-nums">
+                      +{overflow.length}
+                    </span>
                   </TooltipTrigger>
                   <TooltipContent>
                     <div className="space-y-0.5">
-                      {groupExts.slice(MAX_VISIBLE_ICONS).map((ext) => (
+                      {overflow.map((ext) => (
                         <p key={ext.id} className="text-xs">
                           {ext.name}
                         </p>
@@ -1215,11 +1166,6 @@ export function ExtensionManagementDialog({
                     </div>
                   </TooltipContent>
                 </Tooltip>
-              )}
-              {groupExts.length === 0 && (
-                <span className="min-w-0 truncate text-xs text-muted-foreground">
-                  {t("extensions.noExtensionsInGroup")}
-                </span>
               )}
             </div>
           );
@@ -1246,94 +1192,50 @@ export function ExtensionManagementDialog({
       },
       {
         id: "sync",
-        size: 88,
+        size: 80,
         enableSorting: false,
         header: () => t("proxies.management.syncCol"),
         cell: ({ row }) => {
           const group = row.original;
-          const groupSyncDot = getSyncStatusDot(
-            group,
-            extSyncStatus[group.id],
-            t,
-          );
           return (
-            <div className="flex shrink-0 items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className={`size-2 rounded-full shrink-0 ${groupSyncDot.color} ${
-                      groupSyncDot.animate ? "animate-pulse" : ""
-                    }`}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{groupSyncDot.tooltip}</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex shrink-0 items-center">
-                    <AnimatedSwitch
-                      checked={group.sync_enabled}
-                      onCheckedChange={() => void handleToggleGroupSync(group)}
-                      disabled={isTogglingGroupSync[group.id]}
-                    />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {group.sync_enabled
-                      ? t("syncTooltips.disable")
-                      : t("syncTooltips.enable")}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
+            <SyncCell
+              name={group.name}
+              enabled={Boolean(group.sync_enabled)}
+              lastSync={group.last_sync}
+              status={extSyncStatus[group.id]}
+              busy={isTogglingGroupSync[group.id]}
+              onToggle={() => void handleToggleGroupSync(group)}
+            />
           );
         },
       },
       {
         id: "actions",
-        size: 80,
+        size: 76,
         enableSorting: false,
-        header: () => t("common.labels.actions"),
+        header: () => (
+          <span className="sr-only">{t("common.labels.actions")}</span>
+        ),
         cell: ({ row }) => {
           const group = row.original;
           return (
-            <div className="flex shrink-0 justify-end gap-0.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0"
-                    onClick={() => {
-                      setEditingGroup(group);
-                      setEditGroupName(group.name);
-                      setEditGroupExtensionIds([...group.extension_ids]);
-                    }}
-                  >
-                    <LuPencil className="size-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("common.buttons.edit")}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0"
-                    onClick={() => {
-                      setGroupToDelete(group);
-                    }}
-                  >
-                    <LuTrash2 className="size-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("extensions.deleteGroup")}</TooltipContent>
-              </Tooltip>
-            </div>
+            <RowActions>
+              <RowAction
+                label={t("extensions.editGroup")}
+                icon={<LuPencil />}
+                onClick={() => {
+                  openGroupEditor(group);
+                }}
+              />
+              <RowAction
+                label={t("extensions.deleteGroup")}
+                icon={<LuTrash2 />}
+                tone="destructive"
+                onClick={() => {
+                  setGroupToDelete(group);
+                }}
+              />
+            </RowActions>
           );
         },
       },
@@ -1346,6 +1248,7 @@ export function ExtensionManagementDialog({
       extSyncStatus,
       isTogglingGroupSync,
       handleToggleGroupSync,
+      openGroupEditor,
       renderExtensionIcon,
     ],
   );
@@ -1403,7 +1306,7 @@ export function ExtensionManagementDialog({
                 <div className="absolute inset-x-0 top-0 z-2 h-6 bg-linear-to-b from-background to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 z-2 h-6 bg-linear-to-t from-background to-transparent" />
                 <div className="absolute inset-0 z-3 flex items-center justify-center">
-                  <div className="flex items-center gap-2 rounded-md bg-background/80 px-3 py-1.5">
+                  <div className="flex items-center gap-2 rounded-lg bg-background/80 px-3 py-1.5">
                     <ProBadge />
                     <span className="text-sm font-medium text-muted-foreground">
                       {t("extensions.proRequired")}
@@ -1426,264 +1329,288 @@ export function ExtensionManagementDialog({
                     disabled={limitedMode}
                   >
                     <span>{t("extensions.extensionsTab")}</span>
-                    <span className="text-xs tabular-nums">
-                      {extensions.length}
-                    </span>
+                    <TickingCount
+                      value={extensions.length}
+                      className="text-xs"
+                    />
                   </AnimatedTabsTrigger>
                   <AnimatedTabsTrigger value="groups" disabled={limitedMode}>
                     <span>{t("extensions.groupsTab")}</span>
-                    <span className="text-xs tabular-nums">
-                      {extensionGroups.length}
-                    </span>
+                    <TickingCount
+                      value={extensionGroups.length}
+                      className="text-xs"
+                    />
                   </AnimatedTabsTrigger>
                 </AnimatedTabsList>
                 <div className="flex items-center gap-2">
-                  {activeTab === "extensions" && (
+                  {activeTab === "extensions" ? (
                     <>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <RippleButton
-                            size="sm"
-                            variant="soft"
-                            disabled={limitedMode}
-                            onClick={() =>
-                              document.getElementById("ext-file-input")?.click()
-                            }
-                            aria-label={t("extensions.upload")}
-                          >
-                            <LuUpload className="size-4" />
-                            <span className="hidden @2xl:inline">
-                              {t("extensions.upload")}
-                            </span>
-                          </RippleButton>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {t("extensions.upload")}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <RippleButton
-                            size="sm"
-                            variant="soft"
-                            disabled={limitedMode}
-                            onClick={() => void handleLoadUnpacked()}
-                            aria-label={t("extensions.loadUnpacked")}
-                          >
-                            <LuFolderOpen className="size-4" />
-                            <span className="hidden @2xl:inline">
-                              {t("extensions.loadUnpacked")}
-                            </span>
-                          </RippleButton>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {t("extensions.loadUnpackedTooltip")}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <RippleButton
-                            size="sm"
-                            variant="soft"
-                            disabled={limitedMode}
-                            onClick={() => {
-                              setShowUrlForm((open) => !open);
-                            }}
-                            aria-label={t("extensions.fromUrl")}
-                          >
-                            <LuGlobe className="size-4" />
-                            <span className="hidden @2xl:inline">
-                              {t("extensions.fromUrl")}
-                            </span>
-                          </RippleButton>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {t("extensions.fromUrlTooltip")}
-                        </TooltipContent>
-                      </Tooltip>
+                      <PageAction
+                        icon={<LuGlobe className="size-4" />}
+                        label={t("extensions.fromUrl")}
+                        tooltip={t("extensions.fromUrlTooltip")}
+                        disabled={limitedMode}
+                        onClick={() => {
+                          setShowUrlForm((open) => !open);
+                        }}
+                      />
+                      <PageAction
+                        icon={<LuFolderOpen className="size-4" />}
+                        label={t("extensions.loadUnpacked")}
+                        tooltip={t("extensions.loadUnpackedTooltip")}
+                        disabled={limitedMode}
+                        onClick={() => void handleLoadUnpacked()}
+                      />
+                      <PageAction
+                        primary
+                        icon={<LuUpload className="size-4" />}
+                        label={t("extensions.upload")}
+                        disabled={limitedMode}
+                        onClick={pickArchive}
+                      />
                     </>
-                  )}
-                  {activeTab === "groups" && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <RippleButton
-                          size="sm"
-                          disabled={limitedMode}
-                          onClick={() => setShowCreateGroup(true)}
-                          aria-label={t("extensions.newGroup")}
-                        >
-                          <GoPlus className="size-4" />
-                          <span className="hidden @2xl:inline">
-                            {t("extensions.newGroup")}
-                          </span>
-                        </RippleButton>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {t("extensions.newGroup")}
-                      </TooltipContent>
-                    </Tooltip>
+                  ) : (
+                    <PageAction
+                      primary
+                      icon={<GoPlus className="size-4" />}
+                      label={t("extensions.newGroup")}
+                      disabled={limitedMode}
+                      onClick={() => setShowCreateGroup(true)}
+                    />
                   )}
                 </div>
               </div>
 
-              {/* Notice */}
-              <div className="mt-4 shrink-0 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+              <p className="mt-3 flex shrink-0 items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                <LuInfo
+                  aria-hidden="true"
+                  className="mt-0.5 size-3.5 shrink-0"
+                />
                 {t("extensions.managedNotice")}
-              </div>
+              </p>
+
+              <Input
+                id="ext-file-input"
+                type="file"
+                accept=".crx,.zip"
+                className="hidden"
+                onChange={handleFileSelect}
+                disabled={limitedMode}
+              />
 
               <AnimatedTabsContent
                 value="extensions"
                 className="mt-4 min-h-0 flex-1 flex-col data-[state=active]:flex"
               >
                 <div className="flex min-h-0 flex-1 flex-col gap-4">
-                  <Input
-                    id="ext-file-input"
-                    type="file"
-                    accept=".crx,.zip"
-                    className="hidden"
-                    onChange={handleFileSelect}
-                    disabled={limitedMode}
-                  />
-
-                  {/* Import from a link */}
-                  {showUrlForm && (
-                    <div className="space-y-2 rounded-md border p-3">
-                      <div className="flex gap-2">
-                        <Input
-                          id="ext-url-input"
-                          value={urlInput}
-                          onChange={(e) => {
-                            setUrlInput(e.target.value);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") void handleFetchFromUrl();
-                          }}
-                          placeholder={t("extensions.urlPlaceholder")}
-                          className="flex-1"
-                          disabled={isFetchingUrl}
-                        />
-                        <RippleButton
-                          size="sm"
-                          onClick={() => void handleFetchFromUrl()}
-                          disabled={
-                            isFetchingUrl || urlInput.trim().length === 0
-                          }
-                        >
-                          {isFetchingUrl
-                            ? t("extensions.fetching")
-                            : t("extensions.fetchExtension")}
-                        </RippleButton>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setShowUrlForm(false);
-                            setUrlInput("");
-                          }}
-                        >
-                          {t("common.buttons.cancel")}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {t("extensions.urlHint")}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Import form */}
-                  {pendingSource && (
-                    <div className="space-y-3 rounded-md border p-3">
-                      <div className="text-sm text-muted-foreground">
-                        {pendingSource.kind === "folder"
-                          ? t("extensions.selectedFolder")
-                          : t("extensions.selectedFile")}
-                        :{" "}
-                        <span className="font-medium break-all text-foreground">
-                          {pendingSource.kind === "folder"
-                            ? pendingSource.path
-                            : pendingSource.fileName}
-                        </span>
-                      </div>
-                      {fetchedIdentity && (
-                        <div className="space-y-0.5">
-                          <div
-                            data-slot="extension-fetched-identity"
-                            className="text-sm font-medium break-all text-foreground"
-                          >
-                            {fetchedIdentity.version
-                              ? t("extensions.fetchedIdentity", {
-                                  name: fetchedIdentity.name,
-                                  version: fetchedIdentity.version,
-                                })
-                              : fetchedIdentity.name}
+                  <AnimatePresence initial={false}>
+                    {showUrlForm && (
+                      <StagePanel key="link" slot="extension-link-form">
+                        <div className="flex flex-wrap gap-2">
+                          <div className="relative min-w-48 flex-1">
+                            <LuGlobe
+                              aria-hidden="true"
+                              className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground"
+                            />
+                            <Input
+                              id="ext-url-input"
+                              variant="soft"
+                              autoFocus
+                              value={urlInput}
+                              onChange={(e) => {
+                                setUrlInput(e.target.value);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter")
+                                  void handleFetchFromUrl();
+                                if (e.key === "Escape") {
+                                  e.stopPropagation();
+                                  setShowUrlForm(false);
+                                  setUrlInput("");
+                                }
+                              }}
+                              placeholder={t("extensions.urlPlaceholder")}
+                              aria-describedby="ext-url-hint"
+                              className="pl-8"
+                              disabled={isFetchingUrl}
+                            />
                           </div>
-                          <p className="text-xs break-all text-muted-foreground">
-                            {t("extensions.fetchedFrom", {
-                              source: fetchedIdentity.source,
-                            })}
-                          </p>
-                        </div>
-                      )}
-                      {pendingSource.kind === "folder" && (
-                        <div className="flex items-start gap-2">
-                          <Checkbox
-                            id="ext-link-folder"
-                            checked={linkFolder}
-                            onCheckedChange={(value) => {
-                              setLinkFolder(value === true);
+                          <RippleButton
+                            size="sm"
+                            onClick={() => void handleFetchFromUrl()}
+                            disabled={
+                              isFetchingUrl || urlInput.trim().length === 0
+                            }
+                          >
+                            {isFetchingUrl
+                              ? t("extensions.fetching")
+                              : t("extensions.fetchExtension")}
+                          </RippleButton>
+                          <Button
+                            size="sm"
+                            variant="subtle"
+                            onClick={() => {
+                              setShowUrlForm(false);
+                              setUrlInput("");
                             }}
-                            className="mt-0.5"
-                          />
-                          <div className="space-y-0.5">
-                            <Label
-                              htmlFor="ext-link-folder"
-                              className="text-sm font-normal"
-                            >
-                              {t("extensions.linkFolder")}
-                            </Label>
+                          >
+                            {t("common.buttons.cancel")}
+                          </Button>
+                        </div>
+                        <p
+                          id="ext-url-hint"
+                          className="text-xs text-muted-foreground"
+                        >
+                          {t("extensions.urlHint")}
+                        </p>
+                      </StagePanel>
+                    )}
+
+                    {pendingSource && (
+                      <StagePanel key="staged" slot="extension-staged">
+                        <div className="flex items-start gap-3">
+                          <span
+                            aria-hidden="true"
+                            className="grid size-9 shrink-0 place-items-center rounded-lg bg-foreground/6 text-muted-foreground [&_svg]:size-4"
+                          >
+                            {pendingSource.kind === "folder" ? (
+                              <LuFolder />
+                            ) : (
+                              <LuArchive />
+                            )}
+                          </span>
+                          <div className="min-w-0 flex-1 space-y-0.5">
                             <p className="text-xs text-muted-foreground">
-                              {linkFolder
-                                ? t("extensions.linkFolderOn")
-                                : t("extensions.linkFolderOff")}
+                              {pendingSource.kind === "folder"
+                                ? t("extensions.selectedFolder")
+                                : t("extensions.selectedFile")}
+                            </p>
+                            <p className="text-sm font-medium break-all">
+                              {pendingSource.kind === "folder"
+                                ? pendingSource.path
+                                : pendingSource.fileName}
                             </p>
                           </div>
                         </div>
-                      )}
-                      <div className="flex gap-2">
-                        <Input
-                          value={extensionName}
-                          onChange={(e) => {
-                            setExtensionName(e.target.value);
-                          }}
-                          placeholder={t("extensions.namePlaceholder")}
-                          className="flex-1"
-                        />
-                        <RippleButton
-                          size="sm"
-                          onClick={() => void handleUpload()}
-                          disabled={isUploading || !extensionName.trim()}
-                        >
-                          {isUploading
-                            ? t("common.buttons.loading")
-                            : t("common.buttons.add")}
-                        </RippleButton>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={resetImportForm}
-                        >
-                          {t("common.buttons.cancel")}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                        {fetchedIdentity && (
+                          <div className="space-y-0.5">
+                            <div
+                              data-slot="extension-fetched-identity"
+                              className="text-sm font-medium break-all text-foreground"
+                            >
+                              {fetchedIdentity.version
+                                ? t("extensions.fetchedIdentity", {
+                                    name: fetchedIdentity.name,
+                                    version: fetchedIdentity.version,
+                                  })
+                                : fetchedIdentity.name}
+                            </div>
+                            <p className="text-xs break-all text-muted-foreground">
+                              {t("extensions.fetchedFrom", {
+                                source: fetchedIdentity.source,
+                              })}
+                            </p>
+                          </div>
+                        )}
+                        {pendingSource.kind === "folder" && (
+                          <div className="flex items-start gap-2">
+                            <Checkbox
+                              id="ext-link-folder"
+                              checked={linkFolder}
+                              onCheckedChange={(value) => {
+                                setLinkFolder(value === true);
+                              }}
+                              className="mt-0.5"
+                            />
+                            <div className="space-y-0.5">
+                              <Label
+                                htmlFor="ext-link-folder"
+                                className="text-sm font-normal"
+                              >
+                                {t("extensions.linkFolder")}
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                {linkFolder
+                                  ? t("extensions.linkFolderOn")
+                                  : t("extensions.linkFolderOff")}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <Input
+                            variant="soft"
+                            value={extensionName}
+                            onChange={(e) => {
+                              setExtensionName(e.target.value);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void handleUpload();
+                            }}
+                            placeholder={t("extensions.namePlaceholder")}
+                            aria-label={t("common.labels.name")}
+                            className="min-w-48 flex-1"
+                            disabled={isUploading}
+                          />
+                          <RippleButton
+                            size="sm"
+                            onClick={() => void handleUpload()}
+                            disabled={isUploading || !extensionName.trim()}
+                          >
+                            {isUploading
+                              ? t("common.buttons.loading")
+                              : t("common.buttons.add")}
+                          </RippleButton>
+                          <Button
+                            size="sm"
+                            variant="subtle"
+                            onClick={resetImportForm}
+                          >
+                            {t("common.buttons.cancel")}
+                          </Button>
+                        </div>
+                      </StagePanel>
+                    )}
+                  </AnimatePresence>
 
-                  {/* Extensions list */}
                   <ManagedDataTable
                     table={extTable}
                     tools={extTableTools}
                     loading={isLoading}
-                    emptyText={t("extensions.empty")}
+                    empty={
+                      showUrlForm || pendingSource ? (
+                        <div className="flex-1" />
+                      ) : (
+                        <EntityEmptyState
+                          entity="extensions"
+                          scene={<ExtensionDropScene />}
+                          title={t("entities.empty.extensions.title")}
+                          description={t("entities.empty.extensions.body")}
+                        >
+                          <RippleButton
+                            size="sm"
+                            className="gap-2"
+                            disabled={limitedMode}
+                            onClick={pickArchive}
+                          >
+                            <LuUpload className="size-4" />
+                            {t("extensions.upload")}
+                          </RippleButton>
+                          <RippleButton
+                            size="sm"
+                            variant="soft"
+                            className="gap-2"
+                            disabled={limitedMode}
+                            onClick={() => {
+                              setShowUrlForm(true);
+                            }}
+                          >
+                            <LuGlobe className="size-4" />
+                            {t("extensions.fromUrl")}
+                          </RippleButton>
+                        </EntityEmptyState>
+                      )
+                    }
                   />
                 </div>
               </AnimatedTabsContent>
@@ -1693,46 +1620,78 @@ export function ExtensionManagementDialog({
                 className="mt-4 min-h-0 flex-1 flex-col data-[state=active]:flex"
               >
                 <div className="flex min-h-0 flex-1 flex-col gap-4">
-                  {/* Create group form */}
-                  {showCreateGroup && (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={newGroupName}
-                        onChange={(e) => {
-                          setNewGroupName(e.target.value);
-                        }}
-                        placeholder={t("extensions.groupNamePlaceholder")}
-                        className="flex-1"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") void handleCreateGroup();
-                        }}
-                      />
-                      <RippleButton
-                        size="sm"
-                        onClick={() => void handleCreateGroup()}
-                        disabled={!newGroupName.trim()}
-                      >
-                        {t("common.buttons.create")}
-                      </RippleButton>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setShowCreateGroup(false);
-                          setNewGroupName("");
-                        }}
-                      >
-                        {t("common.buttons.cancel")}
-                      </Button>
-                    </div>
-                  )}
+                  <AnimatePresence initial={false}>
+                    {showCreateGroup && (
+                      <StagePanel key="create" slot="extension-group-create">
+                        <div className="flex flex-wrap gap-2">
+                          <Input
+                            variant="soft"
+                            autoFocus
+                            value={newGroupName}
+                            onChange={(e) => {
+                              setNewGroupName(e.target.value);
+                            }}
+                            placeholder={t("extensions.groupNamePlaceholder")}
+                            aria-label={t("common.labels.name")}
+                            className="min-w-48 flex-1"
+                            disabled={isCreatingGroup}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void handleCreateGroup();
+                              if (e.key === "Escape") {
+                                e.stopPropagation();
+                                setShowCreateGroup(false);
+                                setNewGroupName("");
+                              }
+                            }}
+                          />
+                          <RippleButton
+                            size="sm"
+                            onClick={() => void handleCreateGroup()}
+                            disabled={isCreatingGroup || !newGroupName.trim()}
+                          >
+                            {t("common.buttons.create")}
+                          </RippleButton>
+                          <Button
+                            size="sm"
+                            variant="subtle"
+                            onClick={() => {
+                              setShowCreateGroup(false);
+                              setNewGroupName("");
+                            }}
+                          >
+                            {t("common.buttons.cancel")}
+                          </Button>
+                        </div>
+                      </StagePanel>
+                    )}
+                  </AnimatePresence>
 
-                  {/* Groups list */}
                   <ManagedDataTable
                     table={groupTable}
                     tools={groupTableTools}
                     loading={isLoading}
-                    emptyText={t("extensions.noGroups")}
+                    empty={
+                      showCreateGroup ? (
+                        <div className="flex-1" />
+                      ) : (
+                        <EntityEmptyState
+                          entity="extensionGroups"
+                          scene={<ExtensionsScene />}
+                          title={t("entities.empty.extensionGroups.title")}
+                          description={t("entities.empty.extensionGroups.body")}
+                        >
+                          <RippleButton
+                            size="sm"
+                            className="gap-2"
+                            disabled={limitedMode}
+                            onClick={() => setShowCreateGroup(true)}
+                          >
+                            <GoPlus className="size-4" />
+                            {t("extensions.newGroup")}
+                          </RippleButton>
+                        </EntityEmptyState>
+                      )
+                    }
                   />
                 </div>
               </AnimatedTabsContent>
@@ -1785,8 +1744,11 @@ export function ExtensionManagementDialog({
                 />
               )}
               <div className="space-y-2">
-                <Label>{t("common.labels.name")}</Label>
+                <Label htmlFor="ext-group-name">
+                  {t("common.labels.name")}
+                </Label>
                 <Input
+                  id="ext-group-name"
                   value={editGroupName}
                   onChange={(e) => {
                     setEditGroupName(e.target.value);
@@ -1795,72 +1757,83 @@ export function ExtensionManagementDialog({
                 />
               </div>
 
-              {extensions.filter((e) => !editGroupExtensionIds.includes(e.id))
-                .length > 0 && (
-                <div className="space-y-2">
-                  <Label>{t("extensions.addToGroup")}</Label>
-                  <Select
-                    value=""
-                    onValueChange={(extId) => {
-                      setEditGroupExtensionIds((prev) => [...prev, extId]);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("extensions.addToGroup")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {extensions
-                        .filter((e) => !editGroupExtensionIds.includes(e.id))
-                        .map((ext) => (
-                          <SelectItem key={ext.id} value={ext.id}>
-                            <div className="flex items-center gap-2">
-                              {renderExtensionIcon(ext, "sm")}
-                              {ext.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
               <div className="space-y-2">
-                <Label>{t("extensions.groupExtensions")}</Label>
-                {editGroupExtensionIds.length === 0 ? (
-                  <div className="py-2 text-sm text-muted-foreground">
-                    {t("extensions.noExtensionsInGroup")}
-                  </div>
-                ) : (
-                  <div className="max-h-[min(40vh,320px)] space-y-1 overflow-y-auto">
-                    {editGroupExtensionIds.map((extId) => {
-                      const ext = extensions.find((e) => e.id === extId);
-                      if (!ext) return null;
-                      return (
-                        <div
-                          key={extId}
-                          className="flex items-center gap-2 rounded-md border px-2 py-1.5"
-                        >
-                          {renderExtensionIcon(ext, "sm")}
-                          <span className="min-w-0 flex-1 truncate text-sm">
-                            {ext.name}
-                          </span>
-                          {renderCompatIcons(ext.browser_compatibility)}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="size-6 shrink-0 p-0"
-                            onClick={() => {
-                              setEditGroupExtensionIds((prev) =>
-                                prev.filter((id) => id !== extId),
-                              );
-                            }}
-                          >
-                            <LuTrash2 className="size-3" />
-                          </Button>
-                        </div>
-                      );
+                <div className="flex items-center justify-between gap-2">
+                  <Label>{t("extensions.groupExtensions")}</Label>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {t("extensions.membersSelected", {
+                      selected: editGroupExtensionIds.filter((id) =>
+                        extensions.some((ext) => ext.id === id),
+                      ).length,
+                      total: extensions.length,
                     })}
+                  </span>
+                </div>
+                {extensions.length > MEMBER_SEARCH_THRESHOLD && (
+                  <div className="relative">
+                    <LuSearch
+                      aria-hidden="true"
+                      className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground"
+                    />
+                    <Input
+                      variant="soft"
+                      value={memberQuery}
+                      onChange={(e) => {
+                        setMemberQuery(e.target.value);
+                      }}
+                      placeholder={t("extensions.searchExtensions")}
+                      aria-label={t("extensions.searchExtensions")}
+                      className="pl-8"
+                    />
                   </div>
+                )}
+                {extensions.length === 0 ? (
+                  <p className="rounded-xl bg-foreground/3 px-3 py-4 text-center text-sm text-muted-foreground">
+                    {t("extensions.empty")}
+                  </p>
+                ) : (
+                  <ul
+                    data-slot="extension-group-members"
+                    className="max-h-[min(40vh,320px)] space-y-0.5 overflow-y-auto rounded-xl bg-foreground/3 p-1"
+                  >
+                    {extensions
+                      .filter((ext) =>
+                        ext.name
+                          .toLowerCase()
+                          .includes(memberQuery.trim().toLowerCase()),
+                      )
+                      .map((ext) => {
+                        const id = `ext-group-member-${ext.id}`;
+                        const member = editGroupExtensionIds.includes(ext.id);
+                        return (
+                          <li key={ext.id}>
+                            <label
+                              htmlFor={id}
+                              className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors duration-100 hover:bg-foreground/5"
+                            >
+                              <Checkbox
+                                id={id}
+                                checked={member}
+                                onCheckedChange={(checked) => {
+                                  setEditGroupExtensionIds((prev) =>
+                                    checked === true
+                                      ? prev.includes(ext.id)
+                                        ? prev
+                                        : [...prev, ext.id]
+                                      : prev.filter((item) => item !== ext.id),
+                                  );
+                                }}
+                              />
+                              {renderExtensionIcon(ext, "sm")}
+                              <span className="min-w-0 flex-1 truncate text-sm">
+                                {ext.name}
+                              </span>
+                              {renderCompatIcons(ext.browser_compatibility)}
+                            </label>
+                          </li>
+                        );
+                      })}
+                  </ul>
                 )}
               </div>
             </div>
@@ -1915,8 +1888,11 @@ export function ExtensionManagementDialog({
                   pending={pendingUpdateSource !== null}
                 />
                 <div className="space-y-2">
-                  <Label>{t("common.labels.name")}</Label>
+                  <Label htmlFor="ext-edit-name">
+                    {t("common.labels.name")}
+                  </Label>
                   <Input
+                    id="ext-edit-name"
                     value={editExtensionName}
                     onChange={(e) => {
                       setEditExtensionName(e.target.value);
@@ -1936,7 +1912,8 @@ export function ExtensionManagementDialog({
                       </span>
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="subtle"
+                        className="h-7"
                         onClick={() =>
                           setEditExtensionName(
                             editingExtension.manifest_name ??
@@ -1949,10 +1926,10 @@ export function ExtensionManagementDialog({
                     </div>
                   )}
                 {/* Metadata from manifest.json */}
-                <div className="space-y-2 rounded-md border p-3">
-                  <Label className="text-xs tracking-wide text-muted-foreground uppercase">
+                <div className="space-y-2 rounded-xl bg-foreground/3 p-3">
+                  <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     {t("extensions.metadata")}
-                  </Label>
+                  </p>
                   <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
                     {editingExtension.version && (
                       <>
@@ -2053,12 +2030,12 @@ export function ExtensionManagementDialog({
                   <div className="flex flex-wrap items-center gap-2">
                     <RippleButton
                       size="sm"
-                      variant="outline"
+                      variant="soft"
                       onClick={() =>
                         document.getElementById("ext-edit-file-input")?.click()
                       }
                     >
-                      <LuUpload className="mr-1 size-3" />
+                      <LuUpload className="size-3.5" />
                       {t("extensions.selectFile")}
                     </RippleButton>
                     <input
@@ -2070,14 +2047,14 @@ export function ExtensionManagementDialog({
                     />
                     <RippleButton
                       size="sm"
-                      variant="outline"
+                      variant="soft"
                       onClick={() => void handleEditFolderSelect()}
                     >
-                      <LuFolderOpen className="mr-1 size-3" />
+                      <LuFolderOpen className="size-3.5" />
                       {t("extensions.selectFolder")}
                     </RippleButton>
                     {pendingUpdateSource && (
-                      <span className="max-w-[200px] truncate text-xs text-muted-foreground">
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                         {pendingUpdateSource.kind === "folder"
                           ? pendingUpdateSource.path
                           : pendingUpdateSource.fileName}

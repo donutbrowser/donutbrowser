@@ -99,11 +99,18 @@ export function EditGroupDialog({
                 }
               }}
               disabled={isUpdating}
+              autoFocus
+              onFocus={(e) => {
+                e.currentTarget.select();
+              }}
             />
           </div>
 
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-text">
+            <div
+              role="alert"
+              className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-text"
+            >
               {error}
             </div>
           )}
@@ -122,7 +129,7 @@ export function EditGroupDialog({
             onClick={() => void handleUpdate()}
             disabled={!groupName.trim() || groupName === group?.name}
           >
-            {t("groups.edit")}
+            {t("common.buttons.save")}
           </LoadingButton>
         </DialogFooter>
       </DialogContent>

@@ -1,14 +1,53 @@
-//! A donut-sync server the customer runs, used while signed in to a paid
-//! Donut account.
+//! Where a device syncs: Donut cloud, a signed-in paid account's own
+//! donut-sync server, or a server opened by a shared `SYNC_TOKEN`.
 //!
-//! The app signs in to that server with a short token the Donut API issues for
-//! its one address, and the server asks the API whose the token is. The plan's
-//! profile limit and the team's namespace, roles and group access thus apply
-//! there as on Donut cloud, and every person who syncs needs their own seat. A
-//! shared `SYNC_TOKEN` opens the whole bucket to anyone who has it, so it stays
-//! the signed-out way to use a server.
+//! The app signs in to an account's own server with a short token the Donut
+//! API issues for its one address, and the server asks the API whose the token
+//! is. The team's namespace, roles and group access thus apply there as on
+//! Donut cloud, and every person who syncs needs their own seat. A shared
+//! `SYNC_TOKEN` opens the whole bucket to anyone who has it, so it is set up
+//! signed out; signed in, a device uses it only when the person picks it.
 
-use crate::settings_manager::SettingsManager;
+use serde::{Deserialize, Serialize};
+
+use crate::settings_manager::{AppSettings, SettingsManager};
+
+/// A source a signed-in device can pick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SyncSourceKind {
+  Cloud,
+  Account,
+  SelfHosted,
+}
+
+/// Where this device syncs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SyncSource {
+  Cloud,
+  /// The signed-in account's own server.
+  Account(String),
+  /// A server opened by a shared token.
+  SelfHosted(String),
+}
+
+impl SyncSource {
+  pub fn kind(&self) -> SyncSourceKind {
+    match self {
+      Self::Cloud => SyncSourceKind::Cloud,
+      Self::Account(_) => SyncSourceKind::Account,
+      Self::SelfHosted(_) => SyncSourceKind::SelfHosted,
+    }
+  }
+}
+
+/// The sources this device can pick from, and the one in use.
+#[derive(Debug, Clone, Serialize)]
+pub struct SyncSourceState {
+  pub active: Option<SyncSourceKind>,
+  pub account_server: Option<String>,
+  pub self_hosted_server: Option<String>,
+}
 
 /// The address in the one form the Donut API and donut-sync also write: scheme,
 /// host and port as the URL parser writes them, then the path without trailing
@@ -40,35 +79,165 @@ pub fn normalize_server_url(raw: &str) -> Option<String> {
   ))
 }
 
-/// The own server set on this device, signed in or not.
-fn stored() -> Option<String> {
-  SettingsManager::instance()
-    .load_settings()
-    .ok()?
+/// The source the settings name. Signed out, the shared-token server. Signed
+/// in, the picked one while its server is still set; with no pick, an own
+/// server set before the choice existed, else Donut cloud. A team seat never
+/// syncs with a shared-token server, which is outside the team's rules.
+pub(crate) fn resolve(
+  settings: &AppSettings,
+  signed_in: bool,
+  team_seat: bool,
+) -> Option<SyncSource> {
+  if !signed_in {
+    return settings.sync_server_url.clone().map(SyncSource::SelfHosted);
+  }
+  let account = settings
     .account_sync_server_url
+    .clone()
+    .map(SyncSource::Account);
+  let picked = match settings.sync_source {
+    Some(SyncSourceKind::Cloud) => Some(SyncSource::Cloud),
+    Some(SyncSourceKind::Account) => account.clone(),
+    Some(SyncSourceKind::SelfHosted) if team_seat => Some(SyncSource::Cloud),
+    Some(SyncSourceKind::SelfHosted) => token_server(settings).map(SyncSource::SelfHosted),
+    None => None,
+  };
+  Some(picked.or(account).unwrap_or(SyncSource::Cloud))
 }
 
-/// The own server this signed-in account syncs with, or `None` for Donut
-/// cloud.
-pub async fn configured() -> Option<String> {
-  if !crate::cloud_auth::CLOUD_AUTH.is_logged_in().await {
-    return None;
+/// Whether `url` is Donut cloud's address, in any scheme or spelling.
+fn is_cloud_address(url: &str) -> bool {
+  let without_scheme = |url: &str| {
+    normalize_server_url(url)
+      .and_then(|url| url.split_once("://").map(|(_, rest)| rest.to_string()))
+  };
+  without_scheme(url)
+    .is_some_and(|rest| Some(rest) == without_scheme(crate::cloud_auth::CLOUD_SYNC_URL))
+}
+
+/// The stored shared-token server a signed-in device may pick. Older versions
+/// stored Donut cloud's address there with a cloud-issued token; that is not
+/// one.
+fn token_server(settings: &AppSettings) -> Option<String> {
+  settings
+    .sync_server_url
+    .clone()
+    .filter(|url| !is_cloud_address(url))
+}
+
+/// Turn a team seat's shared-token pick into Donut cloud. Whether it did.
+fn settle_team_pick(settings: &mut AppSettings, team_seat: bool) -> bool {
+  let reset = team_seat && settings.sync_source == Some(SyncSourceKind::SelfHosted);
+  if reset {
+    settings.sync_source = Some(SyncSourceKind::Cloud);
   }
-  stored()
+  reset
+}
+
+/// Store `server` as the account's own server and pick it, or drop it.
+fn apply_account_server(settings: &mut AppSettings, server: Option<String>) {
+  if server.is_some() {
+    settings.sync_source = Some(SyncSourceKind::Account);
+  } else if settings.sync_source == Some(SyncSourceKind::Account) {
+    settings.sync_source = None;
+  }
+  settings.account_sync_server_url = server;
+}
+
+fn load() -> Option<AppSettings> {
+  SettingsManager::instance().load_settings().ok()
+}
+
+fn load_for_write() -> Result<AppSettings, String> {
+  SettingsManager::instance()
+    .load_settings()
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))
+}
+
+fn save(settings: &AppSettings) -> Result<(), String> {
+  SettingsManager::instance()
+    .save_settings(settings)
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
+  let _ = crate::events::emit_empty("sync-source-changed");
+  Ok(())
+}
+
+/// The settings the source comes from, whether someone is signed in, and
+/// whether they hold a team seat. A shared-token pick stored before the seat
+/// is stored as Donut cloud here, once.
+async fn snapshot() -> Result<(AppSettings, bool, bool), String> {
+  let seat = crate::cloud_auth::CLOUD_AUTH
+    .get_user()
+    .await
+    .map(|auth| auth.user.team_id.is_some());
+  let team_seat = seat == Some(true);
+  let mut settings = load_for_write()?;
+  if settle_team_pick(&mut settings, team_seat) && save(&settings).is_ok() {
+    log::info!("Sync source reset to cloud reason=team_seat");
+  }
+  Ok((settings, seat.is_some(), team_seat))
+}
+
+/// Where this device syncs now, or `None` when it has nowhere to sync.
+pub async fn current() -> Option<SyncSource> {
+  let (settings, signed_in, team_seat) = snapshot().await.ok()?;
+  resolve(&settings, signed_in, team_seat)
+}
+
+/// The own server this signed-in account syncs with, or `None`.
+pub async fn configured() -> Option<String> {
+  match current().await {
+    Some(SyncSource::Account(server)) => Some(server),
+    _ => None,
+  }
+}
+
+/// Whether a signed-in device syncs with the shared-token server its person
+/// picked.
+pub async fn self_hosted_picked() -> bool {
+  snapshot()
+    .await
+    .ok()
+    .and_then(|(settings, _, team_seat)| resolve(&settings, true, team_seat))
+    .is_some_and(|source| matches!(source, SyncSource::SelfHosted(_)))
 }
 
 /// The refusal for work that runs a profile on Donut's hosts. They take the
-/// profile from Donut cloud and cannot reach the customer's server.
+/// profile from Donut cloud and cannot reach any other server. A team seat's
+/// shared-token pick is already Donut cloud on disk once sync has started.
 pub fn cloud_run_refusal() -> Option<String> {
-  stored().map(|_| crate::backend_error("REMOTE_NEEDS_DONUT_SYNC"))
+  let source = resolve(&load()?, true, false)?;
+  (source != SyncSource::Cloud).then(|| crate::backend_error("REMOTE_NEEDS_DONUT_SYNC"))
 }
 
+/// Forget the own server and the pick at sign-out; the next account starts on
+/// Donut cloud.
 pub(crate) fn clear() {
   let manager = SettingsManager::instance();
   if let Ok(mut settings) = manager.load_settings() {
-    if settings.account_sync_server_url.take().is_some() {
+    let had_account = settings.account_sync_server_url.take().is_some();
+    if had_account || settings.sync_source.take().is_some() {
       let _ = manager.save_settings(&settings);
     }
+  }
+}
+
+async fn state(
+  app_handle: &tauri::AppHandle,
+  settings: &AppSettings,
+  signed_in: bool,
+  team_seat: bool,
+) -> SyncSourceState {
+  let has_token = SettingsManager::instance()
+    .get_sync_token(app_handle)
+    .await
+    .ok()
+    .flatten()
+    .is_some();
+  SyncSourceState {
+    active: resolve(settings, signed_in, team_seat).map(|source| source.kind()),
+    account_server: settings.account_sync_server_url.clone(),
+    self_hosted_server: token_server(settings).filter(|_| has_token && !team_seat),
   }
 }
 
@@ -119,33 +288,221 @@ async fn check(raw: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn get_account_sync_server() -> Result<Option<String>, String> {
-  Ok(stored())
+pub async fn get_sync_source(app_handle: tauri::AppHandle) -> Result<SyncSourceState, String> {
+  let (settings, signed_in, team_seat) = snapshot().await?;
+  Ok(state(&app_handle, &settings, signed_in, team_seat).await)
 }
 
-/// Sync this signed-in account with its own server, or with Donut cloud again
+/// Pick where this signed-in device syncs. The caller restarts sync.
+#[tauri::command]
+pub async fn set_sync_source(
+  app_handle: tauri::AppHandle,
+  source: SyncSourceKind,
+) -> Result<SyncSourceState, String> {
+  let (mut settings, signed_in, team_seat) = snapshot().await?;
+  if !signed_in {
+    return Err(crate::backend_error("ACCOUNT_SYNC_SIGN_IN_REQUIRED"));
+  }
+  match source {
+    SyncSourceKind::Cloud => {}
+    SyncSourceKind::Account => {
+      if settings.account_sync_server_url.is_none() {
+        return Err(crate::backend_error("SYNC_NOT_CONFIGURED"));
+      }
+      if !crate::cloud_auth::CLOUD_AUTH.can_use_cloud_backup().await {
+        return Err(crate::backend_error("ACCOUNT_SYNC_PLAN_REQUIRED"));
+      }
+    }
+    SyncSourceKind::SelfHosted => {
+      if team_seat {
+        return Err(crate::backend_error("SELF_HOSTED_TEAM_SEAT"));
+      }
+      let offered = state(&app_handle, &settings, signed_in, team_seat).await;
+      if offered.self_hosted_server.is_none() {
+        return Err(crate::backend_error("SYNC_NOT_CONFIGURED"));
+      }
+    }
+  }
+  settings.sync_source = Some(source);
+  save(&settings)?;
+  log::info!("Sync source set source={source:?}");
+  Ok(state(&app_handle, &settings, signed_in, team_seat).await)
+}
+
+/// Store this signed-in account's own server and sync with it, or forget it
 /// when `server_url` is empty.
 #[tauri::command]
-pub async fn set_account_sync_server(server_url: Option<String>) -> Result<Option<String>, String> {
+pub async fn set_account_sync_server(
+  app_handle: tauri::AppHandle,
+  server_url: Option<String>,
+) -> Result<SyncSourceState, String> {
   let server = match server_url.as_deref().map(str::trim) {
     Some(raw) if !raw.is_empty() => Some(check(raw).await?),
     _ => None,
   };
-  let manager = SettingsManager::instance();
-  let mut settings = manager
-    .load_settings()
-    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
-  settings.account_sync_server_url = server.clone();
-  manager
-    .save_settings(&settings)
-    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
-  log::info!("Account sync server set own_server={}", server.is_some());
-  Ok(server)
+  let (mut settings, signed_in, team_seat) = snapshot().await?;
+  let own_server = server.is_some();
+  apply_account_server(&mut settings, server);
+  save(&settings)?;
+  log::info!("Account sync server set own_server={own_server}");
+  Ok(state(&app_handle, &settings, signed_in, team_seat).await)
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  const OWN: &str = "https://own.example.com";
+  const SHARED: &str = "https://shared.example.com";
+
+  fn settings(
+    account: Option<&str>,
+    self_hosted: Option<&str>,
+    picked: Option<SyncSourceKind>,
+  ) -> AppSettings {
+    AppSettings {
+      account_sync_server_url: account.map(str::to_string),
+      sync_server_url: self_hosted.map(str::to_string),
+      sync_source: picked,
+      ..AppSettings::default()
+    }
+  }
+
+  #[test]
+  fn signed_out_syncs_with_the_shared_token_server_only() {
+    assert_eq!(resolve(&settings(None, None, None), false, false), None);
+    assert_eq!(
+      resolve(
+        &settings(Some(OWN), Some(SHARED), Some(SyncSourceKind::Account)),
+        false,
+        false
+      ),
+      Some(SyncSource::SelfHosted(SHARED.into()))
+    );
+    assert_eq!(
+      resolve(&settings(Some(OWN), None, None), false, false),
+      None,
+      "an own server needs a signed-in account"
+    );
+  }
+
+  #[test]
+  fn signing_in_starts_on_donut_cloud() {
+    assert_eq!(
+      resolve(&settings(None, None, None), true, false),
+      Some(SyncSource::Cloud)
+    );
+    assert_eq!(
+      resolve(&settings(None, Some(SHARED), None), true, false),
+      Some(SyncSource::Cloud)
+    );
+  }
+
+  #[test]
+  fn an_own_server_set_before_the_choice_stays_in_use() {
+    assert_eq!(
+      resolve(&settings(Some(OWN), Some(SHARED), None), true, false),
+      Some(SyncSource::Account(OWN.into()))
+    );
+  }
+
+  #[test]
+  fn the_pick_wins_while_its_server_is_set() {
+    let both = |picked| {
+      resolve(
+        &settings(Some(OWN), Some(SHARED), Some(picked)),
+        true,
+        false,
+      )
+    };
+    assert_eq!(both(SyncSourceKind::Cloud), Some(SyncSource::Cloud));
+    assert_eq!(
+      both(SyncSourceKind::Account),
+      Some(SyncSource::Account(OWN.into()))
+    );
+    assert_eq!(
+      both(SyncSourceKind::SelfHosted),
+      Some(SyncSource::SelfHosted(SHARED.into()))
+    );
+
+    assert_eq!(
+      resolve(
+        &settings(None, None, Some(SyncSourceKind::SelfHosted)),
+        true,
+        false
+      ),
+      Some(SyncSource::Cloud),
+      "a pick whose server is gone falls back"
+    );
+    assert_eq!(
+      resolve(
+        &settings(Some(OWN), None, Some(SyncSourceKind::SelfHosted)),
+        true,
+        false
+      ),
+      Some(SyncSource::Account(OWN.into()))
+    );
+  }
+
+  #[test]
+  fn saving_an_own_server_picks_it_and_removing_it_returns_to_cloud() {
+    let mut saved = settings(None, Some(SHARED), Some(SyncSourceKind::Cloud));
+    apply_account_server(&mut saved, Some(OWN.into()));
+    assert_eq!(
+      resolve(&saved, true, false),
+      Some(SyncSource::Account(OWN.into()))
+    );
+    apply_account_server(&mut saved, None);
+    assert_eq!(saved.sync_source, None);
+    assert_eq!(resolve(&saved, true, false), Some(SyncSource::Cloud));
+
+    let mut shared = settings(Some(OWN), Some(SHARED), Some(SyncSourceKind::SelfHosted));
+    apply_account_server(&mut shared, None);
+    assert_eq!(
+      resolve(&shared, true, false),
+      Some(SyncSource::SelfHosted(SHARED.into())),
+      "removing the own server keeps another pick"
+    );
+  }
+
+  #[test]
+  fn donut_clouds_address_is_never_a_token_server() {
+    for stored in [
+      "https://sync.donutbrowser.com",
+      "https://Sync.DonutBrowser.com/",
+      "http://sync.donutbrowser.com:80",
+    ] {
+      let legacy = settings(None, Some(stored), Some(SyncSourceKind::SelfHosted));
+      assert_eq!(token_server(&legacy), None, "{stored}");
+      assert_eq!(
+        resolve(&legacy, true, false),
+        Some(SyncSource::Cloud),
+        "{stored}"
+      );
+    }
+    assert_eq!(
+      token_server(&settings(None, Some(SHARED), None)).as_deref(),
+      Some(SHARED)
+    );
+  }
+
+  #[test]
+  fn a_team_seat_never_syncs_with_a_shared_token_server() {
+    let picked = settings(Some(OWN), Some(SHARED), Some(SyncSourceKind::SelfHosted));
+    assert_eq!(resolve(&picked, true, true), Some(SyncSource::Cloud));
+    assert_eq!(
+      resolve(&settings(Some(OWN), Some(SHARED), None), true, true),
+      Some(SyncSource::Account(OWN.into()))
+    );
+
+    let mut stored = picked.clone();
+    assert!(!settle_team_pick(&mut stored, false));
+    assert_eq!(stored.sync_source, Some(SyncSourceKind::SelfHosted));
+    assert!(settle_team_pick(&mut stored, true));
+    assert_eq!(stored.sync_source, Some(SyncSourceKind::Cloud));
+    assert!(!settle_team_pick(&mut stored, true), "reset once");
+    assert_eq!(resolve(&stored, true, false), Some(SyncSource::Cloud));
+  }
 
   #[test]
   fn writes_one_form_for_every_way_to_type_the_same_address() {

@@ -27,7 +27,7 @@ import {
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { effectivePlanOf } from "@/lib/entitlements";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
-import type { SyncServerCheck, SyncSettings } from "@/types";
+import type { SyncServerCheck, SyncSettings, SyncSourceState } from "@/types";
 
 const DEVICE_LINK_URL = "https://donutbrowser.com/auth/link";
 
@@ -76,7 +76,7 @@ export function SyncConfigDialog({
   } = useCloudAuth();
 
   const [activeTab, setActiveTab] = useState<string>("cloud");
-  const [accountServer, setAccountServer] = useState<string | null>(null);
+  const [syncSource, setSyncSource] = useState<SyncSourceState | null>(null);
   const [, setLiveProxyUsage] = useState<ProxyUsage | null>(null);
 
   const [connectionStatus, setConnectionStatus] = useState<
@@ -147,10 +147,10 @@ export function SyncConfigDialog({
     if (isOpen) {
       setConnectionStatus("unknown");
       void loadSettings();
-      void invoke<string | null>("get_account_sync_server")
-        .then(setAccountServer)
+      void invoke<SyncSourceState>("get_sync_source")
+        .then(setSyncSource)
         .catch(() => {
-          setAccountServer(null);
+          setSyncSource(null);
         });
       void invoke<ProxyUsage | null>("cloud_get_proxy_usage")
         .then(setLiveProxyUsage)
@@ -283,6 +283,13 @@ export function SyncConfigDialog({
 
   const cloudBlocked = !isLoggedIn && hasConfig;
   const selfHostedBlocked = isLoggedIn;
+  const activeSource = syncSource?.active ?? "cloud";
+  const syncServer =
+    activeSource === "account"
+      ? syncSource?.account_server
+      : activeSource === "self_hosted"
+        ? syncSource?.self_hosted_server
+        : null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -320,20 +327,22 @@ export function SyncConfigDialog({
                   {t("sync.cloud.server")}
                 </span>
                 <span className="truncate">
-                  {accountServer ?? t("account.ownServer.donutCloud")}
+                  {syncServer ?? t("account.ownServer.donutCloud")}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">
-                  {t("sync.cloud.profiles")}
-                </span>
-                <span>
-                  {t("sync.cloud.profileUsage", {
-                    used: user.cloudProfilesUsed,
-                    limit: user.profileLimit,
-                  })}
-                </span>
-              </div>
+              {activeSource === "cloud" && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    {t("sync.cloud.profiles")}
+                  </span>
+                  <span>
+                    {t("sync.cloud.profileUsage", {
+                      used: user.cloudProfilesUsed,
+                      limit: user.profileLimit,
+                    })}
+                  </span>
+                </div>
+              )}
               {user.teamName && (
                 <>
                   <div className="flex justify-between">
@@ -481,7 +490,9 @@ export function SyncConfigDialog({
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {showToken ? "Hide token" : "Show token"}
+                          {showToken
+                            ? t("common.aria.hideToken")
+                            : t("common.aria.showToken")}
                         </TooltipContent>
                       </Tooltip>
                     </div>
@@ -537,22 +548,23 @@ export function SyncConfigDialog({
                     onClick={() => void handleDisconnect()}
                     disabled={isSaving}
                   >
-                    Disconnect
+                    {t("account.selfHosted.disconnect")}
                   </Button>
                 )}
-                <Button
+                <LoadingButton
                   variant="outline"
                   onClick={() => void handleTestConnection()}
-                  disabled={isTesting || !serverUrl}
+                  isLoading={isTesting}
+                  disabled={!serverUrl}
                 >
-                  {isTesting ? "Testing..." : "Test Connection"}
-                </Button>
+                  {t("account.selfHosted.testConnection")}
+                </LoadingButton>
                 <LoadingButton
                   onClick={() => void handleSave()}
                   isLoading={isSaving}
                   disabled={!serverUrl || !token}
                 >
-                  Save
+                  {t("common.buttons.save")}
                 </LoadingButton>
               </DialogFooter>
             </TabsContent>

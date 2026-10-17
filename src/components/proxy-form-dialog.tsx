@@ -475,11 +475,7 @@ export function ProxyFormDialog({
             </Select>
             <p
               id="proxy-type-first-hop"
-              className={
-                firstHopEncrypted
-                  ? "text-xs text-muted-foreground"
-                  : "text-xs text-warning-text"
-              }
+              className="text-xs text-muted-foreground"
             >
               {firstHopEncrypted
                 ? t("proxies.form.firstHopEncryptedNote")
@@ -612,8 +608,11 @@ export function ProxyFormDialog({
               </div>
 
               {showPlaintextExposure && (
-                <div className="space-y-2 rounded-md border border-warning/50 bg-warning/10 p-3">
-                  <p className="font-medium">
+                <div
+                  role="note"
+                  className="space-y-1 rounded-lg bg-warning/10 p-3"
+                >
+                  <p className="text-sm font-medium text-warning-text">
                     {isShadowsocks
                       ? t("proxies.form.nullCipherHeading")
                       : t("proxies.form.credentialsInClearHeading")}

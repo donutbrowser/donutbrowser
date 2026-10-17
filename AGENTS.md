@@ -36,7 +36,11 @@ donutbrowser/
 │   ├── components/                   # 50+ React components (dialogs, tables, UI)
 │   │   ├── table-controls.tsx         # Shared filters, sort rules, column controls, and row selection
 │   │   ├── managed-data-table.tsx     # Shared management table and keyboard navigation
-│   │   └── tips/                     # Feature tips: SVG scene primitives and one looping scene per tip
+│   │   ├── entity-page.tsx            # Proxy/VPN/group/extension page parts: page and row actions, kind badges, sync and check cells
+│   │   ├── entity-empty-state.tsx     # Empty states of those pages, with their scenes
+│   │   ├── profile-search-input.tsx   # Profile search with ghost-text completion and suggestions
+│   │   ├── settings/                 # Settings page parts: rows, choice cards, theme previews, sounds, save bar
+│   │   └── tips/                     # Feature tips: scenes, icons and the inline tip card
 │   ├── hooks/                        # Event-driven React hooks, table preferences, filtering, and keyboard controls
 │   ├── i18n/locales/                 # Translations (de, en, es, fr, ja, ko, pt, ru, tr, vi, zh)
 │   ├── generated/                    # Build-generated third-party license inventory
@@ -307,43 +311,63 @@ Reference implementations: `proxy-management-dialog.tsx`, `extension-management-
 
 Tips are short feature walkthroughs: a looping SVG scene, a title, two or
 three lines of copy, and a button into the feature. The catalog is
-`src/lib/tips.ts` (ids, deep-link actions, the plan capability a tip needs,
-the `inUse` relevance check); scenes live in `src/components/tips/scenes-*.tsx`
-and are mapped in `scene-for.tsx`; the dialog is
-`src/components/tips-dialog.tsx`; the flow (what to open when) is
-`src/hooks/use-tips.ts`. State (`tips_auto_show`, `tips_seen`,
-`tips_last_auto_shown_at`, `tips_next_auto_show_at`, `paid_welcome_seen_for`,
-`cloud_plan_memory`) is in `AppSettings`, behind the `get_tips_state`,
-`mark_tip_seen`, `set_tips_auto_show` and `observe_cloud_plan` commands.
+`src/lib/tips.ts` (ids, sections, deep-link actions, the plan capability a
+tip needs, the `inUse` relevance check); scenes live in
+`src/components/tips/scenes-*.tsx` and are mapped in `scene-for.tsx`, icons
+in `tip-icon.tsx`; the catalog dialog is `src/components/tips-dialog.tsx`;
+the card on the Profiles page is `src/components/tips/inline-tip.tsx`; the
+flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
+`tips_seen`, `tips_used`, `tips_inline`, `tips_last_auto_shown_at`,
+`tips_next_auto_show_at`, `paid_welcome_seen_for`, `cloud_plan_memory`) is in
+`AppSettings`, behind the `get_tips_state`, `show_inline_tip`,
+`release_inline_tip`, `mark_tip_seen`, `note_tip_feature_used`,
+`set_tips_auto_show` and `observe_cloud_plan` commands.
 
-- The automatic tip is one card (`mode: "single"`): no catalog, no pager, and
-  its button is Done. The catalog with the pager opens only from the rail,
-  the shortcut, the command palette and the paid welcome (`mode: "browse"`).
-- It opens only after a settled launch (onboarding done, terms accepted,
-  nothing modal open), never in the first-run session. When one opens, the
-  backend draws the next time one may open, a random 2 to 5 days later
-  (`next_auto_tip_at`), and stores it in `tips_next_auto_show_at`, so a
-  restart keeps the same wait. The E2E harness seeds `tips_auto_show: false`;
-  a test that wants the automatic tip passes `settings: { tips_auto_show: true }`
-  or calls `set_tips_auto_show`.
-- The automatic flow picks at random among the unseen tips whose feature is
-  not in use (`pickAutoTip`). Each tip's `inUse` reads a `FeatureUsage`
-  snapshot: profile fields, groups, extension groups, team, Cookie Bot
+- Tips never open a dialog by themselves. The catalog opens from the rail,
+  the shortcut, the command palette, the inline card's menu and the paid
+  welcome.
+- The inline tip is one slim card under the profile table: at most one new
+  tip a day, only on the Profiles page with at least one profile, after a
+  settled launch (onboarding done, terms accepted, never in the first-run
+  session), once the page has been quiet a few seconds with nothing modal
+  open. It takes its own row and never takes focus. The backend pins it
+  (`tips_inline`), so a restart shows the same tip until it is dismissed,
+  acted on or read in the catalog (`mark_tip_seen`). Closing it sets
+  `tips_next_auto_show_at` to the next local day, at least 12 hours later
+  (`next_inline_tip_at`). `tips_auto_show` is the "Show tips on the Profiles
+  page" switch; off removes the card unread and counts as the day's tip.
+  `save_app_settings` keeps the stored tips fields (`keep_tips_state`): only
+  the tips commands write them. The E2E harness seeds
+  `tips_auto_show: false`; a test that wants the inline tip passes
+  `settings: { tips_auto_show: true }` or calls `set_tips_auto_show`.
+- The pick is random among the unseen tips whose feature is not in use
+  (`pickInlineTip`). Each tip's `inUse` reads a `FeatureUsage` snapshot:
+  profile fields, groups, VPNs, extension groups, team, Cookie Bot
   enrolments and the sync server come from data `page.tsx` has loaded; API,
-  remote control, fingerprint gate, proxy check history, default
-  browser, trash, agent runs and sent feedback are read by `use-tips.ts`
-  through existing commands, and only for the tips still in the running. An unknown fact
-  never hides a tip. The command palette and import tips have no signal.
+  remote control, fingerprint gate, launch guard, proxy check history,
+  templates, default browser, trash, agent runs and sent feedback are read
+  by `use-tips.ts` through existing commands, and only for the tips still in
+  the running. Features that leave no trace (command palette, field search,
+  shortcuts page, import page, 2FA tool, synchronizer) are noted as they are
+  used (`note_tip_feature_used`, `tips_used`). An unknown fact never hides a
+  tip. A card whose feature comes into use leaves by itself; backend facts
+  are read again when the window or the Profiles page comes back, at most
+  once a minute. A launcher seat is not offered tips marked `editsTeamData`.
+  A pinned tip the seat is no longer offered (its plan is gone) is released
+  unread once the account has loaded (`pinnedTipFate`, `release_inline_tip`),
+  and the next tip still waits for the day after it appeared.
 - Plan tips carry `requires`; they are listed only when the signed-in plan
   grants the capability. The paid welcome opens once per account when the
   backend sees it turn paid (free -> paid, or a paid account first seen right
   after signing in); `paid_welcome_due` in `settings_manager.rs` is the rule.
-- Adding a tip: append to `TIPS` with an `inUse` check when the install
-  shows whether the feature is used, write the scene, add
-  `tips.items.<id>.{label,title,body,action}` to every locale, and run
-  `pnpm test:tips`, which checks every locale carries every tip.
+- Adding a tip: append to `TIPS` with a `section` and an `inUse` check, write
+  the scene, map an icon, add `tips.items.<id>.{label,title,body,action}` to
+  every locale, and run `pnpm test:tips`, which checks every locale carries
+  every tip and section.
 - Scenes are decorative and loop on their own clock (`useScene`); they show
-  their resting frame under reduced motion and never hide the copy.
+  their resting frame under reduced motion and never hide the copy. The
+  inline card plays its scene for a few loops and then rests
+  (`ScenePlayback`), so the main page does not animate all day.
 
 ## Timelines (`OperationFlow`)
 
@@ -360,7 +384,7 @@ not the device. Reaching the last station with nothing failed settles the row.
 All app-wide shortcuts live in `src/lib/shortcuts.ts`:
 
 - `SHORTCUTS[]`: one entry per shortcut (id, label translation key, group, key, modifier flags). The label key must exist in every locale.
-- `formatShortcut(s)` returns platform-correct token strings (`["⌘", "K"]` on mac, `["Ctrl", "K"]` elsewhere), used by both the shortcuts page and the command palette.
+- `shortcutKeys(s)` returns the platform-correct keys (⌘ ⇧ K on mac, Ctrl Shift K elsewhere) that `Kbd`/`KbdGroup` (`src/components/ui/kbd.tsx`) draw as keycaps in the shortcuts page and the command palette. `formatShortcut(s)` is the same as plain strings.
 - `matchesShortcut(s, event)` matches a real `KeyboardEvent` and rejects the wrong-platform modifier so Ctrl+K on macOS never fires a `mod: true` shortcut.
 - `matchesGroupDigit(event)` returns 1-9 if Mod+digit was pressed. Group switching is dynamic (driven by `orderedGroupTargets` in `page.tsx`) and isn't in the `SHORTCUTS` table.
 
@@ -369,9 +393,9 @@ Dispatch: the global `keydown` listener and the `runShortcut` callback both live
 1. Append to `SHORTCUTS` in `src/lib/shortcuts.ts`. Add the `ShortcutId` variant.
 2. Add a `case "yourId":` in `runShortcut` in `page.tsx`.
 3. Add the icon mapping in `src/components/command-palette.tsx::ICONS`.
-4. Add `shortcuts.yourId` (label) to every locale file in `src/i18n/locales/`.
+4. Add `shortcuts.yourId` (label) and `commandPalette.keywords.yourId` (search synonyms) to every locale file in `src/i18n/locales/`.
 
-The command palette (Mod+K) is built on the shadcn `Command` primitive with a token-AND fuzzy filter (`fuzzyFilter` in `command-palette.tsx`). The `CommandDialog` wrapper now forwards `filter`/`shouldFilter` to the inner `Command` for callers that need custom matching.
+The command palette (Mod+K) is built on the shadcn `Command` primitive. `paletteScore` in `src/lib/palette-search.ts` is its filter: every query word must appear in the label or the keywords, in any order. It keeps recent commands in `localStorage` (`donut.commandPalette.recent`), opens nested pages (launch, stop, profile info, groups) that Backspace or Escape leave, and runs any shortcut pressed inside it. `CommandGlide` (`ui/command.tsx`) draws the selection that glides between items.
 
 ## Singletons
 

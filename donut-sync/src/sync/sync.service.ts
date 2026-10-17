@@ -1519,7 +1519,7 @@ export class SyncService implements OnModuleInit {
     ctx: UserContext,
     scopedKeys: string[],
   ): Promise<void> {
-    if (ctx.mode === "self-hosted" || ctx.profileLimit <= 0) return; // 0 = unlimited
+    if (ctx.mode !== "cloud" || ctx.profileLimit <= 0) return; // 0 = unlimited
 
     const written = new Set<string>();
     for (const key of scopedKeys) {

@@ -89,11 +89,15 @@ export function CreateGroupDialog({
                 }
               }}
               disabled={isCreating}
+              autoFocus
             />
           </div>
 
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-text">
+            <div
+              role="alert"
+              className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-text"
+            >
               {error}
             </div>
           )}

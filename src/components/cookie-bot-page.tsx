@@ -15,6 +15,7 @@ import {
   preflight,
   preflightReason,
   RemoteHoursMeter,
+  StatusBadge,
 } from "@/components/cookie-bot-shared";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { TeamUsagePanel } from "@/components/team-usage-panel";
@@ -127,6 +128,7 @@ export function CookieBotPage({
 
   const [activeTab, setActiveTab] = useState<CookieBotTab>(initialTab);
   const [runs, setRuns] = useState<CookieBotRun[]>([]);
+  const [runsComplete, setRunsComplete] = useState(true);
   const [isLoadingRuns, setIsLoadingRuns] = useState(true);
   const [runsError, setRunsError] = useState<unknown>(null);
   const [runFilter, setRunFilter] = useState<RunFilter>("all");
@@ -155,6 +157,7 @@ export function CookieBotPage({
       try {
         const page = await getCookieBotRuns({ scope, limit: RUN_PAGE_SIZE });
         setRuns(page.runs);
+        setRunsComplete(!page.next_before);
         setRunsError(null);
       } catch (error) {
         // A background refresh that fails leaves the previous rows on screen.
@@ -272,7 +275,7 @@ export function CookieBotPage({
             )}
           </AnimatedTabsList>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <RemoteHoursMeter
               quota={quota}
               isLoading={isStoreLoading && quota === null}
@@ -282,7 +285,7 @@ export function CookieBotPage({
               <TooltipTrigger asChild>
                 <RippleButton
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 rounded-lg"
                   aria-label={t("cookieBot.enrolled.enrolProfiles")}
                   onClick={() => {
                     setPickerOpen(true);
@@ -302,11 +305,16 @@ export function CookieBotPage({
         </div>
 
         {loadError !== null && (
-          <div className="mt-4 flex shrink-0 items-center gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-3">
+          <div className="mt-4 flex shrink-0 items-center gap-3 rounded-xl bg-destructive/10 px-4 py-2.5">
             <p className="min-w-0 flex-1 text-sm text-destructive-text">
               {translateBackendError(t, loadError)}
             </p>
-            <RippleButton variant="outline" size="sm" onClick={reload}>
+            <RippleButton
+              variant="soft"
+              size="sm"
+              className="rounded-lg"
+              onClick={reload}
+            >
               {t("common.buttons.retry")}
             </RippleButton>
           </div>
@@ -319,11 +327,13 @@ export function CookieBotPage({
           <CookieBotOverview
             schedules={schedules}
             runs={runs}
+            runsComplete={runsComplete}
             live={live}
             quota={quota}
             profiles={profiles}
             isLoading={isLoading}
             currentUserId={cloudUser?.id ?? null}
+            canEditOthers={isOwnerOrAdmin}
             onEnrol={() => {
               setPickerOpen(true);
             }}
@@ -445,14 +455,16 @@ function LockedState() {
   const { t } = useTranslation();
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-      <LuCookie className="size-12 text-muted-foreground" />
+      <span className="grid size-12 place-items-center rounded-2xl bg-foreground/5 text-muted-foreground">
+        <LuCookie className="size-6" />
+      </span>
       <div className="flex items-center gap-2">
         <p className="text-sm font-medium text-foreground">
           {t("cookieBot.locked.title")}
         </p>
         <ProBadge />
       </div>
-      <p className="max-w-md text-xs text-muted-foreground">
+      <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
         {t("cookieBot.locked.hint")}
       </p>
     </div>
@@ -462,7 +474,7 @@ function LockedState() {
 /**
  * Picking which profiles to enrol. Ineligible profiles are shown with their
  * reason rather than hidden, so the list matches what the operator sees in the
- * main table and the refusal is discovered here, not at 02:00.
+ * main table and the refusal is discovered here, not at the first run.
  */
 function EnrolPickerDialog({
   isOpen,
@@ -527,6 +539,7 @@ function EnrolPickerDialog({
         <div className="relative shrink-0">
           <LuSearch className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
+            variant="soft"
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
@@ -548,8 +561,11 @@ function EnrolPickerDialog({
                   key={profile.id}
                   htmlFor={`cookie-bot-pick-${profile.id}`}
                   className={cn(
-                    "flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-xs transition-colors duration-100 hover:bg-accent hover:text-accent-foreground",
-                    !check.eligible && "cursor-not-allowed opacity-60",
+                    "flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-sm transition-colors duration-100 hover:bg-foreground/5",
+                    selected.has(profile.id) &&
+                      "bg-primary/8 hover:bg-primary/10",
+                    !check.eligible &&
+                      "cursor-not-allowed hover:bg-transparent",
                   )}
                 >
                   <Checkbox
@@ -565,17 +581,27 @@ function EnrolPickerDialog({
                       });
                     }}
                   />
-                  <span className="min-w-0 flex-1 truncate">
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1 truncate",
+                      !check.eligible && "text-muted-foreground",
+                    )}
+                  >
                     {profile.name}
                   </span>
                   {enrolled && (
-                    <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <StatusBadge tone="success" className="h-5">
                       {t("cookieBot.picker.alreadyEnrolled")}
-                    </span>
+                    </StatusBadge>
                   )}
                   {!check.eligible && (
-                    <span className="shrink-0 text-muted-foreground">
-                      {preflightReason(t, check)}
+                    <span
+                      title={preflightReason(t, check)}
+                      className="flex min-w-0 max-w-[55%] justify-end"
+                    >
+                      <StatusBadge tone="muted" className="h-5">
+                        {preflightReason(t, check)}
+                      </StatusBadge>
                     </span>
                   )}
                 </label>

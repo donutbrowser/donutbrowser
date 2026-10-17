@@ -1,7 +1,7 @@
 export interface UserContext {
   // `self-hosted`: the static SYNC_TOKEN, the whole bucket. `cloud`: Donut's
   // own sync server. `account`: a Donut account on a server the customer runs,
-  // with the same namespace, limit and team rules as `cloud`.
+  // with the same namespace and team rules as `cloud`.
   mode: "self-hosted" | "cloud" | "account";
   // The EFFECTIVE namespace for this request: '' for self-hosted, and otherwise
   // either the user's own 'users/{sub}/' or, for a team member, the shared team

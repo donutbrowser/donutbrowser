@@ -7,6 +7,7 @@ import {
   createWriteStream,
   existsSync,
   readFileSync,
+  rmSync,
   statSync,
 } from "node:fs";
 import {
@@ -314,12 +315,24 @@ function syncHarnessLockfile() {
   log("seeded e2e/app/Cargo.lock from src-tauri/Cargo.lock");
 }
 
+// The app runs a sidecar found next to its own executable before the fresh
+// copies in src-tauri/binaries, and nothing rebuilds one left there by an
+// older harness, so every launch would fail on a version mismatch.
+function removeStaleSidecars() {
+  for (const name of ["donut-proxy", "xray"]) {
+    rmSync(path.join(path.dirname(appBinary), `${name}${executableSuffix}`), {
+      force: true,
+    });
+  }
+}
+
 function buildAll() {
   run("pnpm", ["build"], projectRoot);
   run("pnpm", ["copy-proxy-binary"], projectRoot);
   run(process.execPath, ["src-tauri/download-xray.mjs"], projectRoot);
   syncHarnessLockfile();
   run("cargo", ["build", "--manifest-path", "e2e/app/Cargo.toml"], projectRoot);
+  removeStaleSidecars();
   ensureDriver();
 }
 

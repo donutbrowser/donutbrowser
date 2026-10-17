@@ -8,14 +8,15 @@ import {
   formatDateTime,
   formatDuration,
   formatElapsed,
+  formatShortDateTime,
   hasRunCounters,
   indexProfiles,
   indexRunsById,
   indexRunsBySession,
   outcomeLabel,
   parseIso,
-  runStatusLabel,
-  runStatusTone,
+  RunStatusBadge,
+  StatusBadge,
   StatusDot,
   sessionCloseReason,
   sessionDisplayName,
@@ -24,6 +25,7 @@ import {
   sessionTone,
   useSecondTicker,
 } from "@/components/cookie-bot-shared";
+import { DATA_TABLE_CLASSES } from "@/components/table-controls";
 import {
   AnimatedDisclosureChevron,
   AnimatedDisclosureContent,
@@ -123,6 +125,7 @@ export function CookieBotActivity({
         <div className="relative min-w-0 flex-1">
           <LuSearch className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
+            variant="soft"
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
@@ -137,7 +140,7 @@ export function CookieBotActivity({
             onFilterChange(value as RunFilter);
           }}
         >
-          <SelectTrigger className="h-8 w-[150px]">
+          <SelectTrigger variant="soft" className="h-8 w-[150px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -165,28 +168,43 @@ export function CookieBotActivity({
         style={{ "--scroll-fade-top-offset": "32px" } as React.CSSProperties}
       >
         <Table
-          className="w-full table-fixed"
+          className={cn(DATA_TABLE_CLASSES.table, "w-full")}
           containerClassName="overflow-visible"
         >
-          <TableHeader className="sticky top-0 z-10 bg-background">
-            <TableRow>
-              <TableHead className="w-40">
+          <TableHeader className={DATA_TABLE_CLASSES.header}>
+            <TableRow className={DATA_TABLE_CLASSES.headerRow}>
+              <TableHead className={cn(DATA_TABLE_CLASSES.head, "w-36")}>
                 {t("cookieBot.history.columnStarted")}
               </TableHead>
-              <TableHead className="max-w-0">
+              <TableHead className={DATA_TABLE_CLASSES.head}>
                 {t("cookieBot.history.columnProfile")}
               </TableHead>
-              <TableHead className="hidden w-24 @2xl:table-cell">
+              <TableHead
+                className={cn(
+                  DATA_TABLE_CLASSES.head,
+                  "hidden w-24 @2xl:table-cell",
+                )}
+              >
                 {t("cookieBot.history.columnDuration")}
               </TableHead>
-              <TableHead className="hidden w-20 text-right @3xl:table-cell">
+              <TableHead
+                className={cn(
+                  DATA_TABLE_CLASSES.head,
+                  "hidden w-20 text-right @3xl:table-cell",
+                )}
+              >
                 {t("cookieBot.history.columnSites")}
               </TableHead>
-              <TableHead className="w-32">
+              <TableHead className={cn(DATA_TABLE_CLASSES.head, "w-40")}>
                 {t("cookieBot.history.columnStatus")}
               </TableHead>
               {showOperator && (
-                <TableHead className="hidden max-w-0 @4xl:table-cell">
+                <TableHead
+                  className={cn(
+                    DATA_TABLE_CLASSES.head,
+                    "hidden w-48 @4xl:table-cell",
+                  )}
+                >
                   {t("cookieBot.history.columnOperator")}
                 </TableHead>
               )}
@@ -195,8 +213,11 @@ export function CookieBotActivity({
           <TableBody>
             {isLoading && runs.length === 0 ? (
               Array.from({ length: 6 }, (_, i) => (
-                <TableRow key={`skeleton-${i}`}>
-                  <TableCell colSpan={showOperator ? 6 : 5}>
+                <TableRow
+                  key={`skeleton-${i}`}
+                  className={DATA_TABLE_CLASSES.row}
+                >
+                  <TableCell colSpan={showOperator ? 6 : 5} className="h-10">
                     <div className="flex items-center gap-3">
                       <Skeleton className="h-3 w-28" />
                       <Skeleton
@@ -211,7 +232,7 @@ export function CookieBotActivity({
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
-              <TableRow className="border-0! hover:bg-transparent">
+              <TableRow className={DATA_TABLE_CLASSES.row}>
                 <TableCell colSpan={showOperator ? 6 : 5} className="py-16">
                   <p className="text-center text-sm text-muted-foreground">
                     {runs.length === 0
@@ -268,20 +289,34 @@ function RunRow({
 
   return (
     <>
-      <TableRow className="hover:bg-muted/30">
-        <TableCell className="tabular-nums text-muted-foreground">
-          {formatDateTime(run.started_at ?? run.scheduled_for) ?? "—"}
+      <TableRow data-table-row={run.id} className={DATA_TABLE_CLASSES.row}>
+        <TableCell className="h-10 max-w-0 py-1 text-xs tabular-nums text-muted-foreground">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="block cursor-default truncate">
+                {formatShortDateTime(run.started_at ?? run.scheduled_for) ??
+                  "—"}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {formatDateTime(run.started_at ?? run.scheduled_for) ?? "—"}
+            </TooltipContent>
+          </Tooltip>
         </TableCell>
-        <TableCell className="max-w-0 truncate">
+        <TableCell className="max-w-0 truncate py-1 text-sm font-medium text-foreground">
           {profileName ?? t("cookieBot.history.unknownProfile")}
         </TableCell>
-        <TableCell className="hidden tabular-nums @2xl:table-cell">
-          {durationSeconds === null ? "—" : formatDuration(t, durationSeconds)}
+        <TableCell className="hidden py-1 text-xs tabular-nums @2xl:table-cell">
+          {durationSeconds === null ? (
+            <span className="text-muted-foreground">—</span>
+          ) : (
+            formatDuration(t, durationSeconds)
+          )}
         </TableCell>
         {/* An em dash, not a confident `0/12`: the counters are not always
             populated, and printing the column default as a fact tells a paying
             user their run did nothing. */}
-        <TableCell className="hidden text-right tabular-nums text-muted-foreground @3xl:table-cell">
+        <TableCell className="hidden py-1 text-right text-xs tabular-nums text-muted-foreground @3xl:table-cell">
           {!countersKnown ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -297,7 +332,7 @@ function RunRow({
             String(run.sites_visited)
           )}
         </TableCell>
-        <TableCell>
+        <TableCell className="max-w-0 py-1">
           {hasDetail ? (
             <button
               type="button"
@@ -305,40 +340,33 @@ function RunRow({
               aria-expanded={expanded}
               aria-controls={detailId}
               onClick={() => setExpanded((open) => !open)}
-              className="flex min-h-7 items-center gap-2 rounded-sm text-left text-xs hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+              className="flex max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md text-left focus-visible:outline-2 focus-visible:outline-ring"
             >
-              <StatusDot tone={runStatusTone(run.status)} />
-              {runStatusLabel(t, run.status)}
+              <RunStatusBadge status={run.status} />
               <AnimatedDisclosureChevron open={expanded}>
-                <LuChevronRight className="size-3" />
+                <LuChevronRight className="size-3.5 text-muted-foreground" />
               </AnimatedDisclosureChevron>
             </button>
           ) : (
-            <span className="flex min-h-7 items-center gap-2 text-xs">
-              <StatusDot tone={runStatusTone(run.status)} />
-              {runStatusLabel(t, run.status)}
-            </span>
+            <RunStatusBadge status={run.status} />
           )}
         </TableCell>
         {showOperator && (
-          <TableCell className="hidden max-w-0 truncate text-muted-foreground @4xl:table-cell">
+          <TableCell className="hidden max-w-0 truncate py-1 text-xs text-muted-foreground @4xl:table-cell">
             {run.email ?? "—"}
           </TableCell>
         )}
       </TableRow>
       {hasDetail && (
-        <TableRow className="border-0! hover:bg-transparent">
-          <TableCell
-            colSpan={showOperator ? 6 : 5}
-            className={cn("p-0", !expanded && "border-0!")}
-          >
+        <TableRow className={DATA_TABLE_CLASSES.row}>
+          <TableCell colSpan={showOperator ? 6 : 5} className="p-0">
             <div id={detailId}>
               <AnimatedDisclosureContent
                 open={expanded}
-                className="flex flex-col gap-1 px-2 pb-3 text-xs text-muted-foreground"
+                className="mx-2 mb-2 flex flex-col gap-1 rounded-lg bg-foreground/3 px-3 py-2.5 text-xs text-muted-foreground"
               >
                 {run.outcome_code && (
-                  <span>
+                  <span className="text-foreground">
                     {t("cookieBot.history.outcome", {
                       reason: outcomeLabel(t, run.outcome_code) ?? "",
                     })}
@@ -391,8 +419,8 @@ function LiveSessions({
 
   if (live.length === 0) {
     return (
-      <div className="flex shrink-0 items-center gap-2 rounded-md border border-border bg-card px-3 py-2.5">
-        <StatusDot tone="muted" />
+      <div className="flex shrink-0 items-center gap-2.5 rounded-xl bg-foreground/3 px-4 py-3">
+        <StatusDot tone={streamConnected ? "muted" : "warning"} />
         <span className="text-sm text-muted-foreground">
           {streamConnected
             ? t("cookieBot.live.idle")
@@ -405,7 +433,7 @@ function LiveSessions({
   return (
     <div className="flex shrink-0 flex-col gap-2">
       {!streamConnected && (
-        <p className="text-xs text-warning-text">
+        <p className="px-1 text-xs text-warning-text">
           {t("cookieBot.live.streamOfflineDetail")}
         </p>
       )}
@@ -489,22 +517,23 @@ function LiveSessionRow({
   }, [session.run_id, session.session_id, onChanged, t]);
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-border bg-card px-3 py-2.5">
+    <div
+      data-slot="cookie-bot-live-session"
+      className="flex flex-col gap-2.5 rounded-xl bg-foreground/3 px-4 py-3"
+    >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <StatusDot tone={tone} pulse={session.state === "provisioning"} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-foreground">
           {name ?? t("cookieBot.live.unnamedSession")}
         </span>
 
         {/* Keep phase updates immediate and reserve their width so the clock
             beside them stays still. */}
-        <span className="w-36 shrink-0 text-right">
-          <span className="block truncate text-xs text-muted-foreground">
-            {phase}
-          </span>
+        <span className="flex w-40 shrink-0 justify-end">
+          <StatusBadge tone={tone}>{phase}</StatusBadge>
         </span>
 
-        <span className="shrink-0 text-xs tabular-nums text-foreground">
+        <span className="w-14 shrink-0 text-right text-sm font-medium tabular-nums text-foreground">
           {elapsed === null ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -520,9 +549,9 @@ function LiveSessionRow({
         </span>
 
         <Button
-          variant="outline"
+          variant="soft"
           size="sm"
-          className="h-7 shrink-0 text-xs"
+          className="h-7 shrink-0 rounded-lg text-xs"
           disabled={isStopping}
           onClick={() => {
             void stop();
@@ -560,7 +589,7 @@ function LiveSessionRow({
       </div>
 
       {progress !== null && (
-        <div className="h-1 overflow-hidden rounded-full bg-muted">
+        <div className="h-1 overflow-hidden rounded-full bg-foreground/8">
           <motion.div
             initial={false}
             animate={{ scaleX: progress }}

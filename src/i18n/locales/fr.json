@@ -82,7 +82,17 @@
       "hideToken": "Masquer le jeton"
     },
     "keys": {
-      "escape": "Échap"
+      "escape": "Échap",
+      "command": "Commande",
+      "control": "Contrôle",
+      "shift": "Maj",
+      "option": "Option",
+      "alt": "Alt",
+      "enter": "Entrée",
+      "backspace": "Retour arrière",
+      "arrowUp": "Flèche haut",
+      "arrowDown": "Flèche bas",
+      "tab": "Tab"
     },
     "errors": {
       "unknown": "Une erreur inconnue est survenue"
@@ -354,6 +364,32 @@
       "a": "Profils en cours d'exécution dans un groupe",
       "b": "Profils sans étiquette qui ont un proxy",
       "c": "Non lancés depuis plus de 30 jours, en ignorant les archivés"
+    },
+    "suggest": {
+      "label": "Suggestions de recherche",
+      "matches": "Correspondances",
+      "recent": "Récentes",
+      "none": "Non défini",
+      "any": "N'importe quelle valeur",
+      "dates": {
+        "last7d": "7 derniers jours",
+        "last30d": "30 derniers jours",
+        "over30d": "Il y a plus de 30 jours",
+        "over90d": "Il y a plus de 90 jours",
+        "thisYear": "Cette année",
+        "never": "Jamais"
+      },
+      "keys": {
+        "choose": "Choisir",
+        "complete": "Compléter"
+      }
+    },
+    "issues": {
+      "unknownField": "{{name}} n'est pas un champ, la recherche se fait donc en texte. Vouliez-vous dire {{field}} ?",
+      "compare": "{{field}} ne se compare pas, la recherche se fait donc en texte. Seules les dates et les versions se comparent.",
+      "date": "{{field}} attend une date comme 2026-01-31, ou 7d pour les 7 derniers jours.",
+      "enum": "{{field}} attend {{values}}.",
+      "boolean": "{{field}} attend yes ou no."
     }
   },
   "profiles": {
@@ -572,7 +608,6 @@
       "tabVpns": "VPN",
       "create": "Créer",
       "loading": "Chargement des proxys...",
-      "noneCreated": "Aucun proxy créé. Créez votre premier proxy avec le bouton ci-dessus.",
       "usage": "Utilisation",
       "syncCol": "Sync",
       "syncCannotDisable": "La sync ne peut pas être désactivée tant que ce proxy est utilisé par des profils synchronisés",
@@ -599,7 +634,9 @@
       "firstHopPlaintextTooltip": "Premier saut en clair : la connexion à ce proxy n'est pas chiffrée.",
       "firstHopEncryptedTooltip": "Premier saut chiffré : la connexion à ce proxy est chiffrée. Le fournisseur voit toujours où vous allez.",
       "firstHopCipherTooltip": "Le premier saut dépend du chiffrement : aucun chiffrement n'est enregistré pour ce proxy, donc rien ne dit encore si la connexion vers lui est chiffrée. Modifiez-le et choisissez un vrai chiffrement, comme aes-256-gcm.",
-      "udpCol": "UDP"
+      "udpCol": "UDP",
+      "checkSelected": "Vérifier la sélection",
+      "checkSummary": "Vérification terminée. Réussis : {{passed}}. Échoués : {{failed}}."
     },
     "add": "Ajouter un proxy",
     "edit": "Modifier le proxy",
@@ -760,13 +797,11 @@
     "title": "Groupes",
     "management": "Gestion des groupes",
     "add": "Ajouter un groupe",
-    "edit": "Modifier le groupe",
     "delete": "Supprimer le groupe",
     "moveToDefault": "Retirer les profils du groupe",
     "noGroupDescription": "Les profils sans groupe apparaissent dans le filtre « Tous ».",
     "assignSuccess": "{{count}} profil(s) assigné(s) à {{group}} avec succès",
     "noGroups": "Aucun groupe créé",
-    "noGroupsDescription": "Créez un groupe pour organiser vos profils.",
     "form": {
       "name": "Nom",
       "namePlaceholder": "Entrez le nom du groupe"
@@ -1703,10 +1738,8 @@
     "managedNotice": "Les extensions gérées ici remplaceront toutes les extensions installées manuellement dans les profils lors du lancement.",
     "proRequired": "La gestion des extensions est une fonctionnalité Pro",
     "empty": "Aucune extension téléchargée pour l'instant.",
-    "noGroups": "Aucun groupe d'extensions créé pour l'instant.",
     "createGroup": "Créer un Groupe",
     "newGroup": "Nouveau groupe",
-    "addToGroup": "Ajouter une extension...",
     "removeFromGroup": "Retirer du groupe",
     "deleteGroup": "Supprimer le groupe",
     "extensionGroup": "Groupe d'Extensions",
@@ -1791,7 +1824,9 @@
     "fetchedIdentity": "{{name}} · version {{version}}",
     "fetchedFrom": "Téléchargé depuis {{source}}",
     "fetchSuccess": "Extension téléchargée. Vérifiez le nom, puis ajoutez-la.",
-    "fetchFailed": "Échec du téléchargement de l'extension"
+    "fetchFailed": "Échec du téléchargement de l'extension",
+    "searchExtensions": "Rechercher des extensions",
+    "membersSelected": "{{selected}} sur {{total}} sélectionnées"
   },
   "pro": {
     "badge": "PRO",
@@ -1926,9 +1961,6 @@
     "allowanceLeft_one": "Vous pouvez encore en créer {{count}} cette heure-ci.",
     "allowanceLeft_many": "Vous pouvez encore en créer {{count}} cette heure-ci.",
     "allowanceLeft_other": "Vous pouvez encore en créer {{count}} cette heure-ci.",
-    "createMany_one": "Créer {{count}} profil",
-    "createMany_many": "Créer {{count}} profils",
-    "createMany_other": "Créer {{count}} profils",
     "progress": "Création de {{done}} sur {{total}}",
     "stop": "Arrêter",
     "created_one": "{{count}} profil créé",
@@ -2000,7 +2032,6 @@
     },
     "management": {
       "loading": "Chargement des VPN...",
-      "noneCreated": "Aucune configuration VPN. Importez ou créez-en une avec les boutons ci-dessus.",
       "editVpn": "Modifier le VPN",
       "deleteVpn": "Supprimer le VPN",
       "cannotDelete_one": "Suppression impossible : utilisé par {{count}} profil",
@@ -2118,7 +2149,9 @@
       "description": "Êtes-vous sûr de vouloir supprimer {{count}} groupes ? {{names}}. Les profils seront déplacés vers Par défaut.",
       "description_one": "Êtes-vous sûr de vouloir supprimer {{count}} groupe ? {{names}}. Les profils seront déplacés vers Par défaut.",
       "confirmButton": "Supprimer les groupes"
-    }
+    },
+    "newGroup": "Nouveau groupe",
+    "bookmarksCol": "Favoris"
   },
   "proxyAssignment": {
     "title": "Assigner un proxy / VPN",
@@ -2732,7 +2765,8 @@
     "syncServerNoAccounts": "Ce serveur n'accepte pas les comptes Donut. Définissez SYNC_PUBLIC_URL sur le serveur.",
     "syncServerAddressMismatch": "L'adresse du serveur est {{address}}. Saisissez cette adresse.",
     "remoteNeedsDonutSync": "Les sessions à distance et Cookie Bot obtiennent les profils depuis la synchronisation Donut cloud. Cet ordinateur se synchronise avec votre propre serveur.",
-    "accountSyncUnavailable": "Donut ne peut pas encore se connecter à votre propre serveur. Réessayez plus tard."
+    "accountSyncUnavailable": "Donut ne peut pas encore se connecter à votre propre serveur. Réessayez plus tard.",
+    "selfHostedTeamSeat": "Les comptes d'équipe ne peuvent pas se synchroniser avec un serveur qui utilise un jeton de synchronisation."
   },
   "rail": {
     "profiles": "Profils",
@@ -2838,31 +2872,40 @@
     "automationActiveHere": "L'automatisation du navigateur est active sur cet appareil.",
     "viewTeamUsage": "Voir l'utilisation de l'équipe",
     "ownServer": {
-      "title": "Votre propre serveur de synchronisation",
-      "description": "Synchronisez ce compte avec un serveur donut-sync que vous gérez, et non avec Donut cloud. La limite de profils de votre offre ainsi que les rôles et l'accès par groupe de votre équipe restent les mêmes.",
-      "current": "Synchronisation avec {{server}}",
-      "currentCloud": "Synchronisation avec Donut cloud",
       "donutCloud": "Donut cloud",
-      "useDonutCloud": "Utiliser Donut cloud",
       "accountsOn": "Ce serveur accepte les comptes Donut.",
       "cloudOnly": "Les sessions à distance et Cookie Bot nécessitent la synchronisation avec Donut cloud.",
       "teamNote": "Tous les membres de votre équipe doivent utiliser le même serveur.",
-      "saved": "Serveur de synchronisation enregistré.",
-      "backToCloud": "Synchronisation de nouveau avec Donut cloud."
+      "backToCloud": "Synchronisation de nouveau avec Donut cloud.",
+      "label": "Serveur de synchronisation",
+      "change": "Modifier",
+      "remove": "Retirer",
+      "removed": "Serveur de synchronisation retiré.",
+      "switched": "Synchronisation avec {{server}}.",
+      "tokenServer": "{{host}} (jeton de synchronisation)"
     }
   },
   "shortcutsPage": {
     "title": "Raccourcis clavier",
-    "description": "Accélérez votre flux de travail avec ces raccourcis."
+    "description": "Accélérez votre flux de travail avec ces raccourcis.",
+    "paletteHint": "Recherche dans toutes les pages, profils et actions.",
+    "holdHint": "Maintenez ces touches pour voir les raccourcis qui les utilisent.",
+    "paletteKeys": {
+      "title": "Dans la palette de commandes",
+      "move": "Passer d'un résultat à l'autre",
+      "run": "Exécuter la commande sélectionnée",
+      "back": "Revenir quand la recherche est vide",
+      "close": "Fermer la palette"
+    }
   },
   "commandPalette": {
     "placeholder": "Tapez une commande ou recherchez...",
-    "empty": "Aucun résultat trouvé.",
     "groups": {
       "navigation": "Navigation",
       "profiles": "Profils",
       "actions": "Actions",
-      "profileGroups": "Groupes de profils"
+      "profileGroups": "Groupes de profils",
+      "recent": "Récents"
     },
     "actions": {
       "launchProfile": "Lancer {{name}}",
@@ -2870,6 +2913,66 @@
       "profileInfo": "Informations — {{name}}",
       "createProfile": "Créer un profil",
       "about": "À propos de Donut Browser"
+    },
+    "pages": {
+      "launch": {
+        "entry": "Lancer un profil…",
+        "title": "Lancer",
+        "placeholder": "Rechercher un profil à lancer...",
+        "empty": "Tous les profils sont déjà lancés."
+      },
+      "stop": {
+        "entry": "Arrêter un profil…",
+        "title": "Arrêter",
+        "placeholder": "Rechercher un profil lancé...",
+        "empty": "Aucun profil n'est lancé."
+      },
+      "info": {
+        "entry": "Ouvrir les infos d'un profil…",
+        "title": "Infos du profil",
+        "placeholder": "Rechercher un profil...",
+        "empty": "Aucun profil pour l'instant."
+      },
+      "group": {
+        "entry": "Aller à un groupe…",
+        "title": "Groupes",
+        "placeholder": "Rechercher un groupe...",
+        "empty": "Aucun groupe pour l'instant."
+      }
+    },
+    "emptyFor": "Aucun résultat pour « {{query}} ».",
+    "emptyHint": "Recherchez des pages, profils, groupes et actions.",
+    "emptyPageHint": "Échap revient à toutes les commandes.",
+    "footer": {
+      "move": "Naviguer",
+      "run": "Exécuter",
+      "open": "Ouvrir",
+      "back": "Retour",
+      "close": "Fermer"
+    },
+    "keywords": {
+      "openPalette": "commande recherche trouver exécuter",
+      "openShortcuts": "clavier touches raccourcis aide",
+      "openTips": "astuces aide apprendre visite fonctionnalités",
+      "sendFeedback": "bug signaler problème support contact idée",
+      "openTotp": "double authentification 2fa otp totp authentificateur code mfa",
+      "importProfile": "importer ajouter charger migrer chrome firefox",
+      "goProfiles": "accueil navigateurs liste tous",
+      "goProxies": "proxy proxys vpn wireguard réseau socks http",
+      "goExtensions": "extensions modules plugins",
+      "goGroups": "groupes dossiers organiser",
+      "goCookieBot": "cookies préchauffer bot navigation",
+      "goAgent": "ia mcp assistant automatisation",
+      "goIntegrations": "api mcp rest jeton intégrations automatisation",
+      "goAccount": "compte cloud connexion abonnement forfait facturation équipe synchronisation",
+      "goSettings": "préférences options thème langue sons apparence",
+      "goTrash": "corbeille supprimés restaurer",
+      "createProfile": "nouveau ajouter profil navigateur",
+      "about": "version licence à propos",
+      "launch": "lancer démarrer ouvrir navigateur",
+      "stop": "arrêter quitter fermer",
+      "info": "détails infos modifier profil",
+      "group": "groupe filtrer changer dossier"
     }
   },
   "shortcuts": {
@@ -3030,7 +3133,7 @@
   },
   "cookieBot": {
     "title": "Cookie Bot",
-    "description": "Chauffe des profils la nuit sur une machine distante.",
+    "description": "Chauffe vos profils sur une machine distante, selon votre planning.",
     "tabs": {
       "overview": "Aperçu",
       "schedule": "Planification",
@@ -3039,41 +3142,28 @@
     },
     "locked": {
       "title": "Cookie Bot",
-      "hint": "Cookie Bot chauffe vos profils la nuit sur une machine distante : ils conservent leurs cookies et leur historique sans que votre ordinateur soit allumé."
+      "hint": "Cookie Bot chauffe vos profils sur une machine distante aux heures que vous choisissez : ils conservent leurs cookies et leur historique sans que votre ordinateur soit allumé."
     },
     "empty": {
       "title": "Aucun profil inscrit",
-      "hint": "Choisissez un profil et le bot le chauffe la nuit sur une machine distante. Votre ordinateur peut rester éteint.",
+      "hint": "Choisissez un profil et le bot le chauffe sur une machine distante aux heures que vous fixez. Votre ordinateur peut rester éteint.",
       "cta": "Inscrire un profil"
     },
-    "tonight": {
-      "label": "Cette nuit",
-      "nextRun": "Prochaine exécution {{time}}",
-      "dueCount_one": "{{count}} profil prévu",
-      "dueCount_other": "{{count}} profils prévus",
-      "dueCount_many": "{{count}} profils prévus",
-      "nothingScheduled": "Rien de planifié"
-    },
     "lastDay": {
-      "label": "Dernières 24 heures",
-      "none": "Aucune exécution pour l'instant",
-      "ran_one": "{{count}} exécutée",
-      "ran_other": "{{count}} exécutées",
-      "ran_many": "{{count}} exécutées",
-      "partial_one": "{{count}} partielle",
-      "partial_other": "{{count}} partielles",
-      "partial_many": "{{count}} partielles",
-      "failed_one": "{{count}} en échec",
-      "failed_other": "{{count}} en échec",
-      "failed_many": "{{count}} en échec"
+      "label": "Dernières 24 heures"
     },
     "chart": {
-      "machineTime": "Temps machine par nuit",
-      "minutes": "{{minutes}} min"
+      "machineTime": "Temps machine par jour",
+      "minutes": "{{minutes}} min",
+      "total": "{{duration}} au total",
+      "empty": "Aucune exécution sur cette période",
+      "noRuns": "Aucune exécution",
+      "runs_one": "{{count}} exécution",
+      "runs_other": "{{count}} exécutions",
+      "runs_many": "{{count}} exécutions"
     },
     "hours": {
       "label": "Heures distantes",
-      "remaining": "{{remaining}} h restantes sur {{total}}",
       "remainingOf": "sur {{total}} h",
       "used": "{{used}} h utilisées sur {{total}}",
       "resets": "Réinitialisation le {{date}}",
@@ -3081,12 +3171,11 @@
       "exhaustedOn": "Plus d'heures distantes. Les planifications restent inscrites et reprennent le {{date}}.",
       "estimate": "Environ {{hours}} h par semaine · {{remaining}} h restantes sur ce cycle",
       "estimateOverBudget": "Demande environ {{hours}} h par semaine : il ne reste que {{remaining}} h",
-      "estimateOnly": "Environ {{hours}} h par semaine"
+      "estimateOnly": "Environ {{hours}} h par semaine",
+      "left": "{{hours}} h restantes"
     },
     "enrolled": {
       "columnProfile": "Profil",
-      "columnCadence": "Fréquence",
-      "columnTime": "Heure",
       "columnNextRun": "Prochaine exécution",
       "columnLastRun": "Dernière exécution",
       "enrolProfiles": "Inscrire des profils",
@@ -3099,8 +3188,9 @@
       "empty": "Rien n'est encore planifié.",
       "unenrol": "Retirer de Cookie Bot",
       "unenrolTitle": "Retirer {{name}} de Cookie Bot ?",
-      "unenrolDescription": "La chauffe s'arrête dès cette nuit. Les exécutions passées restent dans Activité.",
-      "unenrolled": "Retiré de Cookie Bot"
+      "unenrolDescription": "Ses prochaines exécutions sont annulées. Les exécutions passées restent dans Activité.",
+      "unenrolled": "Retiré de Cookie Bot",
+      "localTime": "Maintenant {{time}}"
     },
     "status": {
       "provisioning": "Préparation d'une machine",
@@ -3174,7 +3264,7 @@
     },
     "picker": {
       "title": "Inscrire des profils",
-      "description": "Choisissez les profils que le bot doit chauffer la nuit.",
+      "description": "Choisissez les profils que le bot doit chauffer.",
       "searchPlaceholder": "Rechercher des profils…",
       "noProfiles": "Aucun profil ne correspond.",
       "alreadyEnrolled": "Inscrit",
@@ -3189,28 +3279,28 @@
       "titleCount_many": "Inscrire {{count}} profils",
       "editTitle": "Modifier la planification",
       "description": "Le bot ouvre le profil sur une machine distante et parcourt les sites que vous indiquez. Votre ordinateur peut rester éteint.",
-      "summaryNightly": "S'exécute chaque nuit à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
+      "summaryNightly": "S'exécute chaque jour à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
       "summaryWeeknights": "S'exécute du lundi au vendredi à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
-      "summaryAlternate": "S'exécute une nuit sur deux à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
-      "summaryCustom_one": "S'exécute {{count}} nuit par semaine à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
-      "summaryCustom_other": "S'exécute {{count}} nuits par semaine à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
-      "summaryCustom_many": "S'exécute {{count}} nuits par semaine à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
-      "confirm": "Inscrire pour cette nuit",
-      "confirmSome": "Inscrire {{eligible}} profils sur {{total}} cette nuit",
+      "summaryAlternate": "S'exécute un jour sur deux à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
+      "summaryCustom_one": "S'exécute {{count}} jour par semaine à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
+      "summaryCustom_other": "S'exécute {{count}} jours par semaine à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
+      "summaryCustom_many": "S'exécute {{count}} jours par semaine à {{time}}, jusqu'à {{minutes}} min à chaque fois.",
+      "confirm": "Inscrire",
+      "confirmSome": "Inscrire {{eligible}} profils sur {{total}}",
       "fixFirst": "Corrigez d'abord ceci",
       "saving": "Inscription…",
       "saved": "Planification enregistrée",
       "enrolled_one": "{{count}} profil inscrit",
       "enrolled_other": "{{count}} profils inscrits",
       "enrolled_many": "{{count}} profils inscrits",
-      "adjust": "Ajuster la planification",
+      "adjust": "Durée et profondeur",
       "cadenceLabel": "Fréquence",
-      "cadenceNightly": "Chaque nuit",
-      "cadenceWeeknights": "Nuits en semaine",
-      "cadenceAlternate": "Une nuit sur deux",
-      "cadenceCustom_one": "{{count}} nuit par semaine",
-      "cadenceCustom_other": "{{count}} nuits par semaine",
-      "cadenceCustom_many": "{{count}} nuits par semaine",
+      "cadenceNightly": "Chaque jour",
+      "cadenceWeeknights": "En semaine",
+      "cadenceAlternate": "Un jour sur deux",
+      "cadenceCustom_one": "{{count}} jour par semaine",
+      "cadenceCustom_other": "{{count}} jours par semaine",
+      "cadenceCustom_many": "{{count}} jours par semaine",
       "timeLabel": "Heure de début",
       "timeHint": "Selon le fuseau horaire de l'empreinte de chaque profil.",
       "maxMinutesLabel": "Minutes maximum",
@@ -3225,9 +3315,9 @@
       "confirmBulkTitle_one": "Inscrire {{count}} profil à Cookie Bot ?",
       "confirmBulkTitle_other": "Inscrire {{count}} profils à Cookie Bot ?",
       "confirmBulkTitle_many": "Inscrire {{count}} profils à Cookie Bot ?",
-      "confirmBulkDescription_one": "Cela réserve une exécution nocturne sur vos heures distantes partagées. Vous choisissez l'heure et les sites juste après.",
-      "confirmBulkDescription_other": "Cela réserve {{count}} exécutions nocturnes sur vos heures distantes partagées. Vous choisissez l'heure et les sites juste après.",
-      "confirmBulkDescription_many": "Cela réserve {{count}} exécutions nocturnes sur vos heures distantes partagées. Vous choisissez l'heure et les sites juste après.",
+      "confirmBulkDescription_one": "Cela réserve une exécution quotidienne sur vos heures distantes partagées. Vous choisissez l'heure et les sites juste après.",
+      "confirmBulkDescription_other": "Cela réserve {{count}} exécutions quotidiennes sur vos heures distantes partagées. Vous choisissez l'heure et les sites juste après.",
+      "confirmBulkDescription_many": "Cela réserve {{count}} exécutions quotidiennes sur vos heures distantes partagées. Vous choisissez l'heure et les sites juste après.",
       "confirmBulkButton_one": "Continuer avec {{count}} profil",
       "confirmBulkButton_other": "Continuer avec {{count}} profils",
       "confirmBulkButton_many": "Continuer avec {{count}} profils",
@@ -3266,7 +3356,13 @@
       "summarySlots_one": "S'exécute {{count}} fois par semaine, jusqu'à {{minutes}} min à chaque fois.",
       "summarySlots_other": "S'exécute {{count}} fois par semaine, jusqu'à {{minutes}} min à chaque fois.",
       "summarySlots_many": "S'exécute {{count}} fois par semaine, jusqu'à {{minutes}} min à chaque fois.",
-      "templateNameInvalidNoMax": "Ce nom ne peut pas être utilisé pour une liste enregistrée."
+      "templateNameInvalidNoMax": "Ce nom ne peut pas être utilisé pour une liste enregistrée.",
+      "shuffleTime": "Choisir une autre heure",
+      "ownTimes": "Une heure différente pour chaque profil",
+      "timeRandom": "Aléatoire par profil",
+      "summaryOwnTimes_one": "Chaque profil s'exécute {{count}} fois par semaine à sa propre heure aléatoire, jusqu'à {{minutes}} min à chaque fois.",
+      "summaryOwnTimes_other": "Chaque profil s'exécute {{count}} fois par semaine à sa propre heure aléatoire, jusqu'à {{minutes}} min à chaque fois.",
+      "summaryOwnTimes_many": "Chaque profil s'exécute {{count}} fois par semaine à sa propre heure aléatoire, jusqu'à {{minutes}} min à chaque fois."
     },
     "preset": {
       "light": "Légère",
@@ -3357,13 +3453,30 @@
       "profileLocked": "Le profil était ouvert ailleurs",
       "noCapacity": "Aucune machine n'était libre",
       "managerError": "La flotte n'a pas pu démarrer le navigateur",
-      "budgetExceeded": "Le temps prévu pour la nuit est épuisé",
-      "browsingIncomplete": "Le navigateur s'est ouvert mais la navigation de la nuit n'est pas allée à son terme",
+      "budgetExceeded": "Le temps prévu pour l'exécution est épuisé",
+      "browsingIncomplete": "Le navigateur s'est ouvert mais la navigation n'est pas allée à son terme",
       "proxyUnsupported": "Aucun hôte ne peut utiliser ce type de proxy ; prenez une sortie HTTP, SOCKS ou WireGuard",
       "profileNotSynced": "La copie dans le cloud est incomplète ; terminez la synchronisation depuis un poste",
       "profileOsMismatch": "Le profil vient d'un autre système d'exploitation que l'hôte qui l'a exécuté",
       "cancelledByUser": "Arrêté à la main",
       "unknown": "Raison inconnue ({{code}})"
+    },
+    "next": {
+      "label": "Prochaine exécution",
+      "now": "Démarre maintenant",
+      "inMinutes_one": "Dans {{count}} min",
+      "inMinutes_other": "Dans {{count}} min",
+      "inMinutes_many": "Dans {{count}} min",
+      "inHours_one": "Dans {{count}} h",
+      "inHours_other": "Dans {{count}} h",
+      "inHours_many": "Dans {{count}} h",
+      "today": "Aujourd'hui",
+      "tomorrow": "Demain",
+      "dueSoon_one": "{{count}} profil dans les prochaines 24 h",
+      "dueSoon_other": "{{count}} profils dans les prochaines 24 h",
+      "dueSoon_many": "{{count}} profils dans les prochaines 24 h",
+      "nothingScheduled": "Rien de planifié",
+      "blocked": "Aucun profil ne peut s'exécuter. Voir la liste ci-dessous."
     }
   },
   "prelaunchGate": {
@@ -3506,7 +3619,11 @@
     "confirmed": "Oui",
     "unavailable": "Non",
     "apiProbeScope": "Vérifie l’API locale active avec l’identifiant enregistré. Aucun profil n’est lancé.",
-    "remoteProbeScope": "Vérifie l’identifiant MCP enregistré. Le contrôle distant nécessite aussi un appareil connecté et un forfait compatible ; un client configuré n’est pas une session active."
+    "remoteProbeScope": "Vérifie l’identifiant MCP enregistré. Le contrôle distant nécessite aussi un appareil connecté et un forfait compatible ; un client configuré n’est pas une session active.",
+    "probeNotConfigured": "Aucun identifiant n’est enregistré.",
+    "probeUnreachable": "Le serveur n’a pas répondu.",
+    "probeRefused": "Le serveur a refusé l’identifiant.",
+    "probeUnverified": "Le serveur a répondu avec HTTP {{status}}, l’identifiant n’a donc pas été vérifié."
   },
   "easterEgg": {
     "konami": {
@@ -3860,13 +3977,11 @@
   },
   "tips": {
     "title": "Astuces",
-    "essentials": "Essentiels",
-    "planSection": "Inclus dans votre offre",
     "count": "{{current}} sur {{total}}",
     "previous": "Astuce précédente",
     "next": "Astuce suivante",
     "done": "Terminé",
-    "autoShow": "Afficher une astuce de temps en temps",
+    "autoShow": "Afficher des astuces sur la page Profils",
     "items": {
       "dnsBlocklist": {
         "label": "Blocage DNS",
@@ -3954,7 +4069,7 @@
       },
       "cookieBot": {
         "label": "Cookie Bot",
-        "title": "Chauffez vos profils pendant la nuit",
+        "title": "Chauffez vos profils selon un planning",
         "body": "Cookie Bot navigue sur de vrais sites selon un planning depuis un hôte distant, pour qu'un profil neuf se construise un historique naturel avant que vous l'utilisiez.",
         "action": "Ouvrir Cookie Bot"
       },
@@ -3993,7 +4108,75 @@
         "title": "Dites à l'équipe quoi corriger ensuite",
         "body": "Quelque chose ne marche pas ou vous manque ? Envoyez un avis depuis le menu Plus. Un interrupteur joint vos journaux, pour que l'équipe voie exactement ce qui s'est passé.",
         "action": "Envoyer un avis"
+      },
+      "searchSyntax": {
+        "label": "Champs de recherche",
+        "title": "Filtrer les profils par champ",
+        "body": "Tapez un champ dans la recherche, par exemple tag:work, proxy:none ou status:running. Un signe moins devant exclut : -tag:old.",
+        "action": "Essayer proxy:none"
+      },
+      "shortcuts": {
+        "label": "Raccourcis",
+        "title": "Gardez les mains sur le clavier",
+        "body": "Chaque page a son raccourci, tout comme l'import, les retours et les astuces. {{mod}}+/ les liste tous.",
+        "action": "Voir tous les raccourcis"
+      },
+      "statuses": {
+        "label": "Statuts",
+        "title": "Indiquez où en est chaque compte",
+        "body": "Donnez un statut à un profil, comme Actif ou Banni, dans sa colonne Statut. Chaque statut a une couleur et se synchronise avec vos autres appareils.",
+        "action": "Ouvrir Profils"
+      },
+      "templates": {
+        "label": "Modèles",
+        "title": "Configurer une fois, créer en série",
+        "body": "Gardez les réglages d'un profil avec Enregistrer comme modèle dans son menu. Les nouveaux profils partent du modèle, plusieurs à la fois, chacun avec son propre appareil.",
+        "action": "Nouveau profil"
+      },
+      "vpn": {
+        "label": "VPN",
+        "title": "Faire passer un profil par un VPN",
+        "body": "Importez un fichier WireGuard ou un lien VLESS, VMess, Trojan ou Hysteria2 sur la page Réseau. Choisissez-le ensuite pour un profil : seul ce profil utilise le tunnel.",
+        "action": "Ouvrir les VPN"
+      },
+      "requireRoute": {
+        "label": "Bloquer les lancements directs",
+        "title": "Ne jamais lancer depuis votre propre IP",
+        "body": "Activez Bloquer les lancements sans proxy ni VPN dans les réglages de confidentialité. Un profil sans proxy, ou dont le proxy ou le VPN a disparu, ne démarre alors pas.",
+        "action": "Ouvrir les réglages de confidentialité"
+      },
+      "totp": {
+        "label": "Codes 2FA",
+        "title": "Gardez les codes 2FA avec le profil",
+        "body": "Ajoutez la clé 2FA d'un compte dans les infos du profil, et Donut affiche le code actuel, prêt à copier. Les clés restent chiffrées sur cet appareil.",
+        "action": "Essayer une clé 2FA"
+      },
+      "synchronizer": {
+        "label": "Synchroniseur",
+        "title": "Piloter plusieurs profils à la fois",
+        "body": "Choisissez Lancer avec le synchroniseur dans le menu d'un profil, puis les suiveurs. Chaque clic et chaque frappe du meneur se répète dans chaque suiveur.",
+        "action": "Ouvrir Profils"
       }
+    },
+    "sections": {
+      "everyday": "Au quotidien",
+      "network": "Réseau",
+      "privacy": "Confidentialité et données",
+      "connect": "Connecter",
+      "plan": "Inclus dans votre offre"
+    },
+    "progress": "{{read}} sur {{total}} lues",
+    "unread": "Pas encore lue",
+    "nextShort": "Suivante",
+    "inline": {
+      "label": "Astuce",
+      "eyebrow": "Astuce",
+      "more": "Plus d'options pour l'astuce",
+      "allTips": "Toutes les astuces",
+      "turnOff": "Ne plus afficher d'astuces",
+      "dismiss": "Masquer l'astuce",
+      "offTitle": "Astuces désactivées",
+      "offBody": "Réactivez-les dans Astuces ({{shortcut}})."
     }
   },
   "paidWelcome": {
@@ -4215,6 +4398,35 @@
     "kind": {
       "auto": "Quotidien",
       "manual": "Manuel"
+    }
+  },
+  "entities": {
+    "empty": {
+      "proxies": {
+        "title": "Aucun proxy pour l'instant",
+        "body": "Un proxy fait passer le trafic d'un profil par un autre serveur. Chaque profil peut avoir le sien."
+      },
+      "vpns": {
+        "title": "Aucun VPN pour l'instant",
+        "body": "Un VPN WireGuard fait passer le trafic d'un profil par un tunnel chiffré."
+      },
+      "groups": {
+        "title": "Aucun groupe pour l'instant",
+        "body": "Les groupes classent les profils par client, projet ou tâche. Chaque profil d'un groupe reçoit les favoris du groupe."
+      },
+      "extensions": {
+        "title": "Aucune extension pour l'instant",
+        "body": "Ajoutez une extension depuis un fichier, un dossier ou un lien du Web Store. Placez-la dans un groupe d'extensions pour l'utiliser dans des profils."
+      },
+      "extensionGroups": {
+        "title": "Aucun groupe d'extensions pour l'instant",
+        "body": "Un groupe d'extensions est un ensemble d'extensions. Les profils qui utilisent le groupe reçoivent l'ensemble au lancement."
+      }
+    },
+    "check": {
+      "notChecked": "Non vérifié",
+      "valid": "Valide",
+      "invalid": "Non valide"
     }
   }
 }

@@ -1,22 +1,19 @@
 "use client";
 
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LuServer } from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
+import { SegmentedControl } from "@/components/settings/settings-primitives";
+import { AnimatedDisclosureContent } from "@/components/ui/animated-disclosure";
 import { Button } from "@/components/ui/button";
 import { SoftFields } from "@/components/ui/field-variant";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  FeatureIcon,
-  SettingsPanel,
-  StatusLight,
-} from "@/components/ui/settings-panel";
+import { StatusLight } from "@/components/ui/settings-panel";
 import { translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
-import type { SyncServerCheck } from "@/types";
+import type { SyncServerCheck, SyncSourceKind, SyncSourceState } from "@/types";
 
 type Probe =
   | { state: "unknown" | "testing" | "unreachable" | "no-accounts" }
@@ -30,10 +27,18 @@ function sameAddress(a: string, b: string): boolean {
   return trim(a) === trim(b);
 }
 
+function hostOf(server: string): string {
+  try {
+    return new URL(server).host || server;
+  } catch {
+    return server;
+  }
+}
+
 /**
- * A signed-in paid account's own donut-sync server. The app signs in to it
- * with a token the Donut API binds to its address, so the plan's limit and
- * the team's rules apply there as on Donut cloud.
+ * Where a signed-in account syncs, as one line of the account card. Several
+ * stored servers make it a choice; on a paid plan, Change opens the address
+ * of the account's own server.
  */
 export function AccountSyncServer({
   paid,
@@ -43,19 +48,21 @@ export function AccountSyncServer({
   teamSeat: boolean;
 }) {
   const { t } = useTranslation();
-  const [current, setCurrent] = useState<string | null>(null);
+  const formId = useId();
+  const [source, setSource] = useState<SyncSourceState | null>(null);
+  const [editing, setEditing] = useState(false);
   const [serverUrl, setServerUrl] = useState("");
   const [probe, setProbe] = useState<Probe>({ state: "unknown" });
-  const [isSaving, setIsSaving] = useState(false);
+  const [busy, setBusy] = useState<"save" | "remove" | null>(null);
 
   useEffect(() => {
-    void invoke<string | null>("get_account_sync_server")
-      .then((server) => {
-        setCurrent(server);
-        setServerUrl(server ?? "");
+    void invoke<SyncSourceState>("get_sync_source")
+      .then((state) => {
+        setSource(state);
+        setServerUrl(state.account_server ?? "");
       })
       .catch((error: unknown) => {
-        console.error("Failed to load the account sync server:", error);
+        console.error("Failed to load the sync source:", error);
       });
   }, []);
 
@@ -66,6 +73,55 @@ export function AccountSyncServer({
       console.error("Failed to restart sync service:", e);
     }
   }, []);
+
+  const accountHost = source?.account_server
+    ? hostOf(source.account_server)
+    : null;
+  const selfHostedHost = source?.self_hosted_server
+    ? hostOf(source.self_hosted_server)
+    : null;
+  const showAccount =
+    accountHost !== null && (paid || source?.active === "account");
+  const options: { value: SyncSourceKind; label: string }[] = [
+    { value: "cloud", label: t("account.ownServer.donutCloud") },
+  ];
+  if (showAccount && accountHost) {
+    options.push({ value: "account", label: accountHost });
+  }
+  if (selfHostedHost && !teamSeat) {
+    options.push({
+      value: "self_hosted",
+      label:
+        showAccount && selfHostedHost === accountHost
+          ? t("account.ownServer.tokenServer", { host: selfHostedHost })
+          : selfHostedHost,
+    });
+  }
+  const labelOf = (kind: SyncSourceKind) =>
+    options.find((option) => option.value === kind)?.label ?? "";
+
+  const choose = useCallback(
+    async (next: SyncSourceKind, label: string) => {
+      if (!source) return;
+      const previous = source;
+      setSource({ ...source, active: next });
+      try {
+        setSource(
+          await invoke<SyncSourceState>("set_sync_source", { source: next }),
+        );
+        await restartSync();
+        showSuccessToast(
+          next === "cloud"
+            ? t("account.ownServer.backToCloud")
+            : t("account.ownServer.switched", { server: label }),
+        );
+      } catch (error) {
+        setSource(previous);
+        showErrorToast(translateBackendError(t as never, error));
+      }
+    },
+    [source, restartSync, t],
+  );
 
   const handleTest = useCallback(async () => {
     setProbe({ state: "testing" });
@@ -92,31 +148,43 @@ export function AccountSyncServer({
     }
   }, [serverUrl]);
 
-  const save = useCallback(
+  const store = useCallback(
     async (next: string | null) => {
-      setIsSaving(true);
+      const wasActive = source?.active === "account";
+      setBusy(next ? "save" : "remove");
       try {
-        const saved = await invoke<string | null>("set_account_sync_server", {
+        const state = await invoke<SyncSourceState>("set_account_sync_server", {
           serverUrl: next,
         });
-        setCurrent(saved);
-        setServerUrl(saved ?? "");
-        setProbe({ state: saved ? "ready" : "unknown" });
-        await restartSync();
-        showSuccessToast(
-          saved
-            ? t("account.ownServer.saved")
-            : t("account.ownServer.backToCloud"),
-        );
+        setSource(state);
+        setServerUrl(state.account_server ?? "");
+        setProbe({ state: "unknown" });
+        setEditing(false);
+        if (state.account_server) {
+          await restartSync();
+          showSuccessToast(
+            t("account.ownServer.switched", {
+              server: hostOf(state.account_server),
+            }),
+          );
+        } else if (wasActive) {
+          await restartSync();
+          showSuccessToast(t("account.ownServer.backToCloud"));
+        } else {
+          showSuccessToast(t("account.ownServer.removed"));
+        }
       } catch (error) {
         showErrorToast(translateBackendError(t as never, error));
       } finally {
-        setIsSaving(false);
+        setBusy(null);
       }
     },
-    [restartSync, t],
+    [source, restartSync, t],
   );
 
+  if (!source || (!paid && options.length < 2)) return null;
+
+  const active = source.active ?? "cloud";
   const probeTone = {
     unknown: "muted",
     testing: "muted",
@@ -137,26 +205,50 @@ export function AccountSyncServer({
         }[probe.state];
 
   return (
-    <SettingsPanel className="flex flex-col gap-4">
-      <div className="flex items-start gap-3">
-        <FeatureIcon active={current !== null}>
-          <LuServer />
-        </FeatureIcon>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">{t("account.ownServer.title")}</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            {t("account.ownServer.description")}
-          </p>
-          <p className="mt-1.5 text-xs font-medium break-all">
-            {current
-              ? t("account.ownServer.current", { server: current })
-              : t("account.ownServer.currentCloud")}
-          </p>
-        </div>
+    <div
+      data-slot="account-sync-source"
+      className="flex flex-col gap-3 border-t border-foreground/6 pt-3"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-xs text-muted-foreground">
+          {t("account.ownServer.label")}
+        </span>
+        {options.length > 1 ? (
+          <SegmentedControl
+            value={active}
+            onValueChange={(next) => void choose(next, labelOf(next))}
+            options={options}
+            label={t("account.ownServer.label")}
+            slot="account-sync-source-choice"
+          />
+        ) : (
+          <span className="text-xs font-medium">{options[0].label}</span>
+        )}
+        {paid && (
+          <Button
+            type="button"
+            size="sm"
+            variant="subtle"
+            aria-expanded={editing}
+            aria-controls={formId}
+            onClick={() => {
+              setEditing((open) => !open);
+            }}
+            className="ml-auto h-7 rounded-lg px-2 text-xs"
+          >
+            {t("account.ownServer.change")}
+          </Button>
+        )}
       </div>
 
-      {paid ? (
-        <>
+      {(editing || active !== "cloud") && (
+        <p className="text-xs text-muted-foreground">
+          {t("account.ownServer.cloudOnly")}
+        </p>
+      )}
+
+      <AnimatedDisclosureContent open={editing && paid}>
+        <div id={formId} className="flex flex-col gap-3">
           <SoftFields>
             <div className="space-y-1.5">
               <Label
@@ -180,10 +272,11 @@ export function AccountSyncServer({
             </div>
           </SoftFields>
 
-          <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
-            <li>{t("account.ownServer.cloudOnly")}</li>
-            {teamSeat && <li>{t("account.ownServer.teamNote")}</li>}
-          </ul>
+          {teamSeat && (
+            <p className="text-xs text-muted-foreground">
+              {t("account.ownServer.teamNote")}
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <span
@@ -198,22 +291,24 @@ export function AccountSyncServer({
                 {probeLabel}
               </span>
             </span>
-            {current && (
+            {source.account_server && (
               <Button
+                type="button"
                 size="sm"
                 variant="subtle"
-                disabled={isSaving}
-                onClick={() => void save(null)}
-                className="h-8 rounded-lg text-xs"
+                disabled={busy !== null}
+                aria-busy={busy === "remove"}
+                onClick={() => void store(null)}
+                className="h-8 rounded-lg text-xs hover:bg-destructive/10 hover:text-destructive-text"
               >
-                {t("account.ownServer.useDonutCloud")}
+                {t("account.ownServer.remove")}
               </Button>
             )}
             <LoadingButton
               size="sm"
               variant="soft"
               isLoading={probe.state === "testing"}
-              disabled={!serverUrl.trim() || isSaving}
+              disabled={!serverUrl.trim() || busy !== null}
               onClick={() => void handleTest()}
               className="h-8 rounded-lg text-xs"
             >
@@ -221,24 +316,22 @@ export function AccountSyncServer({
             </LoadingButton>
             <LoadingButton
               size="sm"
-              isLoading={isSaving}
+              isLoading={busy === "save"}
               disabled={
                 !serverUrl.trim() ||
+                busy !== null ||
                 probe.state === "testing" ||
-                (current !== null && sameAddress(current, serverUrl))
+                (source.account_server !== null &&
+                  sameAddress(source.account_server, serverUrl))
               }
-              onClick={() => void save(serverUrl)}
+              onClick={() => void store(serverUrl)}
               className="h-8 rounded-lg text-xs"
             >
               {t("common.buttons.save")}
             </LoadingButton>
           </div>
-        </>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          {t("backendErrors.accountSyncPlanRequired")}
-        </p>
-      )}
-    </SettingsPanel>
+        </div>
+      </AnimatedDisclosureContent>
+    </div>
   );
 }

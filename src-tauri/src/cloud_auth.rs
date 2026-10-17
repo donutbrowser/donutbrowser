@@ -2047,6 +2047,7 @@ pub async fn cloud_refresh_profile() -> Result<CloudUser, String> {
 
 #[tauri::command]
 pub async fn cloud_logout(app_handle: tauri::AppHandle) -> Result<(), String> {
+  let keep_self_hosted = crate::sync::account_server::self_hosted_picked().await;
   CLOUD_AUTH.logout().await?;
 
   // Stop the remote session-events stream. Its credential is now invalid, so
@@ -2056,15 +2057,18 @@ pub async fn cloud_logout(app_handle: tauri::AppHandle) -> Result<(), String> {
   // logout; nothing stopped the Rust stream, so a sign-out left it churning.
   crate::remote_session::stop_session_events();
 
-  // Always clear the stored sync URL and token on cloud logout. While the
-  // user was signed in, the cloud auth flow populated these with the hosted
-  // sync server's URL + a server-issued token — leaving them in place would
-  // pre-fill the Self-Hosted tab with our production URL and a token the
-  // user never typed. The cloud-URL-only check we used to do here missed
-  // trailing-slash / scheme variants and any future cloud endpoint moves.
-  let manager = crate::settings_manager::SettingsManager::instance();
-  let _ = manager.save_sync_server_url(None);
-  let _ = manager.remove_sync_token(&app_handle).await;
+  // Clear the stored sync URL and token on cloud logout, unless the person
+  // synced with that server while signed in. Older versions populated these
+  // with the hosted sync server's URL + a server-issued token — leaving them
+  // in place would pre-fill the Self-Hosted tab with our production URL and a
+  // token the user never typed. The cloud-URL-only check we used to do here
+  // missed trailing-slash / scheme variants and any future cloud endpoint
+  // moves.
+  if !keep_self_hosted {
+    let manager = crate::settings_manager::SettingsManager::instance();
+    let _ = manager.save_sync_server_url(None);
+    let _ = manager.remove_sync_token(&app_handle).await;
+  }
 
   // Remove cloud-managed and cloud-derived proxies
   crate::proxy_manager::PROXY_MANAGER.remove_cloud_proxies();
