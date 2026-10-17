@@ -513,7 +513,7 @@ struct ApiRemoteSessionsResponse {
 /// Enrol a profile in the nightly cookie bot, or replace its enrolment.
 ///
 /// `platform` and `profile_name` are optional because this machine already
-/// knows both: the platform is the profile's own operating system, and a
+/// knows both: the platform is the one this profile runs on remotely, and a
 /// caller-supplied one that disagrees is a mistake, not a choice.
 #[derive(Debug, Deserialize, ToSchema)]
 struct SetCookieBotScheduleRequest {
