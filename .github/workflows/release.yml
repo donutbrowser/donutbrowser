@@ -203,6 +203,14 @@ jobs:
 
           rm -f $CERT_PATH $KEY_PATH $PEM_PATH $P12_PATH
 
+      - name: Set up Python for the DMG layout
+        if: matrix.platform == 'macos-latest'
+        id: python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0
+        with:
+          python-version: "3.13"
+          update-environment: false
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f #v1.0.0
         env:
@@ -227,6 +235,29 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      # Tauri's DMG has no layout in CI: its Finder script needs a desktop
+      # session. Rebuild the DMG from the notarized app with a layout written
+      # directly, sign it, and replace the asset that tauri-action uploaded.
+      - name: Rebuild macOS DMG with the install layout
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHON: ${{ steps.python.outputs.python-path }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
+          shopt -s nullglob
+          DMGS=("$BUNDLE"/dmg/*.dmg)
+          if [ "${#DMGS[@]}" -ne 1 ]; then
+            echo "Expected one DMG in $BUNDLE/dmg, found ${#DMGS[@]}"
+            exit 1
+          fi
+          xcrun stapler validate "$BUNDLE/macos/Donut.app"
+          scripts/build-macos-dmg.sh "$BUNDLE/macos/Donut.app" "${DMGS[0]}"
+          gh release upload "$TAG" "${DMGS[0]}" --clobber --repo "$GITHUB_REPOSITORY"
 
       - name: Create portable Windows ZIP
         if: matrix.platform == 'windows-latest'
