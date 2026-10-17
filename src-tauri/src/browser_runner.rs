@@ -852,6 +852,12 @@ impl BrowserRunner {
         launch_started.elapsed().as_millis()
       );
 
+      // The browser returned a config to store, and it is on disk already.
+      if let Some(stored) = wayfern_result.stored_profile.as_ref() {
+        updated_profile.wayfern_config = stored.wayfern_config.clone();
+        updated_profile.host_os = stored.host_os.clone();
+      }
+
       // Update profile with the process info
       updated_profile.process_id = Some(process_id);
       updated_profile.last_launch = Some(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs());

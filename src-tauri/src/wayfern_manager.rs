@@ -412,9 +412,25 @@ pub fn supports_wayfern_152(version: &str) -> bool {
   crate::api_client::compare_versions(version, WAYFERN_152_MIN_VERSION) != std::cmp::Ordering::Less
 }
 
+/// First Wayfern version that reads the stored config from the launch document
+/// and writes the config to store back to a result file. Older browsers keep
+/// the launcher-side path in `wayfern_identity_storage`.
+const LAUNCH_RESULT_MIN_VERSION: &str = "155";
+
+/// Whether `version` takes the stored config in the launch document and
+/// reports the config to store. Same rule as [`supports_wayfern_152`].
+pub fn supports_launch_result(version: &str) -> bool {
+  crate::api_client::compare_versions(version, LAUNCH_RESULT_MIN_VERSION)
+    != std::cmp::Ordering::Less
+}
+
 /// Where the launch-time identity document lives inside the profile directory.
 /// Rewritten before every launch; the sync manifest excludes it.
 pub const LAUNCH_IDENTITY_FILE: &str = "wayfern-identity.json";
+
+/// Where the browser writes the config to store after a launch. Deleted before
+/// every launch, so a file that exists afterwards came from that launch.
+pub const LAUNCH_RESULT_FILE: &str = "wayfern-identity-result.json";
 
 /// What kind of launch this is, from the browser's point of view.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -797,10 +813,60 @@ pub fn persona_switch(
   Some(format!("--wayfern-profile-persona={}", path.display()))
 }
 
+/// The folder in the profile directory that holds a copy of the camera source,
+/// so the source travels with the profile to every machine.
+const CARRIED_CAMERA_DIR: &str = "Camera Source";
+
+/// The last component of a path written on any OS.
+fn path_file_name(path: &str) -> Option<&str> {
+  path
+    .rsplit(['/', '\\'])
+    .next()
+    .filter(|name| !name.is_empty() && *name != "." && *name != "..")
+}
+
+/// The camera source for a launch. The configured file is an absolute path on
+/// the machine where it was chosen. When it is here, a copy goes into the
+/// profile directory; when it is not, the copy that came with the profile is
+/// used.
+fn camera_source(profile_path: &Path, file: &str) -> String {
+  let Some(name) = path_file_name(file) else {
+    return file.to_string();
+  };
+  let carried_dir = profile_path.join(CARRIED_CAMERA_DIR);
+  let carried = carried_dir.join(name);
+  let source = Path::new(file);
+  if source.is_file() {
+    let current = match (std::fs::metadata(source), std::fs::metadata(&carried)) {
+      (Ok(source), Ok(copy)) => {
+        source.len() == copy.len()
+          && matches!(
+            (source.modified(), copy.modified()),
+            (Ok(source), Ok(copy)) if copy >= source
+          )
+      }
+      _ => false,
+    };
+    if !current {
+      let _ = std::fs::remove_dir_all(&carried_dir);
+      let copied =
+        std::fs::create_dir_all(&carried_dir).and_then(|_| std::fs::copy(source, &carried));
+      if let Err(e) = copied {
+        log::warn!("Camera source not copied into the profile file={file} err=\"{e}\"");
+      }
+    }
+    return file.to_string();
+  }
+  if carried.is_file() {
+    return carried.to_string_lossy().to_string();
+  }
+  file.to_string()
+}
+
 /// The camera switches for a launch. A file that is not there is still passed,
 /// so the camera serves dark frames rather than the computer's own camera; the
 /// log line here names the file.
-pub fn camera_switches(version: &str, config: &WayfernConfig) -> Vec<String> {
+pub fn camera_switches(version: &str, profile_path: &Path, config: &WayfernConfig) -> Vec<String> {
   if !supports_wayfern_152(version) {
     return Vec::new();
   }
@@ -812,7 +878,8 @@ pub fn camera_switches(version: &str, config: &WayfernConfig) -> Vec<String> {
   else {
     return Vec::new();
   };
-  if !Path::new(file).is_file() {
+  let file = camera_source(profile_path, file);
+  if !Path::new(&file).is_file() {
     log::warn!("Camera source missing, camera serves dark frames file={file}");
   }
   let mut switches = vec![format!("--wayfern-camera-file={file}")];
@@ -1327,6 +1394,10 @@ pub struct WayfernLaunchResult {
   pub profilePath: Option<String>,
   pub url: Option<String>,
   pub cdp_port: Option<u16>,
+  /// The profile as stored after this launch, when the browser returned a
+  /// config to store. The caller persists this copy instead of its own.
+  #[serde(skip)]
+  pub stored_profile: Option<BrowserProfile>,
 }
 
 struct WayfernInstance {
@@ -1880,6 +1951,50 @@ impl WayfernManager {
     }
     let path = path.canonicalize().unwrap_or(path);
     Ok(path)
+  }
+
+  /// Delete the result file a previous launch left and return the absolute
+  /// path the browser writes this launch's result to. `None` when the old file
+  /// cannot be removed, so it can never be read as this launch's result.
+  fn clear_launch_result(profile_path: &str, profile: &BrowserProfile) -> Option<PathBuf> {
+    let dir = PathBuf::from(profile_path);
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+      log::warn!(
+        "Profile directory not created for the launch result profile={} err=\"{e}\"",
+        profile.id
+      );
+      return None;
+    }
+    let path = dir.canonicalize().unwrap_or(dir).join(LAUNCH_RESULT_FILE);
+    match std::fs::remove_file(&path) {
+      Ok(()) => Some(path),
+      Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(path),
+      Err(e) => {
+        log::warn!(
+          "Old launch result not removed profile={} err=\"{e}\"",
+          profile.id
+        );
+        None
+      }
+    }
+  }
+
+  /// Read this launch's result and store the config it returns.
+  fn store_launch_result(
+    profile: &BrowserProfile,
+    sent: &WayfernConfig,
+    result_file: Option<&Path>,
+  ) -> (
+    Option<crate::wayfern_identity_storage::LaunchResult>,
+    Option<BrowserProfile>,
+  ) {
+    let Some(result) = result_file
+      .and_then(|path| crate::wayfern_identity_storage::read_launch_result(path, &profile.id))
+    else {
+      return (None, None);
+    };
+    let stored = crate::wayfern_identity_storage::store_launch_result(profile, sent, &result);
+    (Some(result), stored)
   }
 
   /// Whether the browser started on the identity the launcher handed it.
@@ -3002,12 +3117,20 @@ impl WayfernManager {
     // the profile's device rather than the host's. Older browsers, legacy
     // device payloads and a profile whose location carries no timezone keep
     // the post-launch CDP apply below.
-    let launch_identity = if supports_wayfern_152(&profile.version) {
+    let identity_document = if supports_wayfern_152(&profile.version) {
       Self::launch_identity_document(config, &profile.native_os())
     } else {
       None
     };
-    if launch_identity.is_none()
+    // A browser that reports a result also gets the stored config, and the
+    // launcher stores what the result says after the launch.
+    let result_file = if supports_launch_result(&profile.version) {
+      Self::clear_launch_result(profile_path, profile)
+    } else {
+      None
+    };
+    if identity_document.is_none()
+      && result_file.is_none()
       && supports_wayfern_152(&profile.version)
       && config.identity_id.is_some()
       && config.fingerprint.is_none()
@@ -3017,6 +3140,27 @@ impl WayfernManager {
         profile.id
       );
     }
+    let launch_identity = match result_file.as_deref() {
+      Some(result_file) => {
+        let account_known = (wayfern_token.is_some()
+          || !crate::cloud_auth::CLOUD_AUTH
+            .is_entitled_to_wayfern_token()
+            .await)
+          && crate::cloud_auth::CLOUD_AUTH.is_logged_in().await;
+        let mut document = identity_document
+          .as_ref()
+          .and_then(|document| document.as_object().cloned())
+          .unwrap_or_default();
+        document.extend(crate::wayfern_identity_storage::launch_document_keys(
+          profile,
+          config,
+          result_file,
+          account_known,
+        ));
+        Some(serde_json::Value::Object(document))
+      }
+      None => identity_document.clone(),
+    };
     let identity_file = match &launch_identity {
       Some(document) => Some(
         Self::write_launch_identity(profile_path, document)
@@ -3025,7 +3169,7 @@ impl WayfernManager {
       None => None,
     };
     let identity_at_launch =
-      identity_file.is_some() || (config.identity_id.is_none() && config.fingerprint.is_none());
+      identity_document.is_some() || (config.identity_id.is_none() && config.fingerprint.is_none());
     let pages = launch_pages(url, &profile.start_urls, kind);
     let restore_session = match session_restore_verdict(
       config,
@@ -3093,7 +3237,11 @@ impl WayfernManager {
       &persona_seed,
       config.persona.as_deref(),
     ));
-    args.extend(camera_switches(&profile.version, config));
+    args.extend(camera_switches(
+      &profile.version,
+      Path::new(profile_path),
+      config,
+    ));
     args.extend(widevine_switch(
       &profile.version,
       &crate::app_dirs::data_dir(),
@@ -3150,6 +3298,7 @@ impl WayfernManager {
           }
           kill_browser_process(pid);
         }
+        Self::store_launch_result(profile, config, result_file.as_deref());
         return Err(e);
       }
     };
@@ -3161,6 +3310,30 @@ impl WayfernManager {
       page_targets.len()
     );
 
+    let (launch_result, stored_profile) =
+      Self::store_launch_result(profile, config, result_file.as_deref());
+    // The browser names the identity it launched on; that is the one to check.
+    let verify_document = match launch_result
+      .as_ref()
+      .and_then(|result| result.identity_id.as_deref())
+    {
+      Some(identity_id) => {
+        let mut document = identity_document
+          .as_ref()
+          .and_then(|document| document.as_object().cloned())
+          .unwrap_or_default();
+        document.insert("identityId".to_string(), json!(identity_id));
+        if let Some(os) = launch_result
+          .as_ref()
+          .and_then(|result| result.operating_system.as_deref())
+        {
+          document.insert("operatingSystem".to_string(), json!(os));
+        }
+        Some(serde_json::Value::Object(document))
+      }
+      None => identity_document.clone(),
+    };
+
     // An identity-backed profile: the id, the user's overrides and the exit's
     // location are all the browser needs, and all the profile stores. The
     // device comes back in the response and is deliberately NOT persisted.
@@ -3171,7 +3344,7 @@ impl WayfernManager {
       && !supports_wayfern_152(&profile.version)
       && config.identity_id.is_some()
       && config.fingerprint.is_some();
-    if let Some(document) = launch_identity.as_ref().filter(|_| identity_file.is_some()) {
+    if let Some(document) = verify_document.as_ref() {
       // The identity travelled on the command line. The browser never fails
       // its own launch over it (a refusal only logs), so the launcher checks,
       // and a browser running on the wrong device is closed rather than
@@ -3496,6 +3669,7 @@ impl WayfernManager {
       profilePath: Some(profile_path.to_string()),
       url: url.map(|s| s.to_string()),
       cdp_port: Some(port),
+      stored_profile,
     })
   }
 
@@ -3722,6 +3896,7 @@ impl WayfernManager {
               profilePath: instance.profile_path.clone(),
               url: instance.url.clone(),
               cdp_port: instance.cdp_port,
+              stored_profile: None,
             });
           } else {
             log::info!(
@@ -3777,6 +3952,7 @@ impl WayfernManager {
         profilePath: Some(found_profile_path),
         url: None,
         cdp_port,
+        stored_profile: None,
       });
     }
 
@@ -4903,6 +5079,9 @@ mod tests {
       camera_crop: crop.map(str::to_string),
       ..Default::default()
     };
+    let profile = tempfile::tempdir().unwrap();
+    let camera_switches =
+      |version: &str, config: &WayfernConfig| camera_switches(version, profile.path(), config);
     assert!(camera_switches("151.0.7922.76", &config(Some(&path), None)).is_empty());
     assert!(camera_switches("152.0.7977.64", &config(None, Some("0,0,10,10"))).is_empty());
     assert_eq!(
@@ -4925,6 +5104,35 @@ mod tests {
     assert!(!valid_camera_crop("1,2,3"));
     assert!(!valid_camera_crop("-1,0,10,10"));
     assert!(valid_camera_crop(" 1, 2, 30, 40 "));
+  }
+
+  #[test]
+  fn the_camera_source_travels_with_the_profile() {
+    let chosen_on = tempfile::tempdir().unwrap();
+    let file = chosen_on.path().join("frame.png");
+    std::fs::write(&file, b"frame").unwrap();
+    let path = file.to_string_lossy().to_string();
+    let profile = tempfile::tempdir().unwrap();
+
+    assert_eq!(camera_source(profile.path(), &path), path);
+    let carried = profile.path().join(CARRIED_CAMERA_DIR).join("frame.png");
+    assert_eq!(std::fs::read(&carried).unwrap(), b"frame");
+
+    // Another machine has neither the folder nor the file, only the profile.
+    drop(chosen_on);
+    assert_eq!(
+      camera_source(profile.path(), &path),
+      carried.to_string_lossy().to_string()
+    );
+    assert_eq!(
+      camera_source(profile.path(), r"C:\Users\me\Pictures\frame.png"),
+      carried.to_string_lossy().to_string(),
+      "a path written on Windows names the same copy"
+    );
+    assert_eq!(
+      camera_source(profile.path(), "/nope/other.png"),
+      "/nope/other.png"
+    );
   }
 
   #[test]

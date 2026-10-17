@@ -153,8 +153,9 @@ pub fn is_excluded(relative: &str) -> bool {
     "CacheStorage",
     "ScriptCache",
   ];
-  const LAUNCH_FILES: [&str; 3] = [
+  const LAUNCH_FILES: [&str; 4] = [
     "wayfern-identity.json",
+    "wayfern-identity-result.json",
     "wayfern-persona.json",
     "window-icon.png",
   ];
@@ -246,6 +247,12 @@ pub fn export_to(
     .map_err(|e| err("profile", e))?;
 
   if carries_data {
+    // A profile created before it had a key file holds its key only in a form
+    // this Windows account can open; the archive must carry the key file.
+    #[cfg(target_os = "windows")]
+    if let Err(e) = crate::profile_import::keyring::write_key_file_from_local_state(data_dir) {
+      log::warn!("Profile export carries no key file err=\"{e}\"");
+    }
     let mut written = 0u64;
     for (relative, absolute) in collect_files(data_dir)? {
       let data = match fs::read(&absolute) {

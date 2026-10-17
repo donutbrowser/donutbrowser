@@ -2,10 +2,11 @@ use crate::cloud_auth::CLOUD_AUTH;
 use crate::profile::types::get_host_os;
 use crate::profile::{BrowserProfile, ProfileManager};
 use crate::wayfern_manager::{
-  cdp_error_is_invalid_params, is_temporary_wayfern_failure, supports_wayfern_152, wayfern_failure,
-  HeadlessWayfern, WayfernConfig, WayfernManager,
+  cdp_error_is_invalid_params, is_temporary_wayfern_failure, supports_launch_result,
+  supports_wayfern_152, wayfern_failure, HeadlessWayfern, WayfernConfig, WayfernManager,
 };
 use serde_json::{json, Map, Value};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -91,6 +92,7 @@ pub fn stored_shape(config: &WayfernConfig) -> StoredShape {
 pub fn needs_conversion(profile: &BrowserProfile) -> bool {
   profile.browser == "wayfern"
     && supports_wayfern_152(&profile.version)
+    && !supports_launch_result(&profile.version)
     && profile.wayfern_config.as_ref().is_some_and(|config| {
       config.randomize_fingerprint_on_launch != Some(true)
         && matches!(
@@ -219,6 +221,170 @@ fn write_backup(profile: &BrowserProfile) -> Result<(), String> {
     }
   }
   Err("no free backup name".to_string())
+}
+
+/// The config fields the launch document carries, exactly as stored.
+fn stored_fields(config: &WayfernConfig) -> Map<String, Value> {
+  [
+    ("fingerprint", &config.fingerprint),
+    ("identity_id", &config.identity_id),
+    ("identity_baseline", &config.identity_baseline),
+    ("identity_overrides", &config.identity_overrides),
+    ("os", &config.os),
+    ("location", &config.location),
+  ]
+  .into_iter()
+  .filter_map(|(key, value)| Some((key.to_string(), json!(value.as_ref()?))))
+  .collect()
+}
+
+/// The launch document keys that let the browser report the config to store.
+pub fn launch_document_keys(
+  profile: &BrowserProfile,
+  config: &WayfernConfig,
+  result_file: &Path,
+  account_known: bool,
+) -> Map<String, Value> {
+  let mut keys = Map::new();
+  keys.insert("profileSalt".to_string(), json!(profile.id.to_string()));
+  keys.insert(
+    "resultFile".to_string(),
+    json!(result_file.to_string_lossy()),
+  );
+  keys.insert("nativeOs".to_string(), json!(profile.native_os()));
+  keys.insert("accountKnown".to_string(), json!(account_known));
+  keys.insert("stored".to_string(), Value::Object(stored_fields(config)));
+  keys
+}
+
+/// What the browser reported about a launch.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LaunchResult {
+  pub status: String,
+  /// The identity the browser launched on, when it launched on one.
+  pub identity_id: Option<String>,
+  pub operating_system: Option<String>,
+  config: Option<Map<String, Value>>,
+}
+
+/// This launch's result for `profile_id`, or `None` when there is no
+/// readable result for that profile.
+pub fn read_launch_result(path: &Path, profile_id: &uuid::Uuid) -> Option<LaunchResult> {
+  let content = std::fs::read_to_string(path).ok()?;
+  let result: Value = match serde_json::from_str(&content) {
+    Ok(result) => result,
+    Err(e) => {
+      log::warn!("Launch result unreadable profile={profile_id} err=\"{e}\"");
+      return None;
+    }
+  };
+  if result.get("profileSalt").and_then(Value::as_str) != Some(profile_id.to_string().as_str()) {
+    log::warn!("Launch result is for another profile profile={profile_id}");
+    return None;
+  }
+  let text = |key: &str| {
+    result
+      .get(key)
+      .and_then(Value::as_str)
+      .map(str::trim)
+      .filter(|value| !value.is_empty())
+      .map(str::to_string)
+  };
+  let status = text("status")?;
+  log::debug!("Launch result profile={profile_id} status={status}");
+  Some(LaunchResult {
+    identity_id: text("identityId"),
+    operating_system: text("operatingSystem"),
+    config: result.get("config").and_then(Value::as_object).cloned(),
+    status,
+  })
+}
+
+/// `profile` with the config the browser returned, or `None` when the result
+/// carries no config to store.
+fn profile_with_result(profile: &BrowserProfile, result: &LaunchResult) -> Option<BrowserProfile> {
+  if result.status != "converted" {
+    return None;
+  }
+  let returned = result.config.as_ref()?;
+  let text = |key: &str| {
+    returned
+      .get(key)
+      .and_then(Value::as_str)
+      .map(str::to_string)
+  };
+  let identity_id = text("identity_id").filter(|id| !id.trim().is_empty())?;
+  let os = text("os")?;
+  let os = WayfernManager::normalize_os_name(&os)?;
+
+  let mut updated = profile.clone();
+  let config = updated
+    .wayfern_config
+    .get_or_insert_with(WayfernConfig::default);
+  config.identity_id = Some(identity_id);
+  config.os = Some(os.to_string());
+  config.identity_overrides = text("identity_overrides");
+  if let Some(location) = text("location") {
+    config.location = Some(location);
+  }
+  config.fingerprint = None;
+  config.identity_baseline = None;
+
+  let host_os = get_host_os();
+  if updated.host_os.is_none() && os != host_os {
+    updated.host_os = Some(host_os);
+  }
+  Some(updated)
+}
+
+/// Store the config the browser returned, and return the stored profile.
+/// Nothing is stored when the profile changed since the launch began.
+pub fn store_launch_result(
+  profile: &BrowserProfile,
+  sent: &WayfernConfig,
+  result: &LaunchResult,
+) -> Option<BrowserProfile> {
+  if result.status != "converted" {
+    return None;
+  }
+  let current = read_profile(&profile.id)?;
+  let held = current.wayfern_config.clone().unwrap_or_default();
+  if stored_fields(&held) != stored_fields(sent) {
+    log::debug!(
+      "Launch result not stored, profile changed profile={}",
+      profile.id
+    );
+    return None;
+  }
+  let stored = profile_with_result(&current, result)?;
+  if let Err(e) = write_backup(&current) {
+    log::warn!(
+      "Launch result not stored, backup failed profile={} err=\"{e}\"",
+      profile.id
+    );
+    return None;
+  }
+  match ProfileManager::instance().save_profile_unchanged(&current, &stored) {
+    Ok(true) => {
+      log::info!("Profile stored as an identity profile={}", stored.id);
+      let _ = crate::events::emit_empty("profiles-changed");
+      Some(stored)
+    }
+    Ok(false) => {
+      log::debug!(
+        "Launch result not stored, profile changed profile={}",
+        profile.id
+      );
+      None
+    }
+    Err(e) => {
+      log::warn!(
+        "Launch result not stored profile={} err=\"{e}\"",
+        profile.id
+      );
+      None
+    }
+  }
 }
 
 fn config_value(profile: &BrowserProfile) -> Value {
@@ -680,6 +846,10 @@ mod tests {
       "150.0.7801.12",
       payload_only.clone()
     )));
+    assert!(!needs_conversion(&profile_with(
+      "155.0.8059.79",
+      payload_only.clone()
+    )));
 
     let mut randomized = payload_only.clone();
     randomized.randomize_fingerprint_on_launch = Some(true);
@@ -932,6 +1102,221 @@ mod tests {
         .expect("a converted profile launches")
         .id,
       converted_id
+    );
+  }
+
+  #[test]
+  fn the_launch_document_carries_the_stored_config_verbatim() {
+    let config = WayfernConfig {
+      fingerprint: Some(format!(r#"{{"fingerprint":{}}}"#, payload())),
+      identity_id: Some(format!(" {LEGACY_ID} ")),
+      identity_overrides: Some("not json".to_string()),
+      persona: Some("p".to_string()),
+      proxy: Some("socks5://127.0.0.1:1".to_string()),
+      ..Default::default()
+    };
+    let profile = profile_with("155.0.8059.79", config.clone());
+    let result_file = std::path::PathBuf::from("/tmp/p/wayfern-identity-result.json");
+    let keys = launch_document_keys(&profile, &config, &result_file, true);
+
+    assert_eq!(keys["profileSalt"], json!(profile.id.to_string()));
+    assert_eq!(
+      keys["resultFile"],
+      json!("/tmp/p/wayfern-identity-result.json")
+    );
+    assert_eq!(keys["nativeOs"], json!(profile.native_os()));
+    assert_eq!(keys["accountKnown"], json!(true));
+    let stored = keys["stored"].as_object().unwrap();
+    assert_eq!(stored["fingerprint"], json!(config.fingerprint.unwrap()));
+    assert_eq!(stored["identity_id"], json!(format!(" {LEGACY_ID} ")));
+    assert_eq!(stored["identity_overrides"], json!("not json"));
+    let mut names: Vec<&str> = stored.keys().map(String::as_str).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["fingerprint", "identity_id", "identity_overrides"]);
+
+    let empty = launch_document_keys(&profile, &WayfernConfig::default(), &result_file, false);
+    assert_eq!(empty["stored"], json!({}));
+    assert_eq!(empty["accountKnown"], json!(false));
+  }
+
+  fn result_body(profile: &BrowserProfile, status: &str, config: Value) -> Value {
+    json!({
+      "version": 1,
+      "profileSalt": profile.id.to_string(),
+      "status": status,
+      "identityId": CURRENT_ID,
+      "operatingSystem": "windows",
+      "config": config,
+    })
+  }
+
+  fn write_result(dir: &Path, body: &Value) -> std::path::PathBuf {
+    let path = dir.join(crate::wayfern_manager::LAUNCH_RESULT_FILE);
+    std::fs::write(&path, body.to_string()).unwrap();
+    path
+  }
+
+  #[test]
+  fn only_a_result_for_this_profile_is_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let profile = profile_with("155.0.8059.79", WayfernConfig::default());
+    let missing = dir.path().join("absent.json");
+    assert!(read_launch_result(&missing, &profile.id).is_none());
+
+    let path = write_result(dir.path(), &result_body(&profile, "unchanged", Value::Null));
+    let result = read_launch_result(&path, &profile.id).unwrap();
+    assert_eq!(result.status, "unchanged");
+    assert_eq!(result.identity_id.as_deref(), Some(CURRENT_ID));
+    assert_eq!(result.operating_system.as_deref(), Some("windows"));
+
+    let mut other = result_body(&profile, "converted", json!({}));
+    other["profileSalt"] = json!(LEGACY_ID);
+    let path = write_result(dir.path(), &other);
+    assert!(read_launch_result(&path, &profile.id).is_none());
+
+    std::fs::write(&path, "{").unwrap();
+    assert!(read_launch_result(&path, &profile.id).is_none());
+
+    let mut failed = result_body(&profile, "failed", Value::Null);
+    let object = failed.as_object_mut().unwrap();
+    object.remove("identityId");
+    object.remove("operatingSystem");
+    let path = write_result(dir.path(), &failed);
+    let result = read_launch_result(&path, &profile.id).unwrap();
+    assert_eq!(result.status, "failed");
+    assert!(result.identity_id.is_none());
+  }
+
+  #[test]
+  fn a_converted_result_is_stored_as_returned() {
+    let dir = tempfile::tempdir().unwrap();
+    let _data = crate::app_dirs::set_test_data_dir(dir.path().to_path_buf());
+    let sent = WayfernConfig {
+      fingerprint: Some(payload()),
+      identity_baseline: Some(payload()),
+      identity_overrides: Some(r#"{"doNotTrack":"1"}"#.to_string()),
+      location: Some(r#"{"timezone":"Europe/Berlin"}"#.to_string()),
+      persona: Some("p".to_string()),
+      ..Default::default()
+    };
+    let profile = profile_with("155.0.8059.79", sent.clone());
+    ProfileManager::instance().save_profile(&profile).unwrap();
+
+    let returned = json!({
+      "identity_id": CURRENT_ID,
+      "os": "windows",
+      "identity_overrides": null,
+    });
+    let path = write_result(dir.path(), &result_body(&profile, "converted", returned));
+    let result = read_launch_result(&path, &profile.id).unwrap();
+    let mut launch_copy = sent.clone();
+    launch_copy.proxy = Some("socks5://127.0.0.1:1".to_string());
+    let stored = store_launch_result(&profile, &launch_copy, &result).expect("stored");
+
+    let on_disk = read_profile(&profile.id).unwrap();
+    assert_eq!(config_value(&on_disk), config_value(&stored));
+    let config = on_disk.wayfern_config.unwrap();
+    assert_eq!(config.identity_id.as_deref(), Some(CURRENT_ID));
+    assert_eq!(config.os.as_deref(), Some("windows"));
+    assert!(config.identity_overrides.is_none());
+    assert!(config.fingerprint.is_none());
+    assert!(config.identity_baseline.is_none());
+    assert_eq!(
+      config.location, sent.location,
+      "an absent location keeps the stored one"
+    );
+    assert_eq!(config.persona.as_deref(), Some("p"));
+    assert!(config.proxy.is_none());
+
+    let backup = crate::app_dirs::data_subdir()
+      .join("wayfern-config-backups")
+      .join(format!("{}.json", profile.id));
+    let backup: Value = serde_json::from_slice(&std::fs::read(backup).unwrap()).unwrap();
+    assert_eq!(backup["wayfernConfig"]["fingerprint"], json!(payload()));
+
+    // The stored config is no longer the one that was sent: nothing is stored.
+    assert!(store_launch_result(&profile, &launch_copy, &result).is_none());
+    assert_eq!(
+      config_value(&read_profile(&profile.id).unwrap()),
+      config_value(&stored)
+    );
+  }
+
+  #[test]
+  fn only_a_converted_result_with_a_config_is_stored() {
+    let dir = tempfile::tempdir().unwrap();
+    let _data = crate::app_dirs::set_test_data_dir(dir.path().to_path_buf());
+    let sent = WayfernConfig {
+      fingerprint: Some(payload()),
+      ..Default::default()
+    };
+    let profile = profile_with("155.0.8059.79", sent.clone());
+    ProfileManager::instance().save_profile(&profile).unwrap();
+    let returned = json!({ "identity_id": CURRENT_ID, "os": "windows" });
+
+    for status in ["unchanged", "deferred", "failed"] {
+      let path = write_result(dir.path(), &result_body(&profile, status, returned.clone()));
+      let result = read_launch_result(&path, &profile.id).unwrap();
+      assert!(
+        store_launch_result(&profile, &sent, &result).is_none(),
+        "{status}"
+      );
+    }
+    for unusable in [
+      Value::Null,
+      json!({ "os": "windows" }),
+      json!({ "identity_id": CURRENT_ID, "os": "beos" }),
+    ] {
+      let path = write_result(
+        dir.path(),
+        &result_body(&profile, "converted", unusable.clone()),
+      );
+      let result = read_launch_result(&path, &profile.id).unwrap();
+      assert!(
+        store_launch_result(&profile, &sent, &result).is_none(),
+        "{unusable}"
+      );
+    }
+
+    let mut edited = profile.clone();
+    edited.wayfern_config.as_mut().unwrap().identity_overrides =
+      Some(r#"{"doNotTrack":"1"}"#.to_string());
+    ProfileManager::instance().save_profile(&edited).unwrap();
+    let path = write_result(dir.path(), &result_body(&profile, "converted", returned));
+    let result = read_launch_result(&path, &profile.id).unwrap();
+    assert!(
+      store_launch_result(&profile, &sent, &result).is_none(),
+      "an edit made during the launch wins"
+    );
+    assert_eq!(
+      config_value(&read_profile(&profile.id).unwrap()),
+      config_value(&edited)
+    );
+  }
+
+  #[test]
+  fn a_returned_claim_off_the_host_keeps_the_profile_launchable_here() {
+    let other = if get_host_os() == "macos" {
+      "windows"
+    } else {
+      "macos"
+    };
+    let mut profile = profile_with("155.0.8059.79", WayfernConfig::default());
+    profile.host_os = None;
+    let result = LaunchResult {
+      status: "converted".to_string(),
+      identity_id: Some(CURRENT_ID.to_string()),
+      operating_system: Some(other.to_string()),
+      config: json!({ "identity_id": CURRENT_ID, "os": other, "location": "{}" })
+        .as_object()
+        .cloned(),
+    };
+    let updated = profile_with_result(&profile, &result).unwrap();
+    assert_eq!(updated.host_os.as_deref(), Some(get_host_os().as_str()));
+    assert!(!updated.is_cross_os());
+    assert_eq!(
+      updated.wayfern_config.unwrap().location.as_deref(),
+      Some("{}")
     );
   }
 

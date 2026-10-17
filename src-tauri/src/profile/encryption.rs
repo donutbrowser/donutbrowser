@@ -79,6 +79,7 @@ pub const SEALED_EXCLUDE_PATTERNS: &[&str] = &[
   "*.tmp",
   "**/*.donut-tmp",
   "**/wayfern-identity.json",
+  "**/wayfern-identity-result.json",
   "**/wayfern-persona.json",
   BASELINE_FILE_NAME,
 ];

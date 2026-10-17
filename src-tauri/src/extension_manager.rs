@@ -184,6 +184,138 @@ pub(crate) fn resolve_archive_i18n(
 /// Read an unpacked extension's `manifest.json` off disk. The directory
 /// equivalent of `read_manifest_from_archive`, so both payload shapes feed the
 /// same metadata and icon extraction below.
+/// The manifest `key` of a staged copy. Chromium derives the id of an unpacked
+/// extension from its absolute path unless the manifest has a `key`, and the
+/// staging path differs on every machine and OS, so a path id leaves the
+/// extension's storage and settings on the machine that staged it. The key is
+/// derived from the profile and the extension, so the id is the same on every
+/// machine and still differs between profiles.
+fn portable_manifest_key(profile_id: &str, ext_id: &str) -> Vec<u8> {
+  use sha2::{Digest, Sha256};
+  let mut hasher = Sha256::new();
+  hasher.update(b"donut-staged-extension-key\0");
+  hasher.update(profile_id.as_bytes());
+  hasher.update([0u8]);
+  hasher.update(ext_id.as_bytes());
+  hasher.finalize().to_vec()
+}
+
+/// The extension id Chromium derives from a manifest `key`: the first 16 bytes
+/// of its SHA-256, each nibble written as a letter from `a` to `p`.
+fn extension_id_for_key(key: &[u8]) -> String {
+  use sha2::{Digest, Sha256};
+  Sha256::digest(key)[..16]
+    .iter()
+    .flat_map(|byte| [byte >> 4, byte & 0x0f])
+    .map(|nibble| char::from(b'a' + nibble))
+    .collect()
+}
+
+/// Whether two spellings name the same directory, as the browser records it.
+fn same_dir(recorded: &str, dir: &Path) -> bool {
+  let recorded = Path::new(recorded);
+  let canonical = dir.canonicalize().ok();
+  [Some(dir.to_path_buf()), canonical]
+    .into_iter()
+    .flatten()
+    .any(|candidate| {
+      let candidate = candidate.to_string_lossy().to_string();
+      let candidate = candidate.strip_prefix(r"\\?\").unwrap_or(&candidate);
+      if cfg!(windows) {
+        recorded.to_string_lossy().eq_ignore_ascii_case(candidate)
+      } else {
+        recorded == Path::new(candidate)
+      }
+    })
+}
+
+/// The id under which the profile already keeps state for the extension staged
+/// at `dir`, when that id is not `portable_id`. Such state was recorded before
+/// staged copies carried a key.
+fn recorded_path_id(profile_data_path: &Path, dir: &Path, portable_id: &str) -> Option<String> {
+  let mut recorded_path_ids = Vec::new();
+  for file in ["Preferences", "Secure Preferences"] {
+    let Ok(contents) = fs::read_to_string(profile_data_path.join("Default").join(file)) else {
+      continue;
+    };
+    let Ok(prefs) = serde_json::from_str::<serde_json::Value>(&contents) else {
+      continue;
+    };
+    let Some(settings) = prefs
+      .pointer("/extensions/settings")
+      .and_then(|v| v.as_object())
+    else {
+      continue;
+    };
+    if settings.contains_key(portable_id) {
+      return None;
+    }
+    recorded_path_ids.extend(
+      settings
+        .iter()
+        .filter(|(_, entry)| {
+          entry
+            .get("path")
+            .and_then(|p| p.as_str())
+            .is_some_and(|p| same_dir(p, dir))
+        })
+        .map(|(id, _)| id.clone()),
+    );
+  }
+  recorded_path_ids.into_iter().next()
+}
+
+/// Give the staged copy at `dir` a manifest `key`, so the browser gives it the
+/// same id on every machine. A manifest that already has a key keeps it. A
+/// profile that already keeps state under the copy's path id keeps that id, so
+/// an update never resets an extension on the machine it runs on.
+fn give_portable_id(dir: &Path, profile_id: &str, ext_id: &str, profile_data_path: &Path) {
+  use base64::Engine;
+
+  let manifest_path = dir.join("manifest.json");
+  let Ok(contents) = fs::read_to_string(&manifest_path) else {
+    return;
+  };
+  let Ok(mut manifest) =
+    serde_json::from_str::<serde_json::Value>(contents.trim_start_matches('\u{feff}'))
+  else {
+    log::warn!("Extension keeps a path id, its manifest is not plain JSON extension={ext_id}");
+    return;
+  };
+  let Some(object) = manifest.as_object_mut() else {
+    return;
+  };
+  if object.contains_key("key") {
+    return;
+  }
+  let key = portable_manifest_key(profile_id, ext_id);
+  let portable_id = extension_id_for_key(&key);
+  if let Some(recorded) = recorded_path_id(profile_data_path, dir, &portable_id) {
+    log::info!(
+      "Extension keeps the id its data is under extension={ext_id} id={recorded} profile={profile_id}"
+    );
+    return;
+  }
+  object.insert(
+    "key".to_string(),
+    serde_json::Value::String(base64::engine::general_purpose::STANDARD.encode(key)),
+  );
+  match serde_json::to_vec_pretty(&manifest) {
+    Ok(bytes) => {
+      if let Err(e) = fs::write(&manifest_path, bytes) {
+        log::warn!(
+          "Extension keeps a path id, manifest write failed extension={ext_id} err=\"{e}\""
+        );
+      }
+    }
+    Err(e) => {
+      log::warn!(
+        "Extension keeps a path id, manifest encode failed extension={ext_id} err=\"{e}\""
+      );
+    }
+  }
+}
+
 pub(crate) fn read_manifest_from_dir(dir: &Path) -> Option<serde_json::Value> {
   let contents = fs::read_to_string(dir.join("manifest.json")).ok()?;
   serde_json::from_str(&contents).ok()
@@ -1582,6 +1714,12 @@ impl ExtensionManager {
           // Extract .crx or .zip
           match Self::unpack_extension(&src_file, &unpack_dir) {
             Ok(()) => {
+              give_portable_id(
+                &unpack_dir,
+                &profile.id.to_string(),
+                ext_id,
+                _profile_data_path,
+              );
               extension_paths.push(unpack_dir.to_string_lossy().to_string());
             }
             Err(e) => {
@@ -2010,6 +2148,83 @@ pub async fn get_extension_group_for_profile(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn extension_ids_follow_the_browser_derivation() {
+    assert_eq!(
+      extension_id_for_key(b"test"),
+      "jpignaibiiemhngfjkcpokkamffknabf"
+    );
+    assert_eq!(
+      extension_id_for_key(b"_"),
+      "ncocknphbhhlhkikpnnlmbcnbgdempcd"
+    );
+  }
+
+  fn staged_copy(root: &Path, name: &str, manifest: &str) -> PathBuf {
+    let dir = root.join(name);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("manifest.json"), manifest).unwrap();
+    dir
+  }
+
+  fn manifest_key(dir: &Path) -> Option<String> {
+    read_manifest_from_dir(dir)?
+      .get("key")?
+      .as_str()
+      .map(str::to_string)
+  }
+
+  #[test]
+  fn a_staged_copy_gets_one_key_per_profile_on_every_machine() {
+    let machine_a = tempfile::tempdir().unwrap();
+    let machine_b = tempfile::tempdir().unwrap();
+    let manifest = r#"{"name":"x","version":"1","manifest_version":3}"#;
+    let on_a = staged_copy(machine_a.path(), "staged", manifest);
+    let on_b = staged_copy(machine_b.path(), "elsewhere/staged", manifest);
+    let other_profile = staged_copy(machine_a.path(), "other", manifest);
+    let data = tempfile::tempdir().unwrap();
+
+    give_portable_id(&on_a, "profile-1", "ext-1", data.path());
+    give_portable_id(&on_b, "profile-1", "ext-1", data.path());
+    give_portable_id(&other_profile, "profile-2", "ext-1", data.path());
+
+    let key = manifest_key(&on_a).expect("a key is written");
+    assert_eq!(Some(key.clone()), manifest_key(&on_b));
+    assert_ne!(Some(key), manifest_key(&other_profile));
+  }
+
+  #[test]
+  fn a_manifest_key_and_recorded_extension_state_are_kept() {
+    let root = tempfile::tempdir().unwrap();
+    let keyed = staged_copy(
+      root.path(),
+      "keyed",
+      r#"{"name":"x","version":"1","manifest_version":3,"key":"AAAA"}"#,
+    );
+    let data = tempfile::tempdir().unwrap();
+    give_portable_id(&keyed, "profile-1", "ext-1", data.path());
+    assert_eq!(manifest_key(&keyed).as_deref(), Some("AAAA"));
+
+    let used = staged_copy(
+      root.path(),
+      "used",
+      r#"{"name":"x","version":"1","manifest_version":3}"#,
+    );
+    fs::create_dir_all(data.path().join("Default")).unwrap();
+    let prefs = serde_json::json!({
+      "extensions": {"settings": {"abcdefghijklmnopabcdefghijklmnop": {
+        "path": used.to_string_lossy(),
+      }}}
+    });
+    fs::write(
+      data.path().join("Default").join("Preferences"),
+      prefs.to_string(),
+    )
+    .unwrap();
+    give_portable_id(&used, "profile-1", "ext-2", data.path());
+    assert_eq!(manifest_key(&used), None, "the recorded path id stays");
+  }
 
   #[test]
   fn test_get_file_type() {

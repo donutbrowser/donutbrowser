@@ -350,6 +350,7 @@ fn the_sealed_exclusions_keep_what_a_database_needs() {
     "Default/Local Storage/leveldb/LOCK",
     "SingletonLock",
     "wayfern-identity.json",
+    "wayfern-identity-result.json",
     BASELINE_FILE_NAME,
     "Default/x.donut-tmp",
   ] {

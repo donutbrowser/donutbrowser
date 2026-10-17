@@ -57,6 +57,7 @@ pub const DEFAULT_EXCLUDE_PATTERNS: &[&str] = &[
   // Rewritten by donut before every launch from the profile metadata that
   // already syncs; uploading it would only duplicate that state.
   "**/wayfern-identity.json",
+  "**/wayfern-identity-result.json",
   "**/wayfern-persona.json",
   "**/SingletonSocket",
   "**/SingletonCookie",
