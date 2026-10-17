@@ -715,6 +715,37 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       "/linked",
     );
 
+    // The browser's own index never carries `id`, so the page applies this
+    // locator; the node a resolution names is the element itself.
+    const byIdLocator = {
+      attributes: [{ name: "id", value: "fixture-button" }],
+    };
+    const resolved = await request(
+      `${base}/v1/profiles/${profile.id}/agent/resolve-locator`,
+      {
+        method: "POST",
+        token: saved.api_token,
+        body: { locator: byIdLocator },
+      },
+    );
+    assert.equal(resolved.response.status, 200, JSON.stringify(resolved.value));
+    const resolvedNode = await cdp.command("DOM.describeNode", {
+      backendNodeId: resolved.value.backendNodeId,
+    });
+    assert.equal(resolvedNode.node.nodeName, "BUTTON");
+    assert.ok(
+      resolvedNode.node.attributes.includes("fixture-button"),
+      JSON.stringify(resolvedNode.node),
+    );
+    const byId = await agentClick(byIdLocator);
+    assert.equal(byId.navigated, false);
+    assert.equal(
+      await cdp.evaluate(
+        "document.querySelector('#fixture-button').dataset.clicked",
+      ),
+      "yes",
+    );
+
     // The MCP browser tools, through the engine an agent reaches over the
     // remote bridge. Each action says where the page is afterwards.
     let rpcId = 0;

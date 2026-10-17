@@ -1372,6 +1372,17 @@ pub(crate) mod test_support {
     PickerSilent,
     /// Answer `Vellum.strike`, then emit `Page.loadEventFired`.
     StrikeNavigates,
+    /// `resolveLocator` matches, but its `backendNodeId` names another node,
+    /// as on Wayfern 152 to 155; the page finds the match as node 353.
+    RenumberedNodeIds,
+    /// As `RenumberedNodeIds`, but the id names a sibling with the same
+    /// attributes and other text.
+    RenumberedToSibling,
+    /// `resolveLocator` matches nothing, and the page's own resolver finds
+    /// node 353, or nothing for a locator naming "Nowhere".
+    NativeNoMatch,
+    /// Every perception capture reports it ran past the default budget.
+    SlowPerception,
   }
 
   pub(crate) type Frames = Arc<Mutex<Vec<Value>>>;
@@ -1380,15 +1391,19 @@ pub(crate) mod test_support {
   fn canned_candidate() -> Value {
     serde_json::json!({
       "backendNodeId": 7, "role": "button", "name": "Save", "text": "Save",
-      "signature": "s7", "attributes": [{ "name": "id", "value": "save" }],
+      "signature": "s7", "attributes": [{ "name": "type", "value": "submit" }],
       "bounds": { "x": 10.0, "y": 20.0, "width": 30.0, "height": 40.0 }
     })
   }
 
   /// What the fallback scripts answer with, keyed off the script's own text.
   fn script_answer(expression: &str, behaviour: Fake) -> Value {
-    let value = if expression.contains("\"mode\":\"resolve\"") {
-      if behaviour == Fake::AmbiguousLocator {
+    let value = if expression.contains("\"mode\":\"pin\"") {
+      serde_json::json!({ "matchCount": 1 })
+    } else if expression.contains("\"mode\":\"resolve\"") {
+      if expression.contains("Nowhere") {
+        serde_json::json!({ "matchCount": 0, "candidates": [] })
+      } else if behaviour == Fake::AmbiguousLocator {
         serde_json::json!({
           "matchCount": 2,
           "candidates": [canned_candidate(), canned_candidate()]
@@ -1442,6 +1457,7 @@ pub(crate) mod test_support {
             return;
           };
           let mut perception_page = 0u64;
+          let mut pair: Option<(Value, bool)> = None;
 
           while let Some(Ok(message)) = stream.next().await {
             let Message::Text(text) = message else {
@@ -1522,7 +1538,8 @@ pub(crate) mod test_support {
                   "truncated": endless,
                   "stats": {
                     "totalNodes": 999, "returnedNodes": 1, "bytes": 600,
-                    "elapsedMs": 5, "framesVisited": 1, "framesFailed": 0
+                    "elapsedMs": if behaviour == Fake::SlowPerception { 5_200 } else { 5 },
+                    "framesVisited": 1, "framesFailed": 0
                   }
                 });
                 if endless {
@@ -1533,6 +1550,9 @@ pub(crate) mod test_support {
               "Wayfern.resolveLocator" if behaviour == Fake::AmbiguousLocator => error(
                 "Ambiguous locator: 2 nodes match. Refine it with a role, a stable attribute, or more exact text. Candidates: [{\"backendNodeId\":7,\"role\":\"button\",\"name\":\"Save\",\"text\":\"Save\",\"signature\":\"s7\",\"attributes\":[]},{\"backendNodeId\":8,\"role\":\"button\",\"name\":\"Save\",\"text\":\"Save\",\"signature\":\"s8\",\"attributes\":[]}]",
               ),
+              "Wayfern.resolveLocator" if behaviour == Fake::NativeNoMatch => {
+                error("No node matches locator (id=save).")
+              }
               "Wayfern.resolveLocator" => ok(serde_json::json!({
                 "backendNodeId": 7, "matchCount": 1,
                 "match": canned_candidate(),
@@ -1560,7 +1580,63 @@ pub(crate) mod test_support {
                   .get("expression")
                   .and_then(Value::as_str)
                   .unwrap_or("");
-                ok(script_answer(expression, behaviour))
+                let answer = script_answer(expression, behaviour);
+                if expression.contains("\"returnElement\":true") {
+                  // Answered by reference: `[report, element]`, read back
+                  // through Runtime.getProperties.
+                  let report = answer["result"]["value"].clone();
+                  let found = report
+                    .as_str()
+                    .and_then(|r| serde_json::from_str::<Value>(r).ok())
+                    .is_some_and(|r| r["matchCount"] == 1);
+                  pair = Some((report, found));
+                  ok(serde_json::json!({
+                    "result": { "type": "object", "subtype": "array", "objectId": "pair-1" }
+                  }))
+                } else {
+                  ok(answer)
+                }
+              }
+              "Runtime.getProperties" => {
+                let (report, found) = pair.clone().unwrap_or((Value::Null, false));
+                let element = if found {
+                  serde_json::json!({ "type": "object", "subtype": "node", "objectId": "el-353" })
+                } else {
+                  serde_json::json!({ "type": "object", "subtype": "null", "value": null })
+                };
+                ok(serde_json::json!({ "result": [
+                  { "name": "0", "value": { "type": "string", "value": report } },
+                  { "name": "1", "value": element },
+                  { "name": "length", "value": { "type": "number", "value": 2 } }
+                ] }))
+              }
+              "Runtime.releaseObjectGroup" => ok(serde_json::json!({})),
+              "DOM.describeNode" => {
+                let text = if behaviour == Fake::RenumberedToSibling {
+                  "Cancel"
+                } else {
+                  " Save "
+                };
+                let element = |id: u64, name: &str, attributes: Value| {
+                  ok(serde_json::json!({ "node": {
+                    "nodeId": 0, "backendNodeId": id, "nodeType": 1,
+                    "nodeName": name, "localName": name.to_ascii_lowercase(),
+                    "attributes": attributes,
+                    "children": [{ "nodeId": 0, "nodeType": 3, "nodeName": "#text", "nodeValue": text }]
+                  } }))
+                };
+                if params["objectId"] == "el-353" {
+                  element(353, "BUTTON", serde_json::json!(["type", "submit"]))
+                } else if behaviour == Fake::RenumberedNodeIds {
+                  element(7, "SCRIPT", serde_json::json!(["src", "/app.js"]))
+                } else {
+                  // The id and class the index never carries do not count.
+                  element(
+                    7,
+                    "BUTTON",
+                    serde_json::json!(["id", "save", "class", "primary", "type", "submit"]),
+                  )
+                }
               }
               _ => error(&format!("'{method}' wasn't found")),
             };

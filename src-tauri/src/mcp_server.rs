@@ -1116,16 +1116,22 @@ async fn evaluate_json_script(
   parse_json_script_result(&result)
 }
 
+/// What a page script threw, as a [`AgentError::BadRequest`].
+fn script_exception(result: &serde_json::Value) -> Option<AgentError> {
+  let exception = result.get("exceptionDetails")?;
+  let message = exception
+    .get("exception")
+    .and_then(|e| e.get("description"))
+    .or_else(|| exception.get("text"))
+    .and_then(|v| v.as_str())
+    .unwrap_or("the page script failed");
+  Some(AgentError::BadRequest(message.to_string()))
+}
+
 /// The same reader for a script evaluated on an existing session.
 fn parse_json_script_result(result: &serde_json::Value) -> Result<serde_json::Value, AgentError> {
-  if let Some(exception) = result.get("exceptionDetails") {
-    let message = exception
-      .get("exception")
-      .and_then(|e| e.get("description"))
-      .or_else(|| exception.get("text"))
-      .and_then(|v| v.as_str())
-      .unwrap_or("the page script failed");
-    return Err(AgentError::BadRequest(message.to_string()));
+  if let Some(thrown) = script_exception(result) {
+    return Err(thrown);
   }
   let text = result
     .get("result")
@@ -1136,22 +1142,30 @@ fn parse_json_script_result(result: &serde_json::Value) -> Result<serde_json::Va
     .map_err(|e| AgentError::Malformed(format!("the page script returned invalid JSON: {e}")))
 }
 
-/// The pre-152 stand-in for the browser's perception and locator domains.
+/// The pre-152 stand-in for the browser's perception and locator domains, and
+/// the page side of the 152 locator path.
 ///
-/// One script, two modes. `perceive` walks the visible DOM and describes it
-/// in the SAME node shape `Wayfern.capturePagePerception` answers with, so an
-/// agent written against 152 reads both. `resolve` applies a locator with the
-/// browser's own semantics (role token, exact or substring name and text, every
-/// attribute pair) and refuses ambiguity the same way; with `act` it also
-/// scrolls to, or focuses and prepares, the one match, because the element
-/// reference cannot leave the page and a second script could resolve a
-/// different node. `__OPTS__` is substituted with a JSON object at call time.
+/// One script, three modes, over the light DOM and every open shadow root.
+/// `perceive` walks the visible DOM and describes it in the SAME node shape
+/// `Wayfern.capturePagePerception` answers with, so an agent written against
+/// 152 reads both. `resolve` applies a locator with the browser's own semantics
+/// (role token, exact or substring name and text, every attribute pair) and
+/// refuses ambiguity the same way; with `act` it also scrolls to, or focuses
+/// and prepares, the one match, because the element reference cannot leave the
+/// page and a second script could resolve a different node. `pin` finds the
+/// element behind a match the browser described, by its attributes, role and
+/// text. With `returnElement`, `resolve` and `pin` answer `[report, element]`
+/// for a caller that reads the element by reference. `__OPTS__` is substituted
+/// with a JSON object at call time.
 const AGENT_FALLBACK_JS: &str = r#"(() => {
   const opts = __OPTS__;
   const now = () => (window.performance && performance.now) ? performance.now() : Date.now();
   const started = now();
   const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
   const roleKey = (r) => norm(r).toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Blink refines a button with aria-haspopup or aria-pressed into its own
+  // role; a locator naming either spelling means the same control.
+  const roleMatchKey = (r) => { const k = roleKey(r); return k === 'popupbutton' || k === 'togglebutton' ? 'button' : k; };
   // Blink's own AX role tokens, which is what Wayfern 152 answers with, so an
   // agent reads one vocabulary whichever engine answered.
   const INPUT_ROLES = { button: 'button', submit: 'button', reset: 'button', image: 'button', file: 'button', color: 'button', checkbox: 'checkBox', radio: 'radioButton', range: 'slider', number: 'spinButton', search: 'searchBox', hidden: 'none' };
@@ -1163,7 +1177,12 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
   const sx = window.scrollX || 0, sy = window.scrollY || 0;
   const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return ('00000000' + h.toString(16)).slice(-8); };
   const tagOf = (el) => String(el.tagName || '').toLowerCase();
-  const pathOf = (el) => { const parts = []; let n = el; while (n && n.nodeType === 1 && n !== document.documentElement) { let i = 1, s = n; while ((s = s.previousElementSibling)) { if (s.tagName === n.tagName) i++; } parts.push(tagOf(n) + ':' + i); n = n.parentElement; } return parts.reverse().join('>'); };
+  // Parents and containment cross shadow boundaries: the browser's accessibility
+  // tree is built over the flattened tree, so a button inside a web component is
+  // a child of its host here too.
+  const parentOf = (el) => el.parentElement || (el.parentNode && el.parentNode.host) || null;
+  const containsDeep = (outer, inner) => { for (let n = inner; n; n = n.parentNode || n.host) { if (n === outer) return true; } return false; };
+  const pathOf = (el) => { const parts = []; let n = el; while (n && n.nodeType === 1 && n !== document.documentElement) { let i = 1, s = n; while ((s = s.previousElementSibling)) { if (s.tagName === n.tagName) i++; } parts.push(tagOf(n) + ':' + i); n = parentOf(n); } return parts.reverse().join('>'); };
   const roleOf = (el) => {
     const explicit = el.getAttribute('role');
     if (explicit && norm(explicit)) return norm(explicit).split(' ')[0];
@@ -1175,9 +1194,12 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
   };
   const isProtected = (el) => tagOf(el) === 'input' && ((el.getAttribute('type') || '').toLowerCase() === 'password' || /(^|\s)(cc-|password|one-time-code)/i.test(el.getAttribute('autocomplete') || ''));
   const contentText = (el) => norm(el.innerText != null ? el.innerText : el.textContent);
+  // The browser's name from content also reads image alt text, which
+  // innerText leaves out ("User Avatar Expand user menu").
+  const altText = (el) => { const parts = []; const walk = (n) => { for (const c of n.childNodes) { if (c.nodeType === 3) parts.push(c.nodeValue); else if (c.nodeType === 1 && !SKIP.has(String(c.tagName).toUpperCase()) && c.getAttribute('aria-hidden') !== 'true') { const t = tagOf(c); if (t === 'img' || t === 'area' || t === 'svg') { const a = c.getAttribute('aria-label') || c.getAttribute('alt'); if (a) parts.push(a); } else walk(c); } } }; walk(el); return norm(parts.join(' ')).slice(0, 300); };
   const nameOf = (el, role) => {
     const ids = el.getAttribute('aria-labelledby');
-    if (ids) { const t = norm(ids.split(/\s+/).map((id) => { const n = document.getElementById(id); return n ? (n.innerText != null ? n.innerText : n.textContent) : ''; }).join(' ')); if (t) return t.slice(0, 300); }
+    if (ids) { const scope = el.getRootNode && el.getRootNode().getElementById ? el.getRootNode() : document; const t = norm(ids.split(/\s+/).map((id) => { const n = scope.getElementById(id); return n ? (n.innerText != null ? n.innerText : n.textContent) : ''; }).join(' ')); if (t) return t.slice(0, 300); }
     const aria = el.getAttribute('aria-label'); if (aria && norm(aria)) return norm(aria).slice(0, 300);
     if (el.labels && el.labels.length) { const t = norm(Array.from(el.labels).map((l) => l.innerText != null ? l.innerText : l.textContent).join(' ')); if (t) return t.slice(0, 300); }
     const tag = tagOf(el);
@@ -1188,6 +1210,7 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
     if (NAMED_FROM_CONTENT.has(roleKey(role)) || tag === 'summary') return contentText(el).slice(0, 300);
     return '';
   };
+  const namesOf = (el, role) => { const name = nameOf(el, role); if (!NAMED_FROM_CONTENT.has(roleKey(role)) || el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby')) return [name]; const alt = altText(el); return alt && alt !== name ? [name, alt] : [name]; };
   const liveValue = (el) => { const tag = tagOf(el); if (tag === 'input' || tag === 'textarea') return String(el.value); if (tag === 'select') { const o = el.options[el.selectedIndex]; return o ? norm(o.text) : ''; } return null; };
   const attrsOf = (el) => { const out = []; for (const a of ATTRS) { if (a === 'value') { if (isProtected(el)) continue; const v = liveValue(el); if (v !== null) { if (norm(v)) out.push({ name: a, value: norm(v).slice(0, 200) }); continue; } } const v = el.getAttribute(a); if (v != null && norm(v)) out.push({ name: a, value: norm(v).slice(0, 200) }); } return out; };
   const attrValue = (el, name) => { if (name === 'value') { if (isProtected(el)) return null; const v = liveValue(el); if (v !== null) return v; } const v = el.getAttribute(name); return v == null ? null : v; };
@@ -1201,21 +1224,41 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
     return out;
   };
   const clampCenter = (r) => { const left = Math.max(r.left, 0), top = Math.max(r.top, 0), right = Math.min(r.right, vw), bottom = Math.min(r.bottom, vh); if (right <= left || bottom <= top) return { x: r.left + r.width / 2, y: r.top + r.height / 2, width: r.width, height: r.height, visible: false }; return { x: left + (right - left) / 2, y: top + (bottom - top) / 2, width: right - left, height: bottom - top, visible: true }; };
-  const all = document.querySelectorAll('*');
+  // Document order, with each open shadow tree right after its host.
+  const collect = (root, out) => { for (const el of root.querySelectorAll('*')) { out.push(el); if (el.shadowRoot) collect(el.shadowRoot, out); } return out; };
+  const all = collect(document, []);
+  const answer = (report, el) => opts.returnElement ? [JSON.stringify(report), el || null] : JSON.stringify(report);
+
+  if (opts.mode === 'pin') {
+    const want = opts.match || {};
+    const skip = new Set((opts.skipAttributes || []).map((n) => String(n).toLowerCase()));
+    const bagOf = (pairs) => pairs.filter((a) => !skip.has(String(a.name).toLowerCase())).map((a) => String(a.name).toLowerCase() + '=' + a.value).sort().join('\n');
+    const wanted = bagOf(Array.isArray(want.attributes) ? want.attributes : []);
+    const squash = (s) => norm(s).replace(/ /g, '');
+    let found = all.filter((el) => visibleRect(el) && bagOf(Array.from(el.attributes)) === wanted);
+    // Each step narrows only when something survives it: the role and text the
+    // browser computed can differ from this script's in spacing or token.
+    const narrow = (keep) => { if (found.length > 1) { const kept = found.filter(keep); if (kept.length) found = kept; } };
+    if (want.role) narrow((el) => roleMatchKey(roleOf(el)) === roleMatchKey(want.role));
+    if (want.text) narrow((el) => squash(contentText(el)) === squash(want.text));
+    if (want.name) narrow((el) => namesOf(el, roleOf(el)).includes(norm(want.name)));
+    narrow((el) => !found.some((o) => o !== el && containsDeep(el, o)));
+    return answer({ matchCount: found.length }, found.length === 1 ? found[0] : null);
+  }
 
   if (opts.mode === 'resolve') {
     const L = opts.locator || {};
-    const roleWanted = L.role != null ? roleKey(L.role) : null;
+    const roleWanted = L.role != null ? roleMatchKey(L.role) : null;
     const attrs = Array.isArray(L.attributes) ? L.attributes : [];
     const matches = [];
     for (const el of all) {
       const r = visibleRect(el); if (!r) continue;
       const role = roleOf(el);
-      if (roleWanted !== null && roleKey(role) !== roleWanted) continue;
+      if (roleWanted !== null && roleMatchKey(role) !== roleWanted) continue;
       if (L.name != null || L.nameContains != null) {
-        const name = nameOf(el, role);
-        if (L.name != null && name !== norm(L.name)) continue;
-        if (L.nameContains != null && !name.includes(norm(L.nameContains))) continue;
+        const names = namesOf(el, role);
+        if (L.name != null && !names.includes(norm(L.name))) continue;
+        if (L.nameContains != null && !names.some((name) => name.includes(norm(L.nameContains)))) continue;
       }
       if (L.text != null || L.textContains != null) {
         const text = contentText(el);
@@ -1229,7 +1272,7 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
     }
     // A wrapper matches a text locator only because its child does; the
     // innermost of nested matches is the element the caller meant.
-    const kept = matches.filter((m) => !matches.some((o) => o !== m && m.el !== o.el && m.el.contains(o.el)));
+    const kept = matches.filter((m) => !matches.some((o) => o !== m && m.el !== o.el && containsDeep(m.el, o.el)));
     const limit = Math.max(1, Math.min(100, Number(opts.candidateLimit) || 10));
     const result = { matchCount: kept.length, candidates: kept.slice(0, limit).map((m) => describe(m.el, m.r)) };
     if (kept.length === 1) {
@@ -1252,7 +1295,7 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
       result.match = describe(el, el.getBoundingClientRect());
       result.center = clampCenter(el.getBoundingClientRect());
     }
-    return JSON.stringify(result);
+    return answer(result, kept.length === 1 ? kept[0].el : null);
   }
 
   const maxNodes = Number(opts.maxNodes) > 0 ? Number(opts.maxNodes) : 100000;
@@ -1276,8 +1319,8 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
     const id = 'n' + nodes.length;
     ids.set(el, id);
     const node = { id, frameId: 'f0', role, x: r.left + sx, y: r.top + sy, width: r.width, height: r.height, inViewport, visible: true, focused: document.activeElement === el, disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true' };
-    for (let p = el.parentElement; p; p = p.parentElement) { const pid = ids.get(p); if (pid) { node.parentId = pid; if (scrollables.has(pid)) node.scrollContainerId = pid; break; } }
-    if (!node.scrollContainerId) { for (let p = el.parentElement; p; p = p.parentElement) { const pid = ids.get(p); if (pid && scrollables.has(pid)) { node.scrollContainerId = pid; break; } } }
+    for (let p = parentOf(el); p; p = parentOf(p)) { const pid = ids.get(p); if (pid) { node.parentId = pid; if (scrollables.has(pid)) node.scrollContainerId = pid; break; } }
+    if (!node.scrollContainerId) { for (let p = parentOf(el); p; p = parentOf(p)) { const pid = ids.get(p); if (pid && scrollables.has(pid)) { node.scrollContainerId = pid; break; } } }
     const name = nameOf(el, role); if (name) node.name = name;
     if (own && includeText) node.text = own.slice(0, 2000);
     if (!isProtected(el)) { const v = liveValue(el); if (v !== null && v !== '') node.value = v.slice(0, 500); }
@@ -1377,16 +1420,22 @@ async fn fallback_resolve(
   let answer = evaluate_json_script(target, fallback_script(&opts)).await?;
   let resolution: FallbackResolution = serde_json::from_value(answer)
     .map_err(|e| AgentError::Malformed(format!("fallback resolver: {e}")))?;
+  let center = resolution.center;
+  Ok((settle_fallback(resolution, locator)?, center))
+}
+
+/// The one match a fallback resolution found, or its refusal.
+fn settle_fallback(
+  resolution: FallbackResolution,
+  locator: &LocatorDescription,
+) -> Result<LocatorCandidate, AgentError> {
   match resolution.match_count {
     0 => Err(AgentError::NoMatch {
       message: format!("No node matches locator ({}).", describe_locator(locator)),
     }),
-    1 => {
-      let matched = resolution
-        .matched
-        .ok_or_else(|| AgentError::Malformed("fallback resolver answered one match without it".into()))?;
-      Ok((matched, resolution.center))
-    }
+    1 => resolution
+      .matched
+      .ok_or_else(|| AgentError::Malformed("fallback resolver answered one match without it".into())),
     count => Err(AgentError::AmbiguousLocator {
       match_count: count,
       message: format!(
@@ -1396,6 +1445,255 @@ async fn fallback_resolve(
       candidates: resolution.candidates,
     }),
   }
+}
+
+/// Attributes left out when a matched node is compared with a DOM element.
+///
+/// The browser's index never carries `id` and `class` (Blink serializes them
+/// apart from the other HTML attributes), withholds `value` on a protected
+/// field, and reads `style` without the update the CSSOM leaves pending.
+const UNCOMPARED_ATTRIBUTES: [&str; 4] = ["id", "class", "style", "value"];
+
+/// Attribute pairs as a set that compares equal between the browser's index
+/// and the DOM.
+fn attribute_bag<'a>(pairs: impl Iterator<Item = (&'a str, &'a str)>) -> Vec<(String, &'a str)> {
+  let mut bag: Vec<(String, &str)> = pairs
+    .map(|(name, value)| (name.to_ascii_lowercase(), value))
+    .filter(|(name, _)| !UNCOMPARED_ATTRIBUTES.contains(&name.as_str()))
+    .collect();
+  bag.sort();
+  bag
+}
+
+/// A locator settled on one element of a Wayfern 152 page.
+struct LocatedNode {
+  /// The id the DOM domain knows the element by.
+  backend_node_id: i64,
+  matched: LocatorCandidate,
+  /// Wayfern when the browser's resolver matched, Fallback when the page did.
+  engine: Engine,
+}
+
+/// Text and whitespace-free text, the way both sides compare it: the browser
+/// joins text runs with spaces where the DOM may have none.
+fn squashed(text: &str) -> String {
+  text.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+/// The text under a `DOM.describeNode` subtree, without script and style.
+fn described_text(node: &serde_json::Value, out: &mut String) {
+  if node.get("nodeType").and_then(|t| t.as_i64()) == Some(3) {
+    out.push_str(node.get("nodeValue").and_then(|v| v.as_str()).unwrap_or(""));
+    return;
+  }
+  if matches!(
+    node.get("nodeName").and_then(|n| n.as_str()),
+    Some("SCRIPT" | "STYLE" | "TEMPLATE")
+  ) {
+    return;
+  }
+  for key in ["shadowRoots", "children"] {
+    for child in node
+      .get(key)
+      .and_then(|c| c.as_array())
+      .into_iter()
+      .flatten()
+    {
+      described_text(child, out);
+    }
+  }
+}
+
+/// The browser's node id for `matched`, when the DOM shows that node carries
+/// the attributes and the text the browser matched.
+///
+/// Attributes alone are not enough: a renumbered id can land on a sibling with
+/// the same markup. A match with no comparable attribute, or text deeper than
+/// the subtree read here, is left to [`page_element`].
+async fn confirmed_node_id(
+  session: &mut WayfernSession,
+  matched: &LocatorCandidate,
+) -> Option<i64> {
+  let id = matched.backend_node_id?;
+  let wanted = attribute_bag(
+    matched
+      .attributes
+      .iter()
+      .map(|a| (a.name.as_str(), a.value.as_str())),
+  );
+  if wanted.is_empty() {
+    return None;
+  }
+  let reply = session
+    .call(
+      "DOM.describeNode",
+      serde_json::json!({ "backendNodeId": id, "depth": 4, "pierce": true }),
+    )
+    .await
+    .ok()?;
+  let node = reply.get("node")?;
+  if node.get("nodeType").and_then(|t| t.as_i64()) != Some(1) {
+    return None;
+  }
+  let flat: Vec<&str> = node
+    .get("attributes")?
+    .as_array()?
+    .iter()
+    .filter_map(|v| v.as_str())
+    .collect();
+  let actual = attribute_bag(
+    flat
+      .as_chunks::<2>()
+      .0
+      .iter()
+      .map(|[name, value]| (*name, *value)),
+  );
+  let mut text = String::new();
+  described_text(node, &mut text);
+  (actual == wanted && squashed(&text) == squashed(&matched.text)).then_some(id)
+}
+
+/// Run the fallback script with `returnElement` on an open session: its report,
+/// and the backend node id of the element it settled on, if it settled on one.
+async fn page_element(
+  session: &mut WayfernSession,
+  opts: &serde_json::Value,
+) -> Result<(serde_json::Value, Option<i64>), AgentError> {
+  const GROUP: &str = "donut-locator";
+  let outcome = async {
+    let result = session
+      .call(
+        "Runtime.evaluate",
+        serde_json::json!({
+          "expression": fallback_script(opts),
+          "returnByValue": false,
+          "objectGroup": GROUP,
+        }),
+      )
+      .await?;
+    if let Some(thrown) = script_exception(&result) {
+      return Err(thrown);
+    }
+    let pair = result
+      .pointer("/result/objectId")
+      .and_then(|v| v.as_str())
+      .ok_or_else(|| AgentError::Malformed("the page script returned no pair".into()))?;
+    let properties = session
+      .call(
+        "Runtime.getProperties",
+        serde_json::json!({ "objectId": pair, "ownProperties": true }),
+      )
+      .await?;
+    let entry = |index: &str| {
+      properties
+        .get("result")
+        .and_then(|r| r.as_array())
+        .and_then(|list| list.iter().find(|p| p["name"] == index))
+        .and_then(|p| p.get("value"))
+        .cloned()
+    };
+    let report = entry("0")
+      .as_ref()
+      .and_then(|v| v.get("value"))
+      .and_then(|v| v.as_str())
+      .and_then(|text| serde_json::from_str(text).ok())
+      .ok_or_else(|| AgentError::Malformed("the page script returned no report".into()))?;
+    let element = entry("1")
+      .filter(|v| v["subtype"] == "node")
+      .and_then(|v| v["objectId"].as_str().map(str::to_string));
+    let backend_node_id = match element {
+      Some(object_id) => session
+        .call(
+          "DOM.describeNode",
+          serde_json::json!({ "objectId": object_id }),
+        )
+        .await?
+        .pointer("/node/backendNodeId")
+        .and_then(|v| v.as_i64()),
+      None => None,
+    };
+    Ok((report, backend_node_id))
+  }
+  .await;
+  let _ = session
+    .call(
+      "Runtime.releaseObjectGroup",
+      serde_json::json!({ "objectGroup": GROUP }),
+    )
+    .await;
+  outcome
+}
+
+/// Resolve `locator` to one DOM node on a Wayfern 152 page.
+///
+/// The browser's resolver decides what matches. Wayfern 152 to 155 report the
+/// wrong node id for that match: the index reads its snapshot through
+/// Chromium's frame combiner, which renumbers every node, so the id names some
+/// other node (a Google result link came back as a `<script>`). The id is used
+/// when the DOM confirms it; otherwise the page finds the element the browser
+/// described. When the browser matches nothing, the page applies the locator
+/// itself: the index never carries `id` or `class`, and a large page can outrun
+/// its snapshot budget.
+async fn wayfern_locate(
+  session: &mut WayfernSession,
+  locator: &LocatorDescription,
+  candidate_limit: Option<u64>,
+) -> Result<LocatedNode, AgentError> {
+  let options = ResolveOptions {
+    candidate_limit,
+    ..Default::default()
+  };
+  match wayfern_cdp::resolve_locator(session, locator, options).await {
+    Ok(resolution) => {
+      let mut matched = resolution.matched;
+      let backend_node_id = match confirmed_node_id(session, &matched).await {
+        Some(id) => Some(id),
+        None => {
+          let opts = serde_json::json!({
+            "mode": "pin",
+            "match": &matched,
+            "skipAttributes": UNCOMPARED_ATTRIBUTES,
+            "returnElement": true,
+          });
+          page_element(session, &opts).await?.1
+        }
+      };
+      if let Some(id) = backend_node_id {
+        matched.backend_node_id = Some(id);
+        return Ok(LocatedNode {
+          backend_node_id: id,
+          matched,
+          engine: Engine::Wayfern,
+        });
+      }
+      log::debug!(
+        "Locator match not found in the page, applying the locator there node={}",
+        matched.backend_node_id.unwrap_or_default()
+      );
+    }
+    Err(WayfernError::NoMatch { .. }) => {}
+    Err(other) => return Err(other.into()),
+  }
+
+  let opts = serde_json::json!({
+    "mode": "resolve",
+    "locator": locator,
+    "candidateLimit": candidate_limit.unwrap_or(10).clamp(1, 100),
+    "act": "none",
+    "returnElement": true,
+  });
+  let (report, backend_node_id) = page_element(session, &opts).await?;
+  let resolution: FallbackResolution = serde_json::from_value(report)
+    .map_err(|e| AgentError::Malformed(format!("fallback resolver: {e}")))?;
+  let mut matched = settle_fallback(resolution, locator)?;
+  let backend_node_id = backend_node_id
+    .ok_or_else(|| AgentError::Malformed("the page resolved a match it did not return".into()))?;
+  matched.backend_node_id = Some(backend_node_id);
+  Ok(LocatedNode {
+    backend_node_id,
+    matched,
+    engine: Engine::Fallback,
+  })
 }
 
 /// A point the fallback resolver left an element at, as somewhere to strike.
@@ -1727,14 +2025,27 @@ pub(crate) async fn agent_perceive(
       ));
     }
   }
+  let continuation = request.cursor.as_deref().is_some_and(|c| !c.is_empty());
   if ctx.engine.is_wayfern() {
     let mut session = WayfernSession::open(&ctx.target).await?;
     let page = wayfern_cdp::capture_page_perception(&mut session, request).await;
     session.close().await;
-    return Ok(page?);
-  }
-
-  if request.cursor.as_deref().is_some_and(|c| !c.is_empty()) {
+    let page = page?;
+    // Wayfern 152 to 155 start the budget clock before the accessibility
+    // snapshot, and stop the walk when it runs out without marking the result
+    // truncated: a heavy page came back as its header and no text. A capture
+    // that used its whole budget is not trusted; the DOM answers instead.
+    let budget = request.budget_ms.unwrap_or(5_000).clamp(100, 60_000);
+    if continuation || page.stats.elapsed_ms < budget {
+      return Ok(page);
+    }
+    log::info!(
+      "Perception used its budget, answering from the page profile={} budget_ms={budget} elapsed_ms={} nodes={}",
+      ctx.profile.id,
+      page.stats.elapsed_ms,
+      page.nodes.len()
+    );
+  } else if continuation {
     return Err(AgentError::InvalidArgument(
       "the fallback engine answers in one page and has no cursors to continue".to_string(),
     ));
@@ -1777,17 +2088,16 @@ pub(crate) async fn agent_resolve_locator(
   let locator = canonical_locator(&request.locator);
   if ctx.engine.is_wayfern() {
     let mut session = WayfernSession::open(&ctx.target).await?;
-    let resolved = wayfern_cdp::resolve_locator(
-      &mut session,
-      &locator,
-      ResolveOptions {
-        candidate_limit: request.candidate_limit,
-        ..Default::default()
-      },
-    )
-    .await;
+    let located = wayfern_locate(&mut session, &locator, request.candidate_limit).await;
     session.close().await;
-    return Ok(resolved?);
+    let located = located?;
+    return Ok(LocatorResolution {
+      backend_node_id: Some(located.backend_node_id),
+      match_count: 1,
+      matched: located.matched,
+      locator,
+      engine: located.engine,
+    });
   }
 
   let (matched, _) = fallback_resolve(
@@ -1819,23 +2129,19 @@ pub(crate) async fn agent_click_locator(
     let mut session = WayfernSession::open(&ctx.target).await?;
     let outcome = async {
       session.call("Page.enable", serde_json::json!({})).await?;
-      let resolved =
-        wayfern_cdp::resolve_locator(&mut session, &locator, ResolveOptions::default()).await?;
-      let backend_node_id = resolved
-        .backend_node_id
-        .ok_or_else(|| AgentError::Malformed("resolveLocator answered no backendNodeId".into()))?;
-      let point = wayfern_cdp::viewport_target(&mut session, backend_node_id).await?;
+      let located = wayfern_locate(&mut session, &locator, None).await?;
+      let point = wayfern_cdp::viewport_target(&mut session, located.backend_node_id).await?;
       let (_, navigated) =
         vellum_click_in(&mut session, point, button, request.click_count).await?;
-      Ok::<_, AgentError>((resolved, navigated))
+      Ok::<_, AgentError>((located, navigated))
     }
     .await;
     let _ = session.call("Page.disable", serde_json::json!({})).await;
     session.close().await;
-    let (resolved, navigated) = outcome?;
+    let (located, navigated) = outcome?;
     return Ok(AgentClick {
       clicked: true,
-      matched: resolved.matched,
+      matched: located.matched,
       engine: Engine::Wayfern,
       navigated,
     });
@@ -1907,11 +2213,8 @@ pub(crate) async fn agent_type_locator(
     let timeout = vellum_typing_budget(&request.text, max_seconds)?;
     let mut session = WayfernSession::open(&ctx.target).await?;
     let outcome = async {
-      let resolved =
-        wayfern_cdp::resolve_locator(&mut session, &locator, ResolveOptions::default()).await?;
-      let backend_node_id = resolved
-        .backend_node_id
-        .ok_or_else(|| AgentError::Malformed("resolveLocator answered no backendNodeId".into()))?;
+      let located = wayfern_locate(&mut session, &locator, None).await?;
+      let backend_node_id = located.backend_node_id;
       let point = wayfern_cdp::viewport_target(&mut session, backend_node_id).await?;
       let inscription = vellum_type_in(
         &mut session,
@@ -1925,18 +2228,18 @@ pub(crate) async fn agent_type_locator(
         timeout,
       )
       .await?;
-      Ok::<_, AgentError>((resolved, inscription))
+      Ok::<_, AgentError>((located, inscription))
     }
     .await;
     session.close().await;
-    let (resolved, inscription) = outcome?;
+    let (located, inscription) = outcome?;
     return Ok(AgentTyping {
       typed: true,
       characters: inscription.characters,
       corrections: Some(inscription.corrections),
       duration_ms: inscription.duration_ms,
       engine: Engine::Wayfern,
-      matched: resolved.matched,
+      matched: located.matched,
     });
   }
 
@@ -4310,7 +4613,7 @@ impl McpServer {
       // GUI — which is no use to an MCP client running on its own.
       McpTool {
         name: "run_profile_remote".to_string(),
-        description: "Start this profile on a remote host of its own operating system. The profile must have Regular cloud sync enabled. Returns a session id; poll get_remote_session until state is 'live', then drive it with navigate, screenshot, click_element and the rest exactly as you would a local profile.".to_string(),
+        description: "Start this profile on a remote host (Linux for a Wayfern profile, otherwise the profile's own operating system). The profile must have Regular cloud sync enabled. Returns a session id; poll get_remote_session until state is 'live', then drive it with navigate, screenshot, click_element and the rest exactly as you would a local profile.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -4424,7 +4727,7 @@ impl McpServer {
             "platform": {
               "type": "string",
               "enum": ["windows", "macos", "linux"],
-              "description": "Must match the profile's own operating system; taken from the profile when omitted"
+              "description": "Must match the platform the profile runs on remotely (linux for a Wayfern profile); taken from the profile when omitted"
             },
             "enabled": {
               "type": "boolean",
@@ -4591,7 +4894,7 @@ impl McpServer {
       },
       McpTool {
         name: "perceive_page".to_string(),
-        description: "Read the page the way an agent needs it: every visible element with its role, accessible name, text, value, state and page-coordinate bounds, plus the readable text, in one call and with no script injected on Wayfern 152. Far more complete than get_interactive_elements. On a profile older than Wayfern 152 the same shape is synthesised from the DOM (engine: \"fallback\"). A truncated result carries a cursor; pass it back to continue.".to_string(),
+        description: "Read the page the way an agent needs it: every visible element with its role, accessible name, text, value, state and page-coordinate bounds, plus the readable text, in one call and with no script injected on Wayfern 152. A capture that uses its whole budget is answered from the DOM instead (engine: \"fallback\"). Far more complete than get_interactive_elements. On a profile older than Wayfern 152 the same shape is synthesised from the DOM (engine: \"fallback\"). A truncated result carries a cursor; pass it back to continue.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -4605,7 +4908,7 @@ impl McpServer {
             },
             "budget_ms": {
               "type": "integer",
-              "description": "Capture budget in milliseconds (default: 5000, clamped to 100-60000). Exceeding it truncates and paginates; it is never an error"
+              "description": "Capture budget in milliseconds (default: 5000, clamped to 100-60000). A capture that uses all of it is answered from the DOM instead; it is never an error"
             },
             "max_nodes": {
               "type": "integer",
@@ -4653,7 +4956,7 @@ impl McpServer {
       },
       McpTool {
         name: "click_locator".to_string(),
-        description: "Resolve a locator to exactly one element and click it with a humanized pointer: on Wayfern 152 a real pointer glides to the element along a human path and presses with the profile's own timing (nothing is injected into the page); on older builds a trusted mouse event is dispatched at the element's centre. Waits for a page load when the click causes one.".to_string(),
+        description: "Resolve a locator to exactly one element and click it with a humanized pointer: on Wayfern 152 a real pointer glides to the element along a human path and presses with the profile's own timing (the click is never a script); on older builds a trusted mouse event is dispatched at the element's centre. Waits for a page load when the click causes one.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -10894,7 +11197,7 @@ impl McpServer {
     Ok(profile)
   }
 
-  /// Start this profile on a host of its own operating system.
+  /// Start this profile on the remote host its platform names.
   ///
   /// Deliberately no `is_cross_os` guard: local `run_profile` refuses a profile
   /// bound to another OS because THIS machine is the wrong OS, and running it
@@ -11020,9 +11323,10 @@ impl McpServer {
 
     // `bot_precondition` already proved the profile has an OS the fleet can
     // lease. Taking the platform from the profile rather than the arguments is
-    // what stops an agent enrolling a macOS profile onto a Windows host.
+    // what stops an agent enrolling a macOS profile onto a Windows host; a
+    // Wayfern profile runs on a Linux host whatever OS it claims.
     let platform = profile
-      .resolved_os()
+      .remote_platform()
       .ok_or_else(|| McpError {
         code: -32000,
         message: "Profile has no recorded operating system".to_string(),
@@ -11035,7 +11339,7 @@ impl McpServer {
         return Err(McpError {
           code: -32602,
           message: format!(
-            "platform {requested:?} does not match the profile's own operating system {platform:?}"
+            "platform {requested:?} does not match the platform this profile runs on remotely {platform:?}"
           ),
           data: None,
         });
@@ -13209,9 +13513,10 @@ mod tests {
     }))
     .unwrap();
 
-    // The 152 engine: the native resolver names the node, the DOM says where
-    // it is on screen, and a real pointer strikes it. No script runs in the
-    // page and nothing is dispatched synthetically.
+    // The 152 engine: the native resolver names the node, the DOM confirms the
+    // node carries what was matched and says where it is on screen, and a real
+    // pointer strikes it. No script runs in the page and nothing is dispatched
+    // synthetically.
     let (target, frames) = fake_browser(Fake::Cooperative).await;
     let ctx = agent_context_for("152.0.7977.64", target);
     assert_eq!(ctx.engine, Engine::Wayfern);
@@ -13237,6 +13542,7 @@ mod tests {
       ]
     );
     assert!(sent.iter().any(|m| m == "Wayfern.resolveLocator"));
+    assert!(sent.iter().any(|m| m == "DOM.describeNode"));
     assert!(sent.iter().any(|m| m == "DOM.getContentQuads"));
     assert!(
       !sent
@@ -13509,6 +13815,181 @@ mod tests {
       .await
       .expect_err("no cursors");
     assert!(matches!(refused, AgentError::InvalidArgument(_)));
+  }
+
+  /// The `backendNodeId` every frame of `method` named.
+  fn node_ids_sent(frames: &crate::wayfern_cdp::test_support::Frames, method: &str) -> Vec<i64> {
+    frames
+      .lock()
+      .unwrap()
+      .iter()
+      .filter(|f| f["method"] == method)
+      .filter_map(|f| f["params"]["backendNodeId"].as_i64())
+      .collect()
+  }
+
+  #[tokio::test]
+  async fn a_renumbered_node_id_is_found_in_the_page_before_the_click() {
+    use crate::wayfern_cdp::test_support::{fake_browser, methods, Fake};
+
+    // Wayfern 152 to 155 answer the right match with the wrong node id. The
+    // click must land on the node the page finds, never on the one the id names.
+    let request: AgentClickRequest = serde_json::from_value(serde_json::json!({
+      "locator": { "role": "button", "name": "Save" }
+    }))
+    .unwrap();
+    // A sibling with the same markup and other text is not the match either.
+    let (target, frames) = fake_browser(Fake::RenumberedToSibling).await;
+    let ctx = agent_context_for("154.0.8037.57", target);
+    let clicked = agent_click_locator(&ctx, &request).await.unwrap();
+    assert_eq!(clicked.matched.backend_node_id, Some(353));
+    assert_eq!(node_ids_sent(&frames, "DOM.getContentQuads"), vec![353]);
+
+    let (target, frames) = fake_browser(Fake::RenumberedNodeIds).await;
+    let ctx = agent_context_for("154.0.8037.57", target);
+    let clicked = agent_click_locator(&ctx, &request).await.unwrap();
+    assert_eq!(clicked.engine, Engine::Wayfern);
+    assert_eq!(clicked.matched.signature, "s7");
+    assert_eq!(clicked.matched.backend_node_id, Some(353));
+    assert_eq!(node_ids_sent(&frames, "DOM.getContentQuads"), vec![353]);
+    assert_eq!(
+      node_ids_sent(&frames, "DOM.scrollIntoViewIfNeeded"),
+      vec![353]
+    );
+    {
+      let sent = frames.lock().unwrap();
+      let pin = sent
+        .iter()
+        .find(|f| f["method"] == "Runtime.evaluate")
+        .expect("the page is asked for the match");
+      assert_eq!(pin["params"]["returnByValue"], false);
+      let expression = pin["params"]["expression"].as_str().unwrap();
+      assert!(expression.contains("\"mode\":\"pin\""));
+      assert!(expression.contains("\"signature\":\"s7\""));
+    }
+    let sent = methods(&frames);
+    assert!(sent.iter().any(|m| m == "Runtime.releaseObjectGroup"));
+    assert!(sent.iter().any(|m| m == "Vellum.strike"));
+    assert!(!sent.iter().any(|m| m == "Input.dispatchMouseEvent"));
+
+    let resolve: AgentResolveRequest = serde_json::from_value(serde_json::json!({
+      "locator": { "role": "button", "name": "Save" }
+    }))
+    .unwrap();
+    let (target, _) = fake_browser(Fake::RenumberedNodeIds).await;
+    let ctx = agent_context_for("154.0.8037.57", target);
+    let resolved = agent_resolve_locator(&ctx, &resolve).await.unwrap();
+    let wire = serde_json::to_value(&resolved).unwrap();
+    assert_eq!(wire["backendNodeId"], 353);
+    assert_eq!(wire["match"]["backendNodeId"], 353);
+    assert_eq!(wire["engine"], "wayfern");
+  }
+
+  #[tokio::test]
+  async fn a_locator_the_browser_cannot_match_is_applied_in_the_page() {
+    use crate::wayfern_cdp::test_support::{fake_browser, methods, Fake};
+
+    // The browser's index never carries `id`, so this locator can only match
+    // in the page.
+    let resolve: AgentResolveRequest = serde_json::from_value(serde_json::json!({
+      "locator": { "attributes": [{ "name": "id", "value": "save" }] }
+    }))
+    .unwrap();
+    let (target, frames) = fake_browser(Fake::NativeNoMatch).await;
+    let ctx = agent_context_for("154.0.8037.57", target);
+    let resolved = agent_resolve_locator(&ctx, &resolve).await.unwrap();
+    let wire = serde_json::to_value(&resolved).unwrap();
+    assert_eq!(wire["engine"], "fallback");
+    assert_eq!(wire["backendNodeId"], 353);
+    assert_eq!(wire["match"]["signature"], "s7");
+    assert_eq!(wire["locator"]["attributes"][0]["name"], "id");
+    let sent = methods(&frames);
+    assert_eq!(
+      sent.first().map(String::as_str),
+      Some("Wayfern.resolveLocator")
+    );
+    assert!(sent.iter().any(|m| m == "Runtime.getProperties"));
+
+    let click: AgentClickRequest = serde_json::from_value(serde_json::json!({
+      "locator": { "attributes": [{ "name": "id", "value": "save" }] }
+    }))
+    .unwrap();
+    let (target, frames) = fake_browser(Fake::NativeNoMatch).await;
+    let ctx = agent_context_for("154.0.8037.57", target);
+    let clicked = agent_click_locator(&ctx, &click).await.unwrap();
+    assert_eq!(clicked.engine, Engine::Wayfern);
+    assert_eq!(node_ids_sent(&frames, "DOM.getContentQuads"), vec![353]);
+
+    // Nothing in the page either: the refusal is the usual one.
+    let nowhere: AgentResolveRequest = serde_json::from_value(serde_json::json!({
+      "locator": { "role": "button", "name": "Nowhere" }
+    }))
+    .unwrap();
+    let (target, frames) = fake_browser(Fake::NativeNoMatch).await;
+    let ctx = agent_context_for("154.0.8037.57", target);
+    let refused = agent_resolve_locator(&ctx, &nowhere)
+      .await
+      .expect_err("nothing matches");
+    let error = refused.into_mcp();
+    assert_eq!(error.data.as_ref().unwrap()["code"], "LOCATOR_NO_MATCH");
+    assert!(error.message.contains("name=Nowhere"), "{}", error.message);
+    assert!(!methods(&frames).iter().any(|m| m == "DOM.describeNode"));
+  }
+
+  #[tokio::test]
+  async fn a_capture_that_used_its_budget_is_answered_from_the_page() {
+    use crate::wayfern_cdp::test_support::{fake_browser, methods, Fake};
+
+    let (target, frames) = fake_browser(Fake::SlowPerception).await;
+    let ctx = agent_context_for("154.0.8037.57", target);
+    let page = agent_perceive(&ctx, &PerceptionRequest::default())
+      .await
+      .unwrap();
+    assert_eq!(page.engine, Engine::Fallback);
+    assert_eq!(page.text, "Save");
+    assert_eq!(
+      methods(&frames),
+      vec!["Wayfern.capturePagePerception", "Runtime.evaluate"]
+    );
+
+    // A larger budget covers the same capture.
+    let generous: PerceptionRequest =
+      serde_json::from_value(serde_json::json!({ "budget_ms": 10_000 })).unwrap();
+    let (target, _) = fake_browser(Fake::SlowPerception).await;
+    let ctx = agent_context_for("154.0.8037.57", target);
+    let page = agent_perceive(&ctx, &generous).await.unwrap();
+    assert_eq!(page.engine, Engine::Wayfern);
+
+    // A continuation belongs to the browser's snapshot; the page has no cursor.
+    let continuation: PerceptionRequest =
+      serde_json::from_value(serde_json::json!({ "cursor": "snap-1.2" })).unwrap();
+    let (target, frames) = fake_browser(Fake::SlowPerception).await;
+    let ctx = agent_context_for("154.0.8037.57", target);
+    let page = agent_perceive(&ctx, &continuation).await.unwrap();
+    assert_eq!(page.engine, Engine::Wayfern);
+    assert_eq!(methods(&frames), vec!["Wayfern.capturePagePerception"]);
+  }
+
+  #[test]
+  fn attribute_bags_compare_what_the_index_and_the_dom_both_carry() {
+    let index = attribute_bag([("href", "/a"), ("data-ved", "x")].into_iter());
+    let dom = attribute_bag(
+      [
+        ("ID", "link"),
+        ("data-ved", "x"),
+        ("class", "c"),
+        ("style", "color: red"),
+        ("HREF", "/a"),
+        ("value", "secret"),
+      ]
+      .into_iter(),
+    );
+    assert_eq!(index, dom);
+    assert_ne!(
+      index,
+      attribute_bag([("href", "/b"), ("data-ved", "x")].into_iter())
+    );
+    assert!(attribute_bag([("id", "x"), ("class", "y")].into_iter()).is_empty());
   }
 
   #[test]
