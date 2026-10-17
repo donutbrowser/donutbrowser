@@ -38,13 +38,11 @@
     },
     "status": {
       "active": "활성",
-      "inactive": "비활성",
       "running": "실행 중",
       "stopped": "중지됨",
       "enabled": "사용",
       "disabled": "사용 안 함",
       "granted": "허용됨",
-      "notGranted": "허용되지 않음",
       "connected": "연결됨",
       "disconnected": "연결 끊김",
       "synced": "동기화됨",
@@ -116,35 +114,30 @@
       "themeDescription": "원하는 테마를 선택하거나 시스템 설정을 따르세요. 사용자 지정 테마 변경 사항은 저장 시에만 적용됩니다.",
       "themePreset": "테마 프리셋",
       "customColors": "사용자 지정 색상",
-      "selectTheme": "테마 선택",
-      "selectThemePreset": "테마 프리셋 선택",
       "yourOwn": "직접 설정",
       "light": "라이트",
       "dark": "다크",
-      "system": "시스템",
-      "sounds": "인터페이스 소리",
-      "soundsDescription": "버튼을 누르거나 스위치를 전환하거나 작업이 성공 또는 실패할 때 작고 부드러운 소리를 냅니다."
+      "system": "시스템"
     },
     "language": {
       "title": "언어",
       "description": "애플리케이션 인터페이스에 사용할 언어를 선택하세요.",
       "systemDefault": "시스템 기본값",
-      "selectLanguage": "언어 선택",
       "interface": "인터페이스 언어"
     },
     "defaultBrowser": {
       "title": "기본 브라우저",
       "setAsDefault": "기본 브라우저로 설정",
-      "alreadyDefault": "이미 기본 브라우저입니다",
       "description": "기본 브라우저로 설정하면 Donut Browser가 웹 링크를 처리하고 사용할 프로필을 선택할 수 있습니다.",
       "setSuccess": "이제 Donut Browser가 기본 브라우저입니다",
       "setFailed": "기본 브라우저를 설정하지 못했습니다",
       "finishInSystemSettings": "Windows 설정에서 완료하세요",
-      "finishInSystemSettingsDescription": "Donut Browser가 등록되었습니다. Windows 설정이 열려 있습니다. '웹 브라우저'에서 Donut Browser를 선택하면 완료됩니다."
+      "finishInSystemSettingsDescription": "Donut Browser가 등록되었습니다. Windows 설정이 열려 있습니다. '웹 브라우저'에서 Donut Browser를 선택하면 완료됩니다.",
+      "isDefault": "Donut Browser가 기본 브라우저입니다",
+      "notDefault": "Donut Browser가 기본 브라우저가 아닙니다"
     },
     "permissions": {
       "title": "시스템 권한",
-      "loading": "권한 불러오는 중...",
       "description": "이 권한은 Donut Browser에서 실행된 브라우저가 시스템 리소스에 액세스할 수 있도록 합니다. 각 웹사이트는 여전히 개별적으로 권한을 요청합니다.",
       "microphone": "마이크",
       "microphoneDescription": "브라우저 애플리케이션의 마이크 액세스",
@@ -155,12 +148,12 @@
     "integrations": {
       "title": "통합",
       "description": "외부 도구 및 AI 어시스턴트와 통합하기 위해 로컬 API와 MCP(Model Context Protocol)를 구성합니다.",
-      "openSettings": "통합 설정 열기"
+      "openSettings": "통합 설정 열기",
+      "label": "로컬 API 및 MCP"
     },
     "encryption": {
       "title": "동기화 암호화",
       "description": "E2E 암호화 동기화를 사용하려면 비밀번호를 설정하세요. 이 비밀번호를 잃어버리면 암호화된 프로필을 복구할 수 없습니다.",
-      "passwordSet": "활성",
       "passwordSetDescription": "E2E 암호화 비밀번호가 설정되어 있습니다",
       "noPassword": "비밀번호가 설정되지 않았습니다",
       "passwordPlaceholder": "비밀번호 (8자 이상)",
@@ -180,7 +173,9 @@
         "submit": "확인",
         "matchToast": "비밀번호가 일치합니다",
         "mismatchToast": "비밀번호가 일치하지 않습니다"
-      }
+      },
+      "ruleLength": "{{min}}자 이상",
+      "ruleMatch": "비밀번호 일치"
     },
     "commercial": {
       "title": "상업용 라이선스",
@@ -199,7 +194,8 @@
       "copyLogs": "로그 복사",
       "openLogDir": "로그 폴더 열기",
       "copyLogsSuccess": "로그가 클립보드에 복사되었습니다",
-      "copyLogsDescription": "최근 로그를 민감 정보가 제거된 묶음으로 복사합니다(최대 5MB). 모든 유형의 개인 데이터를 식별할 수는 없으므로 공유하기 전에 검토하세요."
+      "copyLogsDescription": "최근 로그를 민감 정보가 제거된 묶음으로 복사합니다(최대 5MB). 모든 유형의 개인 데이터를 식별할 수는 없으므로 공유하기 전에 검토하세요.",
+      "logs": "로그"
     },
     "disableAutoUpdates": "앱 자동 업데이트 사용 안 함",
     "disableAutoUpdatesDescription": "Donut Browser 업데이트를 앱이 자동으로 확인하고 설치하지 않도록 합니다. 브라우저 업데이트는 영향을 받지 않습니다.",
@@ -250,7 +246,51 @@
     },
     "trashRetentionOff": "즉시 삭제",
     "scrollSectionsLeft": "섹션 왼쪽으로 스크롤",
-    "scrollSectionsRight": "섹션 오른쪽으로 스크롤"
+    "scrollSectionsRight": "섹션 오른쪽으로 스크롤",
+    "changed": "변경됨",
+    "open": "열기",
+    "manage": "관리",
+    "clear": "지우기",
+    "dns": {
+      "label": "광고, 추적기, 악성코드 차단"
+    },
+    "sounds": {
+      "title": "소리",
+      "description": "무슨 일이 일어났는지 알려 주는 짧고 작은 소리입니다.",
+      "enabled": "인터페이스 소리",
+      "enabledDescription": "소리는 Donut 창이 맨 앞에 있을 때만 재생됩니다.",
+      "volume": "음량",
+      "preview": "미리 듣기",
+      "pack": "사운드 팩",
+      "packs": {
+        "soft": {
+          "label": "부드러움",
+          "description": "따뜻하고 둥근 소리."
+        },
+        "crisp": {
+          "label": "선명함",
+          "description": "짧고 밝고 또렷한 소리."
+        },
+        "retro": {
+          "label": "레트로",
+          "description": "옛 게임기 같은 사각파 소리."
+        }
+      },
+      "categories": {
+        "interface": {
+          "label": "인터페이스",
+          "description": "버튼, 스위치, 페이지 열기와 닫기."
+        },
+        "feedback": {
+          "label": "결과",
+          "description": "성공, 오류, 경고, 복사, 삭제, 복원."
+        },
+        "events": {
+          "label": "이벤트",
+          "description": "프로필 실행과 중지, 동기화, 다운로드, 확인이 필요한 요청."
+        }
+      }
+    }
   },
   "header": {
     "searchPlaceholder": "프로필 검색...",
@@ -940,7 +980,6 @@
     "apiStartFailed": "API 서버 시작 실패",
     "tokenCopied": "토큰 복사됨",
     "mcpAcceptTermsFirst": "(먼저 설정에서 Wayfern 약관에 동의하세요)",
-    "openSettings": "통합 설정 열기",
     "apiRunningOn": "실행 중",
     "apiExampleRequest": "예시 요청",
     "examples": {
@@ -1760,7 +1799,6 @@
     "proPlus": "Pro++",
     "ultimate": "얼티밋",
     "settingsDescription": "DNS 차단 목록은 프록시 수준에서 광고, 트래커 및 악성코드 도메인을 차단합니다. 목록은 12시간마다 자동으로 새로 고쳐집니다.",
-    "manageLists": "DNS 차단 목록 관리",
     "refreshAll": "모든 목록 새로 고침",
     "refreshFailed": "DNS 차단 목록 새로 고침 실패",
     "domains": "도메인",

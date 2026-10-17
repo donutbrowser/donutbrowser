@@ -12,7 +12,11 @@ import { WindowDragArea } from "@/components/window-drag-area";
 import { InputModalityProvider } from "@/hooks/use-input-modality";
 import { LaunchActivityProvider } from "@/hooks/use-launch-activity";
 import { setupLogging } from "@/lib/logger";
-import { installUiSounds, setUiSoundsEnabled } from "@/lib/ui-sounds";
+import {
+  applySoundSettings,
+  installUiSounds,
+  type SoundSettings,
+} from "@/lib/ui-sounds";
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -20,8 +24,8 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void invoke<{ ui_sounds?: boolean }>("get_app_settings")
-      .then((settings) => setUiSoundsEnabled(settings.ui_sounds ?? true))
+    void invoke<SoundSettings>("get_app_settings")
+      .then(applySoundSettings)
       .catch(() => {});
     return installUiSounds();
   }, []);

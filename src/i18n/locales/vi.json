@@ -38,13 +38,11 @@
     },
     "status": {
       "active": "Đang hoạt động",
-      "inactive": "Không hoạt động",
       "running": "Đang chạy",
       "stopped": "Đã dừng",
       "enabled": "Đã bật",
       "disabled": "Đã tắt",
       "granted": "Đã cấp",
-      "notGranted": "Chưa cấp",
       "connected": "Đã kết nối",
       "disconnected": "Đã ngắt kết nối",
       "synced": "Đã đồng bộ",
@@ -116,35 +114,30 @@
       "themeDescription": "Chọn chủ đề bạn muốn hoặc theo cài đặt hệ thống. Thay đổi chủ đề tùy chỉnh chỉ được áp dụng khi bạn lưu.",
       "themePreset": "Mẫu chủ đề",
       "customColors": "Tùy chỉnh màu sắc",
-      "selectTheme": "Chọn chủ đề",
-      "selectThemePreset": "Chọn mẫu chủ đề",
       "yourOwn": "Của riêng bạn",
       "light": "Sáng",
       "dark": "Tối",
-      "system": "Theo hệ thống",
-      "sounds": "Âm thanh giao diện",
-      "soundsDescription": "Âm thanh nhỏ, nhẹ khi bạn nhấn nút, bật tắt công tắc, hoặc khi một thao tác thành công hay thất bại."
+      "system": "Theo hệ thống"
     },
     "language": {
       "title": "Ngôn ngữ",
       "description": "Chọn ngôn ngữ hiển thị cho giao diện ứng dụng.",
       "systemDefault": "Mặc định hệ thống",
-      "selectLanguage": "Chọn ngôn ngữ",
       "interface": "Ngôn ngữ giao diện"
     },
     "defaultBrowser": {
       "title": "Trình duyệt mặc định",
       "setAsDefault": "Đặt làm trình duyệt mặc định",
-      "alreadyDefault": "Đã là trình duyệt mặc định",
       "description": "Khi được đặt làm mặc định, Donut Browser sẽ xử lý các liên kết web và cho phép bạn chọn hồ sơ để sử dụng.",
       "setSuccess": "Donut Browser hiện là trình duyệt mặc định của bạn",
       "setFailed": "Không thể đặt trình duyệt mặc định",
       "finishInSystemSettings": "Hoàn tất trong Cài đặt Windows",
-      "finishInSystemSettingsDescription": "Donut Browser đã được đăng ký. Cài đặt Windows đang mở: chọn Donut Browser trong mục Trình duyệt web để hoàn tất."
+      "finishInSystemSettingsDescription": "Donut Browser đã được đăng ký. Cài đặt Windows đang mở: chọn Donut Browser trong mục Trình duyệt web để hoàn tất.",
+      "isDefault": "Donut Browser là trình duyệt mặc định của bạn",
+      "notDefault": "Donut Browser không phải là trình duyệt mặc định của bạn"
     },
     "permissions": {
       "title": "Quyền hệ thống",
-      "loading": "Đang tải quyền...",
       "description": "Các quyền này cho phép trình duyệt được khởi chạy từ Donut Browser truy cập tài nguyên hệ thống. Mỗi trang web vẫn sẽ yêu cầu quyền riêng lẻ.",
       "microphone": "Micro",
       "microphoneDescription": "Quyền truy cập micro cho ứng dụng trình duyệt",
@@ -155,12 +148,12 @@
     "integrations": {
       "title": "Tích hợp",
       "description": "Cấu hình Local API và MCP (Model Context Protocol) để tích hợp với công cụ bên ngoài và trợ lý AI.",
-      "openSettings": "Mở cài đặt tích hợp"
+      "openSettings": "Mở cài đặt tích hợp",
+      "label": "API cục bộ và MCP"
     },
     "encryption": {
       "title": "Mã hóa đồng bộ",
       "description": "Đặt mật khẩu để bật mã hóa đầu cuối (E2E) cho đồng bộ. Nếu mất mật khẩu này, các hồ sơ đã mã hóa sẽ không thể khôi phục.",
-      "passwordSet": "Đang hoạt động",
       "passwordSetDescription": "Mật khẩu mã hóa E2E đã được thiết lập",
       "noPassword": "Chưa đặt mật khẩu",
       "passwordPlaceholder": "Mật khẩu (tối thiểu 8 ký tự)",
@@ -180,7 +173,9 @@
         "submit": "Xác thực",
         "matchToast": "Mật khẩu chính xác",
         "mismatchToast": "Mật khẩu không khớp"
-      }
+      },
+      "ruleLength": "Ít nhất {{min}} ký tự",
+      "ruleMatch": "Mật khẩu khớp"
     },
     "commercial": {
       "title": "Giấy phép thương mại",
@@ -199,7 +194,8 @@
       "copyLogs": "Sao chép nhật ký",
       "openLogDir": "Mở thư mục nhật ký",
       "copyLogsSuccess": "Đã sao chép nhật ký vào clipboard",
-      "copyLogsDescription": "Sao chép gói nhật ký gần đây đã được che thông tin nhạy cảm (tối đa 5 MB). Hãy xem lại trước khi chia sẻ vì việc che dữ liệu không thể nhận diện mọi loại dữ liệu cá nhân."
+      "copyLogsDescription": "Sao chép gói nhật ký gần đây đã được che thông tin nhạy cảm (tối đa 5 MB). Hãy xem lại trước khi chia sẻ vì việc che dữ liệu không thể nhận diện mọi loại dữ liệu cá nhân.",
+      "logs": "Nhật ký"
     },
     "disableAutoUpdates": "Tắt tự động cập nhật ứng dụng",
     "disableAutoUpdatesDescription": "Ngăn ứng dụng tự động kiểm tra và cài đặt bản cập nhật Donut Browser. Cập nhật trình duyệt không bị ảnh hưởng.",
@@ -250,7 +246,51 @@
     },
     "trashRetentionOff": "Xóa ngay",
     "scrollSectionsLeft": "Cuộn các mục sang trái",
-    "scrollSectionsRight": "Cuộn các mục sang phải"
+    "scrollSectionsRight": "Cuộn các mục sang phải",
+    "changed": "Đã thay đổi",
+    "open": "Mở",
+    "manage": "Quản lý",
+    "clear": "Xóa",
+    "dns": {
+      "label": "Chặn quảng cáo, trình theo dõi và phần mềm độc hại"
+    },
+    "sounds": {
+      "title": "Âm thanh",
+      "description": "Âm thanh ngắn, nhỏ cho bạn biết điều gì vừa xảy ra.",
+      "enabled": "Âm thanh giao diện",
+      "enabledDescription": "Âm thanh chỉ phát khi cửa sổ Donut ở phía trước.",
+      "volume": "Âm lượng",
+      "preview": "Nghe thử",
+      "pack": "Gói âm thanh",
+      "packs": {
+        "soft": {
+          "label": "Êm dịu",
+          "description": "Ấm và tròn."
+        },
+        "crisp": {
+          "label": "Sắc nét",
+          "description": "Ngắn, sáng và rõ."
+        },
+        "retro": {
+          "label": "Cổ điển",
+          "description": "Sóng vuông, như máy chơi game đời cũ."
+        }
+      },
+      "categories": {
+        "interface": {
+          "label": "Giao diện",
+          "description": "Nút, công tắc và các trang bạn mở hoặc đóng."
+        },
+        "feedback": {
+          "label": "Kết quả",
+          "description": "Thành công, lỗi, cảnh báo, sao chép, xóa và khôi phục."
+        },
+        "events": {
+          "label": "Sự kiện",
+          "description": "Khởi chạy và dừng hồ sơ, đồng bộ, tải xuống và các yêu cầu cần bạn chú ý."
+        }
+      }
+    }
   },
   "header": {
     "searchPlaceholder": "Tìm kiếm hồ sơ...",
@@ -940,7 +980,6 @@
     "apiStartFailed": "Khởi động máy chủ API thất bại",
     "tokenCopied": "Đã sao chép token",
     "mcpAcceptTermsFirst": "(Chấp nhận điều khoản Wayfern trong Cài đặt trước)",
-    "openSettings": "Mở cài đặt tích hợp",
     "apiRunningOn": "Đang chạy trên",
     "apiExampleRequest": "Ví dụ yêu cầu",
     "examples": {
@@ -1760,7 +1799,6 @@
     "proPlus": "Pro++",
     "ultimate": "Tối đa",
     "settingsDescription": "Danh sách chặn DNS chặn quảng cáo, trình theo dõi và tên miền độc hại ở cấp proxy. Danh sách được tự động làm mới mỗi 12 giờ.",
-    "manageLists": "Quản lý danh sách chặn DNS",
     "refreshAll": "Làm mới tất cả danh sách",
     "refreshFailed": "Làm mới danh sách chặn DNS thất bại",
     "domains": "tên miền",

@@ -130,6 +130,7 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
         showSuccessToast(t("trash.restored", { name: restored.name }), {
           description: syncStayedOff ? t("trash.restoredSyncOff") : undefined,
           duration: syncStayedOff ? 10000 : undefined,
+          sound: "restore",
         });
       } catch (err: unknown) {
         console.error("Failed to restore trashed profile:", err);
@@ -149,7 +150,9 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
     setBusyId(entry.id);
     try {
       await invoke("purge_trashed_profile", { profileId: entry.id });
-      showSuccessToast(t("trash.deletedForever", { name: entry.name }));
+      showSuccessToast(t("trash.deletedForever", { name: entry.name }), {
+        sound: "trash",
+      });
       setEntryToPurge(null);
     } catch (err: unknown) {
       console.error("Failed to purge trashed profile:", err);
@@ -167,7 +170,9 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
     setIsEmptying(true);
     try {
       const removed = await invoke<number>("empty_trash");
-      showSuccessToast(t("trash.emptied", { count: removed }));
+      showSuccessToast(t("trash.emptied", { count: removed }), {
+        sound: "trash",
+      });
       setEmptyConfirmOpen(false);
     } catch (err: unknown) {
       console.error("Failed to empty trash:", err);

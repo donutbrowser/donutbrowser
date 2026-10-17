@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { playUiSound } from "@/lib/ui-sounds";
 import type {
   CookieAnalysis,
   CookieIssue,
@@ -142,6 +143,7 @@ export function CookiePastePanel({
       const file = event.dataTransfer.files[0];
       if (!file) return;
       event.preventDefault();
+      playUiSound("drop");
       readFile(file);
     },
     [readFile],

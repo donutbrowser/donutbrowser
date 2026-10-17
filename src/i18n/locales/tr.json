@@ -38,13 +38,11 @@
     },
     "status": {
       "active": "Etkin",
-      "inactive": "Devre Dışı",
       "running": "Çalışıyor",
       "stopped": "Durduruldu",
       "enabled": "Etkin",
       "disabled": "Devre Dışı",
       "granted": "İzin Verildi",
-      "notGranted": "İzin Verilmedi",
       "connected": "Bağlı",
       "disconnected": "Bağlantı Kesildi",
       "synced": "Eşitlendi",
@@ -116,35 +114,30 @@
       "themeDescription": "Tercih ettiğiniz temayı seçin veya sistem ayarlarınızı takip edin. Özel tema değişiklikleri yalnızca kaydettiğinizde uygulanır.",
       "themePreset": "Tema Ön Ayarı",
       "customColors": "Özel Renkler",
-      "selectTheme": "Tema seçin",
-      "selectThemePreset": "Bir tema ön ayarı seçin",
       "yourOwn": "Kendi Temanız",
       "light": "Açık",
       "dark": "Koyu",
-      "system": "Sistem",
-      "sounds": "Arayüz sesleri",
-      "soundsDescription": "Bir düğmeye bastığınızda, bir anahtarı değiştirdiğinizde veya bir işlem başarılı olduğunda ya da başarısız olduğunda yumuşak ve sessiz sesler."
+      "system": "Sistem"
     },
     "language": {
       "title": "Dil",
       "description": "Uygulama arayüzü için tercih ettiğiniz dili seçin.",
       "systemDefault": "Sistem Varsayılanı",
-      "selectLanguage": "Dil seçin",
       "interface": "Arayüz Dili"
     },
     "defaultBrowser": {
       "title": "Varsayılan Tarayıcı",
       "setAsDefault": "Varsayılan Tarayıcı Olarak Ayarla",
-      "alreadyDefault": "Zaten Varsayılan Tarayıcı",
       "description": "Varsayılan olarak ayarlandığında, Donut Browser web bağlantılarını yönetir ve hangi profilin kullanılacağını seçmenize olanak tanır.",
       "setSuccess": "Donut Browser artık varsayılan tarayıcınız",
       "setFailed": "Varsayılan tarayıcı ayarlanamadı",
       "finishInSystemSettings": "Windows Ayarları'nda tamamlayın",
-      "finishInSystemSettingsDescription": "Donut Browser kaydedildi. Windows Ayarları açıldı: tamamlamak için Web tarayıcısı bölümünden Donut Browser'ı seçin."
+      "finishInSystemSettingsDescription": "Donut Browser kaydedildi. Windows Ayarları açıldı: tamamlamak için Web tarayıcısı bölümünden Donut Browser'ı seçin.",
+      "isDefault": "Donut Browser varsayılan tarayıcınız",
+      "notDefault": "Donut Browser varsayılan tarayıcınız değil"
     },
     "permissions": {
       "title": "Sistem İzinleri",
-      "loading": "İzinler yükleniyor...",
       "description": "Bu izinler, Donut Browser'dan başlatılan tarayıcıların sistem kaynaklarına erişmesine olanak tanır. Her web sitesi yine de sizden ayrı ayrı izin isteyecektir.",
       "microphone": "Mikrofon",
       "microphoneDescription": "Tarayıcı uygulamaları için mikrofon erişimi",
@@ -155,12 +148,12 @@
     "integrations": {
       "title": "Entegrasyonlar",
       "description": "Harici araçlar ve yapay zekâ asistanlarıyla entegrasyon için Yerel API ve MCP (Model Context Protocol) yapılandırın.",
-      "openSettings": "Entegrasyon Ayarlarını Aç"
+      "openSettings": "Entegrasyon Ayarlarını Aç",
+      "label": "Yerel API ve MCP"
     },
     "encryption": {
       "title": "Eşitleme Şifrelemesi",
       "description": "Uçtan uca şifreli eşitlemeyi etkinleştirmek için bir parola belirleyin. Bu parolayı kaybederseniz şifrelenmiş profiller kurtarılamaz.",
-      "passwordSet": "Etkin",
       "passwordSetDescription": "Uçtan uca şifreleme parolası ayarlandı",
       "noPassword": "Parola ayarlanmadı",
       "passwordPlaceholder": "Parola (en az 8 karakter)",
@@ -180,7 +173,9 @@
         "submit": "Doğrula",
         "matchToast": "Parola doğru",
         "mismatchToast": "Parola eşleşmiyor"
-      }
+      },
+      "ruleLength": "En az {{min}} karakter",
+      "ruleMatch": "Parolalar eşleşiyor"
     },
     "commercial": {
       "title": "Ticari Lisans",
@@ -199,7 +194,8 @@
       "copyLogs": "Günlükleri kopyala",
       "openLogDir": "Günlük klasörünü aç",
       "copyLogsSuccess": "Günlükler panoya kopyalandı",
-      "copyLogsDescription": "Son günlüklerin hassas verileri ayıklanmış bir paketini kopyalar (en fazla 5 MB). Ayıklama her tür kişisel veriyi belirleyemeyeceğinden paylaşmadan önce inceleyin."
+      "copyLogsDescription": "Son günlüklerin hassas verileri ayıklanmış bir paketini kopyalar (en fazla 5 MB). Ayıklama her tür kişisel veriyi belirleyemeyeceğinden paylaşmadan önce inceleyin.",
+      "logs": "Günlükler"
     },
     "disableAutoUpdates": "Uygulama Otomatik Güncellemelerini Devre Dışı Bırak",
     "disableAutoUpdatesDescription": "Uygulamanın Donut Browser güncellemelerini otomatik olarak denetlemesini ve yüklemesini engelleyin. Tarayıcı güncellemeleri bundan etkilenmez.",
@@ -250,7 +246,51 @@
     },
     "trashRetentionOff": "Hemen sil",
     "scrollSectionsLeft": "Bölümleri sola kaydır",
-    "scrollSectionsRight": "Bölümleri sağa kaydır"
+    "scrollSectionsRight": "Bölümleri sağa kaydır",
+    "changed": "Değiştirildi",
+    "open": "Aç",
+    "manage": "Yönet",
+    "clear": "Temizle",
+    "dns": {
+      "label": "Reklamları, izleyicileri ve kötü amaçlı yazılımları engelle"
+    },
+    "sounds": {
+      "title": "Sesler",
+      "description": "Ne olduğunu bildiren kısa ve sessiz sesler.",
+      "enabled": "Arayüz sesleri",
+      "enabledDescription": "Sesler yalnızca Donut penceresi öndeyken çalar.",
+      "volume": "Ses düzeyi",
+      "preview": "Dinle",
+      "pack": "Ses paketi",
+      "packs": {
+        "soft": {
+          "label": "Yumuşak",
+          "description": "Sıcak ve yuvarlak."
+        },
+        "crisp": {
+          "label": "Net",
+          "description": "Kısa, parlak ve net."
+        },
+        "retro": {
+          "label": "Retro",
+          "description": "Eski bir oyun konsolu gibi kare dalgalar."
+        }
+      },
+      "categories": {
+        "interface": {
+          "label": "Arayüz",
+          "description": "Düğmeler, anahtarlar ve açıp kapattığınız sayfalar."
+        },
+        "feedback": {
+          "label": "Sonuçlar",
+          "description": "Başarı, hatalar, uyarılar, kopyalama, silme ve geri yükleme."
+        },
+        "events": {
+          "label": "Olaylar",
+          "description": "Profil başlatma ve durdurma, eşitleme, indirmeler ve ilginizi gerektiren istekler."
+        }
+      }
+    }
   },
   "header": {
     "searchPlaceholder": "Profillerde ara...",
@@ -940,7 +980,6 @@
     "apiStartFailed": "API sunucusu başlatılamadı",
     "tokenCopied": "Jeton kopyalandı",
     "mcpAcceptTermsFirst": "(Önce Ayarlar'dan Wayfern koşullarını kabul edin)",
-    "openSettings": "Entegrasyon Ayarlarını Aç",
     "apiRunningOn": "Çalıştığı adres",
     "apiExampleRequest": "Örnek istek",
     "examples": {
@@ -1760,7 +1799,6 @@
     "proPlus": "Pro++",
     "ultimate": "Ultimate",
     "settingsDescription": "DNS engel listeleri; reklamları, izleyicileri ve kötü amaçlı yazılım alan adlarını proxy düzeyinde engeller. Listeler her 12 saatte bir otomatik olarak yenilenir.",
-    "manageLists": "DNS Engel Listelerini Yönet",
     "refreshAll": "Tüm Listeleri Yenile",
     "refreshFailed": "DNS engel listeleri yenilenemedi",
     "domains": "alan adı",

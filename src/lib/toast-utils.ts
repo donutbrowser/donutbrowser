@@ -3,7 +3,7 @@ import React from "react";
 import { type ExternalToast, toast as sonnerToast } from "sonner";
 import { UnifiedToast } from "@/components/custom-toast";
 import i18n from "@/i18n";
-import { playUiSound } from "@/lib/ui-sounds";
+import { playUiSound, type UiSound } from "@/lib/ui-sounds";
 
 interface BaseToastProps {
   id?: string;
@@ -181,6 +181,8 @@ export function showDownloadToast(
     return;
   }
 
+  if (stage === "completed") playUiSound("download");
+
   // Only show cancel button during active downloading, not for completed/extracting/verifying
   const showCancel = stage === "downloading";
 
@@ -194,15 +196,19 @@ export function showDownloadToast(
   });
 }
 
+interface ResultToastOptions {
+  id?: string;
+  description?: string;
+  duration?: number;
+  /** The sound to play instead of the toast's own; null plays none. */
+  sound?: UiSound | null;
+}
+
 export function showSuccessToast(
   title: string,
-  options?: {
-    id?: string;
-    description?: string;
-    duration?: number;
-  },
+  { sound = "success", ...options }: ResultToastOptions = {},
 ) {
-  playUiSound("success");
+  if (sound) playUiSound(sound);
   return showToast({
     type: "success",
     title,
@@ -212,13 +218,9 @@ export function showSuccessToast(
 
 export function showErrorToast(
   title: string,
-  options?: {
-    id?: string;
-    description?: string;
-    duration?: number;
-  },
+  { sound = "error", ...options }: ResultToastOptions = {},
 ) {
-  playUiSound("error");
+  if (sound) playUiSound(sound);
   return showToast({
     type: "error",
     title,

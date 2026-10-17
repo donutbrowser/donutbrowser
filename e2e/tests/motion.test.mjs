@@ -4,7 +4,6 @@ import path from "node:path";
 import test from "node:test";
 import Color from "color";
 import en from "../../src/i18n/locales/en.json" with { type: "json" };
-import { THEMES } from "../../src/lib/themes.ts";
 import { withApp } from "../lib/app.mjs";
 import { extensionZipBase64 } from "../lib/fixtures.mjs";
 
@@ -294,16 +293,19 @@ test("paused CSS animations cannot retain dismissed selects or dropdowns", async
       await resize(app, 1100, 760);
       await createProfile(app, "Motion popup Alpha");
       await createProfile(app, "Motion popup Beta");
-      await app.clickSelector(`[aria-label="${en.rail.settings}"]`);
+      await app.clickSelector(`[aria-label="${en.rail.network}"]`);
+      await app.clickSelector(
+        `[aria-label="${en.proxies.management.newProxy}"]`,
+      );
       await app.waitFor(
         () =>
           app.execute(`
-            const trigger = document.querySelector('#theme-select');
+            const trigger = document.querySelector('#proxy-type');
             if (!trigger || trigger.matches(':disabled')) return false;
             trigger.focus();
             return document.activeElement === trigger;
           `),
-        { description: "enabled theme select" },
+        { description: "enabled proxy type select" },
       );
       await app.pressShortcut({ key: "\uE007" });
       await assertPopupReadable(app, slot("select-content"));
@@ -324,7 +326,7 @@ test("paused CSS animations cannot retain dismissed selects or dropdowns", async
           ),
           "paused",
         );
-        await app.clickText(en.common.labels.custom, { roles: ["option"] });
+        await app.clickText(en.proxies.types.socks5, { roles: ["option"] });
         await app.waitFor(
           () =>
             app.execute(
@@ -339,27 +341,19 @@ test("paused CSS animations cannot retain dismissed selects or dropdowns", async
 
         // The next popup also opens under the paused clock: both its content
         // and its pointer targets must be available at the initial frame.
-        await app.clickSelector("#theme-preset-select");
+        await app.clickSelector("#proxy-type");
         await assertPopupReadable(app, slot("select-content"));
-        await app.capture("paused-css-preset-select");
-        const preset = THEMES.find((theme) => theme.id === "dracula");
-        assert.ok(preset);
-        await app.clickText(preset.name, { roles: ["option"] });
+        await app.capture("paused-css-proxy-type-select");
+        await app.clickText(en.proxies.types.http, { roles: ["option"] });
         await waitForSelector(app, slot("select-content"), false);
         assert.equal(
           await app.execute(
-            `return document.querySelector("#theme-preset-select")?.textContent.trim();`,
+            `return document.querySelector("#proxy-type")?.textContent.trim();`,
           ),
-          preset.name,
+          en.proxies.types.http,
         );
-        await app.clickText(en.common.buttons.saveSettings, {
-          roles: ["button"],
-        });
-        await app.waitFor(
-          () => app.visibleTextIncludes(en.common.buttons.saved),
-          { description: "saved settings feedback" },
-        );
-        await waitForSelector(app, "#theme-select", true);
+        await app.pressShortcut({ key: "\uE00C" });
+        await waitForSelector(app, "#proxy-type", false);
         await app.clickSelector(`[aria-label="${en.rail.profiles}"]`);
 
         const openSort = () =>
@@ -1344,12 +1338,21 @@ test("settings save a RAM-only edit, preserve location, and expose review and di
     const initial = await app.invoke("get_app_settings");
     const selector = "#keep-decrypted-profiles-in-ram";
     await app.clickSelector(selector);
-    await app.clickSelector(`${slot("settings-feedback")} summary`);
-    assert.equal(
-      await app.visibleTextIncludes(en.settings.keepDecryptedProfilesInRam),
-      true,
+    await app.clickSelector(slot("settings-review"));
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return document.querySelector(arguments[0])?.textContent.includes(arguments[1]);`,
+          [
+            slot("settings-review-list"),
+            en.settings.keepDecryptedProfilesInRam,
+          ],
+        ),
+      { description: "the review list names the RAM change" },
     );
     await app.capture("review-ram-change");
+    await app.pressShortcut({ key: "\uE00C" });
+    await waitForSelector(app, slot("settings-review-list"), false);
     await app.clickSelector(slot("settings-discard"));
     assert.equal(
       await app.execute(

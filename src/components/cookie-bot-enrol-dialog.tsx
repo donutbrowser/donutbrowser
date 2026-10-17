@@ -1026,7 +1026,10 @@ export function CookieBotEnrolDialog({
                       void navigator.clipboard
                         .writeText(conflict.email)
                         .then(() => {
-                          showSuccessToast(t("cookieBot.conflict.emailCopied"));
+                          showSuccessToast(
+                            t("cookieBot.conflict.emailCopied"),
+                            { sound: "copy" },
+                          );
                         })
                         .catch(() => {
                           showErrorToast(t("cookieBot.conflict.copyFailed"));

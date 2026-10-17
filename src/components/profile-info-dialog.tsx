@@ -104,6 +104,7 @@ import { rotateProxyIps } from "@/lib/proxy-rotation";
 import type { RemoteHandoffState } from "@/lib/remote-sessions";
 import { startPagesFromText } from "@/lib/start-pages";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
+import { playUiSound } from "@/lib/ui-sounds";
 import { cn } from "@/lib/utils";
 import type {
   BrowserProfile,
@@ -691,6 +692,7 @@ function ProfileInfoContents({
   const handleCopyId = async () => {
     try {
       await navigator.clipboard.writeText(profile.id);
+      playUiSound("copy");
       setCopied(true);
       setTimeout(() => {
         setCopied(false);

@@ -23,6 +23,7 @@ import {
 import { translateBackendError } from "@/lib/backend-errors";
 import { formatRelativeTime } from "@/lib/flag-utils";
 import { runProxyCheck, useProxyCheck } from "@/lib/proxy-check-store";
+import { playUiSound } from "@/lib/ui-sounds";
 import { cn } from "@/lib/utils";
 import type { ProxyCheckHistoryEntry, StoredProxy, UdpSupport } from "@/types";
 
@@ -276,6 +277,7 @@ export function ProxyCheckButton({
     } catch {
       return;
     }
+    playUiSound("copy");
     setCopied(true);
     if (copiedTimer.current !== null) {
       window.clearTimeout(copiedTimer.current);

@@ -25,6 +25,7 @@ import {
   resolveAmbiguousProxyLine,
 } from "@/lib/proxy-string";
 import { canonicalProxyType } from "@/lib/proxy-type";
+import { playUiSound } from "@/lib/ui-sounds";
 import type {
   ParsedProxyLine,
   ProxyImportResult,
@@ -209,6 +210,7 @@ export function ProxyImportDialog({ isOpen, onClose }: ProxyImportDialogProps) {
       );
 
       if (validFile) {
+        playUiSound("drop");
         handleFileRead(validFile);
       } else {
         toast.error(t("proxies.importDialog.wrongFileType"));

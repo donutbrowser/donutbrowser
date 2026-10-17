@@ -38,13 +38,11 @@
     },
     "status": {
       "active": "Ativo",
-      "inactive": "Inativo",
       "running": "Executando",
       "stopped": "Parado",
       "enabled": "Ativado",
       "disabled": "Desativado",
       "granted": "Concedido",
-      "notGranted": "Não Concedido",
       "connected": "Conectado",
       "disconnected": "Desconectado",
       "synced": "Sincronizado",
@@ -116,35 +114,30 @@
       "themeDescription": "Escolha seu tema preferido ou siga as configurações do sistema. Alterações de tema personalizado são aplicadas apenas ao salvar.",
       "themePreset": "Tema Predefinido",
       "customColors": "Cores Personalizadas",
-      "selectTheme": "Selecionar tema",
-      "selectThemePreset": "Selecionar tema predefinido",
       "yourOwn": "Seu Próprio",
       "light": "Claro",
       "dark": "Escuro",
-      "system": "Sistema",
-      "sounds": "Sons da interface",
-      "soundsDescription": "Sons suaves e baixos ao pressionar um botão, mudar uma chave ou quando uma ação dá certo ou falha."
+      "system": "Sistema"
     },
     "language": {
       "title": "Idioma",
       "description": "Escolha seu idioma preferido para a interface do aplicativo.",
       "systemDefault": "Padrão do Sistema",
-      "selectLanguage": "Selecionar idioma",
       "interface": "Idioma da interface"
     },
     "defaultBrowser": {
       "title": "Navegador Padrão",
       "setAsDefault": "Definir como Navegador Padrão",
-      "alreadyDefault": "Já é o Navegador Padrão",
       "description": "Quando definido como padrão, o Donut Browser lidará com links da web e permitirá que você escolha qual perfil usar.",
       "setSuccess": "O Donut Browser agora é o seu navegador padrão",
       "setFailed": "Não foi possível definir o navegador padrão",
       "finishInSystemSettings": "Conclua nas Configurações do Windows",
-      "finishInSystemSettingsDescription": "O Donut Browser está registrado. As Configurações do Windows foram abertas: escolha o Donut Browser em Navegador da web para concluir."
+      "finishInSystemSettingsDescription": "O Donut Browser está registrado. As Configurações do Windows foram abertas: escolha o Donut Browser em Navegador da web para concluir.",
+      "isDefault": "O Donut Browser é o seu navegador padrão",
+      "notDefault": "O Donut Browser não é o seu navegador padrão"
     },
     "permissions": {
       "title": "Permissões do Sistema",
-      "loading": "Carregando permissões...",
       "description": "Essas permissões permitem que navegadores iniciados pelo Donut Browser acessem recursos do sistema. Cada site ainda pedirá sua permissão individualmente.",
       "microphone": "Microfone",
       "microphoneDescription": "Acesso ao microfone para aplicativos do navegador",
@@ -155,12 +148,12 @@
     "integrations": {
       "title": "Integrações",
       "description": "Configure a API Local e MCP (Protocolo de Contexto de Modelo) para integração com ferramentas externas e assistentes de IA.",
-      "openSettings": "Abrir Configurações de Integrações"
+      "openSettings": "Abrir Configurações de Integrações",
+      "label": "API local e MCP"
     },
     "encryption": {
       "title": "Criptografia de sincronização",
       "description": "Defina uma senha para habilitar a sincronização criptografada E2E. Se você perder esta senha, os perfis criptografados não poderão ser recuperados.",
-      "passwordSet": "Ativo",
       "passwordSetDescription": "A senha de criptografia E2E está definida",
       "noPassword": "Sem senha definida",
       "passwordPlaceholder": "Senha (mín. 8 caracteres)",
@@ -180,7 +173,9 @@
         "submit": "Validar",
         "matchToast": "A senha está correta",
         "mismatchToast": "A senha não corresponde"
-      }
+      },
+      "ruleLength": "Pelo menos {{min}} caracteres",
+      "ruleMatch": "As senhas coincidem"
     },
     "commercial": {
       "title": "Licença Comercial",
@@ -199,7 +194,8 @@
       "copyLogs": "Copiar logs",
       "openLogDir": "Abrir pasta de logs",
       "copyLogsSuccess": "Logs copiados para a área de transferência",
-      "copyLogsDescription": "Copia um pacote editado dos logs recentes (até 5 MB). Revise-o antes de compartilhar, pois a edição não consegue identificar todos os tipos de dados pessoais."
+      "copyLogsDescription": "Copia um pacote editado dos logs recentes (até 5 MB). Revise-o antes de compartilhar, pois a edição não consegue identificar todos os tipos de dados pessoais.",
+      "logs": "Logs"
     },
     "disableAutoUpdates": "Desativar Atualizações Automáticas do App",
     "disableAutoUpdatesDescription": "Impede que o aplicativo verifique e instale atualizações do Donut Browser automaticamente. As atualizações de navegadores não são afetadas.",
@@ -251,7 +247,51 @@
     },
     "trashRetentionOff": "Excluir na hora",
     "scrollSectionsLeft": "Rolar seções para a esquerda",
-    "scrollSectionsRight": "Rolar seções para a direita"
+    "scrollSectionsRight": "Rolar seções para a direita",
+    "changed": "Alterado",
+    "open": "Abrir",
+    "manage": "Gerenciar",
+    "clear": "Limpar",
+    "dns": {
+      "label": "Bloquear anúncios, rastreadores e malware"
+    },
+    "sounds": {
+      "title": "Sons",
+      "description": "Sons curtos e baixos que mostram o que aconteceu.",
+      "enabled": "Sons da interface",
+      "enabledDescription": "Os sons só tocam quando a janela do Donut está na frente.",
+      "volume": "Volume",
+      "preview": "Ouvir",
+      "pack": "Pacote de sons",
+      "packs": {
+        "soft": {
+          "label": "Suave",
+          "description": "Quente e arredondado."
+        },
+        "crisp": {
+          "label": "Nítido",
+          "description": "Curto, brilhante e claro."
+        },
+        "retro": {
+          "label": "Retrô",
+          "description": "Ondas quadradas, como um console de videogame antigo."
+        }
+      },
+      "categories": {
+        "interface": {
+          "label": "Interface",
+          "description": "Botões, chaves e páginas que você abre ou fecha."
+        },
+        "feedback": {
+          "label": "Resultados",
+          "description": "Sucesso, erros, avisos, copiar, excluir e restaurar."
+        },
+        "events": {
+          "label": "Eventos",
+          "description": "Início e parada de perfis, sincronização, downloads e pedidos que precisam da sua atenção."
+        }
+      }
+    }
   },
   "header": {
     "searchPlaceholder": "Pesquisar perfis...",
@@ -949,7 +989,6 @@
     "apiStartFailed": "Falha ao iniciar o servidor API",
     "tokenCopied": "Token copiado",
     "mcpAcceptTermsFirst": "(Aceite primeiro os termos da Wayfern nas Configurações)",
-    "openSettings": "Abrir configurações de integrações",
     "apiRunningOn": "Em execução em",
     "apiExampleRequest": "Exemplo de solicitação",
     "examples": {
@@ -1771,7 +1810,6 @@
     "proPlus": "Pro++",
     "ultimate": "Definitivo",
     "settingsDescription": "As listas de bloqueio DNS bloqueiam anúncios, rastreadores e domínios de malware no nível do proxy. As listas são atualizadas automaticamente a cada 12 horas.",
-    "manageLists": "Gerenciar listas de bloqueio DNS",
     "refreshAll": "Atualizar todas as listas",
     "refreshFailed": "Falha ao atualizar as listas de bloqueio DNS",
     "domains": "domínios",

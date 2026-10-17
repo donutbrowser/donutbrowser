@@ -1271,6 +1271,26 @@ async function chooseSelectOption(app, triggerSelector, option) {
   );
 }
 
+async function chooseThemeCard(app, slotName, value) {
+  const card = `[data-slot="${slotName}"][data-value="${value}"]`;
+  await app.clickSelector(card);
+  await app.waitFor(
+    () =>
+      app.execute(
+        `return document.querySelector(arguments[0])?.getAttribute("aria-checked") === "true";`,
+        [card],
+      ),
+    { description: `${value} chosen in ${slotName}` },
+  );
+}
+
+function checkedThemeCard(app, slotName) {
+  return app.execute(
+    `return document.querySelector('[data-slot="' + arguments[0] + '"][aria-checked="true"]')?.dataset.value ?? null;`,
+    [slotName],
+  );
+}
+
 async function saveSettings(app) {
   await app.clickText("Save Settings", { roles: ["button"] });
   await app.waitFor(
@@ -1376,7 +1396,7 @@ async function dragBackgroundColorPicker(app) {
   await app.waitFor(
     () =>
       app.execute(
-        `return document.querySelector("#theme-preset-select")?.textContent?.includes("Your Own") === true;`,
+        `return document.querySelector('[data-slot="settings-theme-preset"][data-value="custom"]')?.getAttribute("aria-checked") === "true";`,
       ),
     {
       description: `customized theme to be marked as Your Own after ${JSON.stringify(pointerEvents)}`,
@@ -2368,21 +2388,44 @@ test("first-run onboarding stays recoverable, responsive, and platform-aware", a
   );
 });
 
-test("interface sounds turn on and off in Appearance and stay as saved", async () => {
+test("interface sounds, their pack, volume and kinds stay as saved", async () => {
   await withApp("ui-sounds-setting", async (app) => {
     const sounds = async () => (await app.invoke("get_app_settings")).ui_sounds;
     assert.equal(await sounds(), false, "the harness keeps the suite silent");
     await app.clickSelector('[aria-label="Settings"]');
-    await app.waitForText(en.settings.appearance.soundsDescription);
-    const toggle = `[role="switch"][aria-label="${en.settings.appearance.sounds}"]`;
+    await app.waitForText(en.settings.sounds.enabledDescription);
+    const toggle = `[role="switch"][aria-label="${en.settings.sounds.enabled}"]`;
+    const pack = '[data-slot="settings-sound-pack-option"][data-value="retro"]';
+    assert.equal(
+      await app.execute(
+        `return Boolean(document.querySelector(arguments[0]));`,
+        [pack],
+      ),
+      false,
+      "the sound options stay hidden while sounds are off",
+    );
     await app.clickSelector(toggle);
+    await app.clickSelector(pack);
+    await app.clickSelector(
+      `[role="switch"][aria-label="${en.settings.sounds.categories.events.label}"]`,
+    );
+    await app.execute(
+      `document.querySelector('[data-slot="settings-sound-volume"] [role="slider"]').focus();`,
+    );
+    await app.pressShortcut({ key: "\uE012" });
     await saveSettings(app);
-    assert.equal(await sounds(), true);
+    const saved = await app.invoke("get_app_settings");
+    assert.equal(saved.ui_sounds, true);
+    assert.equal(saved.ui_sound_pack, "retro");
+    assert.equal(saved.ui_sound_events, false);
+    assert.equal(saved.ui_sound_volume, 55);
     await app.clickSelector(toggle);
     await saveSettings(app);
     assert.equal(await sounds(), false);
     await app.restart();
-    assert.equal(await sounds(), false, "the choice survives a restart");
+    const restarted = await app.invoke("get_app_settings");
+    assert.equal(restarted.ui_sounds, false, "the choice survives a restart");
+    assert.equal(restarted.ui_sound_pack, "retro");
   });
 });
 
@@ -2390,7 +2433,7 @@ test("predefined theme remains rendered across navigation and restart", async ()
   await withApp("ui-theme-predefined", async (app) => {
     await app.clickSelector('[aria-label="Settings"]');
     await app.waitForText("Appearance");
-    await chooseSelectOption(app, "#theme-select", "Light");
+    await chooseThemeCard(app, "settings-theme-option", "light");
     await saveSettings(app);
 
     const persisted = await app.invoke("get_app_settings");
@@ -2420,8 +2463,8 @@ test("preset and manually customized themes survive navigation and restart", asy
   await withApp("ui-theme-custom", async (app) => {
     await app.clickSelector('[aria-label="Settings"]');
     await app.waitForText("Appearance");
-    await chooseSelectOption(app, "#theme-select", "Custom");
-    await chooseSelectOption(app, "#theme-preset-select", "Dracula");
+    await chooseThemeCard(app, "settings-theme-option", "custom");
+    await chooseThemeCard(app, "settings-theme-preset", "dracula");
     await saveSettings(app);
 
     const presetSettings = await app.invoke("get_app_settings");
@@ -2451,16 +2494,12 @@ test("preset and manually customized themes survive navigation and restart", asy
     await app.clickSelector('[aria-label="Settings"]');
     await app.waitForText("Appearance");
     assert.equal(
-      await app.execute(
-        `return document.querySelector("#theme-select")?.textContent?.trim();`,
-      ),
-      "Custom",
+      await checkedThemeCard(app, "settings-theme-option"),
+      "custom",
     );
     assert.equal(
-      await app.execute(
-        `return document.querySelector("#theme-preset-select")?.textContent?.trim();`,
-      ),
-      "Dracula",
+      await checkedThemeCard(app, "settings-theme-preset"),
+      "dracula",
     );
     await dragBackgroundColorPicker(app);
     await saveSettings(app);
@@ -2503,8 +2542,8 @@ test("a light custom preset keeps light component behavior after restart", async
   await withApp("ui-theme-custom-light", async (app) => {
     await app.clickSelector('[aria-label="Settings"]');
     await app.waitForText("Appearance");
-    await chooseSelectOption(app, "#theme-select", "Custom");
-    await chooseSelectOption(app, "#theme-preset-select", "Ayu Light");
+    await chooseThemeCard(app, "settings-theme-option", "custom");
+    await chooseThemeCard(app, "settings-theme-preset", "ayu-light");
     await saveSettings(app);
 
     const selected = await waitForTheme(

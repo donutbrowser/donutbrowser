@@ -21,6 +21,7 @@ import { RippleButton } from "@/components/ui/ripple";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StepTransition } from "@/components/ui/step-transition";
 import { getCurrentOS } from "@/lib/browser-utils";
+import { playUiSound } from "@/lib/ui-sounds";
 import type { VpnImportResult, VpnType } from "@/types";
 
 interface VpnImportDialogProps {
@@ -149,6 +150,7 @@ export function VpnImportDialog({ isOpen, onClose }: VpnImportDialogProps) {
       const files = Array.from(e.dataTransfer.files);
       const validFile = files.find((f) => f.name.endsWith(".conf"));
       if (validFile) {
+        playUiSound("drop");
         handleFileRead(validFile);
       } else {
         toast.error(t("vpns.import.wrongFileType"));

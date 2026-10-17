@@ -38,13 +38,11 @@
     },
     "status": {
       "active": "アクティブ",
-      "inactive": "非アクティブ",
       "running": "実行中",
       "stopped": "停止",
       "enabled": "有効",
       "disabled": "無効",
       "granted": "許可済み",
-      "notGranted": "未許可",
       "connected": "接続済み",
       "disconnected": "切断",
       "synced": "同期済み",
@@ -116,35 +114,30 @@
       "themeDescription": "お好みのテーマを選択するか、システム設定に従います。カスタムテーマの変更は保存時のみ適用されます。",
       "themePreset": "テーマプリセット",
       "customColors": "カスタムカラー",
-      "selectTheme": "テーマを選択",
-      "selectThemePreset": "テーマプリセットを選択",
       "yourOwn": "カスタム",
       "light": "ライト",
       "dark": "ダーク",
-      "system": "システム",
-      "sounds": "インターフェースの効果音",
-      "soundsDescription": "ボタンを押したとき、スイッチを切り替えたとき、操作が成功または失敗したときに、小さく柔らかい音を鳴らします。"
+      "system": "システム"
     },
     "language": {
       "title": "言語",
       "description": "アプリケーションインターフェースの言語を選択します。",
       "systemDefault": "システムデフォルト",
-      "selectLanguage": "言語を選択",
       "interface": "インターフェース言語"
     },
     "defaultBrowser": {
       "title": "デフォルトブラウザ",
       "setAsDefault": "デフォルトブラウザに設定",
-      "alreadyDefault": "既にデフォルトブラウザです",
       "description": "デフォルトに設定すると、Donut Browser がウェブリンクを処理し、使用するプロファイルを選択できます。",
       "setSuccess": "Donut Browser が既定のブラウザーになりました",
       "setFailed": "既定のブラウザーを設定できませんでした",
       "finishInSystemSettings": "Windows の設定で完了してください",
-      "finishInSystemSettingsDescription": "Donut Browser を登録しました。Windows の設定が開いています。「Web ブラウザー」で Donut Browser を選ぶと完了します。"
+      "finishInSystemSettingsDescription": "Donut Browser を登録しました。Windows の設定が開いています。「Web ブラウザー」で Donut Browser を選ぶと完了します。",
+      "isDefault": "Donut Browser は既定のブラウザーです",
+      "notDefault": "Donut Browser は既定のブラウザーではありません"
     },
     "permissions": {
       "title": "システム権限",
-      "loading": "権限を読み込み中...",
       "description": "これらの権限により、Donut Browser から起動したブラウザがシステムリソースにアクセスできます。各ウェブサイトは個別に許可を求めます。",
       "microphone": "マイク",
       "microphoneDescription": "ブラウザアプリケーションのマイクアクセス",
@@ -155,12 +148,12 @@
     "integrations": {
       "title": "統合",
       "description": "外部ツールやAIアシスタントと統合するためのローカルAPIとMCP（モデルコンテキストプロトコル）を設定します。",
-      "openSettings": "統合設定を開く"
+      "openSettings": "統合設定を開く",
+      "label": "ローカル API と MCP"
     },
     "encryption": {
       "title": "同期暗号化",
       "description": "E2E暗号化同期を有効にするためのパスワードを設定してください。このパスワードを紛失すると、暗号化されたプロファイルは復元できません。",
-      "passwordSet": "有効",
       "passwordSetDescription": "E2E暗号化パスワードが設定されています",
       "noPassword": "パスワード未設定",
       "passwordPlaceholder": "パスワード（8文字以上）",
@@ -180,7 +173,9 @@
         "submit": "確認",
         "matchToast": "パスワードが一致しました",
         "mismatchToast": "パスワードが一致しません"
-      }
+      },
+      "ruleLength": "{{min}} 文字以上",
+      "ruleMatch": "パスワードが一致"
     },
     "commercial": {
       "title": "商用ライセンス",
@@ -199,7 +194,8 @@
       "copyLogs": "ログをコピー",
       "openLogDir": "ログフォルダを開く",
       "copyLogsSuccess": "ログをクリップボードにコピーしました",
-      "copyLogsDescription": "最近のログを編集したバンドル（最大 5 MB）をコピーします。編集ではすべての種類の個人データを識別できないため、共有前に内容を確認してください。"
+      "copyLogsDescription": "最近のログを編集したバンドル（最大 5 MB）をコピーします。編集ではすべての種類の個人データを識別できないため、共有前に内容を確認してください。",
+      "logs": "ログ"
     },
     "disableAutoUpdates": "アプリの自動更新を無効にする",
     "disableAutoUpdatesDescription": "Donut Browserの自動更新確認・インストールを無効にします。ブラウザの更新には影響しません。",
@@ -250,7 +246,51 @@
     },
     "trashRetentionOff": "すぐに削除",
     "scrollSectionsLeft": "セクションを左へスクロール",
-    "scrollSectionsRight": "セクションを右へスクロール"
+    "scrollSectionsRight": "セクションを右へスクロール",
+    "changed": "変更あり",
+    "open": "開く",
+    "manage": "管理",
+    "clear": "消去",
+    "dns": {
+      "label": "広告、トラッカー、マルウェアをブロック"
+    },
+    "sounds": {
+      "title": "サウンド",
+      "description": "何が起きたかを伝える、短く小さな効果音です。",
+      "enabled": "インターフェースの効果音",
+      "enabledDescription": "効果音は Donut のウィンドウが前面にあるときだけ鳴ります。",
+      "volume": "音量",
+      "preview": "試聴",
+      "pack": "サウンドパック",
+      "packs": {
+        "soft": {
+          "label": "ソフト",
+          "description": "温かく丸みのある音。"
+        },
+        "crisp": {
+          "label": "クリスプ",
+          "description": "短く明るく、はっきりした音。"
+        },
+        "retro": {
+          "label": "レトロ",
+          "description": "昔のゲーム機のような矩形波の音。"
+        }
+      },
+      "categories": {
+        "interface": {
+          "label": "インターフェース",
+          "description": "ボタン、スイッチ、ページの開閉。"
+        },
+        "feedback": {
+          "label": "結果",
+          "description": "成功、エラー、警告、コピー、削除、復元。"
+        },
+        "events": {
+          "label": "イベント",
+          "description": "プロファイルの起動と停止、同期、ダウンロード、対応が必要なリクエスト。"
+        }
+      }
+    }
   },
   "header": {
     "searchPlaceholder": "プロファイルを検索...",
@@ -940,7 +980,6 @@
     "apiStartFailed": "API サーバーの起動に失敗しました",
     "tokenCopied": "トークンをコピーしました",
     "mcpAcceptTermsFirst": "(設定で先に Wayfern の規約に同意してください)",
-    "openSettings": "統合設定を開く",
     "apiRunningOn": "実行中",
     "apiExampleRequest": "リクエスト例",
     "examples": {
@@ -1760,7 +1799,6 @@
     "proPlus": "Pro++",
     "ultimate": "アルティメット",
     "settingsDescription": "DNSブロックリストは、プロキシレベルで広告、トラッカー、マルウェアドメインをブロックします。リストは12時間ごとに自動的に更新されます。",
-    "manageLists": "DNSブロックリストを管理",
     "refreshAll": "すべてのリストを更新",
     "refreshFailed": "DNSブロックリストの更新に失敗しました",
     "domains": "ドメイン",

@@ -110,6 +110,7 @@ import {
   showSyncProgressToast,
   showToast,
 } from "@/lib/toast-utils";
+import { playUiSound } from "@/lib/ui-sounds";
 import type {
   BrowserProfile,
   ConsistencyResult,
@@ -855,6 +856,7 @@ export default function Home() {
           return;
         }
         e.preventDefault();
+        playUiSound("open");
         runShortcut(s.id);
         return;
       }
@@ -1349,6 +1351,7 @@ export default function Home() {
           ackExtensionKeys: [],
         });
       }
+      playUiSound("warning");
       return new Promise<GateDecision>((resolve) => {
         gateRequestSeqRef.current += 1;
         gateQueueRef.current.push({
@@ -1541,12 +1544,14 @@ export default function Home() {
         console.warn("Pre-launch checks failed, launching anyway:", err);
       }
 
+      const causedAt = performance.now();
       try {
         const result = await invoke<BrowserProfile>("launch_browser_profile", {
           profile,
           consentToken,
         });
         console.log("Successfully launched profile:", result.name);
+        playUiSound("launch", { causedAt, batch: opts?.bulkRunId });
         return { status: "launched" };
       } catch (err: unknown) {
         // Tier 2: the enforcing gate measured the exit mid-launch and stopped
@@ -1577,9 +1582,14 @@ export default function Home() {
             return { status: "cancelled" };
           }
           try {
+            const retriedAt = performance.now();
             await invoke<BrowserProfile>("launch_browser_profile", {
               profile,
               consentToken: parsed.params?.token ?? null,
+            });
+            playUiSound("launch", {
+              causedAt: retriedAt,
+              batch: opts?.bulkRunId,
             });
             return { status: "launched" };
           } catch (retryErr: unknown) {
@@ -1642,6 +1652,7 @@ export default function Home() {
 
         // Attempt to delete the profile
         await invoke("delete_profile", { profileId: profile.id });
+        playUiSound("trash");
         console.log("Profile deletion command completed successfully");
 
         // No need to manually reload - useProfileEvents will handle the update
@@ -1675,11 +1686,12 @@ export default function Home() {
   );
 
   const handleKillProfile = useCallback(
-    async (profile: BrowserProfile) => {
+    async (profile: BrowserProfile, opts?: { batch?: number }) => {
       console.log("Starting kill for profile:", profile.name);
 
       try {
         await invoke("kill_browser_profile", { profile });
+        playUiSound("stop", { batch: opts?.batch });
         console.log("Successfully killed profile:", profile.name);
         // No need to manually reload - useProfileEvents will handle the update
       } catch (err: unknown) {
@@ -1697,6 +1709,7 @@ export default function Home() {
     async (profileIds: string[]) => {
       try {
         await invoke("delete_selected_profiles", { profileIds });
+        playUiSound("trash");
         // No need to manually reload - useProfileEvents will handle the update
       } catch (err: unknown) {
         console.error("Failed to delete selected profiles:", err);
@@ -1743,6 +1756,7 @@ export default function Home() {
               groupsData.find((group) => group.id === groupId)?.name ??
               t("groups.noGroup"),
           }),
+          { sound: "drop" },
         );
         return true;
       } catch (error) {
@@ -1770,6 +1784,7 @@ export default function Home() {
       await invoke("delete_selected_profiles", {
         profileIds: selectedProfiles,
       });
+      playUiSound("trash");
       // No need to manually reload - useProfileEvents will handle the update
       setSelectedProfiles([]);
       setShowBulkDeleteConfirmation(false);
@@ -1879,8 +1894,11 @@ export default function Home() {
   const executeBulkStop = useCallback(
     async (targets: BrowserProfile[]) => {
       setIsBulkActing(true);
+      const batch = performance.now();
       try {
-        await Promise.allSettled(targets.map((p) => handleKillProfile(p)));
+        await Promise.allSettled(
+          targets.map((p) => handleKillProfile(p, { batch })),
+        );
         setSelectedProfiles([]);
       } finally {
         setIsBulkActing(false);
@@ -2003,7 +2021,9 @@ export default function Home() {
             dismissToast(toastId);
             if (profilesWithTransfer.has(profile_id)) {
               profilesWithTransfer.delete(profile_id);
-              showSuccessToast(t("sync.toast.profileSynced", { name }));
+              showSuccessToast(t("sync.toast.profileSynced", { name }), {
+                sound: "synced",
+              });
             }
           } else if (status === "error") {
             dismissToast(toastId);

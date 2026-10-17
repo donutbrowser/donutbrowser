@@ -31,7 +31,9 @@ export function CopyToClipboard({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      showSuccessToast(successMessage ?? t("toasts.success.copied"));
+      showSuccessToast(successMessage ?? t("toasts.success.copied"), {
+        sound: "copy",
+      });
       setTimeout(() => {
         setCopied(false);
       }, 2000);

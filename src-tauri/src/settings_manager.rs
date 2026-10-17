@@ -244,9 +244,29 @@ pub struct AppSettings {
   /// byte counts only, so nothing on disk lists where a profile went.
   #[serde(default = "default_record_traffic_domains")]
   pub record_traffic_domains: bool,
-  /// Soft interface sounds for presses, toggles and results.
+  /// Soft interface sounds: the master switch over the fields below.
   #[serde(default = "default_ui_sounds")]
   pub ui_sounds: bool,
+  /// Interface sound volume, 0 to 100. Out-of-range numbers are clamped as
+  /// they are read, so a bad value never resets the whole settings file.
+  #[serde(
+    default = "default_ui_sound_volume",
+    deserialize_with = "deserialize_ui_sound_volume"
+  )]
+  pub ui_sound_volume: u8,
+  /// Sounds for presses, toggles and navigation.
+  #[serde(default = "default_ui_sounds")]
+  pub ui_sound_interface: bool,
+  /// Sounds for results: success, error, warning, copy, delete, restore.
+  #[serde(default = "default_ui_sounds")]
+  pub ui_sound_feedback: bool,
+  /// Sounds for events: launch, stop, sync, downloads, notifications.
+  #[serde(default = "default_ui_sounds")]
+  pub ui_sound_events: bool,
+  /// The sound pack id. The frontend plays an unknown id as the default
+  /// pack and keeps it stored, so a downgrade does not lose the choice.
+  #[serde(default = "default_ui_sound_pack")]
+  pub ui_sound_pack: String,
   /// The optional MCP toolsets written into clients' endpoint URLs. Empty is
   /// every tool.
   #[serde(default)]
@@ -285,6 +305,26 @@ fn default_record_traffic_domains() -> bool {
 
 fn default_ui_sounds() -> bool {
   true
+}
+
+pub const DEFAULT_UI_SOUND_VOLUME: u8 = 60;
+pub const MAX_UI_SOUND_VOLUME: u8 = 100;
+pub const DEFAULT_UI_SOUND_PACK: &str = "soft";
+
+fn default_ui_sound_volume() -> u8 {
+  DEFAULT_UI_SOUND_VOLUME
+}
+
+fn default_ui_sound_pack() -> String {
+  DEFAULT_UI_SOUND_PACK.to_string()
+}
+
+fn deserialize_ui_sound_volume<'de, D>(deserializer: D) -> Result<u8, D::Error>
+where
+  D: serde::Deserializer<'de>,
+{
+  let volume = f64::deserialize(deserializer)?;
+  Ok(volume.round().clamp(0.0, f64::from(MAX_UI_SOUND_VOLUME)) as u8)
 }
 
 /// The automatic tip flow waits a random gap between two tips, drawn from
@@ -331,6 +371,11 @@ impl Default for AppSettings {
       trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
       record_traffic_domains: true,
       ui_sounds: true,
+      ui_sound_volume: DEFAULT_UI_SOUND_VOLUME,
+      ui_sound_interface: true,
+      ui_sound_feedback: true,
+      ui_sound_events: true,
+      ui_sound_pack: DEFAULT_UI_SOUND_PACK.to_string(),
       mcp_toolsets: Vec::new(),
     }
   }
@@ -1491,6 +1536,11 @@ mod tests {
       trash_retention_days: 7,
       record_traffic_domains: false,
       ui_sounds: false,
+      ui_sound_volume: 25,
+      ui_sound_interface: false,
+      ui_sound_feedback: true,
+      ui_sound_events: false,
+      ui_sound_pack: "retro".to_string(),
       mcp_toolsets: vec!["network".to_string()],
     };
 
@@ -1513,6 +1563,11 @@ mod tests {
     assert_eq!(loaded_settings.trash_retention_days, 7);
     assert!(!loaded_settings.record_traffic_domains);
     assert!(!loaded_settings.ui_sounds);
+    assert_eq!(loaded_settings.ui_sound_volume, 25);
+    assert!(!loaded_settings.ui_sound_interface);
+    assert!(loaded_settings.ui_sound_feedback);
+    assert!(!loaded_settings.ui_sound_events);
+    assert_eq!(loaded_settings.ui_sound_pack, "retro");
   }
 
   #[test]
@@ -1522,6 +1577,47 @@ mod tests {
     assert_eq!(settings.trash_retention_days, DEFAULT_TRASH_RETENTION_DAYS);
     assert!(settings.record_traffic_domains);
     assert!(settings.ui_sounds, "sounds are on until turned off");
+    assert_eq!(settings.ui_sound_volume, DEFAULT_UI_SOUND_VOLUME);
+    assert!(settings.ui_sound_interface);
+    assert!(settings.ui_sound_feedback);
+    assert!(settings.ui_sound_events);
+    assert_eq!(settings.ui_sound_pack, DEFAULT_UI_SOUND_PACK);
+  }
+
+  #[test]
+  fn default_sound_settings_match_a_missing_file() {
+    let defaults = AppSettings::default();
+    let parsed: AppSettings = serde_json::from_str("{}").unwrap();
+    assert_eq!(defaults.ui_sound_volume, 60);
+    assert_eq!(defaults.ui_sound_pack, "soft");
+    assert_eq!(parsed.ui_sound_volume, defaults.ui_sound_volume);
+    assert_eq!(parsed.ui_sound_pack, defaults.ui_sound_pack);
+    assert_eq!(parsed.ui_sound_interface, defaults.ui_sound_interface);
+    assert_eq!(parsed.ui_sound_feedback, defaults.ui_sound_feedback);
+    assert_eq!(parsed.ui_sound_events, defaults.ui_sound_events);
+  }
+
+  #[test]
+  fn sound_volume_is_clamped_instead_of_resetting_the_settings() {
+    let volume = |json: &str| {
+      serde_json::from_str::<AppSettings>(json)
+        .map(|settings| (settings.ui_sound_volume, settings.theme))
+        .unwrap()
+    };
+    assert_eq!(
+      volume(r#"{"theme":"dark","ui_sound_volume":250}"#),
+      (100, "dark".to_string())
+    );
+    assert_eq!(
+      volume(r#"{"theme":"dark","ui_sound_volume":-5}"#),
+      (0, "dark".to_string())
+    );
+    assert_eq!(
+      volume(r#"{"theme":"dark","ui_sound_volume":42.6}"#),
+      (43, "dark".to_string())
+    );
+    let unknown: AppSettings = serde_json::from_str(r#"{"ui_sound_pack":"future"}"#).unwrap();
+    assert_eq!(unknown.ui_sound_pack, "future", "an unknown pack is kept");
   }
 
   #[test]

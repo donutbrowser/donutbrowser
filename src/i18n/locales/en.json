@@ -38,13 +38,11 @@
     },
     "status": {
       "active": "Active",
-      "inactive": "Inactive",
       "running": "Running",
       "stopped": "Stopped",
       "enabled": "Enabled",
       "disabled": "Disabled",
       "granted": "Granted",
-      "notGranted": "Not Granted",
       "connected": "Connected",
       "disconnected": "Disconnected",
       "synced": "Synced",
@@ -116,35 +114,30 @@
       "themeDescription": "Choose your preferred theme or follow your system settings. Custom theme changes are applied only when you save.",
       "themePreset": "Theme Preset",
       "customColors": "Custom Colors",
-      "selectTheme": "Select theme",
-      "selectThemePreset": "Select a theme preset",
       "yourOwn": "Your Own",
       "light": "Light",
       "dark": "Dark",
-      "system": "System",
-      "sounds": "Interface sounds",
-      "soundsDescription": "Soft, quiet sounds when you press a button, flip a switch, or when an action succeeds or fails."
+      "system": "System"
     },
     "language": {
       "title": "Language",
       "description": "Choose your preferred language for the application interface.",
       "systemDefault": "System Default",
-      "selectLanguage": "Select language",
       "interface": "Interface Language"
     },
     "defaultBrowser": {
       "title": "Default Browser",
       "setAsDefault": "Set as Default Browser",
-      "alreadyDefault": "Already Default Browser",
       "description": "When set as default, Donut Browser will handle web links and allow you to choose which profile to use.",
       "setSuccess": "Donut Browser is now your default browser",
       "setFailed": "Could not set the default browser",
       "finishInSystemSettings": "Finish in Windows Settings",
-      "finishInSystemSettingsDescription": "Donut Browser is registered. Windows Settings is open: choose Donut Browser under Web browser to finish."
+      "finishInSystemSettingsDescription": "Donut Browser is registered. Windows Settings is open: choose Donut Browser under Web browser to finish.",
+      "isDefault": "Donut Browser is your default browser",
+      "notDefault": "Donut Browser is not your default browser"
     },
     "permissions": {
       "title": "System Permissions",
-      "loading": "Loading permissions...",
       "description": "These permissions allow browsers launched from Donut Browser to access system resources. Each website will still ask for your permission individually.",
       "microphone": "Microphone",
       "microphoneDescription": "Access to microphone for browser applications",
@@ -155,12 +148,12 @@
     "integrations": {
       "title": "Integrations",
       "description": "Configure Local API and MCP (Model Context Protocol) for integrating with external tools and AI assistants.",
-      "openSettings": "Open Integrations Settings"
+      "openSettings": "Open Integrations Settings",
+      "label": "Local API and MCP"
     },
     "encryption": {
       "title": "Sync Encryption",
       "description": "Set a password to enable E2E encrypted sync. If you lose this password, encrypted profiles cannot be recovered.",
-      "passwordSet": "Active",
       "passwordSetDescription": "E2E encryption password is set",
       "noPassword": "No password set",
       "passwordPlaceholder": "Password (min 8 characters)",
@@ -180,7 +173,9 @@
         "submit": "Validate",
         "matchToast": "Password is correct",
         "mismatchToast": "Password does not match"
-      }
+      },
+      "ruleLength": "At least {{min}} characters",
+      "ruleMatch": "Passwords match"
     },
     "commercial": {
       "title": "Commercial License",
@@ -199,7 +194,8 @@
       "copyLogs": "Copy logs",
       "openLogDir": "Open log folder",
       "copyLogsSuccess": "Logs copied to clipboard",
-      "copyLogsDescription": "Copies a redacted bundle of recent logs (up to 5 MB). Review it before sharing because redaction cannot identify every kind of personal data."
+      "copyLogsDescription": "Copies a redacted bundle of recent logs (up to 5 MB). Review it before sharing because redaction cannot identify every kind of personal data.",
+      "logs": "Logs"
     },
     "disableAutoUpdates": "Disable App Auto Updates",
     "disableAutoUpdatesDescription": "Prevent the app from automatically checking and installing Donut Browser updates. Browser updates are not affected.",
@@ -250,7 +246,51 @@
     },
     "trashRetentionOff": "Delete at once",
     "scrollSectionsLeft": "Scroll sections left",
-    "scrollSectionsRight": "Scroll sections right"
+    "scrollSectionsRight": "Scroll sections right",
+    "changed": "Changed",
+    "open": "Open",
+    "manage": "Manage",
+    "clear": "Clear",
+    "dns": {
+      "label": "Block ads, trackers and malware"
+    },
+    "sounds": {
+      "title": "Sounds",
+      "description": "Short, quiet sounds that tell you what happened.",
+      "enabled": "Interface sounds",
+      "enabledDescription": "Sounds play only while the Donut window is in front.",
+      "volume": "Volume",
+      "preview": "Preview",
+      "pack": "Sound pack",
+      "packs": {
+        "soft": {
+          "label": "Soft",
+          "description": "Warm and round."
+        },
+        "crisp": {
+          "label": "Crisp",
+          "description": "Short, bright and clear."
+        },
+        "retro": {
+          "label": "Retro",
+          "description": "Square waves, like an old game console."
+        }
+      },
+      "categories": {
+        "interface": {
+          "label": "Interface",
+          "description": "Buttons, switches, and pages you open or close."
+        },
+        "feedback": {
+          "label": "Results",
+          "description": "Success, errors, warnings, copy, delete and restore."
+        },
+        "events": {
+          "label": "Events",
+          "description": "Profile launch and stop, sync, downloads, and requests for your attention."
+        }
+      }
+    }
   },
   "header": {
     "searchPlaceholder": "Search profiles...",
@@ -940,7 +980,6 @@
     "apiStartFailed": "Failed to start API server",
     "tokenCopied": "Token copied",
     "mcpAcceptTermsFirst": "(Accept Wayfern terms in Settings first)",
-    "openSettings": "Open Integrations Settings",
     "apiRunningOn": "Running on",
     "apiExampleRequest": "Example request",
     "examples": {
@@ -1760,7 +1799,6 @@
     "proPlus": "Pro++",
     "ultimate": "Ultimate",
     "settingsDescription": "DNS blocklists block ads, trackers, and malware domains at the proxy level. Lists are automatically refreshed every 12 hours.",
-    "manageLists": "Manage DNS Blocklists",
     "refreshAll": "Refresh All Lists",
     "refreshFailed": "Failed to refresh DNS blocklists",
     "domains": "domains",

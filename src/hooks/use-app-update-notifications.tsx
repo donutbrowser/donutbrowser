@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { AppUpdateToast } from "@/components/app-update-toast";
 import { translateBackendError } from "@/lib/backend-errors";
 import { showToast } from "@/lib/toast-utils";
+import { playUiSound } from "@/lib/ui-sounds";
 import type { AppUpdateInfo, AppUpdateProgress } from "@/types";
 
 export function useAppUpdateNotifications() {
@@ -152,6 +153,7 @@ export function useAppUpdateNotifications() {
 
     const unlistenReady = listen<string>("app-update-ready", (event) => {
       console.log("App update ready:", event.payload);
+      playUiSound("attention");
       setUpdateReady(true);
       setIsUpdating(false);
       setUpdateProgress(null);

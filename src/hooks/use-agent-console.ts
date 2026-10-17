@@ -30,6 +30,7 @@ import {
 } from "@/lib/agent-console";
 import { translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast, showToast } from "@/lib/toast-utils";
+import { playUiSound } from "@/lib/ui-sounds";
 
 interface ConsoleData {
   loaded: boolean;
@@ -123,6 +124,7 @@ export function useAgentConsole({
       onOpenPage: open,
     } = optionsRef.current;
     const focused = typeof document !== "undefined" && document.hasFocus();
+    playUiSound("attention");
     if (!visible || !focused) {
       const session = sessionsRef.current.find(
         (entry) => entry.session_id === item.session_id,

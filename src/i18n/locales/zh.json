@@ -38,13 +38,11 @@
     },
     "status": {
       "active": "活跃",
-      "inactive": "未活跃",
       "running": "运行中",
       "stopped": "已停止",
       "enabled": "已启用",
       "disabled": "已禁用",
       "granted": "已授权",
-      "notGranted": "未授权",
       "connected": "已连接",
       "disconnected": "已断开",
       "synced": "已同步",
@@ -116,35 +114,30 @@
       "themeDescription": "选择您喜欢的主题或跟随系统设置。自定义主题更改仅在保存时应用。",
       "themePreset": "主题预设",
       "customColors": "自定义颜色",
-      "selectTheme": "选择主题",
-      "selectThemePreset": "选择主题预设",
       "yourOwn": "自定义",
       "light": "浅色",
       "dark": "深色",
-      "system": "跟随系统",
-      "sounds": "界面音效",
-      "soundsDescription": "按下按钮、切换开关，或操作成功或失败时，播放轻柔安静的声音。"
+      "system": "跟随系统"
     },
     "language": {
       "title": "语言",
       "description": "选择应用程序界面的首选语言。",
       "systemDefault": "系统默认",
-      "selectLanguage": "选择语言",
       "interface": "界面语言"
     },
     "defaultBrowser": {
       "title": "默认浏览器",
       "setAsDefault": "设为默认浏览器",
-      "alreadyDefault": "已是默认浏览器",
       "description": "设为默认后，Donut Browser 将处理网页链接并允许您选择使用哪个配置文件。",
       "setSuccess": "Donut Browser 现在是您的默认浏览器",
       "setFailed": "无法设置默认浏览器",
       "finishInSystemSettings": "请在 Windows 设置中完成",
-      "finishInSystemSettingsDescription": "Donut Browser 已注册。Windows 设置已打开：在“Web 浏览器”中选择 Donut Browser 即可完成。"
+      "finishInSystemSettingsDescription": "Donut Browser 已注册。Windows 设置已打开：在“Web 浏览器”中选择 Donut Browser 即可完成。",
+      "isDefault": "Donut Browser 是你的默认浏览器",
+      "notDefault": "Donut Browser 不是你的默认浏览器"
     },
     "permissions": {
       "title": "系统权限",
-      "loading": "加载权限中...",
       "description": "这些权限允许从 Donut Browser 启动的浏览器访问系统资源。每个网站仍会单独请求您的权限。",
       "microphone": "麦克风",
       "microphoneDescription": "浏览器应用程序的麦克风访问权限",
@@ -155,12 +148,12 @@
     "integrations": {
       "title": "集成",
       "description": "配置本地 API 和 MCP（模型上下文协议）以与外部工具和 AI 助手集成。",
-      "openSettings": "打开集成设置"
+      "openSettings": "打开集成设置",
+      "label": "本地 API 和 MCP"
     },
     "encryption": {
       "title": "同步加密",
       "description": "设置密码以启用E2E加密同步。如果您丢失此密码，加密的配置文件将无法恢复。",
-      "passwordSet": "已启用",
       "passwordSetDescription": "E2E加密密码已设置",
       "noPassword": "未设置密码",
       "passwordPlaceholder": "密码（至少8个字符）",
@@ -180,7 +173,9 @@
         "submit": "验证",
         "matchToast": "密码正确",
         "mismatchToast": "密码不匹配"
-      }
+      },
+      "ruleLength": "至少 {{min}} 个字符",
+      "ruleMatch": "密码一致"
     },
     "commercial": {
       "title": "商业许可",
@@ -199,7 +194,8 @@
       "copyLogs": "复制日志",
       "openLogDir": "打开日志文件夹",
       "copyLogsSuccess": "日志已复制到剪贴板",
-      "copyLogsDescription": "复制经过脱敏的近期日志包（最多 5 MB）。脱敏无法识别所有类型的个人数据，请在分享前检查内容。"
+      "copyLogsDescription": "复制经过脱敏的近期日志包（最多 5 MB）。脱敏无法识别所有类型的个人数据，请在分享前检查内容。",
+      "logs": "日志"
     },
     "disableAutoUpdates": "禁用应用自动更新",
     "disableAutoUpdatesDescription": "阻止应用程序自动检查和安装 Donut Browser 更新。浏览器更新不受影响。",
@@ -250,7 +246,51 @@
     },
     "trashRetentionOff": "立即删除",
     "scrollSectionsLeft": "向左滚动分区",
-    "scrollSectionsRight": "向右滚动分区"
+    "scrollSectionsRight": "向右滚动分区",
+    "changed": "已更改",
+    "open": "打开",
+    "manage": "管理",
+    "clear": "清除",
+    "dns": {
+      "label": "拦截广告、跟踪器和恶意软件"
+    },
+    "sounds": {
+      "title": "声音",
+      "description": "简短、安静的声音，告诉你发生了什么。",
+      "enabled": "界面音效",
+      "enabledDescription": "只有 Donut 窗口在前台时才会播放声音。",
+      "volume": "音量",
+      "preview": "试听",
+      "pack": "音效包",
+      "packs": {
+        "soft": {
+          "label": "柔和",
+          "description": "温暖圆润。"
+        },
+        "crisp": {
+          "label": "清脆",
+          "description": "短促、明亮、清晰。"
+        },
+        "retro": {
+          "label": "复古",
+          "description": "方波音色，像老式游戏机。"
+        }
+      },
+      "categories": {
+        "interface": {
+          "label": "界面",
+          "description": "按钮、开关，以及打开或关闭页面。"
+        },
+        "feedback": {
+          "label": "结果",
+          "description": "成功、错误、警告、复制、删除和恢复。"
+        },
+        "events": {
+          "label": "事件",
+          "description": "配置文件启动和停止、同步、下载，以及需要你处理的请求。"
+        }
+      }
+    }
   },
   "header": {
     "searchPlaceholder": "搜索配置文件...",
@@ -940,7 +980,6 @@
     "apiStartFailed": "启动 API 服务器失败",
     "tokenCopied": "令牌已复制",
     "mcpAcceptTermsFirst": "(请先在设置中接受 Wayfern 条款)",
-    "openSettings": "打开集成设置",
     "apiRunningOn": "运行于",
     "apiExampleRequest": "示例请求",
     "examples": {
@@ -1760,7 +1799,6 @@
     "proPlus": "Pro++",
     "ultimate": "终极",
     "settingsDescription": "DNS 拦截列表在代理级别拦截广告、跟踪器和恶意软件域名。列表每 12 小时自动刷新一次。",
-    "manageLists": "管理 DNS 拦截列表",
     "refreshAll": "刷新所有列表",
     "refreshFailed": "刷新 DNS 拦截列表失败",
     "domains": "个域名",
