@@ -4,7 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { MotionConfig } from "motion/react";
 import { useEffect } from "react";
 import { I18nProvider } from "@/components/i18n-provider";
-import { OnboardingProvider } from "@/components/onboarding-provider";
 import { CustomThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -41,9 +40,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
           <InputModalityProvider>
             <WindowDragArea />
             <TooltipProvider>
-              <LaunchActivityProvider>
-                <OnboardingProvider>{children}</OnboardingProvider>
-              </LaunchActivityProvider>
+              <LaunchActivityProvider>{children}</LaunchActivityProvider>
             </TooltipProvider>
             <Toaster />
           </InputModalityProvider>

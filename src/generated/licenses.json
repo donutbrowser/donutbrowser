@@ -1976,10 +1976,6 @@
     "license": "Zlib OR Apache-2.0 OR MIT"
   },
   {
-    "name": "onborda",
-    "license": "MIT"
-  },
-  {
     "name": "once_cell",
     "license": "Apache-2.0 OR MIT"
   },

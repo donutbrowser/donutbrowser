@@ -2656,6 +2656,19 @@ test("first-run onboarding stays recoverable, responsive, and platform-aware", a
       assert.equal(layout.progressNow, "1");
 
       await app.clickText("Next", { roles: ["button"] });
+      await app.waitForText(en.isolationDemo.title);
+      await app.clickText("Next", { roles: ["button"] });
+      await app.waitForText("Licensing");
+      // Back returns to the step before, and the dots follow.
+      await app.clickSelector('[data-slot="welcome-back"]');
+      await app.waitForText(en.isolationDemo.title);
+      assert.equal(
+        await app.execute(
+          `return document.querySelector("[role='dialog'] [data-slot='step-dots']")?.getAttribute("aria-valuenow");`,
+        ),
+        "2",
+      );
+      await app.clickText("Next", { roles: ["button"] });
       await app.waitForText("Licensing");
       await app.clickText("I understand", { roles: ["button"] });
 
@@ -2677,6 +2690,131 @@ test("first-run onboarding stays recoverable, responsive, and platform-aware", a
       assert.equal(await app.invoke("get_onboarding_completed"), false);
     },
     { onboardingCompleted: false },
+  );
+});
+
+/** The tour's coach mark: its step and anchor, once it is placed and shown. */
+async function tourState(app) {
+  return app.execute(`
+    const card = document.querySelector('[data-slot="onboarding-tour"]');
+    if (!card || card.dataset.state !== "shown") return null;
+    if (getComputedStyle(card.parentElement).visibility !== "visible") return null;
+    return {
+      step: card.dataset.step,
+      anchor: card.dataset.anchor,
+      spotlight: Boolean(document.querySelector('[data-slot="coach-mark-spotlight"]')),
+    };
+  `);
+}
+
+test("a new install walks from the welcome into a tour on the real controls", async () => {
+  await withApp(
+    "ui-onboarding-tour",
+    async (app) => {
+      await app.waitForText(en.welcome.title);
+      await app.clickText(en.welcome.next, { roles: ["button"] });
+      await app.waitForText(en.isolationDemo.title);
+      await app.clickText(en.welcome.next, { roles: ["button"] });
+      await app.waitForText(en.welcome.license.title);
+      await app.clickText(en.welcome.license.agree, { roles: ["button"] });
+      // macOS asks for the microphone and camera unless they are granted.
+      const next = await app.waitFor(
+        async () => {
+          const body = await app.bodyText();
+          if (body.includes(en.welcome.permissions.title)) return "permissions";
+          if (body.includes(en.welcome.ready.title)) return "setup";
+          return null;
+        },
+        { description: "the step after licensing" },
+      );
+      if (next === "permissions") {
+        await app.clickText(en.welcome.permissions.skip, { roles: ["button"] });
+      }
+      // The browser is registered already, so setup is ready at once.
+      await app.waitForText(en.welcome.ready.cta);
+      await app.clickText(en.welcome.ready.cta, { roles: ["button"] });
+
+      // Step one dims the page around the New button and waits for a profile.
+      const first = await app.waitFor(
+        async () => {
+          const state = await tourState(app);
+          return state?.step === "0" ? state : null;
+        },
+        { description: "the tour on the New button" },
+      );
+      assert.equal(first.anchor, "new-profile");
+      assert.ok(first.spotlight, "the page is dimmed around the button");
+      assert.equal(
+        await app.execute(
+          `return document.elementFromPoint(...(() => { const r = document.querySelector('[data-tip-anchor="new-profile"]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })())?.closest('[data-tip-anchor="new-profile"]') !== null;`,
+        ),
+        true,
+        "the spotlit button still takes the click",
+      );
+      assert.equal(await app.invoke("get_onboarding_completed"), false);
+      await app.capture("onboarding-tour-create");
+
+      // A profile moves the tour on to that profile's DNS blocking.
+      await createUiProfile(app, "Tour Profile");
+      const second = await app.waitFor(
+        async () => {
+          const state = await tourState(app);
+          return state?.step === "1" && state.anchor !== "none" ? state : null;
+        },
+        { description: "the tour on the DNS control" },
+      );
+      assert.ok(
+        ["row-dns", "column-dns"].includes(second.anchor),
+        `the DNS step points at DNS blocking, not ${second.anchor}`,
+      );
+      await app.capture("onboarding-tour-dns");
+
+      await app.clickSelector('[data-slot="onboarding-tour-finish"]');
+      await app.waitForText(en.onboarding.thankYou.title);
+      await app.waitFor(() => app.invoke("get_onboarding_completed"), {
+        description: "onboarding completed by the finished tour",
+      });
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return !document.querySelector('[data-slot="onboarding-tour"]');`,
+          ),
+        { description: "the tour gone after its exit" },
+      );
+    },
+    { onboardingCompleted: false, seedDownloadedBrowser: true },
+  );
+});
+
+test("Escape skips the tour and still completes onboarding", async () => {
+  await withApp(
+    "ui-onboarding-tour-skip",
+    async (app) => {
+      await app.waitForText(en.welcome.title);
+      await app.clickText(en.welcome.skip, { roles: ["button"] });
+      await app.waitForText(en.welcome.ready.cta);
+      await app.clickText(en.welcome.ready.cta, { roles: ["button"] });
+      await app.waitFor(async () => (await tourState(app))?.step === "0", {
+        description: "the tour",
+      });
+      await app.pressShortcut({ key: "Escape" });
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return !document.querySelector('[data-slot="onboarding-tour"]');`,
+          ),
+        { description: "the tour gone" },
+      );
+      await app.waitFor(() => app.invoke("get_onboarding_completed"), {
+        description: "a skipped tour completes onboarding",
+      });
+      assert.equal(
+        await app.visibleTextIncludes(en.onboarding.thankYou.title),
+        false,
+        "only a finished tour is celebrated",
+      );
+    },
+    { onboardingCompleted: false, seedDownloadedBrowser: true },
   );
 });
 
@@ -3538,7 +3676,7 @@ test("a launcher seat opens the team's profiles but cannot change them, and an o
       );
       assert.equal(
         await app.execute(
-          `return Boolean(document.querySelector('[data-onborda="create-profile"]'));`,
+          `return Boolean(document.querySelector('[data-tip-anchor="new-profile"]'));`,
         ),
         false,
         "a launcher is not offered a new profile",
@@ -5100,29 +5238,58 @@ async function openTipsFromRail(app) {
   );
 }
 
-const INLINE_TIP = '[data-slot="inline-tip"]';
+const COACH_MARK = '[data-slot="tip-coach-mark"]';
 
-async function inlineTipId(app) {
+/** The tip the coach mark shows, once it is placed and visible. */
+async function coachMarkTipId(app) {
   return app.execute(
-    `const card = document.querySelector(arguments[0]); return card?.dataset.state === "shown" ? card.dataset.tipId : null;`,
-    [INLINE_TIP],
+    `const card = document.querySelector(arguments[0]);
+     if (!card || card.dataset.state !== "shown") return null;
+     const shell = card.parentElement;
+     return getComputedStyle(shell).visibility === "visible" ? card.dataset.tipId : null;`,
+    [COACH_MARK],
   );
 }
 
-async function waitForInlineTip(app, id) {
-  await app.waitFor(async () => (await inlineTipId(app)) === id, {
-    description: `the inline ${id} tip`,
+async function waitForCoachMark(app, id) {
+  await app.waitFor(async () => (await coachMarkTipId(app)) === id, {
+    description: `the ${id} coach mark`,
     timeoutMs: 30_000,
   });
 }
 
-async function waitForNoInlineTip(app) {
+async function waitForNoCoachMark(app) {
   await app.waitFor(
     () =>
       app.execute(`return !document.querySelector(arguments[0]);`, [
-        INLINE_TIP,
+        COACH_MARK,
       ]),
-    { description: "the inline tip gone" },
+    { description: "the coach mark gone" },
+  );
+}
+
+/**
+ * Where the coach mark points: its anchor id, the anchor's box, the card's
+ * box, the side the card took, and whether the anchor is described by it.
+ */
+async function coachMarkGeometry(app) {
+  return app.execute(
+    `const card = document.querySelector(arguments[0]);
+     if (!card) return null;
+     const id = card.dataset.anchor;
+     const anchor = [...document.querySelectorAll('[data-tip-anchor="' + id + '"]')]
+       .find((node) => (node.getAttribute("aria-describedby") ?? "").split(" ").includes(card.getAttribute("aria-describedby")));
+     const box = (node) => { const r = node.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
+     return {
+       anchor: id,
+       side: card.dataset.side ?? null,
+       described: Boolean(anchor),
+       anchorBox: anchor ? box(anchor) : null,
+       cardBox: box(card),
+       beacon: Boolean(document.querySelector('[data-slot="coach-mark-beacon"]')),
+       viewport: { width: innerWidth, height: innerHeight },
+     };`,
+    [COACH_MARK],
   );
 }
 
@@ -5290,7 +5457,7 @@ test("tips open from the rail, walk the catalog, and deep-link into the feature"
   });
 });
 
-test("one tip a day sits on the Profiles page for an unused feature, and a dismissed one waits for tomorrow", async () => {
+test("one tip a day points at an unused feature on the Profiles page, and a dismissed one waits for tomorrow", async () => {
   // Every tip but two is read already, and the only profile blocks ads, so
   // the DNS tip is in use and the trash tip is the one the page may show.
   // Tips are switched on only after that profile exists.
@@ -5307,30 +5474,38 @@ test("one tip a day sits on the Profiles page for an unused feature, and a dismi
       await app.invoke("set_tips_auto_show", { enabled: true });
       await app.restart();
 
-      await waitForInlineTip(app, "trash");
+      await waitForCoachMark(app, "trash");
       assert.ok(await app.visibleTextIncludes(en.tips.items.trash.title));
       assert.equal(
         await app.execute(
           `return Boolean(document.querySelector('[role="dialog"], [role="alertdialog"]'));`,
         ),
         false,
-        "the tip is part of the page, not a dialog",
+        "the tip is a coach mark on the page, not a dialog",
       );
       assert.equal(
         await app.execute(
           `return document.querySelector(arguments[0]).contains(document.activeElement);`,
-          [INLINE_TIP],
+          [COACH_MARK],
         ),
         false,
         "the tip never takes the focus",
       );
-      assert.equal(
-        await app.execute(
-          `const card = document.querySelector(arguments[0]).getBoundingClientRect(); const table = document.querySelector('[data-slot="profile-workspace"]').getBoundingClientRect(); return card.top >= table.bottom - 1;`,
-          [INLINE_TIP],
-        ),
-        true,
-        "the card sits under the table and covers no profile",
+      // The trash lives in the rail's More menu, so the mark points at the
+      // More button, with its card to the right of the rail.
+      const geometry = await coachMarkGeometry(app);
+      assert.equal(geometry.anchor, "rail-more");
+      assert.equal(geometry.side, "right");
+      assert.ok(geometry.described, "the anchor is described by the tip");
+      assert.ok(geometry.beacon, "a beacon marks the feature");
+      assert.ok(
+        geometry.cardBox.left >= geometry.anchorBox.right,
+        `the card sits beside its anchor: ${JSON.stringify(geometry)}`,
+      );
+      assert.ok(
+        geometry.cardBox.top >= 0 &&
+          geometry.cardBox.bottom <= geometry.viewport.height,
+        "the card stays on screen",
       );
       const pinned = await app.invoke("get_tips_state");
       assert.equal(pinned.inline_tip, "trash");
@@ -5339,14 +5514,14 @@ test("one tip a day sits on the Profiles page for an unused feature, and a dismi
         !pinned.seen.includes("trash") && !pinned.seen.includes("dnsBlocklist"),
         "showing a tip is not reading it, and the skipped tip stays unread",
       );
-      await app.capture("tips-inline");
+      await app.capture("tips-coach-mark");
 
       // The day's tip comes back after a restart until it is closed.
       await app.restart();
-      await waitForInlineTip(app, "trash");
+      await waitForCoachMark(app, "trash");
 
-      await app.clickSelector('[data-slot="inline-tip-dismiss"]');
-      await waitForNoInlineTip(app);
+      await app.clickSelector('[data-slot="tip-coach-dismiss"]');
+      await waitForNoCoachMark(app);
       const state = await app.waitFor(
         async () => {
           const current = await app.invoke("get_tips_state");
@@ -5369,7 +5544,7 @@ test("one tip a day sits on the Profiles page for an unused feature, and a dismi
       assert.equal(
         await app.execute(
           `return Boolean(document.querySelector(arguments[0]));`,
-          [INLINE_TIP],
+          [COACH_MARK],
         ),
         false,
       );
@@ -5391,16 +5566,16 @@ function pinnedTip(id) {
   };
 }
 
-test("the inline tip's action opens its feature and closes the tip as read", async () => {
+test("the coach mark's action opens its feature and closes the tip as read", async () => {
   await withApp(
     "ui-tips-inline-action",
     async (app) => {
       await createUiProfile(app, "Tips Action");
       await app.waitForText("Tips Action");
-      await waitForInlineTip(app, "trash");
+      await waitForCoachMark(app, "trash");
       assert.ok(await app.visibleTextIncludes(en.tips.items.trash.title));
 
-      await app.clickSelector('[data-slot="inline-tip-action"]');
+      await app.clickSelector('[data-slot="tip-coach-action"]');
       await app.waitFor(
         () =>
           app.execute(
@@ -5422,18 +5597,19 @@ test("the inline tip's action opens its feature and closes the tip as read", asy
   );
 });
 
-test("turning tips off from the card takes it away, unread, for the day", async () => {
+test("turning tips off from the coach mark takes it away, unread, for the day", async () => {
   await withApp(
     "ui-tips-inline-off",
     async (app) => {
       await createUiProfile(app, "Tips Off");
       await app.waitForText("Tips Off");
-      await waitForInlineTip(app, "vpn");
+      await waitForCoachMark(app, "vpn");
+      assert.equal((await coachMarkGeometry(app)).anchor, "rail-proxies");
 
-      await app.clickSelector('[data-slot="inline-tip-menu"]');
-      await app.clickSelector('[data-slot="inline-tip-off"]');
-      await waitForNoInlineTip(app);
-      assert.ok(await app.visibleTextIncludes(en.tips.inline.offTitle));
+      await app.clickSelector('[data-slot="tip-coach-menu"]');
+      await app.clickSelector('[data-slot="tip-coach-off"]');
+      await waitForNoCoachMark(app);
+      assert.ok(await app.visibleTextIncludes(en.tips.coach.offTitle));
       const off = await app.invoke("get_tips_state");
       assert.equal(off.auto_show, false);
       assert.equal(off.inline_tip, null);
@@ -5467,7 +5643,7 @@ test("turning tips off from the card takes it away, unread, for the day", async 
       assert.equal(
         await app.execute(
           `return Boolean(document.querySelector(arguments[0]));`,
-          [INLINE_TIP],
+          [COACH_MARK],
         ),
         false,
       );
@@ -5475,6 +5651,125 @@ test("turning tips off from the card takes it away, unread, for the day", async 
     },
     { settings: pinnedTip("vpn") },
   );
+});
+
+test("a tip for a feature on the page points at it, and using the feature or Escape closes it as read", async () => {
+  await withApp(
+    "ui-tips-coach-anchor",
+    async (app) => {
+      await createUiProfile(app, "Tips Anchor");
+      await app.waitForText("Tips Anchor");
+      await waitForCoachMark(app, "dnsBlocklist");
+      // DNS blocking is a column on this page: the mark points at its header,
+      // under it, and the action still goes to the DNS settings.
+      const geometry = await coachMarkGeometry(app);
+      assert.equal(geometry.anchor, "column-dns");
+      assert.equal(geometry.side, "bottom");
+      assert.ok(geometry.cardBox.top >= geometry.anchorBox.bottom);
+      assert.ok(
+        await app.execute(
+          `return Boolean(document.querySelector('[data-slot="tip-coach-action"]'));`,
+        ),
+      );
+      await app.capture("tips-coach-mark-column");
+
+      // It follows its anchor: a narrower window moves the card with it.
+      const before = geometry.cardBox.left;
+      const rect = await app.session.command("GET", "/window/rect");
+      await app.session.command("POST", "/window/rect", {
+        width: rect.width + 120,
+        height: rect.height,
+      });
+      await app.waitFor(
+        async () => {
+          const moved = await coachMarkGeometry(app);
+          return (
+            moved?.anchor === "column-dns" &&
+            Math.abs(moved.cardBox.left - before) > 4 &&
+            moved.cardBox.top >= moved.anchorBox.bottom
+          );
+        },
+        { description: "the card following its anchor" },
+      );
+      await app.session.command("POST", "/window/rect", rect);
+
+      // Escape closes it as read, like Got it.
+      await app.pressShortcut({ key: "Escape" });
+      await waitForNoCoachMark(app);
+      const closed = await app.waitFor(
+        async () => {
+          const current = await app.invoke("get_tips_state");
+          return current.seen.includes("dnsBlocklist") ? current : null;
+        },
+        { description: "the tip closed by Escape recorded" },
+      );
+      assert.equal(closed.inline_tip, null);
+    },
+    { settings: pinnedTip("dnsBlocklist") },
+  );
+});
+
+test("clicking the feature a coach mark points at closes the tip as read", async () => {
+  await withApp(
+    "ui-tips-coach-activate",
+    async (app) => {
+      await createUiProfile(app, "Tips Activate");
+      await app.waitForText("Tips Activate");
+      await waitForCoachMark(app, "searchSyntax");
+      assert.equal((await coachMarkGeometry(app)).anchor, "profile-search");
+      await app.clickSelector('[data-tip-anchor="profile-search"] input');
+      await waitForNoCoachMark(app);
+      await app.waitFor(
+        async () =>
+          (await app.invoke("get_tips_state")).seen.includes("searchSyntax"),
+        { description: "the used feature closes its tip as read" },
+      );
+    },
+    { settings: pinnedTip("searchSyntax") },
+  );
+});
+
+test("Show me in the catalog points the tip at its feature without spending the day's tip", async () => {
+  await withApp("ui-tips-show-me", async (app) => {
+    await createUiProfile(app, "Tips Show Me");
+    await app.waitForText("Tips Show Me");
+    await openTipsFromRail(app);
+    await app.clickSelector(
+      '[data-slot="tips-list-item"][data-tip-id="proxyCheck"]',
+    );
+    await app.clickSelector('[data-slot="tip-show-me"]');
+    await app.waitFor(
+      () =>
+        app.execute(`return !document.querySelector(arguments[0]);`, [
+          TIPS_DIALOG,
+        ]),
+      { description: "the catalog closed" },
+    );
+    await waitForCoachMark(app, "proxyCheck");
+    const geometry = await coachMarkGeometry(app);
+    assert.equal(geometry.anchor, "column-proxy");
+    assert.equal(
+      await app.execute(
+        `return document.querySelector(arguments[0]).dataset.preview;`,
+        [COACH_MARK],
+      ),
+      "true",
+    );
+    assert.equal(
+      await app.execute(
+        `return Boolean(document.querySelector('[data-slot="tip-coach-off"]'));`,
+      ),
+      false,
+      "a tip asked for is not the place to turn tips off",
+    );
+    const before = await app.invoke("get_tips_state");
+    await app.capture("tips-show-me");
+    await app.clickSelector('[data-slot="tip-coach-dismiss"]');
+    await waitForNoCoachMark(app);
+    const after = await app.invoke("get_tips_state");
+    assert.equal(after.inline_tip, before.inline_tip);
+    assert.equal(after.next_auto_show_at, before.next_auto_show_at);
+  });
 });
 
 test("a freshly paid account is welcomed once and walked to its plan tips", async () => {

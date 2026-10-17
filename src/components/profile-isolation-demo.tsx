@@ -78,7 +78,7 @@ export function ProfileIsolationDemo({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/35 p-2 sm:gap-5 sm:p-3">
+      <div className="grid grid-cols-2 gap-3 rounded-xl bg-foreground/[0.035] p-2 ring-1 ring-foreground/6 ring-inset sm:gap-5 sm:p-3">
         {EXAMPLE_IDS.map((profileId) => {
           const profile = examples[profileId];
           const active = selected === profileId;
@@ -101,7 +101,7 @@ export function ProfileIsolationDemo({
                 onClick={() => setSelected(profileId)}
                 className={cn(
                   "h-auto min-h-9 w-full justify-start gap-2 px-2 py-2 whitespace-normal",
-                  active && "bg-accent text-accent-foreground",
+                  active && "bg-foreground/6 text-foreground",
                 )}
               >
                 <LuUserRound className="size-4 shrink-0" aria-hidden="true" />

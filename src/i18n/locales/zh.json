@@ -2997,15 +2997,15 @@
     },
     "buttons": {
       "skip": "跳过",
-      "back": "返回",
-      "next": "下一步",
       "finish": "完成"
     },
     "thankYou": {
       "title": "感谢您选择 Donut Browser",
       "body": "希望它能让您的网络浏览更加私密——每个身份彼此独立，数据不会离开您的设备。祝您使用愉快！",
       "cta": "开始浏览"
-    }
+    },
+    "stepOf": "第 {{current}} 步，共 {{total}} 步",
+    "progress": "导览进度"
   },
   "welcome": {
     "title": "欢迎使用 Donut Browser",
@@ -3059,7 +3059,8 @@
       "commercialTitle": "商业使用",
       "trialBadge": "2 周免费",
       "commercialDesc": "在 2 周评估期内免费。之后需要付费方案，这有助于本项目的持续维护与发展。"
-    }
+    },
+    "progress": "设置进度"
   },
   "wayfernBlocked": {
     "title": "浏览器自动化已暂停",
@@ -4125,16 +4126,17 @@
     "progress": "已读 {{read}} / {{total}}",
     "unread": "未读",
     "nextShort": "下一条",
-    "inline": {
-      "label": "功能小贴士",
+    "coach": {
       "eyebrow": "小贴士",
       "more": "更多小贴士选项",
       "allTips": "全部小贴士",
       "turnOff": "不再显示小贴士",
-      "dismiss": "关闭小贴士",
       "offTitle": "小贴士已关闭",
-      "offBody": "可在小贴士 ({{shortcut}}) 中重新开启。"
-    }
+      "offBody": "可在小贴士 ({{shortcut}}) 中重新开启。",
+      "gotIt": "知道了",
+      "announce": "小贴士：{{title}}"
+    },
+    "showMe": "带我看看"
   },
   "paidWelcome": {
     "title": "欢迎使用 {{plan}}",

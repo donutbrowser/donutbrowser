@@ -2997,15 +2997,15 @@
     },
     "buttons": {
       "skip": "건너뛰기",
-      "back": "뒤로",
-      "next": "다음",
       "finish": "완료"
     },
     "thankYou": {
       "title": "Donut Browser를 선택해 주셔서 감사합니다",
       "body": "각 ID를 분리하고 어떤 데이터도 기기 밖으로 내보내지 않으면서 더 프라이빗한 브라우징에 도움이 되길 바랍니다. 즐겁게 사용하세요.",
       "cta": "브라우징 시작"
-    }
+    },
+    "stepOf": "{{total}}단계 중 {{current}}단계",
+    "progress": "둘러보기 진행 상황"
   },
   "welcome": {
     "title": "Donut Browser에 오신 것을 환영합니다",
@@ -3059,7 +3059,8 @@
       "commercialTitle": "상업적 사용",
       "trialBadge": "2주 무료",
       "commercialDesc": "2주간의 평가 기간 동안 무료입니다. 이후에는 유료 요금제가 필요하며, 이를 통해 프로젝트가 유지되고 발전할 수 있습니다."
-    }
+    },
+    "progress": "설정 진행 상황"
   },
   "wayfernBlocked": {
     "title": "브라우저 자동화가 일시 중지됨",
@@ -4125,16 +4126,17 @@
     "progress": "{{total}}개 중 {{read}}개 읽음",
     "unread": "읽지 않음",
     "nextShort": "다음",
-    "inline": {
-      "label": "기능 팁",
+    "coach": {
       "eyebrow": "팁",
       "more": "팁 옵션 더 보기",
       "allTips": "모든 팁",
       "turnOff": "팁 표시 안 함",
-      "dismiss": "팁 닫기",
       "offTitle": "팁이 꺼졌습니다",
-      "offBody": "팁({{shortcut}})에서 다시 켤 수 있습니다."
-    }
+      "offBody": "팁({{shortcut}})에서 다시 켤 수 있습니다.",
+      "gotIt": "확인",
+      "announce": "팁: {{title}}"
+    },
+    "showMe": "위치 보기"
   },
   "paidWelcome": {
     "title": "{{plan}}에 오신 것을 환영합니다",

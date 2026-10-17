@@ -139,6 +139,7 @@ import {
   getProfileIcon,
   isCrossOsProfile,
 } from "@/lib/browser-utils";
+import { type CoachAnchorId, tipAnchor } from "@/lib/coach-mark";
 import {
   type CookieBotSchedule,
   cancelCookieBotRun,
@@ -612,6 +613,19 @@ function ExtCell({
   );
 }
 
+/** The column headers a feature tip can point at. */
+const COLUMN_ANCHORS: Partial<Record<string, CoachAnchorId>> = {
+  state: "column-state",
+  proxy: "column-proxy",
+  ext: "column-ext",
+  dns: "column-dns",
+};
+
+function columnAnchor(columnId: string) {
+  const anchor = COLUMN_ANCHORS[columnId];
+  return anchor ? tipAnchor(anchor) : {};
+}
+
 // Inline DNS blocklist dropdown — same Popover/Command pattern as Ext.
 function DnsCell({
   profile,
@@ -649,7 +663,7 @@ function DnsCell({
       <PopoverTrigger asChild>
         <button
           type="button"
-          data-onborda="dns-blocklist"
+          {...tipAnchor("row-dns")}
           disabled={isSaving}
           className="flex h-6 w-full items-center rounded-md px-2 text-left text-sm transition-colors duration-100 hover:bg-foreground/6 disabled:opacity-50"
           title={
@@ -3511,6 +3525,7 @@ export function ProfilesDataTable({
                 className="size-7 rounded-md p-0"
                 data-slot="profile-inspect-trigger"
                 data-profile-id={profile.id}
+                {...tipAnchor("row-inspect")}
                 disabled={!meta.isClient}
                 onClick={(event) => {
                   const method = event.detail === 0 ? "keyboard" : "pointer";
@@ -3846,6 +3861,7 @@ export function ProfilesDataTable({
                       <TableHead
                         key={header.id}
                         role="columnheader"
+                        {...columnAnchor(header.column.id)}
                         aria-sort={
                           header.column.getIsSorted() === "asc"
                             ? "ascending"

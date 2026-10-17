@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
 import { useWindowDecorations } from "@/hooks/use-window-decorations";
 import { getCurrentOS } from "@/lib/browser-utils";
+import { tipAnchor } from "@/lib/coach-mark";
 import type { ProfileSearchContext } from "@/lib/profile-search";
 import { cn } from "@/lib/utils";
 import type { BrowserProfile, GroupWithCount } from "@/types";
@@ -233,6 +234,7 @@ const HomeHeader = ({
               <button
                 key="__all__"
                 type="button"
+                {...tipAnchor("group-strip")}
                 aria-current={active ? "true" : undefined}
                 onClick={() => {
                   onGroupSelect(ALL_FILTER_ID);
@@ -334,7 +336,7 @@ const HomeHeader = ({
             <span className="shrink-0">
               <Button
                 size="sm"
-                data-onborda="create-profile"
+                {...tipAnchor("new-profile")}
                 onClick={() => {
                   onCreateProfileDialogOpen(true);
                 }}

@@ -40,11 +40,12 @@ donutbrowser/
 │   │   ├── entity-empty-state.tsx     # Empty states of those pages, with their scenes
 │   │   ├── profile-search-input.tsx   # Profile search with ghost-text completion and suggestions
 │   │   ├── settings/                 # Settings page parts: rows, choice cards, theme previews, sounds, save bar
-│   │   └── tips/                     # Feature tips: scenes, icons and the inline tip card
+│   │   ├── onboarding/               # Welcome step scenes
+│   │   └── tips/                     # Feature tips: scenes, icons and the day's coach mark
 │   ├── hooks/                        # Event-driven React hooks, table preferences, filtering, and keyboard controls
 │   ├── i18n/locales/                 # Translations (de, en, es, fr, ja, ko, pt, ru, tr, vi, zh)
 │   ├── generated/                    # Build-generated third-party license inventory
-│   ├── lib/                          # Utilities (themes, toast, browser-utils, ui-sounds, schedules, team-activity)
+│   ├── lib/                          # Utilities (themes, toast, browser-utils, ui-sounds, schedules, team-activity, coach-mark placement)
 │   └── types.ts                      # Shared TypeScript interfaces
 ├── src-tauri/                        # Rust backend (Tauri)
 │   ├── src/
@@ -311,11 +312,11 @@ Reference implementations: `proxy-management-dialog.tsx`, `extension-management-
 
 Tips are short feature walkthroughs: a looping SVG scene, a title, two or
 three lines of copy, and a button into the feature. The catalog is
-`src/lib/tips.ts` (ids, sections, deep-link actions, the plan capability a
-tip needs, the `inUse` relevance check); scenes live in
-`src/components/tips/scenes-*.tsx` and are mapped in `scene-for.tsx`, icons
-in `tip-icon.tsx`; the catalog dialog is `src/components/tips-dialog.tsx`;
-the card on the Profiles page is `src/components/tips/inline-tip.tsx`; the
+`src/lib/tips.ts` (ids, sections, deep-link actions, the anchors a tip points
+at, the plan capability a tip needs, the `inUse` relevance check); scenes live
+in `src/components/tips/scenes-*.tsx` and are mapped in `scene-for.tsx`, icons
+in `tip-icon.tsx`; the catalog dialog is `src/components/tips-dialog.tsx`; the
+day's tip on the Profiles page is `src/components/tips/tip-coach-mark.tsx`; the
 flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
 `tips_seen`, `tips_used`, `tips_inline`, `tips_last_auto_shown_at`,
 `tips_next_auto_show_at`, `paid_welcome_seen_for`, `cloud_plan_memory`) is in
@@ -324,22 +325,41 @@ flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
 `set_tips_auto_show` and `observe_cloud_plan` commands.
 
 - Tips never open a dialog by themselves. The catalog opens from the rail,
-  the shortcut, the command palette, the inline card's menu and the paid
+  the shortcut, the command palette, the coach mark's menu and the paid
   welcome.
-- The inline tip is one slim card under the profile table: at most one new
-  tip a day, only on the Profiles page with at least one profile, after a
-  settled launch (onboarding done, terms accepted, never in the first-run
-  session), once the page has been quiet a few seconds with nothing modal
-  open. It takes its own row and never takes focus. The backend pins it
-  (`tips_inline`), so a restart shows the same tip until it is dismissed,
-  acted on or read in the catalog (`mark_tip_seen`). Closing it sets
-  `tips_next_auto_show_at` to the next local day, at least 12 hours later
-  (`next_inline_tip_at`). `tips_auto_show` is the "Show tips on the Profiles
-  page" switch; off removes the card unread and counts as the day's tip.
-  `save_app_settings` keeps the stored tips fields (`keep_tips_state`): only
-  the tips commands write them. The E2E harness seeds
-  `tips_auto_show: false`; a test that wants the inline tip passes
+- The day's tip is a coach mark (`src/components/ui/coach-mark.tsx`) on the
+  feature itself: a ring drawn around it, a beacon on its corner, and a card
+  beside it with an arrow. Each tip lists `anchors`, best first: the feature
+  when it is on the Profiles page (a column header, the search box, the New
+  button, a row's info button), then the rail item that leads to it (the
+  Settings button for DNS settings, More for the trash). The first anchor on
+  screen wins; the last one is always on screen (`pnpm test:tips` checks it).
+  When the feature lives on another page, the card's button deep-links to it;
+  when it is on the page, the card has only "Got it".
+- An anchor is any element with `data-tip-anchor="<id>"`, spread with
+  `tipAnchor(id, side)` from `src/lib/coach-mark.ts`; the ids are the typed
+  `COACH_ANCHORS` list. `data-tip-side` names the side the card prefers (the
+  rail uses `right`). The coach mark follows its anchor through scrolling,
+  resizing and re-renders, flips to stay on screen, hides while a modal
+  surface is open, never takes the focus, describes the anchor with its text
+  (`aria-describedby`), and closes with Escape. Placement is the pure
+  `placeCoachMark` (tests in `src/lib/coach-mark.test.mjs`).
+- One new tip a day, only on the Profiles page with at least one profile,
+  after a settled launch (onboarding done, terms accepted, never in the
+  first-run session), once the page has been quiet a few seconds with nothing
+  modal open. The backend pins it (`tips_inline`), so a restart shows the same
+  tip until it is dismissed ("Got it", Escape), acted on (its button, or a
+  click on the feature it points at) or read in the catalog (`mark_tip_seen`).
+  Closing it sets `tips_next_auto_show_at` to the next local day, at least 12
+  hours later (`next_inline_tip_at`). `tips_auto_show` is the "Show tips on
+  the Profiles page" switch; off removes the mark unread and counts as the
+  day's tip. `save_app_settings` keeps the stored tips fields
+  (`keep_tips_state`): only the tips commands write them. The E2E harness seeds
+  `tips_auto_show: false`; a test that wants the day's tip passes
   `settings: { tips_auto_show: true }` or calls `set_tips_auto_show`.
+- "Show me" in the catalog closes it and points the same coach mark at the
+  feature (`showOnPage`). The tip is read already, so closing it records
+  nothing and the day's tip, if one is pinned, waits behind it.
 - The pick is random among the unseen tips whose feature is not in use
   (`pickInlineTip`). Each tip's `inUse` reads a `FeatureUsage` snapshot:
   profile fields, groups, VPNs, extension groups, team, Cookie Bot
@@ -350,7 +370,7 @@ flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
   the running. Features that leave no trace (command palette, field search,
   shortcuts page, import page, 2FA tool, synchronizer) are noted as they are
   used (`note_tip_feature_used`, `tips_used`). An unknown fact never hides a
-  tip. A card whose feature comes into use leaves by itself; backend facts
+  tip. A mark whose feature comes into use leaves by itself; backend facts
   are read again when the window or the Profiles page comes back, at most
   once a minute. A launcher seat is not offered tips marked `editsTeamData`.
   A pinned tip the seat is no longer offered (its plan is gone) is released
@@ -360,14 +380,29 @@ flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
   grants the capability. The paid welcome opens once per account when the
   backend sees it turn paid (free -> paid, or a paid account first seen right
   after signing in); `paid_welcome_due` in `settings_manager.rs` is the rule.
-- Adding a tip: append to `TIPS` with a `section` and an `inUse` check, write
-  the scene, map an icon, add `tips.items.<id>.{label,title,body,action}` to
-  every locale, and run `pnpm test:tips`, which checks every locale carries
-  every tip and section.
+- Adding a tip: append to `TIPS` with a `section`, `anchors` and an `inUse`
+  check, write the scene, map an icon, add
+  `tips.items.<id>.{label,title,body,action}` to every locale, and run
+  `pnpm test:tips`, which checks every locale carries every tip and section
+  and every tip points somewhere.
 - Scenes are decorative and loop on their own clock (`useScene`); they show
   their resting frame under reduced motion and never hide the copy. The
-  inline card plays its scene for a few loops and then rests
-  (`ScenePlayback`), so the main page does not animate all day.
+  coach mark plays its scene for a few loops and then rests
+  (`ScenePlayback`), so the main page does not animate all day; a return to
+  the page shows the mark at rest (`settled`).
+
+## Onboarding
+
+A new install sees `src/components/welcome-dialog.tsx`: intro, the
+profile-isolation example, licensing, macOS permissions, and the browser
+setup, with `StepDots` (`ui/step-dots.tsx`) for progress and one drawing per
+step (`src/components/onboarding/scenes.tsx`; the setup drawing follows the
+real download). Steps move, they never fade in: text and controls are opaque
+from the first frame. A user with no profile then gets the tour,
+`src/components/onboarding-tour.tsx`: the same coach mark with `spotlight`
+(the page dims around the anchor, and the anchor still takes clicks), first on
+the New button until a profile exists, then on that profile's DNS control.
+Skip or Escape completes onboarding; Finish also opens the thank-you dialog.
 
 ## Timelines (`OperationFlow`)
 

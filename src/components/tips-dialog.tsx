@@ -3,7 +3,12 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LuChevronLeft, LuChevronRight, LuX } from "react-icons/lu";
+import {
+  LuChevronLeft,
+  LuChevronRight,
+  LuCrosshair,
+  LuX,
+} from "react-icons/lu";
 import { TipScene } from "@/components/tips/scene-for";
 import { SCENE_GRID_CLASS } from "@/components/tips/scene-primitives";
 import { TipIcon } from "@/components/tips/tip-icon";
@@ -41,6 +46,8 @@ interface TipsDialogProps {
   onTipShown: (id: TipId) => void;
   onAutoShowChange: (enabled: boolean) => void;
   onAction: (action: TipAction) => void;
+  /** Closes the catalog and points the tip's coach mark at its feature. */
+  onShowMe: (id: TipId) => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -56,6 +63,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
  * the ones not read yet marked. Each tip is a drawing of the feature at
  * work, a few lines on what it does, and a button into the place it lives.
  * The arrows page in either direction and the drawing travels the same way.
+ * "Show me" closes the catalog and points the tip's coach mark at the
+ * feature on the Profiles page.
  */
 export function TipsDialog({
   open,
@@ -67,6 +76,7 @@ export function TipsDialog({
   onTipShown,
   onAutoShowChange,
   onAction,
+  onShowMe,
 }: TipsDialogProps) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
@@ -248,14 +258,28 @@ export function TipsDialog({
                               <span className="min-w-0 flex-1 truncate">
                                 {t(tipTextKeys(item.id).label)}
                               </span>
-                              {!read && !active && (
-                                <span
-                                  role="img"
-                                  aria-label={t("tips.unread")}
-                                  data-slot="tips-unread-dot"
-                                  className="size-1.5 shrink-0 rounded-full bg-primary"
-                                />
-                              )}
+                              <AnimatePresence initial={false}>
+                                {!read && !active && (
+                                  <motion.span
+                                    role="img"
+                                    aria-label={t("tips.unread")}
+                                    data-slot="tips-unread-dot"
+                                    className="size-1.5 shrink-0 rounded-full bg-primary"
+                                    exit={
+                                      animate
+                                        ? { scale: 0, opacity: 0 }
+                                        : {
+                                            opacity: 0,
+                                            transition: { duration: 0 },
+                                          }
+                                    }
+                                    transition={{
+                                      duration: 0.2,
+                                      ease: MOTION_EASE_OUT,
+                                    }}
+                                  />
+                                )}
+                              </AnimatePresence>
                             </button>
                           </li>
                         );
@@ -286,11 +310,11 @@ export function TipsDialog({
             data-tip-id={tip.id}
             className="flex min-h-0 min-w-0 flex-col overflow-y-auto"
           >
-            <div className="px-5 pt-5">
+            <div className="px-5 pt-5 [@media(max-height:640px)]:pt-4">
               <div
                 data-slot="tip-scene-panel"
                 className={cn(
-                  "relative aspect-[2/1] max-h-64 w-full overflow-hidden rounded-xl bg-foreground/[0.025] ring-1 ring-foreground/6 ring-inset",
+                  "relative aspect-[2/1] max-h-64 w-full overflow-hidden rounded-xl bg-foreground/[0.025] ring-1 ring-foreground/6 ring-inset [@media(max-height:640px)]:max-h-40",
                   SCENE_GRID_CLASS,
                 )}
               >
@@ -298,14 +322,20 @@ export function TipsDialog({
                   <motion.div
                     key={tip.id}
                     className="absolute inset-0 p-4"
-                    initial={animate ? { x: direction * 40 } : false}
-                    animate={{ x: 0, opacity: 1 }}
+                    initial={
+                      animate ? { x: direction * 36, scale: 0.98 } : false
+                    }
+                    animate={{ x: 0, scale: 1, opacity: 1 }}
                     exit={
                       animate
-                        ? { x: -direction * 40, opacity: 0 }
+                        ? { x: -direction * 36, scale: 0.98, opacity: 0 }
                         : { opacity: 0, transition: { duration: 0 } }
                     }
-                    transition={{ duration: 0.26, ease: MOTION_EASE_OUT }}
+                    transition={
+                      animate
+                        ? { type: "spring", stiffness: 380, damping: 36 }
+                        : { duration: 0 }
+                    }
                   >
                     <TipScene id={tip.id} />
                   </motion.div>
@@ -322,7 +352,7 @@ export function TipsDialog({
             <StepTransition
               transitionKey={tip.id}
               direction={direction}
-              className="flex flex-col gap-2 px-6 pt-5"
+              className="flex flex-col gap-2 px-6 pt-5 [@media(max-height:640px)]:pt-3"
             >
               <p
                 className={cn(
@@ -341,7 +371,7 @@ export function TipsDialog({
               </p>
             </StepTransition>
 
-            <div className="mt-auto flex flex-wrap items-center justify-between gap-3 px-5 pt-6 pb-5">
+            <div className="sticky bottom-0 mt-auto flex flex-wrap items-center justify-between gap-3 bg-background px-5 pt-5 pb-5 [@media(max-height:640px)]:pt-3 [@media(max-height:640px)]:pb-3">
               <div className="flex items-center gap-0.5">
                 <Button
                   type="button"
@@ -375,6 +405,16 @@ export function TipsDialog({
                 </Button>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="subtle"
+                  size="sm"
+                  data-slot="tip-show-me"
+                  onClick={() => onShowMe(tip.id)}
+                >
+                  <LuCrosshair className="size-3.5" />
+                  {t("tips.showMe")}
+                </Button>
                 <Button
                   type="button"
                   variant="soft"

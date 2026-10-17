@@ -19,6 +19,7 @@ import {
   LuSearch,
   LuX,
 } from "react-icons/lu";
+import { tipAnchor } from "@/lib/coach-mark";
 import { MOTION_EASE_OUT, MOTION_SPRING_POSITION } from "@/lib/motion";
 import {
   findProfileSearchField,
@@ -764,6 +765,7 @@ export function ProfileSearchInput({
           <div
             ref={wrapperRef}
             data-slot="profile-search"
+            {...tipAnchor("profile-search")}
             className="relative h-7 w-36 shrink-0 rounded-lg bg-foreground/5 transition-[width,background-color,box-shadow] duration-200 ease-out focus-within:w-56 focus-within:bg-foreground/7 focus-within:ring-2 focus-within:ring-foreground/15 hover:bg-foreground/7 motion-reduce:transition-none min-[860px]:w-52 min-[860px]:focus-within:w-80"
           >
             <LuSearch className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />

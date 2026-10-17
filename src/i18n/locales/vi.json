@@ -2997,15 +2997,15 @@
     },
     "buttons": {
       "skip": "Bỏ qua",
-      "back": "Quay lại",
-      "next": "Tiếp theo",
       "finish": "Hoàn tất"
     },
     "thankYou": {
       "title": "Cảm ơn bạn đã chọn Donut Browser",
       "body": "Hy vọng nó giúp việc duyệt web của bạn riêng tư hơn — mỗi danh tính được giữ riêng, và không có gì rời khỏi máy của bạn. Chúc bạn duyệt web vui vẻ.",
       "cta": "Bắt đầu duyệt web"
-    }
+    },
+    "stepOf": "Bước {{current}}/{{total}}",
+    "progress": "Tiến độ hướng dẫn"
   },
   "welcome": {
     "title": "Chào mừng đến với Donut Browser",
@@ -3059,7 +3059,8 @@
       "commercialTitle": "Sử dụng thương mại",
       "trialBadge": "2 tuần miễn phí",
       "commercialDesc": "Miễn phí dùng thử 2 tuần. Sau đó, gói trả phí giúp dự án được duy trì và phát triển."
-    }
+    },
+    "progress": "Tiến độ thiết lập"
   },
   "wayfernBlocked": {
     "title": "Tự động hóa trình duyệt đã tạm dừng",
@@ -4125,16 +4126,17 @@
     "progress": "Đã đọc {{read}}/{{total}}",
     "unread": "Chưa đọc",
     "nextShort": "Tiếp",
-    "inline": {
-      "label": "Mẹo tính năng",
+    "coach": {
       "eyebrow": "Mẹo",
       "more": "Thêm tùy chọn cho mẹo",
       "allTips": "Tất cả mẹo",
       "turnOff": "Không hiện mẹo",
-      "dismiss": "Ẩn mẹo",
       "offTitle": "Đã tắt mẹo",
-      "offBody": "Bật lại trong Mẹo ({{shortcut}})."
-    }
+      "offBody": "Bật lại trong Mẹo ({{shortcut}}).",
+      "gotIt": "Đã hiểu",
+      "announce": "Mẹo: {{title}}"
+    },
+    "showMe": "Chỉ cho tôi"
   },
   "paidWelcome": {
     "title": "Chào mừng đến với {{plan}}",

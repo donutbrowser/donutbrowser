@@ -2997,15 +2997,15 @@
     },
     "buttons": {
       "skip": "Überspringen",
-      "back": "Zurück",
-      "next": "Weiter",
       "finish": "Fertig"
     },
     "thankYou": {
       "title": "Danke, dass Sie sich für Donut Browser entschieden haben",
       "body": "Wir hoffen, dass Ihr Surfen damit privater wird: Jede Identität bleibt für sich, und nichts verlässt Ihren Rechner. Viel Spaß.",
       "cta": "Lossurfen"
-    }
+    },
+    "stepOf": "Schritt {{current}} von {{total}}",
+    "progress": "Fortschritt der Tour"
   },
   "welcome": {
     "title": "Willkommen bei Donut Browser",
@@ -3059,7 +3059,8 @@
       "commercialTitle": "Kommerzielle Nutzung",
       "trialBadge": "2 Wochen kostenlos",
       "commercialDesc": "Zwei Wochen kostenlos zum Testen. Danach sorgt ein kostenpflichtiger Tarif dafür, dass das Projekt gepflegt wird und weiter wächst."
-    }
+    },
+    "progress": "Fortschritt der Einrichtung"
   },
   "wayfernBlocked": {
     "title": "Browser-Automatisierung pausiert",
@@ -4125,16 +4126,17 @@
     "progress": "{{read}} von {{total}} gelesen",
     "unread": "Noch nicht gelesen",
     "nextShort": "Weiter",
-    "inline": {
-      "label": "Funktionstipp",
+    "coach": {
       "eyebrow": "Tipp",
       "more": "Weitere Optionen zum Tipp",
       "allTips": "Alle Tipps",
       "turnOff": "Keine Tipps anzeigen",
-      "dismiss": "Tipp ausblenden",
       "offTitle": "Tipps sind aus",
-      "offBody": "Unter Tipps ({{shortcut}}) schalten Sie sie wieder ein."
-    }
+      "offBody": "Unter Tipps ({{shortcut}}) schalten Sie sie wieder ein.",
+      "gotIt": "Verstanden",
+      "announce": "Tipp: {{title}}"
+    },
+    "showMe": "Zeig es mir"
   },
   "paidWelcome": {
     "title": "Willkommen bei {{plan}}",

@@ -4,7 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrent } from "@tauri-apps/plugin-deep-link";
 import { useReducedMotion } from "motion/react";
-import { useOnborda } from "onborda";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AboutDialog } from "@/components/about-dialog";
@@ -28,7 +27,7 @@ import { GroupManagementDialog } from "@/components/group-management-dialog";
 import HomeHeader from "@/components/home-header";
 import { ImportProfileDialog } from "@/components/import-profile-dialog";
 import { IntegrationsDialog } from "@/components/integrations-dialog";
-import { ONBOARDING_TOUR } from "@/components/onboarding-provider";
+import { OnboardingTour, type TourStep } from "@/components/onboarding-tour";
 import { PaidWelcomeDialog } from "@/components/paid-welcome-dialog";
 import { PermissionDialog } from "@/components/permission-dialog";
 import {
@@ -56,7 +55,7 @@ import { SyncFollowerDialog } from "@/components/sync-follower-dialog";
 import { SynchronizerPanel } from "@/components/synchronizer-panel";
 import { TableFilterControls } from "@/components/table-controls";
 import { ThankYouDialog } from "@/components/thank-you-dialog";
-import { InlineTip } from "@/components/tips/inline-tip";
+import { TipCoachMark } from "@/components/tips/tip-coach-mark";
 import { TipsDialog } from "@/components/tips-dialog";
 import { TotpToolDialog } from "@/components/totp-code";
 import { TrashPage } from "@/components/trash-page";
@@ -91,11 +90,7 @@ import {
   getEntitlements,
   isTeamLauncher,
 } from "@/lib/entitlements";
-import {
-  ONBOARDING_TOUR_CLOSED_EVENT,
-  ONBOARDING_TOUR_FINISHED_EVENT,
-  setOnboardingActive,
-} from "@/lib/onboarding-signal";
+import { setOnboardingActive } from "@/lib/onboarding-signal";
 import { type ProfileSearchContext } from "@/lib/profile-search";
 import {
   matchesGroupDigit,
@@ -175,9 +170,11 @@ export default function Home() {
     loadProfiles,
   } = useProfileEvents();
 
-  // First-run onboarding tour (Onborda).
-  const { startOnborda, setCurrentStep, isOnbordaVisible, currentStep } =
-    useOnborda();
+  // First-run product tour: coach marks on the real controls.
+  const [tour, setTour] = useState<{ open: boolean; step: TourStep }>({
+    open: false,
+    step: 0,
+  });
   const onboardingHandledRef = useRef(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [thankYouOpen, setThankYouOpen] = useState(false);
@@ -200,50 +197,29 @@ export default function Home() {
   const handleWelcomeComplete = useCallback(() => {
     setWelcomeOpen(false);
     if (profiles.length === 0) {
-      startOnborda(ONBOARDING_TOUR);
+      setTour({ open: true, step: 0 });
     } else {
       persistOnboardingComplete();
     }
-  }, [persistOnboardingComplete, profiles.length, startOnborda]);
+  }, [persistOnboardingComplete, profiles.length]);
 
-  // Finishing or explicitly skipping the product tour completes the one-shot
-  // onboarding. Only reaching the end triggers the celebration.
-  useEffect(() => {
-    const handleClosed = () => persistOnboardingComplete();
-    const handleFinished = () => setThankYouOpen(true);
-    window.addEventListener(ONBOARDING_TOUR_CLOSED_EVENT, handleClosed);
-    window.addEventListener(ONBOARDING_TOUR_FINISHED_EVENT, handleFinished);
-    return () => {
-      window.removeEventListener(ONBOARDING_TOUR_CLOSED_EVENT, handleClosed);
-      window.removeEventListener(
-        ONBOARDING_TOUR_FINISHED_EVENT,
-        handleFinished,
-      );
-    };
+  // Finishing or skipping the product tour completes the one-shot
+  // onboarding. Only reaching the end earns the celebration.
+  const skipTour = useCallback(() => {
+    setTour((current) => ({ ...current, open: false }));
+    persistOnboardingComplete();
+  }, [persistOnboardingComplete]);
+  const finishTour = useCallback(() => {
+    setTour((current) => ({ ...current, open: false }));
+    persistOnboardingComplete();
+    setThankYouOpen(true);
   }, [persistOnboardingComplete]);
 
   // Suppress the global browser-download toasts while onboarding (welcome or
   // tour) is active — the welcome dialog shows setup progress itself.
   useEffect(() => {
-    setOnboardingActive(welcomeOpen || isOnbordaVisible);
-  }, [welcomeOpen, isOnbordaVisible]);
-
-  // While the tour is visible, keep the body pinned to the left. Onborda calls
-  // scrollIntoView({ inline: "center" }) on the highlighted element; because the
-  // body is overflow-hidden it can still be scrolled programmatically, which
-  // would shove the whole app (rail and all) sideways with no way to scroll
-  // back. The profile table keeps its own scroll container, untouched here.
-  useEffect(() => {
-    if (!isOnbordaVisible) return;
-    const pin = () => {
-      if (document.body.scrollLeft !== 0) document.body.scrollLeft = 0;
-      if (document.documentElement.scrollLeft !== 0)
-        document.documentElement.scrollLeft = 0;
-    };
-    pin();
-    window.addEventListener("scroll", pin, true);
-    return () => window.removeEventListener("scroll", pin, true);
-  }, [isOnbordaVisible]);
+    setOnboardingActive(welcomeOpen || tour.open);
+  }, [welcomeOpen, tour.open]);
 
   // On the very first launch, always show the welcome + commercial-use steps.
   // The completion flag is only persisted after the user finishes or skips the
@@ -269,18 +245,14 @@ export default function Home() {
     })();
   }, [profilesLoading]);
 
-  // Advance from the "create a profile" step to the "DNS blocking" step as soon
-  // as the user's first profile exists (its DNS dropdown is now in the DOM).
+  // The "create a profile" step moves on to "DNS blocking" as soon as the
+  // first profile exists. The coach mark finds the new row's DNS control by
+  // itself once the row renders.
   useEffect(() => {
-    if (isOnbordaVisible && currentStep === 0 && profiles.length > 0) {
-      // Small delay so the new profile row (and its DNS dropdown target) has
-      // mounted before Onborda re-points at it. Owning the timeout here lets
-      // cleanup cancel it if the tour closes, instead of reopening a dismissed
-      // tour when Onborda's delayed setter eventually fires.
-      const timeout = window.setTimeout(() => setCurrentStep(1), 300);
-      return () => window.clearTimeout(timeout);
+    if (tour.open && tour.step === 0 && profiles.length > 0) {
+      setTour({ open: true, step: 1 });
     }
-  }, [isOnbordaVisible, currentStep, profiles.length, setCurrentStep]);
+  }, [tour.open, tour.step, profiles.length]);
 
   const {
     groups: groupsData,
@@ -436,7 +408,7 @@ export default function Home() {
     !profilesLoading &&
     !welcomeOpen &&
     !thankYouOpen &&
-    !isOnbordaVisible &&
+    !tour.open &&
     !termsLoading &&
     termsAccepted === true &&
     !commercialTrialModalOpen;
@@ -2514,7 +2486,7 @@ export default function Home() {
                     handleRailNavigate("import");
                   }}
                 />
-                <InlineTip
+                <TipCoachMark
                   flow={tipsFlow}
                   page={currentPage}
                   onAction={runTipAction}
@@ -2776,6 +2748,12 @@ export default function Home() {
           needsSetup={profiles.length === 0}
           onComplete={handleWelcomeComplete}
         />
+        <OnboardingTour
+          open={tour.open}
+          step={tour.step}
+          onSkip={skipTour}
+          onFinish={finishTour}
+        />
         <ThankYouDialog
           isOpen={thankYouOpen}
           onClose={() => setThankYouOpen(false)}
@@ -2793,6 +2771,10 @@ export default function Home() {
           onTipShown={tipsFlow.markSeen}
           onAutoShowChange={(enabled) => void tipsFlow.setAutoShow(enabled)}
           onAction={runTipAction}
+          onShowMe={(id) => {
+            handleRailNavigate("profiles");
+            tipsFlow.showOnPage(id);
+          }}
         />
         <PaidWelcomeDialog
           open={tipsFlow.paidWelcome.open}

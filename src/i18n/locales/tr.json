@@ -2997,15 +2997,15 @@
     },
     "buttons": {
       "skip": "Atla",
-      "back": "Geri",
-      "next": "İleri",
       "finish": "Bitir"
     },
     "thankYou": {
       "title": "Donut Browser'ı seçtiğiniz için teşekkürler",
       "body": "Umarız gezinmenizi daha gizli hale getirmenize yardımcı olur — her kimlik kendine ait kalır ve hiçbir şey makinenizden dışarı çıkmaz. İyi kullanımlar.",
       "cta": "Gezinmeye başla"
-    }
+    },
+    "stepOf": "Adım {{current}}/{{total}}",
+    "progress": "Tur ilerlemesi"
   },
   "welcome": {
     "title": "Donut Browser'a Hoş Geldiniz",
@@ -3059,7 +3059,8 @@
       "commercialTitle": "Ticari kullanım",
       "trialBadge": "2 hafta ücretsiz",
       "commercialDesc": "2 haftalık değerlendirme için ücretsiz. Sonrasında ücretli bir plan, projenin bakımını ve gelişimini sürdürmesini sağlar."
-    }
+    },
+    "progress": "Kurulum ilerlemesi"
   },
   "wayfernBlocked": {
     "title": "Tarayıcı otomasyonu duraklatıldı",
@@ -4125,16 +4126,17 @@
     "progress": "{{total}} ipucundan {{read}} tanesi okundu",
     "unread": "Henüz okunmadı",
     "nextShort": "İleri",
-    "inline": {
-      "label": "Özellik ipucu",
+    "coach": {
       "eyebrow": "İpucu",
       "more": "Diğer ipucu seçenekleri",
       "allTips": "Tüm ipuçları",
       "turnOff": "İpuçlarını gösterme",
-      "dismiss": "İpucunu kapat",
       "offTitle": "İpuçları kapalı",
-      "offBody": "İpuçları bölümünden ({{shortcut}}) yeniden açabilirsiniz."
-    }
+      "offBody": "İpuçları bölümünden ({{shortcut}}) yeniden açabilirsiniz.",
+      "gotIt": "Anladım",
+      "announce": "İpucu: {{title}}"
+    },
+    "showMe": "Göster"
   },
   "paidWelcome": {
     "title": "{{plan}} planına hoş geldiniz",

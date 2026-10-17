@@ -3016,15 +3016,15 @@
     },
     "buttons": {
       "skip": "Omitir",
-      "back": "Atrás",
-      "next": "Siguiente",
       "finish": "Finalizar"
     },
     "thankYou": {
       "title": "Gracias por elegir Donut Browser",
       "body": "Ojalá ayude a hacer tu navegación más privada: cada identidad por separado y sin que nada salga de tu equipo. ¡Que lo disfrutes!",
       "cta": "Empezar a navegar"
-    }
+    },
+    "stepOf": "Paso {{current}} de {{total}}",
+    "progress": "Progreso del recorrido"
   },
   "welcome": {
     "title": "Te damos la bienvenida a Donut Browser",
@@ -3078,7 +3078,8 @@
       "commercialTitle": "Uso comercial",
       "trialBadge": "2 semanas gratis",
       "commercialDesc": "Gratis durante una evaluación de 2 semanas. Después, un plan de pago mantiene el proyecto en buen estado y próspero."
-    }
+    },
+    "progress": "Progreso de la configuración"
   },
   "wayfernBlocked": {
     "title": "Automatización del navegador en pausa",
@@ -4168,16 +4169,17 @@
     "progress": "{{read}} de {{total}} leídos",
     "unread": "Sin leer",
     "nextShort": "Siguiente",
-    "inline": {
-      "label": "Consejo de función",
+    "coach": {
       "eyebrow": "Consejo",
       "more": "Más opciones del consejo",
       "allTips": "Todos los consejos",
       "turnOff": "No mostrar consejos",
-      "dismiss": "Descartar consejo",
       "offTitle": "Consejos desactivados",
-      "offBody": "Vuelve a activarlos en Consejos ({{shortcut}})."
-    }
+      "offBody": "Vuelve a activarlos en Consejos ({{shortcut}}).",
+      "gotIt": "Entendido",
+      "announce": "Consejo: {{title}}"
+    },
+    "showMe": "Muéstramelo"
   },
   "paidWelcome": {
     "title": "Te damos la bienvenida a {{plan}}",

@@ -21,6 +21,7 @@ import {
   LuUsers,
 } from "react-icons/lu";
 import { useInputModality } from "@/hooks/use-input-modality";
+import { type CoachAnchorId, tipAnchor } from "@/lib/coach-mark";
 import { launchDonutClone } from "@/lib/donut-physics";
 import { MOTION_SPRING_POSITION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -253,17 +254,54 @@ interface RailItem {
   page: AppPage;
   Icon: React.ComponentType<{ className?: string }>;
   labelKey: string;
+  /** Where a feature tip points when its feature lives on this page. */
+  anchor: CoachAnchorId;
 }
 
 const TOP_ITEMS: RailItem[] = [
-  { page: "profiles", Icon: LuUser, labelKey: "rail.profiles" },
-  { page: "proxies", Icon: FiWifi, labelKey: "rail.network" },
-  { page: "extensions", Icon: LuPuzzle, labelKey: "rail.extensions" },
-  { page: "groups", Icon: LuUsers, labelKey: "rail.groups" },
-  { page: "cookieBot", Icon: LuCookie, labelKey: "rail.cookieBot" },
-  { page: "agent", Icon: LuBot, labelKey: "rail.agent" },
-  { page: "integrations", Icon: LuPlug, labelKey: "rail.integrations" },
-  { page: "account", Icon: LuCloud, labelKey: "rail.account" },
+  {
+    page: "profiles",
+    Icon: LuUser,
+    labelKey: "rail.profiles",
+    anchor: "rail-profiles",
+  },
+  {
+    page: "proxies",
+    Icon: FiWifi,
+    labelKey: "rail.network",
+    anchor: "rail-proxies",
+  },
+  {
+    page: "extensions",
+    Icon: LuPuzzle,
+    labelKey: "rail.extensions",
+    anchor: "rail-extensions",
+  },
+  {
+    page: "groups",
+    Icon: LuUsers,
+    labelKey: "rail.groups",
+    anchor: "rail-groups",
+  },
+  {
+    page: "cookieBot",
+    Icon: LuCookie,
+    labelKey: "rail.cookieBot",
+    anchor: "rail-cookieBot",
+  },
+  { page: "agent", Icon: LuBot, labelKey: "rail.agent", anchor: "rail-agent" },
+  {
+    page: "integrations",
+    Icon: LuPlug,
+    labelKey: "rail.integrations",
+    anchor: "rail-integrations",
+  },
+  {
+    page: "account",
+    Icon: LuCloud,
+    labelKey: "rail.account",
+    anchor: "rail-account",
+  },
 ];
 
 interface MoreMenuItem {
@@ -381,7 +419,7 @@ export function RailNav({
       <div className="my-1 h-px w-5 shrink-0 bg-border" />
 
       <div className="flex min-h-0 w-full scrollbar-none flex-col items-center gap-1 overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        {TOP_ITEMS.map(({ page, Icon, labelKey }) => {
+        {TOP_ITEMS.map(({ page, Icon, labelKey, anchor }) => {
           const active = currentPage === page;
           const waiting = page === "agent" ? agentRequests : 0;
           const label =
@@ -395,6 +433,7 @@ export function RailNav({
               <TooltipTrigger asChild>
                 <button
                   type="button"
+                  {...tipAnchor(anchor, "right")}
                   onClick={() => {
                     onNavigate(page);
                   }}
@@ -438,6 +477,7 @@ export function RailNav({
         <TooltipTrigger asChild>
           <button
             type="button"
+            {...tipAnchor("rail-more", "right")}
             onClick={() => {
               setMoreOpen((v) => !v);
             }}
@@ -460,6 +500,7 @@ export function RailNav({
         <TooltipTrigger asChild>
           <button
             type="button"
+            {...tipAnchor("rail-settings", "right")}
             onClick={() => {
               onNavigate("settings");
             }}

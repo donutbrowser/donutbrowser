@@ -2997,15 +2997,15 @@
     },
     "buttons": {
       "skip": "Skip",
-      "back": "Back",
-      "next": "Next",
       "finish": "Finish"
     },
     "thankYou": {
       "title": "Thank you for choosing Donut Browser",
       "body": "Hopefully it helps make your browsing more private — every identity kept its own, and nothing leaving your machine. Enjoy.",
       "cta": "Start browsing"
-    }
+    },
+    "stepOf": "Step {{current}} of {{total}}",
+    "progress": "Tour progress"
   },
   "welcome": {
     "title": "Welcome to Donut Browser",
@@ -3059,7 +3059,8 @@
       "commercialTitle": "Commercial use",
       "trialBadge": "2 weeks free",
       "commercialDesc": "Free for a 2-week evaluation. After that, a paid plan keeps the project maintained and thriving."
-    }
+    },
+    "progress": "Setup progress"
   },
   "wayfernBlocked": {
     "title": "Browser automation paused",
@@ -4125,16 +4126,17 @@
     "progress": "{{read}} of {{total}} read",
     "unread": "Not read yet",
     "nextShort": "Next",
-    "inline": {
-      "label": "Feature tip",
+    "coach": {
       "eyebrow": "Tip",
       "more": "More tip options",
       "allTips": "All tips",
       "turnOff": "Don't show tips",
-      "dismiss": "Dismiss tip",
       "offTitle": "Tips are off",
-      "offBody": "Turn them on again in Tips ({{shortcut}})."
-    }
+      "offBody": "Turn them on again in Tips ({{shortcut}}).",
+      "gotIt": "Got it",
+      "announce": "Tip: {{title}}"
+    },
+    "showMe": "Show me"
   },
   "paidWelcome": {
     "title": "Welcome to {{plan}}",

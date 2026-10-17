@@ -3016,15 +3016,15 @@
     },
     "buttons": {
       "skip": "Pular",
-      "back": "Voltar",
-      "next": "Próximo",
       "finish": "Concluir"
     },
     "thankYou": {
       "title": "Obrigado por escolher o Donut Browser",
       "body": "Com sorte, deixará sua navegação mais privada: cada identidade separada e nada saindo do seu dispositivo. Boa navegação!",
       "cta": "Começar a navegar"
-    }
+    },
+    "stepOf": "Passo {{current}} de {{total}}",
+    "progress": "Progresso do tour"
   },
   "welcome": {
     "title": "Boas-vindas ao Donut Browser",
@@ -3078,7 +3078,8 @@
       "commercialTitle": "Uso comercial",
       "trialBadge": "2 semanas grátis",
       "commercialDesc": "Gratuito durante uma avaliação de 2 semanas. Depois, um plano pago mantém o projeto ativo e próspero."
-    }
+    },
+    "progress": "Progresso da configuração"
   },
   "wayfernBlocked": {
     "title": "Automação do navegador pausada",
@@ -4168,16 +4169,17 @@
     "progress": "{{read}} de {{total}} lidas",
     "unread": "Ainda não lida",
     "nextShort": "Próxima",
-    "inline": {
-      "label": "Dica de recurso",
+    "coach": {
       "eyebrow": "Dica",
       "more": "Mais opções da dica",
       "allTips": "Todas as dicas",
       "turnOff": "Não mostrar dicas",
-      "dismiss": "Dispensar dica",
       "offTitle": "Dicas desativadas",
-      "offBody": "Ative-as de novo em Dicas ({{shortcut}})."
-    }
+      "offBody": "Ative-as de novo em Dicas ({{shortcut}}).",
+      "gotIt": "Entendi",
+      "announce": "Dica: {{title}}"
+    },
+    "showMe": "Mostrar onde"
   },
   "paidWelcome": {
     "title": "Bem-vindo ao {{plan}}",

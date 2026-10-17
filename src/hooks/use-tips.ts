@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppPage } from "@/components/rail-nav";
 import { getAgentConsole } from "@/lib/agent-console";
+import { COACH_MARK_EXIT_MS } from "@/lib/coach-mark";
 import {
   effectivePlanOf,
   getEntitlements,
@@ -77,8 +78,6 @@ const PROXY_HISTORY_BATCH = 16;
 const INLINE_TIP_RECHECK_MS = 15 * 60 * 1000;
 /** Backend facts behind the tip on the page are read again at most this often. */
 const FACTS_REFRESH_MS = 60 * 1000;
-/** The inline tip's exit; it is removed after this even if no frame ran. */
-export const INLINE_TIP_EXIT_MS = 220;
 
 /**
  * The answer of one usage read, or undefined when it fails or is too slow.
@@ -234,6 +233,17 @@ interface InlineState {
   leaving: boolean;
 }
 
+/** The tip a coach mark points out on the Profiles page right now. */
+export interface PageTip {
+  tip: TipDefinition;
+  leaving: boolean;
+  /**
+   * Asked for from the catalog ("Show me"). It is read already, so closing it
+   * records nothing and does not count as the day's tip.
+   */
+  preview: boolean;
+}
+
 interface UseTipsOptions {
   cloudUser: CloudUser | null;
   /** The account is still loading, so the plan's tips are not known yet. */
@@ -251,9 +261,9 @@ interface UseTipsOptions {
 
 /**
  * The tips flow: which tips this install may see, what has been seen, the
- * one tip a day that sits on the Profiles page, and the welcome for an
- * account that just turned paid. State lives in the app settings; this hook
- * only decides.
+ * one tip a day that a coach mark points out on the Profiles page, and the
+ * welcome for an account that just turned paid. State lives in the app
+ * settings; this hook only decides.
  */
 export function useTips({
   cloudUser,
@@ -271,6 +281,7 @@ export function useTips({
   });
   const [paidWelcome, setPaidWelcome] = useState<PaidWelcomeState | null>(null);
   const [inline, setInline] = useState<InlineState | null>(null);
+  const [preview, setPreview] = useState<InlineState | null>(null);
   const [clock, setClock] = useState(() => Date.now());
 
   const entitlements = useMemo(() => getEntitlements(cloudUser), [cloudUser]);
@@ -422,7 +433,8 @@ export function useTips({
 
   useEffect(() => {
     if (!inline?.leaving) return;
-    const timer = window.setTimeout(() => setInline(null), INLINE_TIP_EXIT_MS);
+    // Removed after the coach mark's exit, even if no frame ran.
+    const timer = window.setTimeout(() => setInline(null), COACH_MARK_EXIT_MS);
     return () => window.clearTimeout(timer);
   }, [inline?.leaving]);
 
@@ -442,7 +454,7 @@ export function useTips({
   useEffect(() => {
     if (!ready || accountLoading || !usage.loaded) return;
     if (!state?.auto_show || inline) return;
-    if (!onProfiles || dialog.open || welcomeBusy) return;
+    if (!onProfiles || dialog.open || welcomeBusy || preview) return;
     if (!pinned && !due) return;
     if (!pinned && attemptedAtRef.current === clock) return;
     let cancelled = false;
@@ -533,6 +545,7 @@ export function useTips({
     onProfiles,
     dialog.open,
     welcomeBusy,
+    preview,
     pinned,
     due,
     clock,
@@ -545,7 +558,7 @@ export function useTips({
     ? (tips.find((tip) => tip.id === inline.id) ?? null)
     : null;
 
-  // The card leaves on its own once its tip is done with: read in the
+  // The coach mark leaves on its own once its tip is done with: read in the
   // catalog, tips switched off, or the feature put to use.
   useEffect(() => {
     if (!inline || inline.leaving || !state) return;
@@ -574,7 +587,7 @@ export function useTips({
   ]);
 
   // Facts read from the backend (a proxy check, the API switch, the trash)
-  // can change while the card is up. They are read again when the person
+  // can change while the coach mark is up. They are read again when the person
   // comes back to the Profiles page or to the window, at most once a minute.
   const [returnedAt, setReturnedAt] = useState(0);
   useEffect(() => {
@@ -611,6 +624,42 @@ export function useTips({
     void resolveInline(current.id);
   }, [leaveInline, resolveInline]);
 
+  // "Show me" from the catalog: the catalog closes and a coach mark points at
+  // the feature. The day's tip, if one is up, waits behind it.
+  const showOnPage = useCallback((id: TipId) => {
+    setDialog((previous) =>
+      previous.open ? { ...previous, open: false } : previous,
+    );
+    setPreview({ id, leaving: false });
+  }, []);
+
+  useEffect(() => {
+    if (!preview?.leaving) return;
+    const timer = window.setTimeout(() => setPreview(null), COACH_MARK_EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [preview?.leaving]);
+
+  const previewTip = preview
+    ? (tips.find((tip) => tip.id === preview.id) ?? null)
+    : null;
+  const pageTip: PageTip | null = previewTip
+    ? { tip: previewTip, leaving: preview?.leaving ?? false, preview: true }
+    : inlineTip
+      ? { tip: inlineTip, leaving: inline?.leaving ?? false, preview: false }
+      : null;
+
+  const dismissPageTip = useCallback(() => {
+    if (preview) {
+      setPreview((previous) =>
+        previous && !previous.leaving
+          ? { ...previous, leaving: true }
+          : previous,
+      );
+      return;
+    }
+    dismissInlineTip();
+  }, [preview, dismissInlineTip]);
+
   const markSeen = useCallback(async (id: TipId) => {
     try {
       setState(await invoke<TipsState>("mark_tip_seen", { tipId: id }));
@@ -645,10 +694,9 @@ export function useTips({
     closeTips,
     markSeen,
     setAutoShow,
-    inlineTip: inlineTip
-      ? { tip: inlineTip, leaving: inline?.leaving ?? false }
-      : null,
-    dismissInlineTip,
+    pageTip,
+    dismissPageTip,
+    showOnPage,
     paidWelcome: {
       open: paidWelcome?.status === "open",
       plan: paidWelcome?.plan ?? "",

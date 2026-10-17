@@ -1,4 +1,5 @@
 import type { AppPage } from "@/components/rail-nav";
+import type { CoachAnchorId } from "@/lib/coach-mark";
 import type { BrowserProfile, Entitlements } from "@/types";
 
 /**
@@ -139,6 +140,12 @@ export interface TipDefinition {
   id: TipId;
   section: TipSection;
   action: TipAction;
+  /**
+   * Where the day's tip points on the Profiles page, best first: the feature
+   * itself when it is on the page (a column, the search box), then the rail
+   * item that leads to it. The last one is always on screen.
+   */
+  anchors: readonly CoachAnchorId[];
   requires?: TipRequirement;
   /**
    * The feature changes team data, which a launcher seat may not do, so the
@@ -146,7 +153,7 @@ export interface TipDefinition {
    */
   editsTeamData?: true;
   /**
-   * True when the user already uses the feature, so the inline tip skips it.
+   * True when the user already uses the feature, so the day's tip skips it.
    * Every tip has one; a fact the app cannot read counts as "not in use".
    */
   inUse: (usage: FeatureUsage) => boolean;
@@ -173,8 +180,8 @@ function noted(feature: NotedFeature) {
 /**
  * Every tip, in the order the catalog lists them: grouped by section, and
  * the plan tips last, each one skipped for a plan that lacks the capability.
- * The inline tip does not follow this order: it picks at random (see
- * `pickInlineTip`).
+ * The day's tip on the Profiles page does not follow this order: it picks at
+ * random (see `pickInlineTip`).
  *
  * The copy lives under `tips.items.<id>` in every locale: `label`, `title`,
  * `body` and `action`. `src/lib/tips.test.mjs` checks that no tip is missing its text.
@@ -184,18 +191,21 @@ export const TIPS: readonly TipDefinition[] = [
     id: "commandPalette",
     section: "everyday",
     action: { kind: "palette" },
+    anchors: ["profile-search"],
     inUse: noted("commandPalette"),
   },
   {
     id: "searchSyntax",
     section: "everyday",
     action: { kind: "search", query: "proxy:none" },
+    anchors: ["profile-search"],
     inUse: noted("searchSyntax"),
   },
   {
     id: "shortcuts",
     section: "everyday",
     action: { kind: "page", page: "shortcuts" },
+    anchors: ["rail-more"],
     inUse: noted("shortcuts"),
   },
   {
@@ -203,6 +213,7 @@ export const TIPS: readonly TipDefinition[] = [
     section: "everyday",
     editsTeamData: true,
     action: { kind: "page", page: "groups" },
+    anchors: ["group-strip", "rail-groups"],
     inUse: (usage) =>
       usage.groupCount > 0 ||
       anyProfile(usage, (profile) => !!profile.group_id),
@@ -212,6 +223,7 @@ export const TIPS: readonly TipDefinition[] = [
     section: "everyday",
     editsTeamData: true,
     action: { kind: "page", page: "profiles" },
+    anchors: ["column-state", "row-inspect", "rail-profiles"],
     inUse: (usage) => anyProfile(usage, (profile) => !!profile.status_id),
   },
   {
@@ -219,6 +231,7 @@ export const TIPS: readonly TipDefinition[] = [
     section: "everyday",
     editsTeamData: true,
     action: { kind: "createProfile" },
+    anchors: ["new-profile", "row-inspect", "rail-profiles"],
     inUse: (usage) => usage.templatesSaved === true,
   },
   {
@@ -226,6 +239,7 @@ export const TIPS: readonly TipDefinition[] = [
     section: "everyday",
     editsTeamData: true,
     action: { kind: "page", page: "extensions" },
+    anchors: ["column-ext", "rail-extensions"],
     inUse: (usage) =>
       usage.extensionGroupCount > 0 ||
       anyProfile(usage, (profile) => !!profile.extension_group_id),
@@ -235,12 +249,14 @@ export const TIPS: readonly TipDefinition[] = [
     section: "everyday",
     editsTeamData: true,
     action: { kind: "page", page: "import" },
+    anchors: ["rail-more"],
     inUse: noted("importProfiles"),
   },
   {
     id: "proxyCheck",
     section: "network",
     action: { kind: "page", page: "proxies" },
+    anchors: ["column-proxy", "rail-proxies"],
     inUse: (usage) => usage.proxyChecked === true,
   },
   {
@@ -248,6 +264,7 @@ export const TIPS: readonly TipDefinition[] = [
     section: "network",
     editsTeamData: true,
     action: { kind: "page", page: "vpns" },
+    anchors: ["rail-proxies"],
     inUse: (usage) =>
       usage.vpnCount > 0 || anyProfile(usage, (profile) => !!profile.vpn_id),
   },
@@ -256,18 +273,21 @@ export const TIPS: readonly TipDefinition[] = [
     section: "network",
     editsTeamData: true,
     action: { kind: "settings", section: "dns" },
+    anchors: ["column-dns", "rail-settings"],
     inUse: (usage) => anyProfile(usage, (profile) => !!profile.dns_blocklist),
   },
   {
     id: "fingerprintGate",
     section: "network",
     action: { kind: "settings", section: "advanced" },
+    anchors: ["rail-settings"],
     inUse: (usage) => usage.fingerprintGateChanged === true,
   },
   {
     id: "requireRoute",
     section: "network",
     action: { kind: "settings", section: "privacy" },
+    anchors: ["rail-settings"],
     inUse: (usage) => usage.routeRequired === true,
   },
   {
@@ -275,6 +295,7 @@ export const TIPS: readonly TipDefinition[] = [
     section: "privacy",
     editsTeamData: true,
     action: { kind: "page", page: "profiles" },
+    anchors: ["row-inspect", "rail-profiles"],
     inUse: (usage) =>
       anyProfile(usage, (profile) => profile.password_protected === true),
   },
@@ -283,6 +304,7 @@ export const TIPS: readonly TipDefinition[] = [
     section: "privacy",
     editsTeamData: true,
     action: { kind: "page", page: "profiles" },
+    anchors: ["row-inspect", "rail-profiles"],
     inUse: (usage) =>
       anyProfile(usage, (profile) => profile.clear_on_close === true),
   },
@@ -291,6 +313,7 @@ export const TIPS: readonly TipDefinition[] = [
     section: "privacy",
     editsTeamData: true,
     action: { kind: "totp" },
+    anchors: ["row-inspect", "rail-profiles"],
     inUse: noted("totp"),
   },
   {
@@ -298,36 +321,42 @@ export const TIPS: readonly TipDefinition[] = [
     section: "privacy",
     editsTeamData: true,
     action: { kind: "page", page: "trash" },
+    anchors: ["rail-more"],
     inUse: (usage) => usage.trashUsed === true,
   },
   {
     id: "selfHostedSync",
     section: "privacy",
     action: { kind: "page", page: "account" },
+    anchors: ["rail-account"],
     inUse: (usage) => usage.syncServerConfigured || syncsProfiles(usage),
   },
   {
     id: "defaultBrowser",
     section: "connect",
     action: { kind: "settings", section: "default" },
+    anchors: ["rail-settings"],
     inUse: (usage) => usage.isDefaultBrowser === true,
   },
   {
     id: "localApi",
     section: "connect",
     action: { kind: "page", page: "integrations" },
+    anchors: ["rail-integrations"],
     inUse: (usage) => usage.apiEnabled === true,
   },
   {
     id: "feedback",
     section: "connect",
     action: { kind: "feedback" },
+    anchors: ["rail-more"],
     inUse: (usage) => usage.feedbackSent === true,
   },
   {
     id: "cloudBackup",
     section: "plan",
     action: { kind: "page", page: "account" },
+    anchors: ["rail-account"],
     requires: "cloudBackup",
     inUse: syncsProfiles,
   },
@@ -335,6 +364,7 @@ export const TIPS: readonly TipDefinition[] = [
     id: "cookieBot",
     section: "plan",
     action: { kind: "page", page: "cookieBot" },
+    anchors: ["rail-cookieBot"],
     requires: "cookieBot",
     inUse: (usage) => usage.cookieBotEnrolled,
   },
@@ -343,6 +373,7 @@ export const TIPS: readonly TipDefinition[] = [
     section: "plan",
     editsTeamData: true,
     action: { kind: "page", page: "profiles" },
+    anchors: ["row-inspect", "new-profile", "rail-profiles"],
     requires: "crossOsFingerprints",
     inUse: (usage) =>
       anyProfile(usage, (profile) => {
@@ -355,6 +386,7 @@ export const TIPS: readonly TipDefinition[] = [
     id: "synchronizer",
     section: "plan",
     action: { kind: "page", page: "profiles" },
+    anchors: ["row-inspect", "rail-profiles"],
     requires: "crossOsFingerprints",
     inUse: noted("synchronizer"),
   },
@@ -362,6 +394,7 @@ export const TIPS: readonly TipDefinition[] = [
     id: "automation",
     section: "plan",
     action: { kind: "page", page: "integrations" },
+    anchors: ["rail-integrations"],
     requires: "browserAutomation",
     inUse: (usage) => usage.apiEnabled === true,
   },
@@ -369,6 +402,7 @@ export const TIPS: readonly TipDefinition[] = [
     id: "agent",
     section: "plan",
     action: { kind: "page", page: "agent" },
+    anchors: ["rail-agent"],
     requires: "remoteControl",
     inUse: (usage) => usage.agentUsed === true,
   },
@@ -376,6 +410,7 @@ export const TIPS: readonly TipDefinition[] = [
     id: "team",
     section: "plan",
     action: { kind: "page", page: "account" },
+    anchors: ["rail-account"],
     requires: "teamCollaboration",
     inUse: (usage) => usage.inTeam,
   },
@@ -383,12 +418,13 @@ export const TIPS: readonly TipDefinition[] = [
     id: "remoteControl",
     section: "plan",
     action: { kind: "page", page: "integrations" },
+    anchors: ["rail-integrations"],
     requires: "remoteControl",
     inUse: (usage) => usage.remoteControlEnabled === true,
   },
 ];
 
-/** How long the profiles page has to sit quiet before the inline tip enters. */
+/** How long the Profiles page has to sit quiet before the day's tip enters. */
 export const INLINE_TIP_DELAY_MS = 4000;
 
 /**
@@ -467,7 +503,7 @@ export function pickInlineTip(
 
 /**
  * Whether the action would only lead to `page`, where the person already is.
- * The inline tip on that page then shows no action button: the copy says
+ * The coach mark on that page then shows no action button: it points at
  * where the feature is.
  */
 export function actionStaysOn(action: TipAction, page: AppPage): boolean {

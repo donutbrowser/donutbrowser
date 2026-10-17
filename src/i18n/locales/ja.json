@@ -2997,15 +2997,15 @@
     },
     "buttons": {
       "skip": "スキップ",
-      "back": "戻る",
-      "next": "次へ",
       "finish": "完了"
     },
     "thankYou": {
       "title": "Donut Browser を選んでいただきありがとうございます",
       "body": "それぞれのIDを分けて、データを端末の外に出さずに、よりプライベートなブラウジングのお役に立てれば幸いです。どうぞお楽しみください。",
       "cta": "ブラウジングを始める"
-    }
+    },
+    "stepOf": "ステップ {{current}}/{{total}}",
+    "progress": "ツアーの進行状況"
   },
   "welcome": {
     "title": "Donut Browser へようこそ",
@@ -3059,7 +3059,8 @@
       "commercialTitle": "商用利用",
       "trialBadge": "2週間無料",
       "commercialDesc": "2週間の評価期間は無料です。その後は有料プランが必要で、これによりプロジェクトの維持と発展が支えられます。"
-    }
+    },
+    "progress": "セットアップの進行状況"
   },
   "wayfernBlocked": {
     "title": "ブラウザの自動化が一時停止しました",
@@ -4125,16 +4126,17 @@
     "progress": "{{total}} 件中 {{read}} 件既読",
     "unread": "未読",
     "nextShort": "次へ",
-    "inline": {
-      "label": "機能のヒント",
+    "coach": {
       "eyebrow": "ヒント",
       "more": "ヒントのその他のオプション",
       "allTips": "すべてのヒント",
       "turnOff": "ヒントを表示しない",
-      "dismiss": "ヒントを閉じる",
       "offTitle": "ヒントはオフです",
-      "offBody": "ヒント ({{shortcut}}) から再びオンにできます。"
-    }
+      "offBody": "ヒント ({{shortcut}}) から再びオンにできます。",
+      "gotIt": "了解",
+      "announce": "ヒント: {{title}}"
+    },
+    "showMe": "場所を見る"
   },
   "paidWelcome": {
     "title": "{{plan}} へようこそ",

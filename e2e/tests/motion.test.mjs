@@ -223,26 +223,24 @@ test("first-run profile cutaway is interactive, isolated, and readable at both w
     async (app) => {
       await app.waitForText(en.welcome.title);
       await resize(app, 1080, 900);
-      await exerciseIsolation(app);
-      await app.capture("onboarding-isolation-wide");
-      await resize(app, 640, 480);
-      await assertContained(app, '[role="dialog"]');
-      await app.clickSelector(`${slot("welcome-features")} summary`);
-      await app.waitFor(
-        () =>
-          app.execute(
-            `return document.querySelector('[data-slot="welcome-features"]')?.open === true;`,
-          ),
-        {
-          description:
-            "welcome feature disclosure to open from a real pointer click",
-        },
-      );
+      // The intro lists what the app does under its drawing.
       assert.equal(
         await app.visibleTextIncludes(en.welcome.features.items.cookies),
         true,
       );
-      await app.clickSelector(`${slot("welcome-features")} summary`);
+      assert.equal(
+        await app.execute(
+          `return document.querySelector('[data-slot="welcome-scene-panel"] [data-slot="welcome-scene"]')?.dataset.scene;`,
+        ),
+        "intro",
+      );
+      await app.capture("onboarding-intro-wide");
+      await app.clickText(en.welcome.next, { roles: ["button"] });
+      await app.waitForText(en.isolationDemo.title);
+      await exerciseIsolation(app);
+      await app.capture("onboarding-isolation-wide");
+      await resize(app, 640, 480);
+      await assertContained(app, '[role="dialog"]');
       await app.capture("onboarding-isolation-narrow");
       await app.clickText(en.welcome.next, { roles: ["button"] });
       await app.waitForText(en.welcome.license.title);

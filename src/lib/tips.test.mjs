@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { COACH_ANCHORS, isRailAnchor } from "./coach-mark.ts";
 import {
   actionStaysOn,
   inlineTipCandidates,
@@ -316,5 +317,30 @@ test("the pick skips tips in use and gives up when nothing is left", () => {
   assert.equal(
     pickInlineTip(offered, seen, { ...dnsOn, trashUsed: true }),
     null,
+  );
+});
+
+test("every tip points somewhere, and its last anchor is always on the Profiles page", () => {
+  for (const tip of TIPS) {
+    assert.ok(tip.anchors.length > 0, `${tip.id} has an anchor`);
+    for (const anchor of tip.anchors) {
+      assert.ok(COACH_ANCHORS.includes(anchor), `${tip.id}: ${anchor}`);
+    }
+    assert.equal(
+      new Set(tip.anchors).size,
+      tip.anchors.length,
+      `${tip.id} lists each anchor once`,
+    );
+    const last = tip.anchors.at(-1);
+    assert.ok(
+      isRailAnchor(last) || last === "profile-search",
+      `${tip.id} falls back to the rail or the search box, not ${last}`,
+    );
+  }
+  const dns = TIPS.find((tip) => tip.id === "dnsBlocklist");
+  assert.deepEqual(
+    dns.anchors,
+    ["column-dns", "rail-settings"],
+    "a feature on the page is pointed at before the page that holds its settings",
   );
 });

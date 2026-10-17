@@ -3016,15 +3016,15 @@
     },
     "buttons": {
       "skip": "Passer",
-      "back": "Retour",
-      "next": "Suivant",
       "finish": "Terminer"
     },
     "thankYou": {
       "title": "Merci d'avoir choisi Donut Browser",
       "body": "Avec un peu de chance, il rendra votre navigation plus privée : chaque identité séparée et rien ne quittant votre machine. Bonne navigation !",
       "cta": "Commencer à naviguer"
-    }
+    },
+    "stepOf": "Étape {{current}} sur {{total}}",
+    "progress": "Progression de la visite"
   },
   "welcome": {
     "title": "Bienvenue dans Donut Browser",
@@ -3078,7 +3078,8 @@
       "commercialTitle": "Usage commercial",
       "trialBadge": "2 semaines gratuites",
       "commercialDesc": "Gratuit pendant une évaluation de 2 semaines. Ensuite, un forfait payant permet de maintenir et de faire prospérer le projet."
-    }
+    },
+    "progress": "Progression de la configuration"
   },
   "wayfernBlocked": {
     "title": "Automatisation du navigateur en pause",
@@ -4168,16 +4169,17 @@
     "progress": "{{read}} sur {{total}} lues",
     "unread": "Pas encore lue",
     "nextShort": "Suivante",
-    "inline": {
-      "label": "Astuce",
+    "coach": {
       "eyebrow": "Astuce",
       "more": "Plus d'options pour l'astuce",
       "allTips": "Toutes les astuces",
       "turnOff": "Ne plus afficher d'astuces",
-      "dismiss": "Masquer l'astuce",
       "offTitle": "Astuces désactivées",
-      "offBody": "Réactivez-les dans Astuces ({{shortcut}})."
-    }
+      "offBody": "Réactivez-les dans Astuces ({{shortcut}}).",
+      "gotIt": "Compris",
+      "announce": "Astuce : {{title}}"
+    },
+    "showMe": "Montrez-moi"
   },
   "paidWelcome": {
     "title": "Bienvenue dans {{plan}}",
