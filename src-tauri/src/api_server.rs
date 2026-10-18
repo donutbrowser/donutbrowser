@@ -1683,7 +1683,8 @@ async fn get_profile(
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "The profile's fingerprint OS needs a paid plan"),
     (status = 404, description = "Profile not found"),
-    (status = 500, description = "Internal server error")
+    (status = 500, description = "Internal server error"),
+    (status = 503, description = "The device could not be read right now; try again")
   ),
   security(
     ("bearer_auth" = [])

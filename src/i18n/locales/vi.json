@@ -1532,7 +1532,8 @@
     "enterAsJson": "Nhập {{title}} dưới dạng JSON",
     "launchArgs": "Tham số khởi chạy",
     "launchArgsDescription": "Nhập một tham số trên mỗi dòng, dạng --name hoặc --name=value. Chỉ chấp nhận các tham số được hỗ trợ, ví dụ --disable-gpu, --mute-audio hoặc --disable-features=Name. Donut quản lý các tham số hồ sơ, proxy, cửa sổ và gỡ lỗi.",
-    "launchArgsSkipped": "Các tham số khởi chạy tùy chỉnh không được dùng cho {{profile}}. {{reason}}"
+    "launchArgsSkipped": "Các tham số khởi chạy tùy chỉnh không được dùng cho {{profile}}. {{reason}}",
+    "readingDevice": "Đang đọc vân tay của hồ sơ này…"
   },
   "warnings": {
     "windowResizeTitle": "Kích thước cửa sổ tùy chỉnh",

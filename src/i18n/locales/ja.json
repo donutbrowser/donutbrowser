@@ -1532,7 +1532,8 @@
     "enterAsJson": "{{title}} を JSON で入力",
     "launchArgs": "起動引数",
     "launchArgsDescription": "1 行に 1 つの引数を --name または --name=value の形式で入力します。使用できるのは対応している引数だけです（例: --disable-gpu、--mute-audio、--disable-features=Name）。プロファイル、プロキシ、ウィンドウ、デバッグの引数は Donut が管理します。",
-    "launchArgsSkipped": "{{profile}} ではカスタム起動引数が使われませんでした。{{reason}}"
+    "launchArgsSkipped": "{{profile}} ではカスタム起動引数が使われませんでした。{{reason}}",
+    "readingDevice": "このプロファイルのフィンガープリントを読み込んでいます…"
   },
   "warnings": {
     "windowResizeTitle": "カスタムウィンドウサイズ",

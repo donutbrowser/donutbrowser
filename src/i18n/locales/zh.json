@@ -1532,7 +1532,8 @@
     "enterAsJson": "以 JSON 格式输入 {{title}}",
     "launchArgs": "启动参数",
     "launchArgsDescription": "每行输入一个参数，格式为 --name 或 --name=value。只接受受支持的参数，例如 --disable-gpu、--mute-audio 或 --disable-features=Name。配置文件、代理、窗口和调试参数由 Donut 管理。",
-    "launchArgsSkipped": "{{profile}} 未使用自定义启动参数。{{reason}}"
+    "launchArgsSkipped": "{{profile}} 未使用自定义启动参数。{{reason}}",
+    "readingDevice": "正在读取此配置文件的指纹…"
   },
   "warnings": {
     "windowResizeTitle": "自定义窗口尺寸",

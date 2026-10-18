@@ -2785,7 +2785,34 @@ impl WayfernManager {
         claimed_os.as_deref(),
       )
     };
-    let token = crate::cloud_auth::CLOUD_AUTH.get_wayfern_token().await;
+    let auth = &crate::cloud_auth::CLOUD_AUTH;
+    // A view read once is shown again without starting a browser, while the
+    // plan includes custom fingerprints.
+    let view_key = format!(
+      "{}|{}",
+      profile.version,
+      serde_json::Value::Object(params.clone())
+    );
+    let entitled = auth.can_use_cross_os_fingerprints().await;
+    if let Some(view) = FINGERPRINT_VIEWS
+      .lock()
+      .ok()
+      .and_then(|views| views.get(&view_key).cloned())
+      .filter(|_| entitled)
+    {
+      return Ok(Some(view));
+    }
+    let mut token = auth.get_wayfern_token().await;
+    // A paid account whose Wayfern token has not arrived yet asks for one.
+    if token.is_none() && auth.is_entitled_to_wayfern_token().await {
+      if let Err(e) = auth.request_wayfern_token().await {
+        log::warn!(
+          "Wayfern token request for a fingerprint view failed profile={} err=\"{e}\"",
+          profile.id
+        );
+      }
+      token = auth.get_wayfern_token().await;
+    }
     if let Some(token) = &token {
       params.insert("wayfernToken".to_string(), json!(token));
     }
@@ -2806,10 +2833,26 @@ impl WayfernManager {
       .await;
     session.stop().await;
     let location = Self::stored_object(config.location.as_deref());
-    Ok(
-      Self::identity_view(&answer.map_err(failure)?, &location)
-        .map(|view| serde_json::Value::Object(view).to_string()),
-    )
+    match Self::identity_view(&answer.map_err(failure)?, &location) {
+      Some(view) => {
+        let view = serde_json::Value::Object(view).to_string();
+        if let Ok(mut views) = FINGERPRINT_VIEWS.lock() {
+          views.insert(view_key, view.clone());
+        }
+        Ok(Some(view))
+      }
+      // No device in the answer: a plan with custom fingerprints is told to
+      // try again, and any other plan has no device to show.
+      None if entitled => {
+        log::warn!(
+          "Fingerprint view empty profile={} token={}",
+          profile.id,
+          token.is_some()
+        );
+        Err(crate::backend_error("WAYFERN_PLAN_CHECK_UNAVAILABLE"))
+      }
+      None => Ok(None),
+    }
   }
 
   #[allow(clippy::too_many_arguments)]
@@ -4101,6 +4144,11 @@ fn kill_browser_process(pid: u32) {
 
 static TOKEN_AT_LAUNCH: crate::log_streak::Streak =
   crate::log_streak::Streak::new(module_path!(), "Wayfern token at launch");
+
+/// Fingerprint views already read, keyed by browser version and the identity
+/// parameters. Process memory only: the device is never written to disk.
+static FINGERPRINT_VIEWS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, String>>> =
+  std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
 
 static WAYFERN_MANAGER: std::sync::LazyLock<WayfernManager> =
   std::sync::LazyLock::new(WayfernManager::new);

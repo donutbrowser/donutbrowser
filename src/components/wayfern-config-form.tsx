@@ -4,8 +4,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LuLoaderCircle } from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -30,6 +32,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
+import { translateBackendError } from "@/lib/backend-errors";
 import { getEntitlements } from "@/lib/entitlements";
 import type {
   PersonaField,
@@ -303,6 +306,13 @@ export function WayfernConfigForm({
     identityId: string;
     fields: WayfernFingerprintConfig;
   } | null>(null);
+  // Reading that device starts a browser, so it takes a few seconds and can
+  // fail; the form says so instead of showing empty fields.
+  const [deviceStatus, setDeviceStatus] = useState<{
+    identityId: string;
+    error: string | null;
+  } | null>(null);
+  const [deviceAttempt, setDeviceAttempt] = useState(0);
   const ownEditRef = useRef<{ json: string | undefined } | null>(null);
 
   const handleGenerateFingerprint = async () => {
@@ -394,6 +404,7 @@ export function WayfernConfigForm({
   const shownDevice =
     device && device.identityId === identityId ? device.fields : null;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deviceAttempt is the Retry button, and a new attempt must read again
   useEffect(() => {
     if (
       !profileId ||
@@ -404,9 +415,12 @@ export function WayfernConfigForm({
       return;
     }
     let cancelled = false;
+    setDeviceStatus(null);
     void invoke<string | null>("get_profile_fingerprint", { profileId })
       .then((json) => {
-        if (!cancelled && json) {
+        if (cancelled) return;
+        setDeviceStatus({ identityId, error: null });
+        if (json) {
           setDevice({
             identityId,
             fields: JSON.parse(json) as WayfernFingerprintConfig,
@@ -415,11 +429,33 @@ export function WayfernConfigForm({
       })
       .catch((error: unknown) => {
         console.error("Failed to read fingerprint:", error);
+        if (!cancelled) {
+          setDeviceStatus({
+            identityId,
+            error: translateBackendError(t, error),
+          });
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [profileId, identityId, limitedMode, device?.identityId]);
+  }, [
+    profileId,
+    identityId,
+    limitedMode,
+    device?.identityId,
+    deviceAttempt,
+    t,
+  ]);
+  const deviceRead =
+    deviceStatus && deviceStatus.identityId === identityId
+      ? deviceStatus
+      : null;
+  const deviceError = deviceRead?.error ?? null;
+  const deviceLoading =
+    Boolean(profileId && identityId && !limitedMode) &&
+    !shownDevice &&
+    !deviceRead;
 
   useEffect(() => {
     // The form's own edit: what it shows already matches, including a field
@@ -723,7 +759,41 @@ export function WayfernConfigForm({
           limitedMode ? "relative overflow-hidden rounded-lg" : undefined
         }
       >
-        {!limitedMode &&
+        {!limitedMode && (deviceLoading || deviceError) ? (
+          <div
+            data-slot="fingerprint-device-state"
+            data-state={deviceError ? "failed" : "loading"}
+            role={deviceError ? "alert" : "status"}
+            className="flex items-center gap-3 rounded-lg bg-foreground/4 px-4 py-3 text-sm"
+          >
+            {deviceError ? (
+              <>
+                <span className="min-w-0 flex-1 text-pretty text-muted-foreground">
+                  {deviceError}
+                </span>
+                <Button
+                  variant="soft"
+                  size="sm"
+                  className="h-8 shrink-0"
+                  onClick={() => setDeviceAttempt((attempt) => attempt + 1)}
+                >
+                  {t("common.buttons.retry")}
+                </Button>
+              </>
+            ) : (
+              <>
+                <LuLoaderCircle
+                  aria-hidden="true"
+                  className="size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none"
+                />
+                <span className="text-muted-foreground">
+                  {t("fingerprint.readingDevice")}
+                </span>
+              </>
+            )}
+          </div>
+        ) : (
+          !limitedMode &&
           (isEditingDisabled ? (
             <Alert>
               <AlertDescription>
@@ -738,10 +808,16 @@ export function WayfernConfigForm({
                 {t("fingerprint.basicWarning")}
               </AlertDescription>
             </Alert>
-          ))}
+          ))
+        )}
 
         <fieldset
-          disabled={isEditingDisabled || limitedMode}
+          disabled={
+            isEditingDisabled ||
+            limitedMode ||
+            deviceLoading ||
+            Boolean(deviceError)
+          }
           className="space-y-6"
         >
           {/* User Agent and Platform */}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import test from "node:test";
@@ -6096,6 +6096,98 @@ test("the profile network section saves, refuses and clears a DNS server", async
       description: "the cleared DNS server",
     });
     await app.clickSelector('[data-slot="profile-info-close"]');
+  });
+});
+
+test("a Pro user's fingerprint tab shows the device, and says why when it cannot", async () => {
+  await withApp("ui-fingerprint-view", async (app) => {
+    const created = await createUiProfile(app, "Identity Device");
+    // An identity-backed profile stores the identity, never the device, on a
+    // version that reads it from the browser.
+    const file = path.join(
+      app.dataRoot,
+      "data",
+      "profiles",
+      created.id,
+      "metadata.json",
+    );
+    const stored = JSON.parse(await readFile(file, "utf8"));
+    stored.version = "154.0.8037.57";
+    delete stored.wayfern_config.fingerprint;
+    stored.wayfern_config.identity_id = "6f9619ff-8b86-4d01-b42d-00c04fc964ff";
+    await writeFile(file, JSON.stringify(stored));
+    await app.restart();
+    await app.waitForText("Identity Device");
+    await stubCommand(app, "cloud_get_user", {
+      logged_in_at: "2020-01-01T00:00:00Z",
+      user: {
+        id: "fingerprint-pro",
+        email: "fingerprint@example.test",
+        plan: "pro",
+        planPeriod: "monthly",
+        subscriptionStatus: "active",
+        profileLimit: 50,
+        isPrimaryDevice: true,
+      },
+    });
+    await app.invoke("plugin:event|emit", {
+      event: "cloud-auth-changed",
+      payload: null,
+    });
+    await app.clickSelector(
+      `[data-slot="profile-inspect-trigger"][data-profile-id="${created.id}"]`,
+    );
+    await app.clickSelector(
+      '[data-slot="profile-info-section"][data-section="fingerprint"]',
+    );
+
+    // This suite has no browser build, so the read fails: the tab says so and
+    // keeps the fields shut instead of showing them empty.
+    const state = '[data-slot="fingerprint-device-state"]';
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return document.querySelector(arguments[0])?.dataset.state === "failed";`,
+          [state],
+        ),
+      { description: "the failed device read is shown" },
+    );
+    assert.equal(
+      await app.execute(
+        `return document.querySelector("#user-agent").matches(":disabled");`,
+      ),
+      true,
+    );
+    await app.capture("fingerprint-view-failed");
+
+    // A read that works fills the fields with the device the profile presents.
+    const device = {
+      userAgent: "Mozilla/5.0 (Macintosh) E2E/1.0",
+      platform: "MacIntel",
+      hardwareConcurrency: 8,
+    };
+    await stubCommand(app, "get_profile_fingerprint", JSON.stringify(device));
+    await app.clickTextIn(state, en.common.buttons.retry, {
+      roles: ["button"],
+    });
+    await app.waitFor(
+      () =>
+        app.execute(
+          `const input = document.querySelector("#user-agent");
+           return input && !input.matches(":disabled") && input.value === arguments[0];`,
+          [device.userAgent],
+        ),
+      { description: "the device fills the fingerprint fields" },
+    );
+    assert.equal(
+      await app.execute(
+        `return Boolean(document.querySelector(arguments[0]));`,
+        [state],
+      ),
+      false,
+    );
+    await app.capture("fingerprint-view-shown");
+    await restoreStubs(app);
   });
 });
 

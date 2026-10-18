@@ -1532,7 +1532,8 @@
     "enterAsJson": "Enter {{title}} as JSON",
     "launchArgs": "Launch arguments",
     "launchArgsDescription": "Enter one argument per line, as --name or --name=value. Only supported arguments are accepted, for example --disable-gpu, --mute-audio or --disable-features=Name. Donut controls the profile, proxy, window and debugging arguments.",
-    "launchArgsSkipped": "Custom launch arguments were not used for {{profile}}. {{reason}}"
+    "launchArgsSkipped": "Custom launch arguments were not used for {{profile}}. {{reason}}",
+    "readingDevice": "Reading this profile's fingerprint…"
   },
   "warnings": {
     "windowResizeTitle": "Custom Window Dimensions",

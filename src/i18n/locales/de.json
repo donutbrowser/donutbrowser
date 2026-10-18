@@ -1532,7 +1532,8 @@
     "enterAsJson": "{{title}} als JSON eingeben",
     "launchArgs": "Startargumente",
     "launchArgsDescription": "Gib ein Argument pro Zeile ein, als --name oder --name=value. Nur unterstützte Argumente werden angenommen, zum Beispiel --disable-gpu, --mute-audio oder --disable-features=Name. Donut verwaltet die Argumente für Profil, Proxy, Fenster und Debugging.",
-    "launchArgsSkipped": "Die eigenen Startargumente wurden für {{profile}} nicht verwendet. {{reason}}"
+    "launchArgsSkipped": "Die eigenen Startargumente wurden für {{profile}} nicht verwendet. {{reason}}",
+    "readingDevice": "Fingerprint dieses Profils wird gelesen…"
   },
   "warnings": {
     "windowResizeTitle": "Benutzerdefinierte Fenstergröße",

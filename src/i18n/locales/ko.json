@@ -1532,7 +1532,8 @@
     "enterAsJson": "{{title}}을(를) JSON으로 입력",
     "launchArgs": "실행 인수",
     "launchArgsDescription": "한 줄에 하나의 인수를 --name 또는 --name=value 형식으로 입력하세요. 지원되는 인수만 사용할 수 있습니다(예: --disable-gpu, --mute-audio, --disable-features=Name). 프로필, 프록시, 창 및 디버깅 인수는 Donut이 관리합니다.",
-    "launchArgsSkipped": "{{profile}}에 사용자 지정 실행 인수가 적용되지 않았습니다. {{reason}}"
+    "launchArgsSkipped": "{{profile}}에 사용자 지정 실행 인수가 적용되지 않았습니다. {{reason}}",
+    "readingDevice": "이 프로필의 핑거프린트를 읽는 중…"
   },
   "warnings": {
     "windowResizeTitle": "사용자 지정 창 크기",

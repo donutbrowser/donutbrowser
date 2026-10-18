@@ -1554,7 +1554,8 @@
     "enterAsJson": "Введите {{title}} в формате JSON",
     "launchArgs": "Аргументы запуска",
     "launchArgsDescription": "Введите по одному аргументу в строке: --name или --name=value. Принимаются только поддерживаемые аргументы, например --disable-gpu, --mute-audio или --disable-features=Name. Donut управляет аргументами профиля, прокси, окна и отладки.",
-    "launchArgsSkipped": "Собственные аргументы запуска не были применены к {{profile}}. {{reason}}"
+    "launchArgsSkipped": "Собственные аргументы запуска не были применены к {{profile}}. {{reason}}",
+    "readingDevice": "Читаем отпечаток этого профиля…"
   },
   "warnings": {
     "windowResizeTitle": "Пользовательские размеры окна",

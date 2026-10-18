@@ -1543,7 +1543,8 @@
     "enterAsJson": "Insira {{title}} como JSON",
     "launchArgs": "Argumentos de inicialização",
     "launchArgsDescription": "Insira um argumento por linha, como --name ou --name=value. Apenas argumentos compatíveis são aceitos, por exemplo --disable-gpu, --mute-audio ou --disable-features=Name. O Donut controla os argumentos de perfil, proxy, janela e depuração.",
-    "launchArgsSkipped": "Os argumentos de inicialização personalizados não foram usados em {{profile}}. {{reason}}"
+    "launchArgsSkipped": "Os argumentos de inicialização personalizados não foram usados em {{profile}}. {{reason}}",
+    "readingDevice": "Lendo a impressão digital deste perfil…"
   },
   "warnings": {
     "windowResizeTitle": "Dimensões de janela personalizadas",

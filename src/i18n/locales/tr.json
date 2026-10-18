@@ -1532,7 +1532,8 @@
     "enterAsJson": "{{title}} değerini JSON olarak girin",
     "launchArgs": "Başlatma argümanları",
     "launchArgsDescription": "Her satıra bir argüman girin: --name veya --name=value. Yalnızca desteklenen argümanlar kabul edilir; örneğin --disable-gpu, --mute-audio veya --disable-features=Name. Profil, proxy, pencere ve hata ayıklama argümanlarını Donut yönetir.",
-    "launchArgsSkipped": "{{profile}} için özel başlatma argümanları kullanılmadı. {{reason}}"
+    "launchArgsSkipped": "{{profile}} için özel başlatma argümanları kullanılmadı. {{reason}}",
+    "readingDevice": "Bu profilin parmak izi okunuyor…"
   },
   "warnings": {
     "windowResizeTitle": "Özel Pencere Boyutları",
