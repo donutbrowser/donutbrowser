@@ -156,6 +156,7 @@ pub fn converted_profile(
   let config = updated
     .wayfern_config
     .get_or_insert_with(WayfernConfig::default);
+  keep_persona(&profile.id, config, identity_id);
   config.identity_id = Some(identity_id.to_string());
   config.os = Some(os.to_string());
   config.identity_overrides = if overrides.is_empty() {
@@ -174,6 +175,18 @@ pub fn converted_profile(
     updated.host_os = Some(host_os);
   }
   Ok(updated)
+}
+
+/// Keeps the person a profile presents when its identity changes: the
+/// persona is derived from the identity id, or from the profile id when there
+/// is none.
+fn keep_persona(profile_id: &uuid::Uuid, config: &mut WayfernConfig, identity_id: &str) {
+  let seed = stored_identity_id(config)
+    .map(str::to_string)
+    .unwrap_or_else(|| profile_id.to_string());
+  if seed != identity_id.trim() {
+    config.persona = crate::wayfern_persona::pinned_edits(&seed, config.persona.as_deref());
+  }
 }
 
 pub(crate) fn read_profile(id: &uuid::Uuid) -> Option<BrowserProfile> {
@@ -321,6 +334,7 @@ fn profile_with_result(profile: &BrowserProfile, result: &LaunchResult) -> Optio
   let config = updated
     .wayfern_config
     .get_or_insert_with(WayfernConfig::default);
+  keep_persona(&profile.id, config, &identity_id);
   config.identity_id = Some(identity_id);
   config.os = Some(os.to_string());
   config.identity_overrides = text("identity_overrides");
@@ -1225,7 +1239,17 @@ mod tests {
       config.location, sent.location,
       "an absent location keeps the stored one"
     );
-    assert_eq!(config.persona.as_deref(), Some("p"));
+    assert_eq!(
+      crate::wayfern_persona::with_edits(
+        CURRENT_ID,
+        &serde_json::from_str::<Vec<crate::wayfern_persona::PersonaField>>(
+          config.persona.as_deref().unwrap()
+        )
+        .unwrap()
+      ),
+      crate::wayfern_persona::with_edits(&profile.id.to_string(), &[]),
+      "the converted profile presents the person it presented before"
+    );
     assert!(config.proxy.is_none());
 
     let backup = crate::app_dirs::data_subdir()

@@ -1268,6 +1268,8 @@ mod tests {
   const SYNTHETIC_ENCRYPTED_COOKIE_HEX: &str = "763130d83b9fd3e6d1b1c793769f55251f5e9d1193be72c0c08ea32e2cf068a85d9d0b97d8b2e6deca93a2b3c290e98e1a851f83d5566f9aa9314befe56dc6bdbd423d";
   /// `v10`, raw key file: AES-256-GCM, nonce 0xa0..0xab, then ciphertext and tag.
   const V10_RAW_KEY_GCM_HEX: &str = "763130a0a1a2a3a4a5a6a7a8a9aaab80ca93cabb34c5dd58110a3d46900c1fa9ecd0d2de71d7b20447d42094e312b029ee1c37a83550c88b77cbf131874eaccf3a660a9e9c574aba285fd5136dc8dfcc4f4cf4f000";
+  /// `v10`, raw key file: AES-128-CBC, PBKDF2(the 32 bytes, "saltysalt", 1003).
+  const V10_RAW_KEY_CBC_HEX: &str = "7631301293fcc3514b2f9f809661394660f53164bc85085480268bb96eeff8ec82f45cbf38e0cc19bc44626a36381cd719fc7714a818351bfe922cd2283c9cb5e6a267";
   /// `v11`, password file: AES-128-CBC, PBKDF2(password, "saltysalt", 1).
   const V11_PASSWORD_HEX: &str = "76313134ac798d9e3721442b1ff0eeaf137cbaa12cbf87938b967e5f63791f03bd1928007773702a89a8f4a53145d1ea1814815f2ab922cd4e1dbe341cd327af6cd02f";
   /// `v11`, raw key file: AES-128-CBC, PBKDF2(the 32 bytes, "saltysalt", 1).
@@ -1953,12 +1955,24 @@ mod tests {
   }
 
   #[test]
+  fn a_raw_key_file_opens_a_cbc_v10_record_with_1003_iterations() {
+    assert_eq!(
+      open(V10_RAW_KEY_CBC_HEX, &raw_key()).as_deref(),
+      Some(SYNTHETIC_COOKIE_VALUE)
+    );
+    assert_eq!(
+      open(V10_PEANUTS_FALLBACK_HEX, &raw_key()).as_deref(),
+      Some(SYNTHETIC_COOKIE_VALUE)
+    );
+  }
+
+  #[test]
   fn a_password_key_file_opens_v10_with_1003_iterations() {
     assert_eq!(
       open(SYNTHETIC_ENCRYPTED_COOKIE_HEX, &password_key()).as_deref(),
       Some(SYNTHETIC_COOKIE_VALUE)
     );
-    // A raw key file reads v10 as GCM, so this CBC record does not open there.
+    // A record keyed by another file's password does not open under a raw key.
     assert_eq!(open(SYNTHETIC_ENCRYPTED_COOKIE_HEX, &raw_key()), None);
   }
 

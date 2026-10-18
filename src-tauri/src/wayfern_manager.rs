@@ -1000,11 +1000,14 @@ impl BrowserLogTap {
     })
   }
 
+  /// Whether the browser ran without the profile's stored edits because the
+  /// plan could not be checked. A plan that does not include them is a settled
+  /// answer and the launch goes on without them.
   pub fn dropped_overrides(&self) -> bool {
-    self
-      .lines()
-      .iter()
-      .any(|line| line.contains("Wayfern launch identity: dropping"))
+    self.lines().iter().any(|line| {
+      line.contains("Wayfern launch identity: dropping")
+        && (line.contains("temporarily unavailable") || line.contains("not known yet"))
+    })
   }
 
   /// Whether the browser reported the launch identity as applied.
@@ -5753,6 +5756,22 @@ mod tests {
     );
     assert!(tap.dropped_overrides());
     assert!(tap.identity_refusal().is_none());
+
+    let settled = BrowserLogTap::default();
+    settled.push(
+      "[WARNING] Wayfern launch identity: dropping 3 override(s); this plan does not \
+       include custom fingerprints. The identity is applied as derived."
+        .to_string(),
+    );
+    assert!(!settled.dropped_overrides());
+
+    let unknown = BrowserLogTap::default();
+    unknown.push(
+      "[WARNING] Wayfern launch identity: dropping the stored profile's custom values \
+       for this launch; the plan is not known yet. The identity is applied as derived."
+        .to_string(),
+    );
+    assert!(unknown.dropped_overrides());
   }
 
   #[test]

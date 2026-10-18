@@ -44,15 +44,14 @@ const RESTORED_SUFFIX: &str = "(restored)";
 
 /// Chromium directories that only ever hold caches, relative to the profile
 /// data directory. Every one of them is recreated by the browser on demand.
-const CACHE_DIRS: [&str; 8] = [
+/// Service worker scripts and Cache Storage are site data and stay.
+const CACHE_DIRS: [&str; 6] = [
   "Cache",
   "Code Cache",
   "GPUCache",
   "GrShaderCache",
   "ShaderCache",
   "DawnCache",
-  "Service Worker/CacheStorage",
-  "Service Worker/ScriptCache",
 ];
 
 /// Serialises every trash mutation so a restore cannot interleave with a

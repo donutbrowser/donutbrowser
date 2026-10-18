@@ -338,6 +338,8 @@ fn the_sealed_exclusions_keep_what_a_database_needs() {
     "Default/History-wal",
     "Default/Secure Preferences",
     "Default/Session Storage/000003.log",
+    "Default/Service Worker/ScriptCache/index",
+    "Default/Service Worker/CacheStorage/index.txt",
     "Local State",
     "os_crypt_key",
   ] {

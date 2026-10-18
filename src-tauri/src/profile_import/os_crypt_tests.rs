@@ -59,7 +59,7 @@ fn the_key_file_format_and_the_tag_choose_the_key_on_every_host() {
 }
 
 #[test]
-fn only_cbc_keys_carry_chromiums_fallbacks() {
+fn every_key_carries_chromiums_fallbacks() {
   let cbc = CryptoKey::Aes128Cbc([1u8; 16]);
   let keys: Vec<Vec<u8>> = cbc.with_fallbacks().iter().map(key_bytes).collect();
   assert_eq!(
@@ -70,7 +70,22 @@ fn only_cbc_keys_carry_chromiums_fallbacks() {
       POSIX_FALLBACK_KEY.to_vec()
     ]
   );
-  assert_eq!(CryptoKey::Aes256Gcm([1u8; 32]).with_fallbacks().len(), 1);
+  // A raw key file's v10 records can be AES-128-CBC under PBKDF2 of the raw
+  // bytes, or under Linux's fixed password.
+  let raw = [1u8; 32];
+  let keys: Vec<Vec<u8>> = CryptoKey::Aes256Gcm(raw)
+    .with_fallbacks()
+    .iter()
+    .map(key_bytes)
+    .collect();
+  assert_eq!(
+    keys,
+    vec![
+      raw.to_vec(),
+      derive_key(&raw, MAC_ITERATIONS).to_vec(),
+      POSIX_FALLBACK_KEY.to_vec()
+    ]
+  );
 }
 
 #[test]

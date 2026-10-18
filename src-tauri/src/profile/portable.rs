@@ -141,7 +141,9 @@ fn collect_files(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
 
 /// Whether a path inside the profile directory is left out of an export.
 pub fn is_excluded(relative: &str) -> bool {
-  const CACHE_SEGMENTS: [&str; 10] = [
+  // `Service Worker/CacheStorage` and `Service Worker/ScriptCache` are site
+  // data: without the script, Chromium drops the service worker registration.
+  const CACHE_SEGMENTS: [&str; 8] = [
     "Cache",
     "Code Cache",
     "GPUCache",
@@ -150,8 +152,6 @@ pub fn is_excluded(relative: &str) -> bool {
     "DawnCache",
     "DawnGraphiteCache",
     "GraphiteDawnCache",
-    "CacheStorage",
-    "ScriptCache",
   ];
   const LAUNCH_FILES: [&str; 4] = [
     "wayfern-identity.json",

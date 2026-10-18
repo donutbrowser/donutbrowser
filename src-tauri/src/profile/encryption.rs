@@ -36,7 +36,8 @@ const TMP_EXTENSION: &str = "donut-tmp";
 
 /// What a sealed copy leaves out: caches the browser rebuilds, lock and temp
 /// files, crash and metrics dumps, and the files Donut writes again before
-/// every launch. Everything else is kept, the SQLite journals and write-ahead
+/// every launch. Service worker scripts and Cache Storage are site data and
+/// are sealed: without the script, Chromium drops the registration. Everything else is kept, the SQLite journals and write-ahead
 /// logs included: without them a database the browser did not close cleanly
 /// opens torn instead of rolled back.
 pub const SEALED_EXCLUDE_PATTERNS: &[&str] = &[
@@ -49,8 +50,6 @@ pub const SEALED_EXCLUDE_PATTERNS: &[&str] = &[
   "**/DawnGraphiteCache/**",
   "**/DawnWebGPUCache/**",
   "**/GraphiteDawnCache/**",
-  "**/Service Worker/CacheStorage/**",
-  "**/Service Worker/ScriptCache/**",
   "**/blob_storage/**",
   "**/Crashpad/**",
   "**/Crash Reports/**",

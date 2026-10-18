@@ -137,7 +137,9 @@ impl CryptoKey {
   /// This key, then, for AES-128-CBC, the fixed keys Chromium retries a CBC
   /// record with when it does not open: the empty password
   /// ([`EMPTY_PASSWORD_KEY`]) and Linux's fixed password
-  /// ([`POSIX_FALLBACK_KEY`]). An AES-256-GCM key has no fallbacks.
+  /// ([`POSIX_FALLBACK_KEY`]). A raw key file's `v10` records can also be
+  /// AES-128-CBC, keyed by PBKDF2(the 32 bytes, "saltysalt", 1003) or by
+  /// Linux's fixed password, so an AES-256-GCM key falls back to those two.
   pub fn with_fallbacks(&self) -> Vec<CryptoKey> {
     match self {
       Self::Aes128Cbc(_) => vec![
@@ -145,7 +147,11 @@ impl CryptoKey {
         Self::Aes128Cbc(EMPTY_PASSWORD_KEY),
         Self::Aes128Cbc(POSIX_FALLBACK_KEY),
       ],
-      Self::Aes256Gcm(_) => vec![self.clone()],
+      Self::Aes256Gcm(raw) => vec![
+        self.clone(),
+        Self::Aes128Cbc(derive_key(raw, MAC_ITERATIONS)),
+        Self::Aes128Cbc(POSIX_FALLBACK_KEY),
+      ],
     }
   }
 
