@@ -2593,7 +2593,7 @@
     "wayfernFingerprintApplyFailed": "Bu profilin parmak izi uygulanamadı, bu yüzden tarayıcı başlatılmadı. {{detail}}",
     "wayfernFingerprintGenerationFailed": "Bu profil için parmak izi oluşturulamadı. {{detail}}",
     "wayfernGenerationLimitReached": "Geçici parmak izi oluşturma sınırına ulaşıldı. Daha sonra tekrar deneyin.",
-    "wayfernCrossOsRequiresPlan": "Bu profil {{detail}} bildiriyor; bunun için ücretli bir plan ve etkin bir oturum gerekir. Oturum açın veya profili kendi işletim sisteminize geçirin.",
+    "wayfernCrossOsRequiresPlan": "Bu profil {{detail}} olarak çalışıyor ve bu bilgisayarda başka bir işletim sistemi var. Burada açmak için Pro veya Team planı gerekir.",
     "wayfernIdentityRefused": "Tarayıcı bu profilin kimliğiyle başlamadığı için kapatıldı. {{detail}}",
     "wayfernInstanceLimitReached": "Planınız için çok fazla tarayıcı açık. Bir tarayıcıyı kapatıp tekrar deneyin.",
     "wayfernPlanCheckUnavailable": "Planınız şu anda kontrol edilemedi. Kısa süre sonra yeniden deneyin.",

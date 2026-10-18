@@ -369,6 +369,10 @@ function remoteOsLabel(platform: string): string {
       return "Windows";
     case "linux":
       return "Linux";
+    case "android":
+      return "Android";
+    case "ios":
+      return "iOS";
     default:
       return platform;
   }
@@ -1012,7 +1016,7 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.wayfernGenerationLimitReached");
     case "WAYFERN_CROSS_OS_REQUIRES_PLAN":
       return t("backendErrors.wayfernCrossOsRequiresPlan", {
-        detail: parsed.params?.detail ?? "",
+        detail: remoteOsLabel(parsed.params?.detail ?? ""),
       });
     case "WAYFERN_IDENTITY_REFUSED":
       return t("backendErrors.wayfernIdentityRefused", {

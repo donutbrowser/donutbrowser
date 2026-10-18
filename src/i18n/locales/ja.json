@@ -2593,7 +2593,7 @@
     "wayfernFingerprintApplyFailed": "このプロファイルのフィンガープリントを適用できなかったため、ブラウザーは起動しませんでした。{{detail}}",
     "wayfernFingerprintGenerationFailed": "このプロファイルのフィンガープリントを作成できませんでした。{{detail}}",
     "wayfernGenerationLimitReached": "一時的なフィンガープリント生成上限に達しました。しばらくしてから再度お試しください。",
-    "wayfernCrossOsRequiresPlan": "このプロファイルは {{detail}} を指定しています。これには有料プランとサインインが必要です。サインインするか、プロファイルをお使いのオペレーティングシステムに変更してください。",
+    "wayfernCrossOsRequiresPlan": "このプロファイルは {{detail}} として動作し、このコンピューターでは別のオペレーティングシステムが動作しています。ここで開くには Pro または Team プランが必要です。",
     "wayfernIdentityRefused": "ブラウザーがこのプロファイルのアイデンティティで起動しなかったため、終了しました。{{detail}}",
     "wayfernInstanceLimitReached": "ご利用のプランでは、開いているブラウザーが多すぎます。ブラウザーを1つ閉じてからもう一度お試しください。",
     "wayfernPlanCheckUnavailable": "現在、ご利用のプランを確認できません。しばらくしてからもう一度お試しください。",

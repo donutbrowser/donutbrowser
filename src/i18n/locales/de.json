@@ -2593,7 +2593,7 @@
     "wayfernFingerprintApplyFailed": "Der Fingerprint dieses Profils konnte nicht angewendet werden, daher wurde der Browser nicht gestartet. {{detail}}",
     "wayfernFingerprintGenerationFailed": "Für dieses Profil konnte kein Fingerprint erstellt werden. {{detail}}",
     "wayfernGenerationLimitReached": "Vorübergehendes Limit für die Fingerprint-Erzeugung erreicht. Versuchen Sie es später erneut.",
-    "wayfernCrossOsRequiresPlan": "Dieses Profil gibt {{detail}} an, was einen kostenpflichtigen Tarif und eine aktive Anmeldung erfordert. Melden Sie sich an oder stellen Sie das Profil auf Ihr eigenes Betriebssystem um.",
+    "wayfernCrossOsRequiresPlan": "Dieses Profil läuft als {{detail}}, und dieser Computer nutzt ein anderes Betriebssystem. Um es hier zu öffnen, ist ein Pro- oder Team-Tarif nötig.",
     "wayfernIdentityRefused": "Der Browser ist nicht mit der Identität dieses Profils gestartet und wurde daher geschlossen. {{detail}}",
     "wayfernInstanceLimitReached": "Für Ihren Tarif sind zu viele Browser geöffnet. Schließen Sie einen Browser und versuchen Sie es erneut.",
     "wayfernPlanCheckUnavailable": "Ihr Tarif kann gerade nicht geprüft werden. Versuchen Sie es gleich noch einmal.",

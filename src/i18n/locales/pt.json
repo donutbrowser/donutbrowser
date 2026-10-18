@@ -2612,7 +2612,7 @@
     "wayfernFingerprintApplyFailed": "Não foi possível aplicar a impressão digital deste perfil, por isso o navegador não foi iniciado. {{detail}}",
     "wayfernFingerprintGenerationFailed": "Não foi possível criar uma impressão digital para este perfil. {{detail}}",
     "wayfernGenerationLimitReached": "Limite temporário de geração de impressões digitais atingido. Tente novamente mais tarde.",
-    "wayfernCrossOsRequiresPlan": "Este perfil declara {{detail}}, o que exige um plano pago e uma sessão ativa. Inicie sessão ou mude o perfil para o seu próprio sistema operativo.",
+    "wayfernCrossOsRequiresPlan": "Este perfil é executado como {{detail}} e este computador usa outro sistema operativo. Para o abrir aqui, é necessário um plano Pro ou Team.",
     "wayfernIdentityRefused": "O navegador não iniciou com a identidade deste perfil, então foi fechado. {{detail}}",
     "wayfernInstanceLimitReached": "Há navegadores abertos demais para o seu plano. Feche um navegador e tente novamente.",
     "wayfernPlanCheckUnavailable": "Não foi possível verificar o seu plano agora. Tente novamente em instantes.",

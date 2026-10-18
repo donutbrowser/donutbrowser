@@ -2593,7 +2593,7 @@
     "wayfernFingerprintApplyFailed": "无法应用此配置文件的指纹，因此浏览器未启动。{{detail}}",
     "wayfernFingerprintGenerationFailed": "无法为此配置文件创建指纹。{{detail}}",
     "wayfernGenerationLimitReached": "已达到临时指纹生成上限。请稍后再试。",
-    "wayfernCrossOsRequiresPlan": "此配置文件声明为 {{detail}}，需要付费套餐并保持登录。请登录，或将配置文件切换为您自己的操作系统。",
+    "wayfernCrossOsRequiresPlan": "此配置文件以 {{detail}} 身份运行，而这台电脑使用其他操作系统。要在此处打开，需要 Pro 或 Team 套餐。",
     "wayfernIdentityRefused": "浏览器未以此配置文件的身份启动，因此已被关闭。{{detail}}",
     "wayfernInstanceLimitReached": "当前套餐下打开的浏览器过多。请关闭一个浏览器后重试。",
     "wayfernPlanCheckUnavailable": "目前无法检查你的套餐。请稍后再试。",

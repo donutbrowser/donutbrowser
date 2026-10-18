@@ -2593,7 +2593,7 @@
     "wayfernFingerprintApplyFailed": "Không thể áp dụng dấu vân tay của hồ sơ này nên trình duyệt chưa được khởi chạy. {{detail}}",
     "wayfernFingerprintGenerationFailed": "Không thể tạo dấu vân tay cho hồ sơ này. {{detail}}",
     "wayfernGenerationLimitReached": "Đã đạt giới hạn tạm thời về tạo dấu vân tay. Vui lòng thử lại sau.",
-    "wayfernCrossOsRequiresPlan": "Hồ sơ này khai báo {{detail}}, cần gói trả phí và phiên đăng nhập đang hoạt động. Hãy đăng nhập hoặc chuyển hồ sơ sang hệ điều hành của bạn.",
+    "wayfernCrossOsRequiresPlan": "Hồ sơ này chạy dưới dạng {{detail}}, còn máy tính này dùng hệ điều hành khác. Để mở hồ sơ ở đây, bạn cần gói Pro hoặc Team.",
     "wayfernIdentityRefused": "Trình duyệt không khởi động với danh tính của hồ sơ này nên đã bị đóng. {{detail}}",
     "wayfernInstanceLimitReached": "Có quá nhiều trình duyệt đang mở so với gói của bạn. Hãy đóng một trình duyệt rồi thử lại.",
     "wayfernPlanCheckUnavailable": "Hiện không thể kiểm tra gói của bạn. Hãy thử lại sau giây lát.",

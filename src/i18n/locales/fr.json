@@ -2612,7 +2612,7 @@
     "wayfernFingerprintApplyFailed": "Impossible d'appliquer l'empreinte de ce profil, le navigateur n'a donc pas été lancé. {{detail}}",
     "wayfernFingerprintGenerationFailed": "Impossible de créer une empreinte pour ce profil. {{detail}}",
     "wayfernGenerationLimitReached": "Limite temporaire de génération d'empreintes atteinte. Réessayez plus tard.",
-    "wayfernCrossOsRequiresPlan": "Ce profil déclare {{detail}}, ce qui nécessite une formule payante et une connexion active. Connectez-vous ou basculez le profil vers votre propre système d'exploitation.",
+    "wayfernCrossOsRequiresPlan": "Ce profil s'exécute en tant que {{detail}}, et cet ordinateur utilise un autre système d'exploitation. Pour l'ouvrir ici, il faut une formule Pro ou Team.",
     "wayfernIdentityRefused": "Le navigateur n'a pas démarré avec l'identité de ce profil, il a donc été fermé. {{detail}}",
     "wayfernInstanceLimitReached": "Trop de navigateurs sont ouverts pour votre forfait. Fermez un navigateur et réessayez.",
     "wayfernPlanCheckUnavailable": "Impossible de vérifier votre forfait pour le moment. Réessayez dans un instant.",

@@ -2612,7 +2612,7 @@
     "wayfernFingerprintApplyFailed": "No se pudo aplicar la huella digital de este perfil, por lo que el navegador no se inició. {{detail}}",
     "wayfernFingerprintGenerationFailed": "No se pudo crear una huella digital para este perfil. {{detail}}",
     "wayfernGenerationLimitReached": "Se alcanzó el límite temporal de generación de huellas digitales. Inténtalo de nuevo más tarde.",
-    "wayfernCrossOsRequiresPlan": "Este perfil declara {{detail}}, lo que requiere un plan de pago y una sesión activa. Inicia sesión o cambia el perfil a tu propio sistema operativo.",
+    "wayfernCrossOsRequiresPlan": "Este perfil se ejecuta como {{detail}} y este equipo usa otro sistema operativo. Para abrirlo aquí se necesita un plan Pro o Team.",
     "wayfernIdentityRefused": "El navegador no se inició con la identidad de este perfil, así que se cerró. {{detail}}",
     "wayfernInstanceLimitReached": "Hay demasiados navegadores abiertos para tu plan. Cierra un navegador e inténtalo de nuevo.",
     "wayfernPlanCheckUnavailable": "No se pudo comprobar tu plan ahora mismo. Inténtalo de nuevo en un momento.",
