@@ -979,6 +979,10 @@
             "label": "Réseau",
             "description": "Proxys, VPN, rotation d'IP et règles DNS"
           },
+          "traffic": {
+            "label": "Trafic",
+            "description": "Enregistrer et lire les requêtes des pages"
+          },
           "fingerprint": {
             "label": "Empreinte",
             "description": "Lire et modifier l'appareil d'un profil"

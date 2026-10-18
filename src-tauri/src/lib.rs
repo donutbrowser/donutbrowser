@@ -144,6 +144,7 @@ mod window_decorations;
 // mod theme_detector; // removed: theme detection handled in webview via CSS prefers-color-scheme
 mod agent_console;
 mod agent_schedules;
+mod agent_uploads;
 mod cloud_api;
 pub mod cloud_auth;
 mod cloud_errors;
@@ -159,6 +160,7 @@ mod mcp_server;
 mod mcp_toolsets;
 mod mcp_views;
 mod navigation_watch;
+mod network_capture;
 mod tag_manager;
 pub mod team_activity;
 mod team_lock;
@@ -3013,6 +3015,9 @@ pub fn run_with_builder(
       // Expired trash entries are swept at startup and every six hours. Local
       // only, so it runs in every mode, e2e included.
       profile::trash::start_expiry_sweeper();
+
+      // Files staged for an agent's upload are kept until the browser stops.
+      crate::agent_uploads::clear_all();
 
       // A temporary profile is destroyed when its browser stops. One that
       // outlived a crash has nothing left to stop it, so startup does.

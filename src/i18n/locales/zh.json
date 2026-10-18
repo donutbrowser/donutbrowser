@@ -970,6 +970,10 @@
             "label": "网络",
             "description": "代理、VPN、IP 轮换和 DNS 规则"
           },
+          "traffic": {
+            "label": "流量",
+            "description": "记录并读取页面发出的请求"
+          },
           "fingerprint": {
             "label": "指纹",
             "description": "查看和修改配置文件的设备"

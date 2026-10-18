@@ -970,6 +970,10 @@
             "label": "Network",
             "description": "Proxies, VPNs, IP rotation and DNS rules"
           },
+          "traffic": {
+            "label": "Traffic",
+            "description": "Record and read the requests pages make"
+          },
           "fingerprint": {
             "label": "Fingerprint",
             "description": "Read and change a profile's device"

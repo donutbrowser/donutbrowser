@@ -1445,6 +1445,8 @@ impl BrowserRunner {
       crate::extension_manager::ExtensionManager::cleanup_unpacked_for_profile(
         &profile.id.to_string(),
       );
+      crate::agent_uploads::remove_for_profile(&profile.id.to_string());
+      crate::network_capture::stop(&profile.id.to_string());
 
       // A temporary profile exists for one automation run, so the run ending
       // is what ends it. Destroyed rather than trashed: nothing here is worth

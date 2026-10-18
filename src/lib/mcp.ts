@@ -24,6 +24,7 @@ export type AgentCategory = "desktop-app" | "cli" | "editor" | "editor-ext";
 export const OPTIONAL_TOOLSETS = [
   "organize",
   "network",
+  "traffic",
   "fingerprint",
   "extensions",
   "cookies",

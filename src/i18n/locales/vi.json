@@ -970,6 +970,10 @@
             "label": "Mạng",
             "description": "Proxy, VPN, đổi IP và quy tắc DNS"
           },
+          "traffic": {
+            "label": "Lưu lượng",
+            "description": "Ghi và đọc các yêu cầu của trang"
+          },
           "fingerprint": {
             "label": "Dấu vân tay",
             "description": "Xem và đổi thiết bị của profile"

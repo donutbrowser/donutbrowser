@@ -871,6 +871,205 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       "yes",
     );
 
+    // Form tools on a native select and a hidden file input added to the page.
+    const toolError = async (name, args = {}) => {
+      const response = await fetch(`${base}/v1/e2e/mcp`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${saved.api_token}`,
+          "content-type": "application/json",
+          "mcp-session-id": mcpSession,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: ++rpcId,
+          method: "tools/call",
+          params: { name, arguments: { profile_id: profile.id, ...args } },
+        }),
+      });
+      const answer = await response.json();
+      assert.ok(answer.body.error, JSON.stringify(answer.body));
+      return answer.body.error;
+    };
+    await cdp.evaluate(`(() => {
+      const form = document.createElement('form');
+      form.innerHTML = '<label for="fixture-country">Country</label>'
+        + '<select id="fixture-country"><option value="">Pick one</option>'
+        + '<option value="de">Germany</option><option value="fr">France</option></select>'
+        + '<select id="fixture-langs" multiple><option value="en">English</option>'
+        + '<option value="de">German</option></select>'
+        + '<label id="fixture-upload-label">Attach'
+        + '<input id="fixture-file" type="file" style="display: none"></label>';
+      document.body.prepend(form);
+      const country = form.querySelector('#fixture-country');
+      country.addEventListener('change', () => { country.dataset.changed = country.value; });
+      form.querySelector('#fixture-file').addEventListener('change', (event) => {
+        event.target.dataset.trusted = String(event.isTrusted);
+      });
+      return true;
+    })()`);
+    const picked = await toolJson("select_option", {
+      selector: "#fixture-country",
+      option: "France",
+    });
+    assert.deepEqual(
+      picked.selected.map((option) => option.value),
+      ["fr"],
+      JSON.stringify(picked),
+    );
+    assert.equal(picked.changed, true);
+    assert.equal(
+      await cdp.evaluate(
+        "document.querySelector('#fixture-country').dataset.changed",
+      ),
+      "fr",
+    );
+    const byLocator = await toolJson("select_option", {
+      locator: { attributes: [{ name: "id", value: "fixture-country" }] },
+      option: "de",
+    });
+    assert.equal(byLocator.selected[0].label, "Germany");
+    const unchanged = await toolJson("select_option", {
+      selector: "#fixture-country",
+      option: "Germany",
+    });
+    assert.equal(unchanged.changed, false);
+    const both = await toolJson("select_option", {
+      selector: "#fixture-langs",
+      options: ["English", "de"],
+    });
+    assert.deepEqual(
+      both.selected.map((option) => option.value),
+      ["en", "de"],
+    );
+    const noSuchOption = await toolError("select_option", {
+      selector: "#fixture-country",
+      option: "Mars",
+    });
+    assert.match(noSuchOption.message, /No option matches.*Germany/s);
+    const notSelect = await toolError("select_option", {
+      selector: "#fixture-button",
+      option: "x",
+    });
+    assert.match(notSelect.message, /not a <select>/);
+
+    const uploaded = await toolJson("file_upload", {
+      selector: "#fixture-upload-label",
+      files: [{ name: "notes.txt", text: "Donut upload" }],
+    });
+    assert.deepEqual(uploaded.files, [{ name: "notes.txt", bytes: 12 }]);
+    assert.equal(
+      await cdp.evaluate(
+        "document.querySelector('#fixture-file').files[0].text()",
+      ),
+      "Donut upload",
+    );
+    assert.equal(
+      await cdp.evaluate(
+        "document.querySelector('#fixture-file').dataset.trusted",
+      ),
+      "true",
+      "the page sees the files arrive as a person's pick",
+    );
+    const replaced = await toolJson("file_upload", {
+      selector: "#fixture-file",
+      files: [
+        {
+          name: "bytes.bin",
+          content_base64: Buffer.from([0, 1, 2]).toString("base64"),
+        },
+      ],
+    });
+    assert.deepEqual(replaced.files, [{ name: "bytes.bin", bytes: 3 }]);
+    const stagedUploads = path.join(
+      app.dataRoot,
+      "cache",
+      "agent-uploads",
+      profile.id,
+    );
+    assert.equal(existsSync(stagedUploads), true);
+    const oneFileOnly = await toolError("file_upload", {
+      selector: "#fixture-file",
+      files: [
+        { name: "a.txt", text: "a" },
+        { name: "b.txt", text: "b" },
+      ],
+    });
+    assert.match(oneFileOnly.message, /takes one file/);
+
+    // Network capture: what the page fetches, with its bodies and without its
+    // credentials, and nothing while the person holds the profile.
+    const capture = await toolJson("start_network_capture");
+    assert.equal(capture.capturing, true, JSON.stringify(capture));
+    assert.ok(capture.tabs >= 1, JSON.stringify(capture));
+    assert.equal(
+      (await toolJson("start_network_capture")).already_running,
+      true,
+    );
+    const echoBody = JSON.stringify({ hello: "capture" });
+    await cdp.evaluate(
+      `fetch('/api/echo?capture=1', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer e2e-secret' }, body: ${JSON.stringify(echoBody)} }).then((response) => response.text())`,
+    );
+    const echoed = await app.waitFor(
+      async () => {
+        const listed = await toolJson("list_network_requests", {
+          url_contains: "/api/echo?capture=1",
+        });
+        const entry = listed.requests[0];
+        return entry?.body === "kept" ? entry : null;
+      },
+      { timeoutMs: 10_000, description: "the captured echo request" },
+    );
+    assert.equal(echoed.method, "POST");
+    assert.equal(echoed.status, 200);
+    assert.equal(echoed.type, "Fetch");
+    const captured = await toolJson("get_network_request", {
+      request_id: echoed.id,
+    });
+    assert.equal(captured.post_data, echoBody);
+    assert.equal(JSON.parse(captured.body.text).body, echoBody);
+    const header = (headers, name) =>
+      Object.entries(headers).find(([key]) => key.toLowerCase() === name)?.[1];
+    assert.equal(
+      header(captured.request_headers, "authorization"),
+      "[redacted]",
+    );
+    const setCookie = header(captured.response_headers, "set-cookie");
+    assert.ok(setCookie === undefined || setCookie === "[redacted]", setCookie);
+    const byBody = await toolJson("list_network_requests", {
+      body_contains: "CAPTURE",
+      type: "fetch",
+    });
+    assert.ok(
+      byBody.requests.some((entry) => entry.id === echoed.id),
+      JSON.stringify(byBody),
+    );
+    await app.invoke("take_over_profile", {
+      profileId: profile.id,
+      note: null,
+    });
+    await cdp.evaluate(
+      "fetch('/api/echo?while-held=1').then((response) => response.text())",
+    );
+    // The capture reads the browser's events on its own task.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await app.invoke("hand_back_profile", {
+      profileId: profile.id,
+      note: null,
+    });
+    const whileHeld = await toolJson("list_network_requests", {
+      url_contains: "while-held",
+    });
+    assert.equal(whileHeld.requests.length, 0, JSON.stringify(whileHeld));
+    assert.ok(whileHeld.withheld >= 1, JSON.stringify(whileHeld));
+    assert.equal((await toolJson("stop_network_capture")).stopped, true);
+    assert.equal(
+      (await toolError("list_network_requests")).data.code,
+      "NETWORK_CAPTURE_NOT_RUNNING",
+    );
+    // Left running, so the browser's stop is what ends it.
+    await toolJson("start_network_capture");
+
     const shot = await tool("screenshot");
     assert.equal(shot.mimeType, "image/jpeg");
     const jpeg = Buffer.from(shot.data, "base64");
@@ -968,6 +1167,15 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
     cdp.close();
     cdp = null;
     await waitForProcessExit(app, browserPid);
+    assert.equal(
+      existsSync(stagedUploads),
+      false,
+      "an agent's uploads go with the browser",
+    );
+    assert.equal(
+      (await toolError("list_network_requests")).data.code,
+      "NETWORK_CAPTURE_NOT_RUNNING",
+    );
     const stoppedProfile = (await app.invoke("list_browser_profiles")).find(
       (item) => item.id === profile.id,
     );

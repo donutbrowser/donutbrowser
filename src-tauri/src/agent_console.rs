@@ -394,6 +394,13 @@ fn targeted_profiles(arguments: &serde_json::Value) -> Vec<String> {
   ids
 }
 
+/// Whether the person has paused every agent or taken over this profile, so
+/// what happens in it now is theirs.
+pub fn person_in_control(profile_id: &str) -> bool {
+  let state = console();
+  state.paused.is_some() || state.holds.contains_key(profile_id)
+}
+
 /// `passive` tools (reads and the human tools) are never refused.
 pub fn check_call(passive: bool, arguments: &serde_json::Value) -> Result<(), Refusal> {
   refusal_for(&console(), passive, arguments)

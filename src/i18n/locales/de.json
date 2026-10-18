@@ -970,6 +970,10 @@
             "label": "Netzwerk",
             "description": "Proxys, VPNs, IP-Wechsel und DNS-Regeln"
           },
+          "traffic": {
+            "label": "Datenverkehr",
+            "description": "Anfragen der Seiten aufzeichnen und lesen"
+          },
           "fingerprint": {
             "label": "Fingerabdruck",
             "description": "Das Gerät eines Profils lesen und ändern"

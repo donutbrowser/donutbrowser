@@ -979,6 +979,10 @@
             "label": "Red",
             "description": "Proxies, VPN, rotación de IP y reglas DNS"
           },
+          "traffic": {
+            "label": "Tráfico",
+            "description": "Grabar y leer las solicitudes de las páginas"
+          },
           "fingerprint": {
             "label": "Huella",
             "description": "Leer y cambiar el dispositivo de un perfil"

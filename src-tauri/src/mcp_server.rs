@@ -1674,7 +1674,15 @@ async fn wayfern_locate(
     Err(WayfernError::NoMatch { .. }) => {}
     Err(other) => return Err(other.into()),
   }
+  page_locate(session, locator, candidate_limit).await
+}
 
+/// Resolve `locator` to one DOM node with the page's own resolver.
+async fn page_locate(
+  session: &mut WayfernSession,
+  locator: &LocatorDescription,
+  candidate_limit: Option<u64>,
+) -> Result<LocatedNode, AgentError> {
   let opts = serde_json::json!({
     "mode": "resolve",
     "locator": locator,
@@ -2296,6 +2304,454 @@ pub(crate) async fn agent_pick_element(
   Ok(picked?)
 }
 
+// --- Form tools: options of a select, files of a file input -----------------
+
+/// How a form tool names its element.
+enum ElementRef {
+  Selector(String),
+  /// An entry of the session's last `get_interactive_elements` listing.
+  Index {
+    cache: String,
+    index: u64,
+  },
+  Locator(LocatorDescription),
+}
+
+/// The object group a form tool's element handles live in, released when the
+/// tool is done.
+const FORM_GROUP: &str = "donut-form";
+
+/// The page's handle to the element `element` names, and the locator's match
+/// when a locator named it.
+async fn form_element(
+  session: &mut WayfernSession,
+  engine: Engine,
+  element: &ElementRef,
+) -> Result<(String, Option<LocatorCandidate>), AgentError> {
+  let (expression, missing) = match element {
+    ElementRef::Locator(locator) => {
+      let located = if engine.is_wayfern() {
+        wayfern_locate(session, locator, None).await?
+      } else {
+        page_locate(session, locator, None).await?
+      };
+      let node = session
+        .call(
+          "DOM.resolveNode",
+          serde_json::json!({
+            "backendNodeId": located.backend_node_id,
+            "objectGroup": FORM_GROUP,
+          }),
+        )
+        .await?;
+      let object = node
+        .pointer("/object/objectId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AgentError::Malformed("DOM.resolveNode answered no object".into()))?;
+      return Ok((object.to_string(), Some(located.matched)));
+    }
+    ElementRef::Selector(selector) => (
+      format!(
+        "document.querySelector({})",
+        serde_json::Value::from(selector.as_str())
+      ),
+      format!("No element matches selector {selector}"),
+    ),
+    ElementRef::Index { cache, index } => (
+      format!("(() => {{ const arr = window[{cache}]; return (arr && arr[{index}]) || null; }})()"),
+      format!(
+        "No element at index {index}. Call get_interactive_elements first or after navigation."
+      ),
+    ),
+  };
+  let result = session
+    .call(
+      "Runtime.evaluate",
+      serde_json::json!({
+        "expression": expression,
+        "returnByValue": false,
+        "objectGroup": FORM_GROUP,
+      }),
+    )
+    .await?;
+  if let Some(thrown) = script_exception(&result) {
+    return Err(thrown);
+  }
+  match result.pointer("/result/objectId").and_then(|v| v.as_str()) {
+    Some(object) => Ok((object.to_string(), None)),
+    None => Err(AgentError::NoMatch { message: missing }),
+  }
+}
+
+/// Run `function` on `object` and hand back what it returned.
+async fn call_on(
+  session: &mut WayfernSession,
+  object: &str,
+  function: &str,
+  arguments: serde_json::Value,
+) -> Result<serde_json::Value, AgentError> {
+  let reply = session
+    .call(
+      "Runtime.callFunctionOn",
+      serde_json::json!({
+        "objectId": object,
+        "functionDeclaration": function,
+        "arguments": arguments,
+        "returnByValue": true,
+      }),
+    )
+    .await?;
+  if let Some(thrown) = script_exception(&reply) {
+    return Err(thrown);
+  }
+  Ok(reply.pointer("/result/value").cloned().unwrap_or_default())
+}
+
+/// Pick the options a caller named in a `<select>` (or the one `<select>` a
+/// label or a container names), the way a person's pick leaves it: focused,
+/// with `input` and `change` fired when the choice changed. Answers the
+/// choice, or `{ error, ... }`.
+const SELECT_OPTION_FN: &str = r#"function (wanted) {
+  const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  let el = this;
+  if (!(el instanceof HTMLSelectElement)) {
+    const inner = el.control instanceof HTMLSelectElement
+      ? [el.control]
+      : Array.from(el.querySelectorAll ? el.querySelectorAll('select') : []);
+    if (inner.length !== 1) {
+      return { error: 'not_select', tag: String(el.tagName || '').toLowerCase(), found: inner.length };
+    }
+    el = inner[0];
+  }
+  const options = Array.from(el.options);
+  const label = (o) => norm(o.label || o.text);
+  const describe = (o) => ({ value: o.value, label: label(o), disabled: o.disabled });
+  const find = (w) => {
+    const text = norm(w);
+    return options.find((o) => o.value === w)
+      || options.find((o) => label(o) === text)
+      || options.find((o) => label(o).toLowerCase() === text.toLowerCase());
+  };
+  const chosen = wanted.map(find);
+  const missing = wanted.filter((_, i) => !chosen[i]);
+  if (missing.length) {
+    return { error: 'no_option', missing, options: options.slice(0, 50).map(describe), count: options.length };
+  }
+  if (el.disabled) return { error: 'disabled' };
+  const off = chosen.filter((o) => o.disabled || (o.parentElement instanceof HTMLOptGroupElement && o.parentElement.disabled));
+  if (off.length) return { error: 'option_disabled', options: off.map(describe) };
+  if (chosen.length > 1 && !el.multiple) return { error: 'single' };
+  const before = options.map((o) => o.selected);
+  el.scrollIntoView({ block: 'nearest' });
+  el.focus({ preventScroll: true });
+  if (el.multiple) {
+    for (const o of options) o.selected = chosen.includes(o);
+  } else {
+    el.selectedIndex = options.indexOf(chosen[0]);
+  }
+  const changed = options.some((o, i) => o.selected !== before[i]);
+  if (changed) {
+    el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  return { selected: options.filter((o) => o.selected).map(describe), changed, multiple: el.multiple };
+}"#;
+
+/// What `select_option` did.
+#[derive(Debug, Serialize)]
+struct SelectedOptions {
+  selected: serde_json::Value,
+  changed: bool,
+  navigated: bool,
+  #[serde(rename = "match", skip_serializing_if = "Option::is_none")]
+  matched: Option<LocatorCandidate>,
+}
+
+/// A refusal `SELECT_OPTION_FN` answered, as an error an agent can act on.
+fn select_refusal(answer: &serde_json::Value) -> Option<AgentError> {
+  let error = answer.get("error")?.as_str()?;
+  Some(match error {
+    "not_select" => AgentError::BadRequest(format!(
+      "The element is a <{}>, not a <select>. For a custom dropdown, click it open and click the option.",
+      answer["tag"].as_str().unwrap_or("?")
+    )),
+    "no_option" => AgentError::BadRequest(format!(
+      "No option matches {}. The select has {} options: {}",
+      answer["missing"], answer["count"], answer["options"]
+    )),
+    "disabled" => AgentError::BadRequest("The select is disabled.".to_string()),
+    "option_disabled" => AgentError::BadRequest(format!(
+      "These options are disabled: {}",
+      answer["options"]
+    )),
+    "single" => AgentError::InvalidArgument(
+      "This select takes one option; name one.".to_string(),
+    ),
+    other => AgentError::Malformed(format!("the select script answered {other}")),
+  })
+}
+
+async fn agent_select_option(
+  ctx: &AgentContext,
+  element: &ElementRef,
+  wanted: &[String],
+) -> Result<SelectedOptions, AgentError> {
+  let mut session = WayfernSession::open(&ctx.target).await?;
+  let outcome = async {
+    session.call("Page.enable", serde_json::json!({})).await?;
+    let (object, matched) = form_element(&mut session, ctx.engine, element).await?;
+    let (reply, navigated) = session
+      .call_then_await_navigation(
+        "Runtime.callFunctionOn",
+        serde_json::json!({
+          "objectId": object,
+          "functionDeclaration": SELECT_OPTION_FN,
+          "arguments": [{ "value": wanted }],
+          "returnByValue": true,
+        }),
+        CLICK_LOAD_TIMEOUT,
+      )
+      .await?;
+    if let Some(thrown) = script_exception(&reply) {
+      return Err(thrown);
+    }
+    let answer = reply.pointer("/result/value").cloned().unwrap_or_default();
+    if let Some(refusal) = select_refusal(&answer) {
+      return Err(refusal);
+    }
+    Ok(SelectedOptions {
+      selected: answer["selected"].clone(),
+      changed: answer["changed"].as_bool().unwrap_or(false),
+      navigated,
+      matched,
+    })
+  }
+  .await;
+  let _ = session
+    .call(
+      "Runtime.releaseObjectGroup",
+      serde_json::json!({ "objectGroup": FORM_GROUP }),
+    )
+    .await;
+  let _ = session.call("Page.disable", serde_json::json!({})).await;
+  session.close().await;
+  outcome
+}
+
+/// The file input `this` names: itself, the input a label is for, or the one
+/// file input inside it. Answers the input, or why there is none as a string.
+const FILE_INPUT_FN: &str = r#"function () {
+  const isFile = (n) => n instanceof HTMLInputElement && n.type === 'file';
+  let el = this;
+  if (!isFile(el)) {
+    if (isFile(el.control)) {
+      el = el.control;
+    } else {
+      const inner = el.querySelectorAll ? el.querySelectorAll('input[type=file]') : [];
+      if (inner.length !== 1) return inner.length ? 'many' : 'none:' + String(el.tagName || '').toLowerCase();
+      el = inner[0];
+    }
+  }
+  if (el.disabled) return 'disabled';
+  return el;
+}"#;
+
+/// What a file input holds now.
+const INPUT_FILES_FN: &str =
+  "function () { return Array.from(this.files || []).map((f) => ({ name: f.name, bytes: f.size })); }";
+
+/// What `file_upload` did.
+#[derive(Debug, Serialize)]
+struct UploadedFiles {
+  files: serde_json::Value,
+  #[serde(rename = "match", skip_serializing_if = "Option::is_none")]
+  matched: Option<LocatorCandidate>,
+}
+
+/// The files of a `file_upload` call, checked before anything touches the page.
+fn upload_files(
+  arguments: &serde_json::Value,
+) -> Result<Vec<crate::agent_uploads::UploadFile>, AgentError> {
+  use crate::agent_uploads::{clean_name, UploadFile, MAX_UPLOAD_BYTES, MAX_UPLOAD_FILES};
+  use base64::{engine::general_purpose, Engine as _};
+  let listed = arguments
+    .get("files")
+    .and_then(|v| v.as_array())
+    .filter(|files| !files.is_empty())
+    .ok_or_else(|| AgentError::InvalidArgument("files must list at least one file".into()))?;
+  if listed.len() > MAX_UPLOAD_FILES {
+    return Err(AgentError::InvalidArgument(format!(
+      "At most {MAX_UPLOAD_FILES} files per call"
+    )));
+  }
+  let mut files: Vec<UploadFile> = Vec::with_capacity(listed.len());
+  let mut total = 0usize;
+  for file in listed {
+    let raw_name = file
+      .get("name")
+      .and_then(|v| v.as_str())
+      .unwrap_or_default();
+    let name = clean_name(raw_name).ok_or_else(|| {
+      AgentError::InvalidArgument(format!(
+        "{raw_name:?} is not a usable file name; give a name like report.pdf"
+      ))
+    })?;
+    if files.iter().any(|f| f.name.eq_ignore_ascii_case(&name)) {
+      return Err(AgentError::InvalidArgument(format!(
+        "Two files are named {name}; give each its own name"
+      )));
+    }
+    let bytes = match (
+      file.get("text").and_then(|v| v.as_str()),
+      file.get("content_base64").and_then(|v| v.as_str()),
+    ) {
+      (Some(text), None) => text.as_bytes().to_vec(),
+      (None, Some(encoded)) => {
+        let encoded = encoded
+          .split_once(";base64,")
+          .map_or(encoded, |(_, data)| data);
+        let compact: String = encoded.chars().filter(|c| !c.is_whitespace()).collect();
+        [
+          general_purpose::STANDARD,
+          general_purpose::STANDARD_NO_PAD,
+          general_purpose::URL_SAFE,
+          general_purpose::URL_SAFE_NO_PAD,
+        ]
+        .iter()
+        .find_map(|engine| engine.decode(&compact).ok())
+        .ok_or_else(|| {
+          AgentError::InvalidArgument(format!("content_base64 of {name} is not base64"))
+        })?
+      }
+      _ => {
+        return Err(AgentError::InvalidArgument(format!(
+          "Give {name} exactly one of text or content_base64"
+        )))
+      }
+    };
+    total += bytes.len();
+    if total > MAX_UPLOAD_BYTES {
+      return Err(AgentError::InvalidArgument(format!(
+        "The files come to more than {} KB, the most one call carries",
+        MAX_UPLOAD_BYTES / 1024
+      )));
+    }
+    files.push(UploadFile { name, bytes });
+  }
+  Ok(files)
+}
+
+async fn agent_file_upload(
+  ctx: &AgentContext,
+  element: &ElementRef,
+  files: &[crate::agent_uploads::UploadFile],
+) -> Result<UploadedFiles, AgentError> {
+  let profile_id = ctx.profile.id.to_string();
+  let mut session = WayfernSession::open(&ctx.target).await?;
+  let outcome = async {
+    let (object, matched) = form_element(&mut session, ctx.engine, element).await?;
+    let reply = session
+      .call(
+        "Runtime.callFunctionOn",
+        serde_json::json!({
+          "objectId": object,
+          "functionDeclaration": FILE_INPUT_FN,
+          "returnByValue": false,
+          "objectGroup": FORM_GROUP,
+        }),
+      )
+      .await?;
+    if let Some(thrown) = script_exception(&reply) {
+      return Err(thrown);
+    }
+    let input = match reply.pointer("/result/objectId").and_then(|v| v.as_str()) {
+      Some(input) => input.to_string(),
+      None => {
+        let reason = reply
+          .pointer("/result/value")
+          .and_then(|v| v.as_str())
+          .unwrap_or_default();
+        return Err(AgentError::BadRequest(match reason {
+          "many" => "The element holds more than one file input; name the input itself, e.g. with selector input[type=file].".to_string(),
+          "disabled" => "The file input is disabled.".to_string(),
+          other => format!(
+            "The element is a <{}>, not a file input, and holds none. Name the input itself, e.g. with selector input[type=file]; it may be hidden.",
+            other.trim_start_matches("none:")
+          ),
+        }));
+      }
+    };
+    let multiple = call_on(&mut session, &input, "function () { return this.multiple; }", serde_json::json!([]))
+      .await?
+      .as_bool()
+      .unwrap_or(false);
+    if files.len() > 1 && !multiple {
+      return Err(AgentError::InvalidArgument(
+        "This file input takes one file; send one.".to_string(),
+      ));
+    }
+    let staged = crate::agent_uploads::stage(&profile_id, files)
+      .map_err(|e| AgentError::Browser(format!("Could not write the files: {e}")))?;
+    let staged: Vec<String> = staged
+      .iter()
+      .map(|file| file.to_string_lossy().to_string())
+      .collect();
+    session
+      .call(
+        "DOM.setFileInputFiles",
+        serde_json::json!({ "files": staged, "objectId": input }),
+      )
+      .await?;
+    let held = call_on(&mut session, &input, INPUT_FILES_FN, serde_json::json!([])).await?;
+    Ok(UploadedFiles {
+      files: held,
+      matched,
+    })
+  }
+  .await;
+  let _ = session
+    .call(
+      "Runtime.releaseObjectGroup",
+      serde_json::json!({ "objectGroup": FORM_GROUP }),
+    )
+    .await;
+  session.close().await;
+  outcome
+}
+
+/// The schema of a form tool: the four ways to name its element, and `extra`.
+fn form_tool_schema(what: &str, extra: serde_json::Value, required: &[&str]) -> serde_json::Value {
+  let mut properties = serde_json::json!({
+    "profile_id": {
+      "type": "string",
+      "description": "The UUID of the running profile"
+    },
+    "selector": {
+      "type": "string",
+      "description": format!("CSS selector of the {what}")
+    },
+    "locator": locator_schema(&format!("Instead of selector: how to name the {what}")),
+    "index": {
+      "type": "integer",
+      "description": "Instead of selector: zero-based index from the last get_interactive_elements response"
+    },
+    "element_id": {
+      "type": "string",
+      "description": "Instead of index: the stable id (e12) from the last get_interactive_elements response"
+    }
+  });
+  if let (Some(properties), Some(extra)) = (properties.as_object_mut(), extra.as_object()) {
+    properties.extend(extra.clone());
+  }
+  let mut required_list = vec!["profile_id"];
+  required_list.extend_from_slice(required);
+  serde_json::json!({
+    "type": "object",
+    "properties": properties,
+    "required": required_list
+  })
+}
+
 /// The JSON schema of a locator argument, shared by every tool that takes one.
 fn locator_schema(description: &str) -> serde_json::Value {
   serde_json::json!({
@@ -2429,11 +2885,16 @@ const BATCH_TOOLS: &[&str] = &[
   "type_text",
   "type_by_index",
   "type_locator",
+  "select_option",
   "get_page_info",
 ];
 const MAX_BATCH_ACTIONS: usize = 20;
 /// How much of each step's answer a batch reports.
 const BATCH_RESULT_CHARS: usize = 2_000;
+/// How much of a captured body `get_network_request` shows when not told, and
+/// at most. The most stays under what one tool answer carries.
+const DEFAULT_BODY_CHARS: u64 = 20_000;
+const MAX_BODY_CHARS: u64 = 90_000;
 
 /// A tab helper's coded refusal as a tool error.
 fn tab_error(message: String) -> McpError {
@@ -3047,6 +3508,14 @@ impl McpServer {
         | "type_locator"
         | "extract_structured"
         | "pick_element"
+        | "select_option"
+        | "file_upload"
+        // A capture reads every request the browser makes, so starting one
+        // and reading it are browser reads like get_page_content, and are
+        // refused while the person has paused agents or holds the profile.
+        | "start_network_capture"
+        | "list_network_requests"
+        | "get_network_request"
         // Starting a bot run leases a remote host for up to two hours and
         // spends the account's pooled remote-hour budget, which makes it the
         // most expensive tool here. Cancelling one reaches the same fleet, and
@@ -4244,7 +4713,7 @@ impl McpServer {
       },
       McpTool {
         name: "run_actions".to_string(),
-        description: "Run several browser actions in one call, in order, on one profile: navigate, go_back, scroll, press_key, wait_for, the click and type tools, get_page_info. Stops at the first failure and, unless stop_on_change is false, as soon as the page address changes, since later steps were planned for the old page. Returns each step's result.".to_string(),
+        description: "Run several browser actions in one call, in order, on one profile: navigate, go_back, scroll, press_key, wait_for, the click and type tools, select_option, get_page_info. Stops at the first failure and, unless stop_on_change is false, as soon as the page address changes, since later steps were planned for the old page. Returns each step's result.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -5007,6 +5476,150 @@ impl McpServer {
             }
           },
           "required": ["profile_id", "locator", "text"]
+        }),
+      },
+      McpTool {
+        name: "select_option".to_string(),
+        description: "Choose options of a native <select>, named by selector, locator, or index from get_interactive_elements; a label or a container that holds one <select> also works. Each option is matched by its value, then by its visible label. The select is focused and the input and change events a pick fires are dispatched in the page. For a custom dropdown that is not a <select>, click it open and click the option instead. Waits for a page load when the choice causes one.".to_string(),
+        input_schema: form_tool_schema(
+          "select element",
+          serde_json::json!({
+            "option": {
+              "type": "string",
+              "description": "The value or visible label of the option to choose"
+            },
+            "options": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Instead of option: every option to choose, for a <select multiple>"
+            }
+          }),
+          &[],
+        ),
+      },
+      McpTool {
+        name: "file_upload".to_string(),
+        description: "Put files into a file input (<input type=file>), named by selector, locator, or index; a label or a container that holds one file input also works, and the input may be hidden. Send each file's content: text for a text file, content_base64 for any file, at most 10 files and 700 KB in all per call. Donut writes them to a private folder on this computer and sets them on the input the way the file chooser does, so the page sees a trusted change; they are deleted when the browser stops. Setting files replaces what the input held. Only for profiles running on this computer.".to_string(),
+        input_schema: form_tool_schema(
+          "file input",
+          serde_json::json!({
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 10,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The file name the page sees, with its extension (report.pdf)"
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "The content of a text file"
+                  },
+                  "content_base64": {
+                    "type": "string",
+                    "description": "Instead of text: the content as base64 (a data: URL works too)"
+                  }
+                },
+                "required": ["name"]
+              }
+            }
+          }),
+          &["files"],
+        ),
+      },
+      McpTool {
+        name: "start_network_capture".to_string(),
+        description: "Start recording the requests that every tab of a running profile makes, for list_network_requests and get_network_request. Nothing the page can see changes. The record is in memory only: at most 2,000 requests and text response bodies up to 2 MB each and 32 MB in all, the oldest dropped first. Cookie, Set-Cookie, Authorization and Proxy-Authorization values read [redacted]. Requests made while the person has paused agents or taken over the profile are not recorded. The capture and its record end when the browser stops, or with stop_network_capture. Only for profiles running on this computer; a capture already running is kept.".to_string(),
+        input_schema: serde_json::json!({
+          "type": "object",
+          "properties": {
+            "profile_id": {
+              "type": "string",
+              "description": "The UUID of the running profile"
+            }
+          },
+          "required": ["profile_id"]
+        }),
+      },
+      McpTool {
+        name: "stop_network_capture".to_string(),
+        description: "Stop a profile's network capture and delete its record.".to_string(),
+        input_schema: serde_json::json!({
+          "type": "object",
+          "properties": {
+            "profile_id": {
+              "type": "string",
+              "description": "The UUID of the profile"
+            }
+          },
+          "required": ["profile_id"]
+        }),
+      },
+      McpTool {
+        name: "list_network_requests".to_string(),
+        description: "List the requests a profile's network capture recorded, oldest first: id, tab, method, URL, type (Document, XHR, Fetch, Script, Image...), state (pending, done, failed, redirected, incomplete), status, MIME type, bytes, duration and what became of the body (kept, or why not). Filter by URL text, method, type, status, failure or body text. Page with after and limit; last_id is the newest id recorded, so after set to it later shows only new requests.".to_string(),
+        input_schema: serde_json::json!({
+          "type": "object",
+          "properties": {
+            "profile_id": {
+              "type": "string",
+              "description": "The UUID of the profile"
+            },
+            "after": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Only requests with a larger id: next_after or last_id from an earlier call"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "description": "Requests per page, 50 when left out"
+            },
+            "url_contains": { "type": "string", "description": "Text the URL contains (any case)" },
+            "method": { "type": "string", "description": "GET, POST, ..." },
+            "type": { "type": "string", "description": "Document, XHR, Fetch, Script, Image, ..." },
+            "status": { "type": "integer", "description": "Only this HTTP status" },
+            "failed": { "type": "boolean", "description": "true: only requests that failed; false: none of them" },
+            "body_contains": { "type": "string", "description": "Text a kept response body contains (any case)" }
+          },
+          "required": ["profile_id"]
+        }),
+      },
+      McpTool {
+        name: "get_network_request".to_string(),
+        description: "One request a network capture recorded, in full: request and response headers, the request body (up to 64 KB), status, timing, and the response body when it is text. Read a long body in parts with body_offset and max_body_chars.".to_string(),
+        input_schema: serde_json::json!({
+          "type": "object",
+          "properties": {
+            "profile_id": {
+              "type": "string",
+              "description": "The UUID of the profile"
+            },
+            "request_id": {
+              "type": "integer",
+              "description": "The id from list_network_requests"
+            },
+            "body": {
+              "type": "boolean",
+              "description": "Include the response body (default: true)"
+            },
+            "body_offset": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "The character to start the body at: next_offset from the previous call"
+            },
+            "max_body_chars": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90000,
+              "description": "The most body characters to show, 20000 when left out"
+            }
+          },
+          "required": ["profile_id", "request_id"]
         }),
       },
       McpTool {
@@ -5809,6 +6422,48 @@ impl McpServer {
         )
         .await?;
         self.handle_type_locator(arguments).await
+      }
+      "select_option" => {
+        Self::require_capability(
+          "Browser automation",
+          CLOUD_AUTH.can_use_browser_automation().await,
+        )
+        .await?;
+        self.handle_select_option(caller, arguments).await
+      }
+      "file_upload" => {
+        Self::require_capability(
+          "Browser automation",
+          CLOUD_AUTH.can_use_browser_automation().await,
+        )
+        .await?;
+        self.handle_file_upload(caller, arguments).await
+      }
+      "start_network_capture" => {
+        Self::require_capability(
+          "Browser automation",
+          CLOUD_AUTH.can_use_browser_automation().await,
+        )
+        .await?;
+        self.handle_start_network_capture(arguments).await
+      }
+      // Stopping only deletes; it works without a plan, like stop_sync_session.
+      "stop_network_capture" => Self::handle_stop_network_capture(arguments),
+      "list_network_requests" => {
+        Self::require_capability(
+          "Browser automation",
+          CLOUD_AUTH.can_use_browser_automation().await,
+        )
+        .await?;
+        Self::handle_list_network_requests(arguments)
+      }
+      "get_network_request" => {
+        Self::require_capability(
+          "Browser automation",
+          CLOUD_AUTH.can_use_browser_automation().await,
+        )
+        .await?;
+        Self::handle_get_network_request(arguments)
       }
       "extract_structured" => {
         Self::require_capability(
@@ -10490,6 +11145,219 @@ impl McpServer {
     Self::json_content(&typed)
   }
 
+  /// The element a form tool names: one of selector, locator, index or
+  /// element_id.
+  async fn form_element_ref(
+    &self,
+    caller: McpCaller<'_>,
+    profile_id: &str,
+    arguments: &serde_json::Value,
+  ) -> Result<ElementRef, McpError> {
+    let given = |key: &str| arguments.get(key).is_some_and(|v| !v.is_null());
+    let named = ["selector", "locator", "index", "element_id"]
+      .into_iter()
+      .filter(|key| given(key))
+      .count();
+    if named != 1 {
+      return Err(McpError {
+        code: -32602,
+        message: "Name the element one way: selector, locator, index or element_id".to_string(),
+        data: None,
+      });
+    }
+    if given("locator") {
+      let locator: LocatorDescription = Self::agent_arguments(&arguments["locator"])?;
+      validate_locator(&locator).map_err(AgentError::into_mcp)?;
+      return Ok(ElementRef::Locator(canonical_locator(&locator)));
+    }
+    if given("selector") {
+      return Ok(ElementRef::Selector(
+        Self::require_str(arguments, "selector")?.to_string(),
+      ));
+    }
+    let cache = interactive_cache_slot(require_indexed_session(caller)?);
+    let index = self.element_index(profile_id, &cache, arguments).await?;
+    Ok(ElementRef::Index { cache, index })
+  }
+
+  async fn handle_select_option(
+    &self,
+    caller: McpCaller<'_>,
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let wanted: Option<Vec<String>> = match (arguments.get("option"), arguments.get("options")) {
+      (Some(serde_json::Value::String(one)), None) => Some(vec![one.clone()]),
+      (None, Some(serde_json::Value::Array(many))) if !many.is_empty() => many
+        .iter()
+        .map(|v| v.as_str().map(str::to_string))
+        .collect(),
+      _ => None,
+    };
+    let wanted = wanted.ok_or_else(|| McpError {
+      code: -32602,
+      message: "Give option (one value or label) or options (a list of them)".to_string(),
+      data: None,
+    })?;
+    let element = self.form_element_ref(caller, profile_id, arguments).await?;
+    let ctx = self.agent_context(profile_id).await?;
+    let selected = agent_select_option(&ctx, &element, &wanted)
+      .await
+      .map_err(AgentError::into_mcp)?;
+    Self::json_content(&selected)
+  }
+
+  async fn handle_file_upload(
+    &self,
+    caller: McpCaller<'_>,
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let files = upload_files(arguments).map_err(AgentError::into_mcp)?;
+    let element = self.form_element_ref(caller, profile_id, arguments).await?;
+    let ctx = self.agent_context(profile_id).await?;
+    if ctx.target.is_remote() {
+      return Err(McpError {
+        code: -32000,
+        message: "file_upload works only for a profile whose browser runs on this computer."
+          .to_string(),
+        data: Some(serde_json::json!({ "code": "FILE_UPLOAD_LOCAL_ONLY" })),
+      });
+    }
+    // A browser that exited by itself left its files; nothing reads them now.
+    if let Ok(profiles) = ProfileManager::instance().list_profiles() {
+      let running: HashSet<String> = profiles
+        .iter()
+        .filter(|p| p.process_id.is_some())
+        .map(|p| p.id.to_string())
+        .collect();
+      crate::agent_uploads::sweep(|id| running.contains(id));
+    }
+    let uploaded = agent_file_upload(&ctx, &element, &files)
+      .await
+      .map_err(AgentError::into_mcp)?;
+    Self::json_content(&uploaded)
+  }
+
+  async fn handle_start_network_capture(
+    &self,
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    use crate::network_capture::StartError;
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let profile = self.get_wayfern_profile(profile_id)?;
+    match crate::network_capture::start(&profile).await {
+      Ok(answer) => Self::json_content(&answer),
+      Err(StartError::NotLocal) => Err(McpError {
+        code: -32000,
+        message: "No browser of this profile runs on this computer. Network capture works for a profile launched here with run_profile, not on the remote fleet.".to_string(),
+        data: Some(serde_json::json!({ "code": "NETWORK_CAPTURE_LOCAL_ONLY" })),
+      }),
+      Err(StartError::Refused(reason)) => Err(McpError {
+        code: -32000,
+        message: format!("The browser did not accept the capture: {reason}"),
+        data: Some(serde_json::json!({ "code": "NETWORK_CAPTURE_FAILED" })),
+      }),
+    }
+  }
+
+  fn handle_stop_network_capture(
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let answer = match crate::network_capture::stop(profile_id) {
+      Some(requests) => serde_json::json!({ "stopped": true, "requests": requests }),
+      None => serde_json::json!({ "stopped": false }),
+    };
+    Self::json_content(&answer)
+  }
+
+  fn capture_not_running() -> McpError {
+    McpError {
+      code: -32000,
+      message: "No network capture runs for this profile. Call start_network_capture first; a capture ends when its browser stops.".to_string(),
+      data: Some(serde_json::json!({ "code": "NETWORK_CAPTURE_NOT_RUNNING" })),
+    }
+  }
+
+  fn handle_list_network_requests(
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    use crate::mcp_views::{DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT};
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let text = |key: &str| {
+      arguments
+        .get(key)
+        .and_then(|v| v.as_str())
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+    };
+    let limit = match arguments.get("limit") {
+      None | Some(serde_json::Value::Null) => DEFAULT_LIST_LIMIT,
+      Some(value) => value
+        .as_u64()
+        .filter(|n| (1..=MAX_LIST_LIMIT as u64).contains(n))
+        .ok_or_else(|| McpError {
+          code: -32602,
+          message: format!("limit is a whole number from 1 to {MAX_LIST_LIMIT}"),
+          data: None,
+        })? as usize,
+    };
+    let query = crate::network_capture::ListQuery {
+      after: arguments.get("after").and_then(|v| v.as_u64()).unwrap_or(0),
+      limit,
+      url_contains: text("url_contains"),
+      method: text("method"),
+      resource_type: text("type"),
+      status: arguments.get("status").and_then(|v| v.as_u64()),
+      failed: arguments.get("failed").and_then(|v| v.as_bool()),
+      body_contains: text("body_contains"),
+    };
+    let answer = crate::network_capture::read(profile_id, |log| log.list(&query))
+      .ok_or_else(Self::capture_not_running)?;
+    Self::json_content(&answer)
+  }
+
+  fn handle_get_network_request(
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let id = arguments
+      .get("request_id")
+      .and_then(|v| v.as_u64())
+      .ok_or_else(|| McpError {
+        code: -32602,
+        message: "Missing request_id".to_string(),
+        data: None,
+      })?;
+    let with_body = arguments
+      .get("body")
+      .and_then(|v| v.as_bool())
+      .unwrap_or(true);
+    let offset = arguments
+      .get("body_offset")
+      .and_then(|v| v.as_u64())
+      .unwrap_or(0) as usize;
+    let max_chars = arguments
+      .get("max_body_chars")
+      .and_then(|v| v.as_u64())
+      .unwrap_or(DEFAULT_BODY_CHARS)
+      .clamp(1, MAX_BODY_CHARS) as usize;
+    match crate::network_capture::read(profile_id, |log| {
+      log.detail(id, with_body, offset, max_chars)
+    }) {
+      None => Err(Self::capture_not_running()),
+      Some(None) => Err(McpError {
+        code: -32000,
+        message: format!(
+          "No request {id} in the capture. Ids come from list_network_requests; the oldest are dropped past 2,000."
+        ),
+        data: Some(serde_json::json!({ "code": "NETWORK_REQUEST_NOT_FOUND" })),
+      }),
+      Some(Some(answer)) => Self::json_content(&answer),
+    }
+  }
+
   async fn handle_extract_structured(
     &self,
     arguments: &serde_json::Value,
@@ -11645,7 +12513,7 @@ mod tests {
     // tool was added or removed on purpose.
     assert_eq!(
       tools.len(),
-      107,
+      113,
       "the tool list is a published contract; update this number deliberately"
     );
 
@@ -11736,6 +12604,13 @@ mod tests {
     assert!(tool_names.contains(&"resolve_locator"));
     assert!(tool_names.contains(&"click_locator"));
     assert!(tool_names.contains(&"type_locator"));
+    assert!(tool_names.contains(&"select_option"));
+    assert!(tool_names.contains(&"file_upload"));
+    // Network capture tools
+    assert!(tool_names.contains(&"start_network_capture"));
+    assert!(tool_names.contains(&"stop_network_capture"));
+    assert!(tool_names.contains(&"list_network_requests"));
+    assert!(tool_names.contains(&"get_network_request"));
     assert!(tool_names.contains(&"extract_structured"));
     assert!(tool_names.contains(&"pick_element"));
     // Remote fleet: an agent must be able to start a session, see it become
@@ -12471,8 +13346,8 @@ mod tests {
       production.matches("window[__CACHE__]").count()
         + production.matches("window[{cache}]").count()
         + production.matches("window[{slot}]").count(),
-      8,
-      "the eight cache sites (one write, five reads, two in the teardown) must \
+      9,
+      "the nine cache sites (one write, six reads, two in the teardown) must \
        all be parameterised"
     );
   }
@@ -13442,6 +14317,12 @@ mod tests {
       "type_locator",
       "extract_structured",
       "pick_element",
+      "select_option",
+      "file_upload",
+      // A capture reads every request the browser makes.
+      "start_network_capture",
+      "list_network_requests",
+      "get_network_request",
       // Leases a remote host for up to two hours and spends the pooled
       // remote-hour budget.
       "run_cookie_bot_now",
@@ -14103,6 +14984,11 @@ mod tests {
       "type_locator",
       "extract_structured",
       "pick_element",
+      "select_option",
+      "file_upload",
+      "start_network_capture",
+      "list_network_requests",
+      "get_network_request",
     ] {
       assert!(
         advertised.iter().any(|t| t == tool),
@@ -14401,5 +15287,156 @@ mod tests {
     assert_eq!(item.text, "navigate hangs");
     let feedback = item.feedback.as_ref().unwrap();
     assert_eq!((feedback.kind.as_str(), feedback.logs), ("bug", true));
+  }
+
+  #[test]
+  fn upload_files_are_read_and_checked_before_the_page_is_touched() {
+    let files = upload_files(&serde_json::json!({
+      "files": [
+        { "name": "notes.txt", "text": "héllo" },
+        { "name": "../pic.png", "content_base64": "data:image/png;base64,AAEC\nAw==" },
+        { "name": "raw.bin", "content_base64": "_-8" },
+      ]
+    }))
+    .unwrap();
+    assert_eq!(files[0].name, "notes.txt");
+    assert_eq!(files[0].bytes, "héllo".as_bytes());
+    assert_eq!(files[1].name, "pic.png");
+    assert_eq!(files[1].bytes, vec![0, 1, 2, 3]);
+    assert_eq!(files[2].bytes, vec![0xff, 0xef]);
+
+    let refused =
+      |arguments: serde_json::Value| upload_files(&arguments).unwrap_err().into_mcp().message;
+    assert!(refused(serde_json::json!({})).contains("at least one file"));
+    assert!(refused(serde_json::json!({ "files": [] })).contains("at least one file"));
+    assert!(
+      refused(serde_json::json!({ "files": [{ "name": "a.txt" }] })).contains("exactly one of")
+    );
+    assert!(refused(
+      serde_json::json!({ "files": [{ "name": "a.txt", "text": "x", "content_base64": "eA==" }] })
+    )
+    .contains("exactly one of"));
+    assert!(
+      refused(serde_json::json!({ "files": [{ "name": "..", "text": "x" }] }))
+        .contains("not a usable file name")
+    );
+    assert!(refused(serde_json::json!({
+      "files": [{ "name": "a.txt", "text": "x" }, { "name": "A.TXT", "text": "y" }]
+    }))
+    .contains("Two files are named"));
+    assert!(refused(
+      serde_json::json!({ "files": [{ "name": "a.bin", "content_base64": "%%%" }] })
+    )
+    .contains("not base64"));
+    let many: Vec<serde_json::Value> = (0..=crate::agent_uploads::MAX_UPLOAD_FILES)
+      .map(|n| serde_json::json!({ "name": format!("{n}.txt"), "text": "x" }))
+      .collect();
+    assert!(refused(serde_json::json!({ "files": many })).contains("At most"));
+    let large = "x".repeat(crate::agent_uploads::MAX_UPLOAD_BYTES + 1);
+    assert!(
+      refused(serde_json::json!({ "files": [{ "name": "big.txt", "text": large }] }))
+        .contains("KB")
+    );
+  }
+
+  #[test]
+  fn a_select_refusal_tells_the_agent_what_to_do() {
+    let message = |answer: serde_json::Value| select_refusal(&answer).unwrap().into_mcp().message;
+    assert!(
+      message(serde_json::json!({ "error": "not_select", "tag": "div" }))
+        .contains("<div>, not a <select>")
+    );
+    let missing = message(serde_json::json!({
+      "error": "no_option",
+      "missing": ["Mars"],
+      "count": 2,
+      "options": [{ "value": "de", "label": "Germany", "disabled": false }],
+    }));
+    assert!(
+      missing.contains("Mars") && missing.contains("Germany"),
+      "{missing}"
+    );
+    assert!(message(serde_json::json!({ "error": "single" })).contains("takes one option"));
+    assert!(select_refusal(&serde_json::json!({ "selected": [], "changed": false })).is_none());
+  }
+
+  #[test]
+  fn a_form_tool_names_its_element_four_ways_and_reads_no_path() {
+    let server = McpServer::new();
+    for name in ["select_option", "file_upload"] {
+      let tool = server
+        .get_tools()
+        .into_iter()
+        .find(|tool| tool.name == name)
+        .unwrap();
+      let properties = tool.input_schema["properties"].as_object().unwrap();
+      for key in ["profile_id", "selector", "locator", "index", "element_id"] {
+        assert!(properties.contains_key(key), "{name} lacks {key}");
+      }
+      assert_eq!(tool.input_schema["required"][0], "profile_id");
+      assert!(!LOCAL_PATH_TOOLS.contains(&name));
+    }
+  }
+
+  #[tokio::test]
+  async fn a_form_tool_refuses_two_ways_of_naming_its_element() {
+    let server = McpServer::new();
+    let caller = McpCaller {
+      session: Some("s"),
+      toolsets: None,
+    };
+    for arguments in [
+      serde_json::json!({}),
+      serde_json::json!({ "selector": "#a", "index": 1 }),
+      serde_json::json!({ "locator": { "role": "button" }, "selector": "#a" }),
+    ] {
+      let error = server
+        .form_element_ref(caller, "p", &arguments)
+        .await
+        .err()
+        .unwrap();
+      assert!(error.message.contains("one way"), "{arguments}");
+    }
+    let named = server
+      .form_element_ref(
+        caller,
+        "p",
+        &serde_json::json!({ "selector": "select#country" }),
+      )
+      .await
+      .unwrap();
+    assert!(matches!(named, ElementRef::Selector(selector) if selector == "select#country"));
+    let located = server
+      .form_element_ref(
+        caller,
+        "p",
+        &serde_json::json!({ "locator": { "role": "textbox", "name": "Email" } }),
+      )
+      .await
+      .unwrap();
+    assert!(
+      matches!(located, ElementRef::Locator(locator) if locator.role.as_deref() == Some("textField"))
+    );
+  }
+
+  #[test]
+  fn network_reads_without_a_capture_say_how_to_start_one() {
+    let profile = serde_json::json!({ "profile_id": "no-capture-profile" });
+    let error = McpServer::handle_list_network_requests(&profile).unwrap_err();
+    assert_eq!(error.data.unwrap()["code"], "NETWORK_CAPTURE_NOT_RUNNING");
+    let error = McpServer::handle_get_network_request(&serde_json::json!({
+      "profile_id": "no-capture-profile",
+      "request_id": 1,
+    }))
+    .unwrap_err();
+    assert!(error.message.contains("start_network_capture"));
+    let error = McpServer::handle_list_network_requests(&serde_json::json!({
+      "profile_id": "no-capture-profile",
+      "limit": 0,
+    }))
+    .unwrap_err();
+    assert_eq!(error.code, -32602);
+    let stopped = McpServer::handle_stop_network_capture(&profile).unwrap();
+    assert_eq!(stopped["structuredContent"]["stopped"], false);
   }
 }

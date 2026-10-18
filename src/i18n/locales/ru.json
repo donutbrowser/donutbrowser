@@ -988,6 +988,10 @@
             "label": "Сеть",
             "description": "Прокси, VPN, смена IP и правила DNS"
           },
+          "traffic": {
+            "label": "Трафик",
+            "description": "Запись и чтение запросов страниц"
+          },
           "fingerprint": {
             "label": "Отпечаток",
             "description": "Просмотр и изменение устройства профиля"

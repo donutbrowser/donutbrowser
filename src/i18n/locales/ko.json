@@ -970,6 +970,10 @@
             "label": "네트워크",
             "description": "프록시, VPN, IP 교체, DNS 규칙"
           },
+          "traffic": {
+            "label": "트래픽",
+            "description": "페이지의 요청을 기록하고 읽기"
+          },
           "fingerprint": {
             "label": "핑거프린트",
             "description": "프로필의 기기 확인 및 변경"

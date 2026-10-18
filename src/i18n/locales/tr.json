@@ -970,6 +970,10 @@
             "label": "Ağ",
             "description": "Proxy'ler, VPN'ler, IP değiştirme ve DNS kuralları"
           },
+          "traffic": {
+            "label": "Trafik",
+            "description": "Sayfaların isteklerini kaydetme ve okuma"
+          },
           "fingerprint": {
             "label": "Parmak izi",
             "description": "Bir profilin cihazını okuma ve değiştirme"

@@ -59,6 +59,8 @@ pub const TOOLSETS: &[(&str, &[&str])] = &[
       "resolve_locator",
       "click_locator",
       "type_locator",
+      "select_option",
+      "file_upload",
       "extract_structured",
       "pick_element",
       // The person watching
@@ -102,6 +104,15 @@ pub const TOOLSETS: &[(&str, &[&str])] = &[
       "update_profile_proxy_bypass_rules",
       "update_profile_dns_blocklist",
       "get_dns_blocklist_status",
+    ],
+  ),
+  (
+    "traffic",
+    &[
+      "start_network_capture",
+      "stop_network_capture",
+      "list_network_requests",
+      "get_network_request",
     ],
   ),
   (

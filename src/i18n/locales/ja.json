@@ -970,6 +970,10 @@
             "label": "ネットワーク",
             "description": "プロキシ、VPN、IP の切り替え、DNS ルール"
           },
+          "traffic": {
+            "label": "通信",
+            "description": "ページのリクエストを記録して読む"
+          },
           "fingerprint": {
             "label": "フィンガープリント",
             "description": "プロファイルのデバイスの確認と変更"
