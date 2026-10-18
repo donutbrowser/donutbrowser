@@ -1982,6 +1982,24 @@ impl WayfernManager {
     }
   }
 
+  /// A cross-OS refusal the browser made before its first window names the
+  /// claim in the launch result, so the message can say which OS it was.
+  fn with_refused_claim(
+    error: Box<dyn std::error::Error + Send + Sync>,
+    result: Option<&crate::wayfern_identity_storage::LaunchResult>,
+  ) -> Box<dyn std::error::Error + Send + Sync> {
+    if !error
+      .to_string()
+      .contains("\"WAYFERN_CROSS_OS_REQUIRES_PLAN\"")
+    {
+      return error;
+    }
+    match result.and_then(|result| result.operating_system.as_deref()) {
+      Some(os) => crate::backend_error_with_detail("WAYFERN_CROSS_OS_REQUIRES_PLAN", os).into(),
+      None => error,
+    }
+  }
+
   /// Read this launch's result and store the config it returns.
   fn store_launch_result(
     profile: &BrowserProfile,
@@ -3114,11 +3132,22 @@ impl WayfernManager {
         .fingerprint
         .as_deref()
         .and_then(Self::fingerprint_object);
-      if let Some(claimed) = Self::claimed_operating_system(config, stored_device.as_ref()) {
+      // An identity profile with no stored `os` claims the OS of the machine
+      // that created it, which is what its launch document names.
+      let identity_claim = (config.fingerprint.is_none()
+        && config
+          .identity_id
+          .as_deref()
+          .is_some_and(|id| !id.trim().is_empty()))
+      .then(|| profile.native_os());
+      let claimed = Self::claimed_operating_system(config, stored_device.as_ref())
+        .map(str::to_string)
+        .or(identity_claim);
+      if let Some(claimed) = claimed {
         let host_os = crate::profile::types::get_host_os();
-        if claimed != host_os.as_str() {
+        if claimed != host_os {
           return Err(
-            crate::backend_error_with_detail("WAYFERN_CROSS_OS_REQUIRES_PLAN", claimed).into(),
+            crate::backend_error_with_detail("WAYFERN_CROSS_OS_REQUIRES_PLAN", &claimed).into(),
           );
         }
       }
@@ -3346,8 +3375,8 @@ impl WayfernManager {
           }
           kill_browser_process(pid);
         }
-        Self::store_launch_result(profile, config, result_file.as_deref());
-        return Err(e);
+        let (launch_result, _) = Self::store_launch_result(profile, config, result_file.as_deref());
+        return Err(Self::with_refused_claim(e, launch_result.as_ref()));
       }
     };
     drop(child);
