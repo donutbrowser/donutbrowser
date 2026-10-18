@@ -7,7 +7,6 @@ import {
   createWriteStream,
   existsSync,
   readFileSync,
-  rmSync,
   statSync,
 } from "node:fs";
 import {
@@ -315,14 +314,21 @@ function syncHarnessLockfile() {
   log("seeded e2e/app/Cargo.lock from src-tauri/Cargo.lock");
 }
 
-// The app runs a sidecar found next to its own executable before the fresh
-// copies in src-tauri/binaries, and nothing rebuilds one left there by an
-// older harness, so every launch would fail on a version mismatch.
-function removeStaleSidecars() {
+// Tauri starts a sidecar from next to the running executable only. Copy the
+// sidecars this build made there, so a copy left by an older harness never
+// fails every launch on its version check.
+function installSidecars() {
+  const target = hostRustTarget();
   for (const name of ["donut-proxy", "xray"]) {
-    rmSync(path.join(path.dirname(appBinary), `${name}${executableSuffix}`), {
-      force: true,
-    });
+    copyFileSync(
+      path.join(
+        projectRoot,
+        "src-tauri",
+        "binaries",
+        `${name}-${target}${executableSuffix}`,
+      ),
+      path.join(path.dirname(appBinary), `${name}${executableSuffix}`),
+    );
   }
 }
 
@@ -332,7 +338,6 @@ function buildAll() {
   run(process.execPath, ["src-tauri/download-xray.mjs"], projectRoot);
   syncHarnessLockfile();
   run("cargo", ["build", "--manifest-path", "e2e/app/Cargo.toml"], projectRoot);
-  removeStaleSidecars();
   ensureDriver();
 }
 
@@ -942,6 +947,7 @@ async function main() {
         "--no-build requested but the E2E app or driver binary is missing",
       );
     }
+    installSidecars();
 
     const driverPort = await freePort();
     const driver = startProcess(
