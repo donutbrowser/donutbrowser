@@ -3127,7 +3127,7 @@ impl WayfernManager {
     if wayfern_token.is_none()
       && !Self::stored_object(config.identity_overrides.as_deref()).is_empty()
       && crate::cloud_auth::CLOUD_AUTH
-        .is_entitled_to_wayfern_token()
+        .can_use_cross_os_fingerprints()
         .await
     {
       log::warn!(
@@ -3188,9 +3188,11 @@ impl WayfernManager {
     }
     let launch_identity = match result_file.as_deref() {
       Some(result_file) => {
+        // A signed-in plan without fingerprint editing is a settled answer
+        // with or without a token; only a plan that includes it waits for one.
         let account_known = (wayfern_token.is_some()
           || !crate::cloud_auth::CLOUD_AUTH
-            .is_entitled_to_wayfern_token()
+            .can_use_cross_os_fingerprints()
             .await)
           && crate::cloud_auth::CLOUD_AUTH.is_logged_in().await;
         let mut document = identity_document
@@ -3425,7 +3427,7 @@ impl WayfernManager {
         Ok(confirmation) => {
           if log_tap.dropped_overrides()
             && crate::cloud_auth::CLOUD_AUTH
-              .is_entitled_to_wayfern_token()
+              .can_use_cross_os_fingerprints()
               .await
           {
             log::warn!(
