@@ -3270,21 +3270,61 @@
     "noOtherTargets": "Başka Wayfern profili seçilmedi"
   },
   "about": {
-    "title": "Hakkında",
-    "version": "Sürüm {{version}}",
-    "portableBadge": "taşınabilir",
-    "licenseNotice": "Açık kaynaklı anti-detect tarayıcı.",
     "website": "Web sitesi",
-    "github": "GitHub",
     "licenses": "Lisanslar",
     "searchLicenses": "Lisanslarda ara…",
     "noMatchingLicenses": "Eşleşen lisans yok.",
     "openSource": "{{name}} kaynak kodunu görüntüle",
-    "snack": {
-      "found": "Atıştırmalık çekmecesini buldunuz.",
-      "finished": "Sadece kırıntılar. Çerez yok.",
-      "takeBite": "Bir ısırık alın",
-      "again": "Bir donut daha"
+    "channel": {
+      "stable": "Kararlı",
+      "nightly": "Nightly",
+      "development": "Geliştirme"
+    },
+    "portable": "Taşınabilir",
+    "whatsNew": "Bu sürümdeki yenilikler",
+    "update": {
+      "checking": "Güncellemeler denetleniyor…",
+      "development": "Geliştirme sürümlerinde güncellemeler kapalıdır",
+      "current": "Güncel",
+      "checkAgain": "Yeniden denetle",
+      "failed": "Güncellemeler denetlenemedi",
+      "available": "{{version}} sürümü kullanılabilir",
+      "packageManager": "{{version}} sürümü paket yöneticinizde kullanılabilir",
+      "update": "Güncelle",
+      "download": "İndir",
+      "downloading": "{{version}} sürümü indiriliyor…",
+      "downloadingPercent": "{{version}} sürümü indiriliyor… %{{percent}}",
+      "ready": "{{version}} sürümü yüklenmeye hazır",
+      "restart": "Güncellemek için yeniden başlat"
+    },
+    "diagnostics": {
+      "title": "Tanılama",
+      "version": "Sürüm",
+      "channel": "Kanal",
+      "system": "Sistem",
+      "yes": "Evet",
+      "no": "Hayır",
+      "notInstalled": "Yüklü değil",
+      "copy": "Ayrıntıları kopyala",
+      "copyFailed": "Ayrıntılar kopyalanamadı",
+      "openLogs": "Günlük klasörünü aç",
+      "openLogsFailed": "Günlük klasörü açılamadı"
+    },
+    "help": {
+      "title": "Yardım",
+      "reportBug": "Hata bildir"
+    },
+    "footer": "Özgür ve açık kaynaklı yazılım.",
+    "sourceCode": "Kaynak kodu",
+    "lab": {
+      "hint": "Döndürmek için sürükleyin. Isırmak için tıklayın.",
+      "status_one": "{{count}} ısırık · %{{left}} kaldı",
+      "status_other": "{{count}} ısırık · %{{left}} kaldı",
+      "label": "Donut, %{{left}} kaldı",
+      "description": "Metin karakterleriyle çizilmiş 3B bir donut. Döndürmek için sürükleyin veya ok tuşlarını kullanın. Isırmak için tıklayın veya Boşluk tuşuna basın.",
+      "eaten": "Geriye yalnızca kırıntılar kaldı.",
+      "bakeAnother": "Bir tane daha pişir",
+      "close": "Donutu kapat"
     }
   },
   "clearOnClose": {
@@ -3713,7 +3753,6 @@
     "hint": "Bir profil seçin, ardından çerezini veya rotasını değiştirin.",
     "changed": "{{name}} değişti. Diğer profil kendi çerezini ve rotasını korudu.",
     "resetDone": "Her iki örnek sıfırlandı.",
-    "replay": "Profil yalıtımını keşfet",
     "device": "Cihaz",
     "site": "Site"
   },

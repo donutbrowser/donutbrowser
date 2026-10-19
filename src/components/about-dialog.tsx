@@ -3,12 +3,39 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
-import { LuArrowLeft, LuExternalLink, LuSearch } from "react-icons/lu";
-import { DonutSnack } from "@/components/donut-snack";
-import { ProfileIsolationDemo } from "@/components/profile-isolation-demo";
+import type { IconType } from "react-icons";
+import {
+  LuArrowLeft,
+  LuArrowUpRight,
+  LuBug,
+  LuCircleAlert,
+  LuCircleArrowUp,
+  LuCircleCheck,
+  LuCopy,
+  LuExternalLink,
+  LuFolderOpen,
+  LuGithub,
+  LuGlobe,
+  LuInfo,
+  LuKeyboard,
+  LuLoaderCircle,
+  LuRefreshCw,
+  LuScale,
+  LuSearch,
+} from "react-icons/lu";
+import { DonutLab } from "@/components/donut-lab";
 import { Button } from "@/components/ui/button";
+import { ConfirmationMark } from "@/components/ui/confirmation-mark";
 import {
   Dialog,
   DialogContent,
@@ -16,18 +43,26 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FadingScrollArea } from "@/components/ui/fading-scroll-area";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { Input } from "@/components/ui/input";
 import { StepTransition } from "@/components/ui/step-transition";
 import licenses from "@/generated/licenses.json";
 import xraySource from "@/generated/xray-source.json";
-import { launchDonutClone } from "@/lib/donut-physics";
+import type { AppUpdateState } from "@/hooks/use-app-update-notifications";
+import { MOTION_EASE_OUT } from "@/lib/motion";
+import { showErrorToast } from "@/lib/toast-utils";
+import { playUiSound } from "@/lib/ui-sounds";
+import { cn } from "@/lib/utils";
 import { Logo } from "./icons/logo";
-import { RippleButton } from "./ui/ripple";
 
-interface AboutDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
+const WEBSITE_URL = "https://donutbrowser.com";
+const REPOSITORY_URL = "https://github.com/donutbrowser/donutbrowser";
+const RELEASES_URL = `${REPOSITORY_URL}/releases`;
+/** A check older than this runs again when About opens. */
+const CHECK_TTL_MS = 10 * 60 * 1000;
+/** Three clicks on the logo, each this soon after the last, open the lab. */
+const EGG_CLICK_GAP_MS = 600;
+const EGG_CLICKS = 3;
 
 interface SystemInfo {
   app_version: string;
@@ -36,31 +71,76 @@ interface SystemInfo {
   portable: boolean;
 }
 
-type AboutView = "about" | "licenses" | "isolation";
+type BuildChannel = "stable" | "nightly" | "development";
 
-// Flywheel: each click adds spin; past this speed the donut escapes the
-// dialog and bounces around the window (shared physics with the rail egg).
-const SPIN_PER_CLICK = 540; // deg/s
-const ESCAPE_VELOCITY = 2200; // deg/s
-const SPIN_FRICTION = 1.1; // fraction of velocity lost per second
+/** The channel, the version people read, and its release notes, from the build's version. */
+function describeBuild(version: string) {
+  if (version.startsWith("dev-")) {
+    return {
+      channel: "development" as BuildChannel,
+      label: version.slice(4),
+      notesUrl: RELEASES_URL,
+    };
+  }
+  if (version.startsWith("nightly-")) {
+    return {
+      channel: "nightly" as BuildChannel,
+      label: version.slice(8),
+      notesUrl: RELEASES_URL,
+    };
+  }
+  const label = version.replace(/^v/, "");
+  return {
+    channel: "stable" as BuildChannel,
+    label,
+    notesUrl: `${RELEASES_URL}/tag/v${label}`,
+  };
+}
 
-export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
-  const { t } = useTranslation();
+type CheckState = "idle" | "checking" | "done" | "failed";
+
+type AboutView = "about" | "licenses";
+
+interface AboutDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  update: AppUpdateState;
+  onOpenFeedback: () => void;
+  onOpenShortcuts: () => void;
+}
+
+export function AboutDialog({
+  isOpen,
+  onClose,
+  update,
+  onOpenFeedback,
+  onOpenShortcuts,
+}: AboutDialogProps) {
+  const { t, i18n } = useTranslation();
   const reducedMotion = useReducedMotion();
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [logoFlown, setLogoFlown] = useState(false);
-  const [snackOpen, setSnackOpen] = useState(false);
+  const [wayfernVersions, setWayfernVersions] = useState<string[] | null>(null);
   const [view, setView] = useState<AboutView>("about");
   const [licenseQuery, setLicenseQuery] = useState("");
+  const [check, setCheck] = useState<CheckState>("idle");
+  const [copied, setCopied] = useState(false);
+  const [lab, setLab] = useState<{ x: number; y: number } | null>(null);
 
+  const contentRef = useRef<HTMLDivElement>(null);
   const logoRef = useRef<HTMLButtonElement>(null);
-  const rotationRef = useRef(0);
-  const velocityRef = useRef(0);
-  const rafRef = useRef(0);
-  const lastTimeRef = useRef(0);
-  const cancelLaunchRef = useRef<(() => void) | null>(null);
+  const logoClicksRef = useRef<number[]>([]);
+  const lastCheckAtRef = useRef(0);
+  const copiedTimerRef = useRef<number | undefined>(undefined);
   const restoreLicensesButtonFocusRef = useRef(false);
-  const restoreExampleButtonFocusRef = useRef(false);
+  const restoreLogoFocusRef = useRef(false);
+  const diagnosticsId = useId();
+  const helpId = useId();
+
+  const build = useMemo(
+    () => (systemInfo ? describeBuild(systemInfo.app_version) : null),
+    [systemInfo],
+  );
+  const { checkForAppUpdatesManual } = update;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -69,84 +149,133 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
       .catch(() => {
         setSystemInfo(null);
       });
+    invoke<string[]>("get_downloaded_browser_versions", {
+      browserStr: "wayfern",
+    })
+      .then(setWayfernVersions)
+      .catch(() => {
+        setWayfernVersions([]);
+      });
   }, [isOpen]);
 
-  const stopSpin = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = 0;
-    velocityRef.current = 0;
+  const runCheck = useCallback(async () => {
+    setCheck("checking");
+    lastCheckAtRef.current = Date.now();
+    try {
+      await checkForAppUpdatesManual();
+      setCheck("done");
+    } catch (error) {
+      console.error("Failed to check for app updates:", error);
+      setCheck("failed");
+    }
+  }, [checkForAppUpdatesManual]);
+
+  // Opening About checks for an update, unless one is known or a check ran lately.
+  const channel = build?.channel;
+  const knownUpdate = update.updateInfo !== null;
+  useEffect(() => {
+    if (!isOpen || !channel || channel === "development" || knownUpdate) {
+      return;
+    }
+    if (check === "checking") return;
+    if (
+      check !== "idle" &&
+      Date.now() - lastCheckAtRef.current < CHECK_TTL_MS
+    ) {
+      return;
+    }
+    void runCheck();
+  }, [isOpen, channel, knownUpdate, check, runCheck]);
+
+  useEffect(() => () => window.clearTimeout(copiedTimerRef.current), []);
+
+  const details = useMemo(() => {
+    if (!systemInfo || !build) return "";
+    return [
+      `Donut Browser ${systemInfo.app_version}`,
+      `Channel: ${build.channel}`,
+      `System: ${systemInfo.os} ${systemInfo.arch}`,
+      `Wayfern: ${wayfernVersions?.length ? wayfernVersions.join(", ") : "none"}`,
+      `Portable: ${systemInfo.portable ? "yes" : "no"}`,
+      `Language: ${i18n.language}`,
+    ].join("\n");
+  }, [systemInfo, build, wayfernVersions, i18n.language]);
+
+  const copyDetails = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(details);
+      playUiSound("copy");
+      setCopied(true);
+      window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = window.setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy details:", error);
+      showErrorToast(t("about.diagnostics.copyFailed"));
+    }
+  }, [details, t]);
+
+  const openLogs = useCallback(async () => {
+    try {
+      await invoke("open_log_directory");
+    } catch (error) {
+      console.error("Failed to open the log folder:", error);
+      showErrorToast(t("about.diagnostics.openLogsFailed"));
+    }
+  }, [t]);
+
+  const closeLab = useCallback(() => {
+    restoreLogoFocusRef.current = true;
+    setLab(null);
   }, []);
 
-  const spinFrame = useCallback(
-    (time: number) => {
-      const el = logoRef.current;
-      if (!el) {
-        rafRef.current = 0;
-        return;
-      }
-      const dt = Math.min((time - lastTimeRef.current) / 1000, 0.05);
-      lastTimeRef.current = time;
-
-      rotationRef.current += velocityRef.current * dt;
-      velocityRef.current *= Math.max(0, 1 - SPIN_FRICTION * dt);
-      el.style.transform = `rotate(${rotationRef.current}deg)`;
-
-      if (velocityRef.current >= ESCAPE_VELOCITY) {
-        // The flywheel wins: the donut tears loose and joins the bounce sim,
-        // keeping its spin.
-        stopSpin();
-        setLogoFlown(true);
-        cancelLaunchRef.current = launchDonutClone(el, {
-          initialVX: Math.random() > 0.5 ? 420 : -420,
-          initialVY: -750,
-          spinSpeed: ESCAPE_VELOCITY,
-          onExit: () => {
-            cancelLaunchRef.current = null;
-          },
-        });
-        return;
-      }
-
-      if (velocityRef.current > 5) {
-        rafRef.current = requestAnimationFrame(spinFrame);
-      } else {
-        rafRef.current = 0;
-        velocityRef.current = 0;
-      }
-    },
-    [stopSpin],
-  );
+  useEffect(() => {
+    if (lab || !restoreLogoFocusRef.current) return;
+    restoreLogoFocusRef.current = false;
+    logoRef.current?.focus();
+  }, [lab]);
 
   const handleLogoClick = useCallback(() => {
-    if (reducedMotion || logoFlown) return;
-    velocityRef.current += SPIN_PER_CLICK;
-    if (!rafRef.current) {
-      lastTimeRef.current = performance.now();
-      rafRef.current = requestAnimationFrame(spinFrame);
+    const now = performance.now();
+    const clicks = logoClicksRef.current;
+    const last = clicks[clicks.length - 1];
+    if (last !== undefined && now - last > EGG_CLICK_GAP_MS) clicks.length = 0;
+    clicks.push(now);
+    const logo = logoRef.current;
+    if (clicks.length >= EGG_CLICKS && logo) {
+      clicks.length = 0;
+      const rect = logo.getBoundingClientRect();
+      contentRef.current?.scrollTo({ top: 0 });
+      setLab({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+      return;
     }
-  }, [reducedMotion, logoFlown, spinFrame]);
-
-  const resetLogo = useCallback(() => {
-    stopSpin();
-    cancelLaunchRef.current?.();
-    cancelLaunchRef.current = null;
-    rotationRef.current = 0;
-    if (logoRef.current) {
-      logoRef.current.style.transform = "";
-      logoRef.current.style.visibility = "";
+    // Each press squeezes a little harder, as if something were inside.
+    if (!reducedMotion && logo && typeof logo.animate === "function") {
+      const depth = clicks.length;
+      logo.animate(
+        [
+          { transform: "scale(1) rotate(0deg)" },
+          {
+            transform: `scale(${0.93 - depth * 0.03}) rotate(${depth * -7}deg)`,
+          },
+          { transform: "scale(1) rotate(0deg)" },
+        ],
+        {
+          duration: 240,
+          easing: `cubic-bezier(${MOTION_EASE_OUT.join(",")})`,
+        },
+      );
     }
-    setLogoFlown(false);
-  }, [stopSpin]);
+  }, [reducedMotion]);
 
   const handleClose = useCallback(() => {
-    resetLogo();
-    setSnackOpen(false);
+    setLab(null);
+    logoClicksRef.current = [];
+    restoreLogoFocusRef.current = false;
     setView("about");
     setLicenseQuery("");
     restoreLicensesButtonFocusRef.current = false;
-    restoreExampleButtonFocusRef.current = false;
     onClose();
-  }, [onClose, resetLogo]);
+  }, [onClose]);
 
   const handleLicensesButtonRef = useCallback(
     (node: HTMLButtonElement | null) => {
@@ -158,18 +287,11 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
     [],
   );
 
-  const handleOpenLicenses = useCallback(() => {
-    resetLogo();
-    setLicenseQuery("");
-    setView("licenses");
-  }, [resetLogo]);
-
   const handleBackToAbout = useCallback(() => {
-    restoreLicensesButtonFocusRef.current = view === "licenses";
-    restoreExampleButtonFocusRef.current = view === "isolation";
+    restoreLicensesButtonFocusRef.current = true;
     setLicenseQuery("");
     setView("about");
-  }, [view]);
+  }, []);
 
   const filteredLicenses = useMemo(() => {
     const query = licenseQuery.trim().toLocaleLowerCase();
@@ -181,12 +303,16 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
     );
   }, [licenseQuery]);
 
-  useEffect(() => {
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      cancelLaunchRef.current?.();
-    };
-  }, []);
+  const meta = systemInfo
+    ? [
+        build?.label,
+        build && t(`about.channel.${build.channel}`),
+        `${systemInfo.os} ${systemInfo.arch}`,
+        systemInfo.portable ? t("about.portable") : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
 
   return (
     <Dialog
@@ -196,13 +322,20 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
       }}
     >
       <DialogContent
-        className={
-          view === "isolation"
-            ? "flex max-h-[calc(100dvh-3rem)] max-w-2xl flex-col overflow-y-auto"
-            : view === "licenses"
-              ? "flex h-[min(80dvh,40rem)] max-w-lg flex-col overflow-hidden"
-              : "max-w-sm"
-        }
+        ref={contentRef}
+        hideClose={lab !== null}
+        onEscapeKeyDown={(event) => {
+          if (!lab) return;
+          event.preventDefault();
+          closeLab();
+        }}
+        className={cn(
+          "max-w-2xl",
+          view === "licenses"
+            ? "flex h-[min(80dvh,40rem)] flex-col overflow-hidden"
+            : "@container",
+          lab && "overflow-hidden",
+        )}
       >
         <StepTransition
           transitionKey={view}
@@ -210,145 +343,157 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
           className={
             view === "licenses"
               ? "flex min-h-0 flex-1 flex-col gap-4"
-              : "grid gap-4"
+              : "grid gap-5"
           }
         >
           {view === "about" ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>{t("about.title")}</DialogTitle>
-              </DialogHeader>
-
-              <div className="flex flex-col items-center gap-3 py-4">
-                {snackOpen ? (
-                  <DonutSnack />
-                ) : (
-                  <button
-                    ref={logoRef}
-                    type="button"
-                    data-slot="about-logo"
-                    aria-label={t("header.donutLogo")}
-                    onClick={(event) => {
-                      if (event.shiftKey) {
-                        resetLogo();
-                        setSnackOpen(true);
-                      } else {
-                        handleLogoClick();
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (
-                        event.shiftKey &&
-                        (event.key === "Enter" || event.key === " ")
-                      ) {
-                        event.preventDefault();
-                        resetLogo();
-                        setSnackOpen(true);
-                      }
-                    }}
-                    className="grid size-16 cursor-pointer place-items-center rounded-full bg-transparent text-foreground select-none will-change-transform"
-                    style={logoFlown ? { visibility: "hidden" } : undefined}
+            <div inert={lab !== null} className="contents">
+              <header className="flex items-start gap-4 pr-8">
+                <button
+                  ref={logoRef}
+                  type="button"
+                  data-slot="about-logo"
+                  aria-label={t("header.donutLogo")}
+                  onClick={handleLogoClick}
+                  className={cn(
+                    "grid size-14 shrink-0 cursor-pointer place-items-center rounded-2xl bg-foreground/5 text-foreground select-none",
+                    FOCUS_RING,
+                  )}
+                >
+                  <Logo className="size-9" aria-hidden="true" />
+                </button>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <DialogTitle className="text-lg leading-tight">
+                    Donut Browser
+                  </DialogTitle>
+                  <p
+                    data-slot="about-build"
+                    className="mt-1 min-h-4 text-xs text-muted-foreground"
                   >
-                    <Logo className="size-14" />
-                  </button>
-                )}
-
-                <div className="text-center">
-                  <p className="text-lg font-semibold">Donut Browser</p>
-                  {systemInfo && (
-                    <>
-                      <p className="text-sm text-muted-foreground">
-                        {t("about.version", {
-                          version: systemInfo.app_version,
-                        })}
-                        {systemInfo.portable && (
-                          <span className="ml-1.5 rounded border border-border bg-foreground/5 px-1 py-px text-[11px] align-middle">
-                            {t("about.portableBadge")}
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {systemInfo.os} {systemInfo.arch}
-                      </p>
-                    </>
+                    {meta}
+                  </p>
+                  {build && (
+                    <LinkButton
+                      className="mt-1.5"
+                      onClick={() => void openUrl(build.notesUrl)}
+                    >
+                      {t("about.whatsNew")}
+                    </LinkButton>
                   )}
                 </div>
+              </header>
 
-                <p className="text-center text-xs text-muted-foreground">
-                  {t("about.licenseNotice")}
-                </p>
+              <UpdateStatus
+                channel={build?.channel ?? null}
+                check={check}
+                update={update}
+                onCheck={() => void runCheck()}
+              />
 
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void openUrl("https://donutbrowser.com")}
-                  >
-                    {t("about.website")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      void openUrl(
-                        "https://github.com/donutbrowser/donutbrowser",
-                      )
-                    }
-                  >
-                    {t("about.github")}
-                  </Button>
-                  <Button
-                    ref={handleLicensesButtonRef}
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenLicenses}
-                  >
-                    {t("about.licenses")}
-                  </Button>
-                </div>
-                <Button
-                  data-slot="isolation-demo-replay"
-                  ref={(node) => {
-                    if (node && restoreExampleButtonFocusRef.current) {
-                      restoreExampleButtonFocusRef.current = false;
-                      node.focus();
-                    }
-                  }}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    resetLogo();
-                    setView("isolation");
-                  }}
+              <div className="grid gap-4 @lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+                <section
+                  data-slot="about-diagnostics"
+                  aria-labelledby={diagnosticsId}
+                  className="rounded-lg bg-foreground/[0.035] p-3"
                 >
-                  {t("isolationDemo.replay")}
-                </Button>
+                  <SectionLabel id={diagnosticsId}>
+                    {t("about.diagnostics.title")}
+                  </SectionLabel>
+                  <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs">
+                    <DiagnosticRow label={t("about.diagnostics.version")}>
+                      {systemInfo?.app_version}
+                    </DiagnosticRow>
+                    <DiagnosticRow label={t("about.diagnostics.channel")}>
+                      {build && t(`about.channel.${build.channel}`)}
+                    </DiagnosticRow>
+                    <DiagnosticRow label={t("about.diagnostics.system")}>
+                      {systemInfo && `${systemInfo.os} ${systemInfo.arch}`}
+                    </DiagnosticRow>
+                    <DiagnosticRow label="Wayfern">
+                      {wayfernVersions &&
+                        (wayfernVersions.length > 0
+                          ? wayfernVersions.join(", ")
+                          : t("about.diagnostics.notInstalled"))}
+                    </DiagnosticRow>
+                    <DiagnosticRow label={t("about.portable")}>
+                      {systemInfo &&
+                        (systemInfo.portable
+                          ? t("about.diagnostics.yes")
+                          : t("about.diagnostics.no"))}
+                    </DiagnosticRow>
+                  </dl>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="soft"
+                      data-slot="about-copy-details"
+                      disabled={!details}
+                      onClick={() => void copyDetails()}
+                    >
+                      {copied ? (
+                        <ConfirmationMark />
+                      ) : (
+                        <LuCopy aria-hidden="true" />
+                      )}
+                      <span aria-live="polite">
+                        {copied
+                          ? t("common.buttons.copied")
+                          : t("about.diagnostics.copy")}
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="subtle"
+                      onClick={() => void openLogs()}
+                    >
+                      <LuFolderOpen aria-hidden="true" />
+                      {t("about.diagnostics.openLogs")}
+                    </Button>
+                  </div>
+                </section>
+
+                <nav aria-labelledby={helpId} className="px-1 @lg:pt-3">
+                  <SectionLabel id={helpId} className="px-2">
+                    {t("about.help.title")}
+                  </SectionLabel>
+                  <ul className="mt-1.5 grid gap-0.5">
+                    <HelpItem icon={LuBug} onClick={onOpenFeedback}>
+                      {t("about.help.reportBug")}
+                    </HelpItem>
+                    <HelpItem icon={LuKeyboard} onClick={onOpenShortcuts}>
+                      {t("rail.more.keyboardShortcuts")}
+                    </HelpItem>
+                    <HelpItem
+                      icon={LuScale}
+                      buttonRef={handleLicensesButtonRef}
+                      onClick={() => {
+                        setLicenseQuery("");
+                        setView("licenses");
+                      }}
+                    >
+                      {t("about.licenses")}
+                    </HelpItem>
+                    <HelpItem
+                      icon={LuGlobe}
+                      external
+                      onClick={() => void openUrl(WEBSITE_URL)}
+                    >
+                      {t("about.website")}
+                    </HelpItem>
+                  </ul>
+                </nav>
               </div>
 
-              <div className="flex justify-end">
-                <RippleButton variant="outline" onClick={handleClose}>
-                  {t("common.buttons.close")}
-                </RippleButton>
-              </div>
-            </>
-          ) : view === "isolation" ? (
-            <>
-              <DialogHeader className="flex-row items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="-ml-2 size-8"
-                  aria-label={t("common.buttons.back")}
-                  onClick={handleBackToAbout}
-                  autoFocus
-                >
-                  <LuArrowLeft aria-hidden="true" />
-                </Button>
-                <DialogTitle>{t("isolationDemo.replay")}</DialogTitle>
-              </DialogHeader>
-              <ProfileIsolationDemo />
-            </>
+              <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border pt-3 text-[11px] text-muted-foreground">
+                <p>{t("about.footer")}</p>
+                <LinkButton onClick={() => void openUrl(REPOSITORY_URL)}>
+                  <LuGithub aria-hidden="true" className="size-3.5" />
+                  {t("about.sourceCode")}
+                </LinkButton>
+              </footer>
+            </div>
           ) : (
             <>
               <DialogHeader className="flex-row items-center gap-2">
@@ -373,6 +518,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
                 <Input
                   autoFocus
                   type="search"
+                  variant="soft"
                   value={licenseQuery}
                   onChange={(event) => {
                     setLicenseQuery(event.target.value);
@@ -394,7 +540,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
                     {filteredLicenses.map(({ name, license }) => (
                       <li
                         key={`${name}-${license}`}
-                        className="grid grid-cols-[minmax(0,1fr)_minmax(7rem,45%)] items-baseline gap-3 border-b border-border/60 py-2.5 last:border-b-0"
+                        className="grid grid-cols-[minmax(0,1fr)_minmax(7rem,45%)] items-baseline gap-3 rounded-md px-2 py-2 hover:bg-foreground/5"
                       >
                         {name === "Xray-core" ? (
                           <button
@@ -418,7 +564,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
                             {name}
                           </span>
                         )}
-                        <code className="break-words text-right text-xs text-muted-foreground">
+                        <code className="break-words text-right font-mono text-xs text-muted-foreground">
                           {license}
                         </code>
                       </li>
@@ -436,7 +582,254 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
             </>
           )}
         </StepTransition>
+        {lab && view === "about" && (
+          <DonutLab origin={lab} onClose={closeLab} />
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SectionLabel({
+  id,
+  className,
+  children,
+}: {
+  id: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <h3
+      id={id}
+      className={cn(
+        "text-[11px] font-medium tracking-wide text-muted-foreground uppercase",
+        className,
+      )}
+    >
+      {children}
+    </h3>
+  );
+}
+
+function DiagnosticRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd
+        className="min-h-4 truncate font-mono text-foreground"
+        title={typeof children === "string" ? children : undefined}
+      >
+        {children}
+      </dd>
+    </>
+  );
+}
+
+function LinkButton({
+  className,
+  onClick,
+  children,
+}: {
+  className?: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline",
+        FOCUS_RING,
+        className,
+      )}
+    >
+      {children}
+      <LuArrowUpRight aria-hidden="true" className="size-3 shrink-0" />
+    </button>
+  );
+}
+
+function HelpItem({
+  icon: Icon,
+  external = false,
+  buttonRef,
+  onClick,
+  children,
+}: {
+  icon: IconType;
+  external?: boolean;
+  buttonRef?: (node: HTMLButtonElement | null) => void;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <li>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "group flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-foreground transition-colors hover:bg-foreground/5",
+          FOCUS_RING,
+        )}
+      >
+        <Icon
+          aria-hidden="true"
+          className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+        />
+        <span className="min-w-0 flex-1 truncate">{children}</span>
+        {external && (
+          <LuArrowUpRight
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-muted-foreground"
+          />
+        )}
+      </button>
+    </li>
+  );
+}
+
+function UpdateStatus({
+  channel,
+  check,
+  update,
+  onCheck,
+}: {
+  channel: BuildChannel | null;
+  check: CheckState;
+  update: AppUpdateState;
+  onCheck: () => void;
+}) {
+  const { t } = useTranslation();
+  const info = update.updateInfo;
+  const percent = update.updateProgress?.percentage;
+
+  let state: string;
+  let icon: ReactNode;
+  let text: string;
+  let action: ReactNode = null;
+
+  const spinner = (
+    <LuLoaderCircle
+      aria-hidden="true"
+      className="size-4 animate-spin text-muted-foreground motion-reduce:animate-none"
+    />
+  );
+  const arrow = (
+    <LuCircleArrowUp aria-hidden="true" className="size-4 text-primary-text" />
+  );
+
+  if (channel === null) {
+    state = "loading";
+    icon = spinner;
+    text = t("about.update.checking");
+  } else if (channel === "development") {
+    state = "development";
+    icon = (
+      <LuInfo aria-hidden="true" className="size-4 text-muted-foreground" />
+    );
+    text = t("about.update.development");
+  } else if (info && update.updateReady) {
+    state = "ready";
+    icon = arrow;
+    text = t("about.update.ready", { version: info.new_version });
+    action = (
+      <Button
+        type="button"
+        size="sm"
+        onClick={() => void update.restartToUpdate()}
+      >
+        {t("about.update.restart")}
+      </Button>
+    );
+  } else if (info && update.isUpdating) {
+    state = "downloading";
+    icon = spinner;
+    text =
+      typeof percent === "number"
+        ? t("about.update.downloadingPercent", {
+            version: info.new_version,
+            percent: Math.round(percent),
+          })
+        : t("about.update.downloading", { version: info.new_version });
+  } else if (info?.repo_update) {
+    state = "available";
+    icon = arrow;
+    text = t("about.update.packageManager", { version: info.new_version });
+  } else if (info) {
+    state = "available";
+    icon = arrow;
+    text = t("about.update.available", { version: info.new_version });
+    action = info.manual_update_required ? (
+      <Button
+        type="button"
+        size="sm"
+        onClick={() => void openUrl(info.release_page_url ?? info.download_url)}
+      >
+        {t("about.update.download")}
+        <LuArrowUpRight aria-hidden="true" />
+      </Button>
+    ) : (
+      <Button
+        type="button"
+        size="sm"
+        onClick={() => void update.installAppUpdate(info)}
+      >
+        {t("about.update.update")}
+      </Button>
+    );
+  } else if (check === "failed") {
+    state = "failed";
+    icon = (
+      <LuCircleAlert
+        aria-hidden="true"
+        className="size-4 text-muted-foreground"
+      />
+    );
+    text = t("about.update.failed");
+    action = (
+      <Button type="button" size="sm" variant="subtle" onClick={onCheck}>
+        <LuRefreshCw aria-hidden="true" />
+        {t("common.buttons.retry")}
+      </Button>
+    );
+  } else if (check === "done") {
+    state = "current";
+    icon = (
+      <LuCircleCheck aria-hidden="true" className="size-4 text-success-text" />
+    );
+    text = t("about.update.current");
+    action = (
+      <Button type="button" size="sm" variant="subtle" onClick={onCheck}>
+        <LuRefreshCw aria-hidden="true" />
+        {t("about.update.checkAgain")}
+      </Button>
+    );
+  } else {
+    state = "checking";
+    icon = spinner;
+    text = t("about.update.checking");
+  }
+
+  return (
+    <div
+      data-slot="about-update-status"
+      data-state={state}
+      className="flex min-h-12 items-center gap-3 rounded-lg bg-foreground/[0.035] py-2 pr-2 pl-3"
+    >
+      <span className="grid size-4 shrink-0 place-items-center">{icon}</span>
+      <p role="status" className="min-w-0 flex-1 text-sm text-foreground">
+        {text}
+      </p>
+      {action}
+    </div>
   );
 }

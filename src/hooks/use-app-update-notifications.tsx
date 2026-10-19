@@ -46,23 +46,15 @@ export function useAppUpdateNotifications() {
     }
   }, [isClient, dismissedVersion]);
 
+  /** Checks now, even for a dismissed version. Throws when the check fails. */
   const checkForAppUpdatesManual = useCallback(async () => {
-    if (!isClient) return;
-
-    try {
-      console.log("Triggering manual app update check...");
-      const update = await invoke<AppUpdateInfo | null>(
-        "check_for_app_updates_manual",
-      );
-      console.log("Manual check result:", update);
-
-      // Always show manual check results, even if previously dismissed
-      autoDownloadedVersion.current = null;
-      setUpdateInfo(update);
-    } catch (error) {
-      console.error("Failed to manually check for app updates:", error);
-    }
-  }, [isClient]);
+    const update = await invoke<AppUpdateInfo | null>(
+      "check_for_app_updates_manual",
+    );
+    autoDownloadedVersion.current = null;
+    setUpdateInfo(update);
+    return update;
+  }, []);
 
   const handleAppUpdate = useCallback(
     async (appUpdateInfo: AppUpdateInfo) => {
@@ -244,5 +236,9 @@ export function useAppUpdateNotifications() {
     checkForAppUpdates,
     checkForAppUpdatesManual,
     dismissAppUpdate,
+    installAppUpdate: handleAppUpdate,
+    restartToUpdate: handleRestart,
   };
 }
+
+export type AppUpdateState = ReturnType<typeof useAppUpdateNotifications>;

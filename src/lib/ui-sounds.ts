@@ -27,7 +27,8 @@ export type UiSound =
   | "stop"
   | "synced"
   | "download"
-  | "attention";
+  | "attention"
+  | "crunch";
 
 export type SoundCategory = "interface" | "feedback" | "events";
 
@@ -50,6 +51,7 @@ export const SOUND_CATEGORY: Record<UiSound, SoundCategory> = {
   synced: "events",
   download: "events",
   attention: "events",
+  crunch: "interface",
 };
 
 export const UI_SOUNDS = Object.keys(SOUND_CATEGORY) as UiSound[];
@@ -142,7 +144,8 @@ interface Phrase {
  * The phrases. Each sound has its own contour, so it is recognized without
  * looking: a press is one falling tick, a result goes up (success) or down
  * (error) a short way, a launch climbs four notes and a stop comes back down,
- * a warning repeats one unresolved note, and a copy repeats one high note.
+ * a warning repeats one unresolved note, a copy repeats one high note, and a
+ * crunch is a low thud under a burst of noise.
  */
 const PHRASES: Record<UiSound, Phrase> = {
   tap: {
@@ -251,6 +254,12 @@ const PHRASES: Record<UiSound, Phrase> = {
       { step: 5, at: 0, length: 0.12, level: 0.55 },
       { step: 9, at: 0.11, length: 0.26, level: 0.55 },
     ],
+  },
+  crunch: {
+    notes: [{ step: -4, at: 0, length: 0.05, level: 0.6, slide: -4 }],
+    touch: 1,
+    air: { length: 0.09, level: 0.9, frequency: 2600 },
+    jitter: 0.06,
   },
 };
 
@@ -492,6 +501,7 @@ export const SOUND_GAP_MS: Record<UiSound, number> = {
   synced: 2000,
   download: 2000,
   attention: 3000,
+  crunch: 80,
 };
 
 /** What the sound picker needs to know about the control that was used. */

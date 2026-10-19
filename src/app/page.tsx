@@ -1133,7 +1133,7 @@ export default function Home() {
   const updateNotifications = useUpdateNotifications();
   const { checkForUpdates, isUpdating } = updateNotifications;
 
-  useAppUpdateNotifications();
+  const appUpdate = useAppUpdateNotifications();
 
   // Check for startup URLs but only process them once
   const [hasCheckedStartupUrl, setHasCheckedStartupUrl] = useState(false);
@@ -3294,6 +3294,15 @@ export default function Home() {
           isOpen={aboutDialogOpen}
           onClose={() => {
             setAboutDialogOpen(false);
+          }}
+          update={appUpdate}
+          onOpenFeedback={() => {
+            setAboutDialogOpen(false);
+            setFeedbackDialogOpen(true);
+          }}
+          onOpenShortcuts={() => {
+            setAboutDialogOpen(false);
+            handleRailNavigate("shortcuts");
           }}
         />
 

@@ -3290,21 +3290,61 @@
     "noOtherTargets": "Nenhum outro perfil Wayfern selecionado"
   },
   "about": {
-    "title": "Sobre",
-    "version": "Versão {{version}}",
-    "portableBadge": "portátil",
-    "licenseNotice": "Navegador anti-detecção de código aberto.",
     "website": "Site",
-    "github": "GitHub",
     "licenses": "Licenças",
     "searchLicenses": "Pesquisar licenças…",
     "noMatchingLicenses": "Nenhuma licença encontrada.",
     "openSource": "Ver o código-fonte de {{name}}",
-    "snack": {
-      "found": "Você encontrou a gaveta de doces.",
-      "finished": "Só migalhas. Nenhum cookie.",
-      "takeBite": "Dê uma mordida",
-      "again": "Mais um donut"
+    "channel": {
+      "stable": "Estável",
+      "nightly": "Nightly",
+      "development": "Desenvolvimento"
+    },
+    "portable": "Portátil",
+    "whatsNew": "Novidades desta versão",
+    "update": {
+      "checking": "Procurando atualizações…",
+      "development": "As atualizações estão desativadas em versões de desenvolvimento",
+      "current": "Atualizado",
+      "checkAgain": "Verificar novamente",
+      "failed": "Não foi possível procurar atualizações",
+      "available": "A versão {{version}} está disponível",
+      "packageManager": "A versão {{version}} está disponível no seu gerenciador de pacotes",
+      "update": "Atualizar",
+      "download": "Baixar",
+      "downloading": "Baixando a versão {{version}}…",
+      "downloadingPercent": "Baixando a versão {{version}}… {{percent}}%",
+      "ready": "A versão {{version}} está pronta para instalar",
+      "restart": "Reiniciar para atualizar"
+    },
+    "diagnostics": {
+      "title": "Diagnóstico",
+      "version": "Versão",
+      "channel": "Canal",
+      "system": "Sistema",
+      "yes": "Sim",
+      "no": "Não",
+      "notInstalled": "Não instalado",
+      "copy": "Copiar detalhes",
+      "copyFailed": "Não foi possível copiar os detalhes",
+      "openLogs": "Abrir pasta de logs",
+      "openLogsFailed": "Não foi possível abrir a pasta de logs"
+    },
+    "help": {
+      "title": "Ajuda",
+      "reportBug": "Relatar um erro"
+    },
+    "footer": "Software livre e de código aberto.",
+    "sourceCode": "Código-fonte",
+    "lab": {
+      "hint": "Arraste para girar. Clique para dar uma mordida.",
+      "status_one": "{{count}} mordida · resta {{left}}%",
+      "status_other": "{{count}} mordidas · resta {{left}}%",
+      "label": "Donut, resta {{left}}%",
+      "description": "Um donut 3D desenhado com caracteres de texto. Arraste-o ou use as setas para girá-lo. Clique nele ou pressione Espaço para dar uma mordida.",
+      "eaten": "Só sobraram migalhas.",
+      "bakeAnother": "Assar outro",
+      "close": "Fechar o donut"
     }
   },
   "clearOnClose": {
@@ -3754,7 +3794,6 @@
     "hint": "Selecione um perfil e altere seu cookie ou rota.",
     "changed": "{{name}} foi alterado. O outro perfil manteve seu próprio cookie e rota.",
     "resetDone": "Os dois exemplos foram redefinidos.",
-    "replay": "Explorar o isolamento de perfis",
     "device": "Dispositivo",
     "site": "Site"
   },

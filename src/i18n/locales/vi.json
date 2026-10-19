@@ -3270,21 +3270,61 @@
     "noOtherTargets": "Chưa chọn profile Wayfern nào khác"
   },
   "about": {
-    "title": "Giới thiệu",
-    "version": "Phiên bản {{version}}",
-    "portableBadge": "bản portable",
-    "licenseNotice": "Trình duyệt chống phát hiện mã nguồn mở.",
     "website": "Trang web",
-    "github": "GitHub",
     "licenses": "Giấy phép",
     "searchLicenses": "Tìm kiếm giấy phép…",
     "noMatchingLicenses": "Không có giấy phép phù hợp.",
     "openSource": "Xem mã nguồn của {{name}}",
-    "snack": {
-      "found": "Bạn đã tìm thấy ngăn đồ ăn vặt.",
-      "finished": "Chỉ còn vụn bánh. Không có cookie.",
-      "takeBite": "Cắn một miếng",
-      "again": "Thêm một chiếc donut"
+    "channel": {
+      "stable": "Ổn định",
+      "nightly": "Nightly",
+      "development": "Phát triển"
+    },
+    "portable": "Di động",
+    "whatsNew": "Có gì mới trong phiên bản này",
+    "update": {
+      "checking": "Đang kiểm tra bản cập nhật…",
+      "development": "Bản cập nhật bị tắt với bản dựng phát triển",
+      "current": "Đã cập nhật",
+      "checkAgain": "Kiểm tra lại",
+      "failed": "Không thể kiểm tra bản cập nhật",
+      "available": "Đã có phiên bản {{version}}",
+      "packageManager": "Phiên bản {{version}} có trong trình quản lý gói của bạn",
+      "update": "Cập nhật",
+      "download": "Tải xuống",
+      "downloading": "Đang tải phiên bản {{version}}…",
+      "downloadingPercent": "Đang tải phiên bản {{version}}… {{percent}}%",
+      "ready": "Phiên bản {{version}} đã sẵn sàng để cài đặt",
+      "restart": "Khởi động lại để cập nhật"
+    },
+    "diagnostics": {
+      "title": "Chẩn đoán",
+      "version": "Phiên bản",
+      "channel": "Kênh",
+      "system": "Hệ thống",
+      "yes": "Có",
+      "no": "Không",
+      "notInstalled": "Chưa cài đặt",
+      "copy": "Sao chép chi tiết",
+      "copyFailed": "Không thể sao chép chi tiết",
+      "openLogs": "Mở thư mục nhật ký",
+      "openLogsFailed": "Không thể mở thư mục nhật ký"
+    },
+    "help": {
+      "title": "Trợ giúp",
+      "reportBug": "Báo lỗi"
+    },
+    "footer": "Phần mềm tự do và mã nguồn mở.",
+    "sourceCode": "Mã nguồn",
+    "lab": {
+      "hint": "Kéo để xoay. Nhấp để cắn một miếng.",
+      "status_one": "{{count}} miếng · còn {{left}}%",
+      "status_other": "{{count}} miếng · còn {{left}}%",
+      "label": "Bánh donut, còn {{left}}%",
+      "description": "Một chiếc bánh donut 3D vẽ bằng ký tự văn bản. Kéo hoặc dùng phím mũi tên để xoay. Nhấp vào hoặc nhấn phím Cách để cắn một miếng.",
+      "eaten": "Chỉ còn lại vụn bánh.",
+      "bakeAnother": "Nướng cái khác",
+      "close": "Đóng bánh donut"
     }
   },
   "clearOnClose": {
@@ -3713,7 +3753,6 @@
     "hint": "Chọn một hồ sơ rồi thay đổi cookie hoặc tuyến của hồ sơ đó.",
     "changed": "{{name}} đã thay đổi. Hồ sơ còn lại vẫn giữ cookie và tuyến riêng.",
     "resetDone": "Đã đặt lại cả hai ví dụ.",
-    "replay": "Khám phá tính tách biệt hồ sơ",
     "device": "Thiết bị",
     "site": "Trang web"
   },

@@ -3270,21 +3270,61 @@
     "noOtherTargets": "선택된 다른 Wayfern 프로필이 없습니다"
   },
   "about": {
-    "title": "정보",
-    "version": "버전 {{version}}",
-    "portableBadge": "포터블",
-    "licenseNotice": "오픈 소스 안티 디텍트 브라우저입니다.",
     "website": "웹사이트",
-    "github": "GitHub",
     "licenses": "라이선스",
     "searchLicenses": "라이선스 검색…",
     "noMatchingLicenses": "일치하는 라이선스가 없습니다.",
     "openSource": "{{name}} 소스 코드 보기",
-    "snack": {
-      "found": "간식 서랍을 찾았어요.",
-      "finished": "부스러기만 남았어요. 쿠키는 없어요.",
-      "takeBite": "한 입 먹기",
-      "again": "도넛 하나 더"
+    "channel": {
+      "stable": "안정판",
+      "nightly": "Nightly",
+      "development": "개발판"
+    },
+    "portable": "포터블",
+    "whatsNew": "이 버전의 새로운 기능",
+    "update": {
+      "checking": "업데이트 확인 중…",
+      "development": "개발 빌드에서는 업데이트가 꺼져 있습니다",
+      "current": "최신 버전입니다",
+      "checkAgain": "다시 확인",
+      "failed": "업데이트를 확인할 수 없습니다",
+      "available": "버전 {{version}}을(를) 사용할 수 있습니다",
+      "packageManager": "패키지 관리자에서 버전 {{version}}을(를) 사용할 수 있습니다",
+      "update": "업데이트",
+      "download": "다운로드",
+      "downloading": "버전 {{version}} 다운로드 중…",
+      "downloadingPercent": "버전 {{version}} 다운로드 중… {{percent}}%",
+      "ready": "버전 {{version}}을(를) 설치할 준비가 되었습니다",
+      "restart": "재시작하여 업데이트"
+    },
+    "diagnostics": {
+      "title": "진단",
+      "version": "버전",
+      "channel": "채널",
+      "system": "시스템",
+      "yes": "예",
+      "no": "아니요",
+      "notInstalled": "설치되지 않음",
+      "copy": "세부 정보 복사",
+      "copyFailed": "세부 정보를 복사할 수 없습니다",
+      "openLogs": "로그 폴더 열기",
+      "openLogsFailed": "로그 폴더를 열 수 없습니다"
+    },
+    "help": {
+      "title": "도움말",
+      "reportBug": "버그 신고"
+    },
+    "footer": "무료 오픈 소스 소프트웨어입니다.",
+    "sourceCode": "소스 코드",
+    "lab": {
+      "hint": "드래그하여 돌리고, 클릭하여 한 입 베어 무세요.",
+      "status_one": "{{count}}입 · {{left}}% 남음",
+      "status_other": "{{count}}입 · {{left}}% 남음",
+      "label": "도넛, {{left}}% 남음",
+      "description": "문자로 그린 3D 도넛입니다. 드래그하거나 화살표 키로 돌릴 수 있습니다. 클릭하거나 스페이스 키를 눌러 한 입 베어 무세요.",
+      "eaten": "부스러기만 남았습니다.",
+      "bakeAnother": "하나 더 굽기",
+      "close": "도넛 닫기"
     }
   },
   "clearOnClose": {
@@ -3713,7 +3753,6 @@
     "hint": "프로필을 선택한 다음 쿠키나 경로를 변경하세요.",
     "changed": "{{name}} 프로필이 변경되었습니다. 다른 프로필은 자체 쿠키와 경로를 그대로 유지합니다.",
     "resetDone": "두 예제를 모두 초기화했습니다.",
-    "replay": "프로필 격리 살펴보기",
     "device": "기기",
     "site": "사이트"
   },

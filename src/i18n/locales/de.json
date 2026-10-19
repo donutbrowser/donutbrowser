@@ -3270,21 +3270,61 @@
     "noOtherTargets": "Keine anderen Wayfern-Profile ausgewählt"
   },
   "about": {
-    "title": "Über",
-    "version": "Version {{version}}",
-    "portableBadge": "portabel",
-    "licenseNotice": "Open-Source-Anti-Detect-Browser.",
     "website": "Website",
-    "github": "GitHub",
     "licenses": "Lizenzen",
     "searchLicenses": "Lizenzen suchen…",
     "noMatchingLicenses": "Keine passenden Lizenzen.",
     "openSource": "Quellcode von {{name}} anzeigen",
-    "snack": {
-      "found": "Sie haben die Snack-Schublade gefunden.",
-      "finished": "Nur Krümel. Keine Cookies.",
-      "takeBite": "Abbeißen",
-      "again": "Noch ein Donut"
+    "channel": {
+      "stable": "Stabil",
+      "nightly": "Nightly",
+      "development": "Entwicklung"
+    },
+    "portable": "Portabel",
+    "whatsNew": "Neu in dieser Version",
+    "update": {
+      "checking": "Suche nach Updates…",
+      "development": "Updates sind für Entwicklungs-Builds deaktiviert",
+      "current": "Auf dem neuesten Stand",
+      "checkAgain": "Erneut prüfen",
+      "failed": "Suche nach Updates fehlgeschlagen",
+      "available": "Version {{version}} ist verfügbar",
+      "packageManager": "Version {{version}} ist über Ihren Paketmanager verfügbar",
+      "update": "Aktualisieren",
+      "download": "Herunterladen",
+      "downloading": "Version {{version}} wird heruntergeladen…",
+      "downloadingPercent": "Version {{version}} wird heruntergeladen… {{percent}} %",
+      "ready": "Version {{version}} ist bereit zur Installation",
+      "restart": "Neu starten und aktualisieren"
+    },
+    "diagnostics": {
+      "title": "Diagnose",
+      "version": "Version",
+      "channel": "Kanal",
+      "system": "System",
+      "yes": "Ja",
+      "no": "Nein",
+      "notInstalled": "Nicht installiert",
+      "copy": "Details kopieren",
+      "copyFailed": "Details konnten nicht kopiert werden",
+      "openLogs": "Log-Ordner öffnen",
+      "openLogsFailed": "Log-Ordner konnte nicht geöffnet werden"
+    },
+    "help": {
+      "title": "Hilfe",
+      "reportBug": "Fehler melden"
+    },
+    "footer": "Freie Open-Source-Software.",
+    "sourceCode": "Quellcode",
+    "lab": {
+      "hint": "Ziehen zum Drehen. Klicken zum Abbeißen.",
+      "status_one": "{{count}} Bissen · {{left}} % übrig",
+      "status_other": "{{count}} Bissen · {{left}} % übrig",
+      "label": "Donut, {{left}} % übrig",
+      "description": "Ein 3D-Donut aus Textzeichen. Ziehen Sie ihn oder nutzen Sie die Pfeiltasten, um ihn zu drehen. Klicken Sie ihn an oder drücken Sie die Leertaste, um abzubeißen.",
+      "eaten": "Nur noch Krümel.",
+      "bakeAnother": "Noch einen backen",
+      "close": "Donut schließen"
     }
   },
   "clearOnClose": {
@@ -3713,7 +3753,6 @@
     "hint": "Wählen Sie ein Profil und ändern Sie dann sein Cookie oder seine Route.",
     "changed": "{{name}} wurde geändert. Das andere Profil hat sein eigenes Cookie und seine eigene Route behalten.",
     "resetDone": "Beide Beispiele wurden zurückgesetzt.",
-    "replay": "Profilisolierung erkunden",
     "device": "Gerät",
     "site": "Website"
   },

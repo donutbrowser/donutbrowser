@@ -3270,21 +3270,61 @@
     "noOtherTargets": "他に Wayfern プロファイルが選択されていません"
   },
   "about": {
-    "title": "このアプリについて",
-    "version": "バージョン {{version}}",
-    "portableBadge": "ポータブル",
-    "licenseNotice": "オープンソースのアンチディテクトブラウザです。",
     "website": "ウェブサイト",
-    "github": "GitHub",
     "licenses": "ライセンス",
     "searchLicenses": "ライセンスを検索…",
     "noMatchingLicenses": "一致するライセンスはありません。",
     "openSource": "{{name}} のソースコードを表示",
-    "snack": {
-      "found": "おやつの引き出しを見つけました。",
-      "finished": "残ったのはパンくずだけ。Cookieはなし。",
-      "takeBite": "ひと口どうぞ",
-      "again": "もうひとつ"
+    "channel": {
+      "stable": "安定版",
+      "nightly": "Nightly",
+      "development": "開発版"
+    },
+    "portable": "ポータブル",
+    "whatsNew": "このバージョンの新機能",
+    "update": {
+      "checking": "アップデートを確認しています…",
+      "development": "開発版ではアップデートは無効です",
+      "current": "最新です",
+      "checkAgain": "再確認",
+      "failed": "アップデートを確認できませんでした",
+      "available": "バージョン {{version}} が利用可能です",
+      "packageManager": "バージョン {{version}} がパッケージマネージャーで利用可能です",
+      "update": "アップデート",
+      "download": "ダウンロード",
+      "downloading": "バージョン {{version}} をダウンロードしています…",
+      "downloadingPercent": "バージョン {{version}} をダウンロードしています… {{percent}}%",
+      "ready": "バージョン {{version}} をインストールする準備ができました",
+      "restart": "再起動してアップデート"
+    },
+    "diagnostics": {
+      "title": "診断",
+      "version": "バージョン",
+      "channel": "チャンネル",
+      "system": "システム",
+      "yes": "はい",
+      "no": "いいえ",
+      "notInstalled": "未インストール",
+      "copy": "詳細をコピー",
+      "copyFailed": "詳細をコピーできませんでした",
+      "openLogs": "ログフォルダーを開く",
+      "openLogsFailed": "ログフォルダーを開けませんでした"
+    },
+    "help": {
+      "title": "ヘルプ",
+      "reportBug": "不具合を報告"
+    },
+    "footer": "無料のオープンソースソフトウェアです。",
+    "sourceCode": "ソースコード",
+    "lab": {
+      "hint": "ドラッグで回転、クリックでひと口。",
+      "status_one": "{{count}} 口 · 残り {{left}}%",
+      "status_other": "{{count}} 口 · 残り {{left}}%",
+      "label": "ドーナツ、残り {{left}}%",
+      "description": "文字で描かれた 3D のドーナツです。ドラッグするか矢印キーで回転します。クリックするかスペースキーでひと口かじります。",
+      "eaten": "残ったのはかけらだけ。",
+      "bakeAnother": "もう一つ焼く",
+      "close": "ドーナツを閉じる"
     }
   },
   "clearOnClose": {
@@ -3713,7 +3753,6 @@
     "hint": "プロファイルを選択して、Cookieや経路を変更してください。",
     "changed": "{{name}}を変更しました。もう一方のプロファイルのCookieと経路はそのままです。",
     "resetDone": "両方のサンプルをリセットしました。",
-    "replay": "プロファイルの分離を試す",
     "device": "デバイス",
     "site": "サイト"
   },

@@ -254,17 +254,6 @@ test("first-run profile cutaway is interactive, isolated, and readable at both w
   );
 });
 
-async function openReplay(app) {
-  await app.clickSelector(`[aria-label="${en.rail.more.label}"]`);
-  await waitForSelector(app, '[role="menu"]');
-  await app.clickText(en.rail.more.about, {
-    exact: false,
-    roles: ["menuitem"],
-  });
-  await app.clickSelector(slot("isolation-demo-replay"));
-  await waitForSelector(app, slot("profile-isolation-demo"));
-}
-
 async function assertPopupReadable(app, selector) {
   await app.waitFor(
     () =>
@@ -386,9 +375,8 @@ test("paused CSS animations cannot retain dismissed selects or dropdowns", async
           roles: ["menuitem"],
         });
         await waitForSelector(app, '[role="menu"]', false);
-        await app.clickSelector(slot("isolation-demo-replay"));
-        await waitForSelector(app, slot("profile-isolation-demo"));
-        await app.capture("paused-css-about-replay");
+        await assertPopupReadable(app, slot("about-diagnostics"));
+        await app.capture("paused-css-about");
       } finally {
         await app.execute(`
           document.getElementById("donut-motion-paused-css")?.remove();
@@ -824,25 +812,10 @@ async function resumeAnimations(app) {
   `);
 }
 
-test("profile replay, inspector, group gestures, and remote handoff preserve context", async () => {
+test("profile inspector, group gestures, and remote handoff preserve context", async () => {
   await withApp(
     "motion-workspace",
     async (app) => {
-      await resize(app, 1480, 900);
-      await openReplay(app);
-      await exerciseIsolation(app);
-      await app.capture("isolation-replay-wide");
-      await resize(app, 640, 480);
-      await assertContained(app, '[role="dialog"]');
-      await app.capture("isolation-replay-narrow");
-      await app.clickText(en.common.buttons.back, { roles: ["button"] });
-      await waitForSelector(app, slot("isolation-demo-replay"));
-      assert.equal(
-        await app.execute(`return document.activeElement?.dataset.slot;`),
-        "isolation-demo-replay",
-      );
-      await app.pressShortcut({ key: "Escape" });
-      await waitForSelector(app, '[role="dialog"]', false);
       await resize(app, 1480, 900);
 
       const group = await app.invoke("create_profile_group", {
@@ -2101,8 +2074,8 @@ test("partial import receipts survive retry without duplicating successful profi
   );
 });
 
-test("About hides a snack drawer that responds to bites and resets on close", async () => {
-  await withApp("motion-donut-snack", async (app) => {
+test("About shows diagnostics and hides a donut lab that takes bites inside the dialog", async () => {
+  await withApp("motion-donut-lab", async (app) => {
     await resize(app, 760, 620);
     const openAbout = async () => {
       await app.clickSelector(`[aria-label="${en.rail.more.label}"]`);
@@ -2112,49 +2085,149 @@ test("About hides a snack drawer that responds to bites and resets on close", as
       });
       await waitForSelector(app, slot("about-logo"));
     };
+    const openLab = () =>
+      app.execute(`
+        const logo = document.querySelector('[data-slot="about-logo"]');
+        logo.click();
+        logo.click();
+        logo.click();
+      `);
+    const lab = () =>
+      app.execute(`
+        const node = document.querySelector('[data-slot="donut-lab"]');
+        return node ? { bites: Number(node.dataset.bites), state: node.dataset.state } : null;
+      `);
+
     await openAbout();
-    await app.clickSelector(slot("about-logo"));
-    await waitForSelector(app, slot("donut-snack"), false);
-    await app.execute(
-      `document.querySelector('[data-slot="about-logo"]').focus();`,
+    const system = await app.invoke("get_system_info");
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return document.querySelector('[data-slot="about-build"]')?.textContent.includes(arguments[0]);`,
+          [`${system.os} ${system.arch}`],
+        ),
+      { description: "the build line" },
     );
-    await app.pressShortcut({ key: "\uE006", shift: true });
-    await waitForSelector(app, slot("donut-snack"));
-    const biteCount = () =>
-      app.execute(
-        `return Number(document.querySelector('[data-slot="donut-snack"]').dataset.bites);`,
-      );
-    assert.equal(await biteCount(), 0);
-    await app.capture("secret-snack-drawer");
-    for (const count of [1, 2, 3]) {
-      await app.clickSelector(slot("donut-snack-bite"));
-      assert.equal(await biteCount(), count);
-      await assertContained(app, slot("donut-snack"));
-      if (count === 2) await app.capture("secret-snack-two-bites");
-    }
-    await app.waitForText(en.about.snack.finished);
-    await app.capture("secret-snack-crumbs");
-    await app.clickSelector(slot("donut-snack-bite"));
-    assert.equal(await biteCount(), 0);
-    await activateFocusedByKeyboard(app);
-    assert.equal(await biteCount(), 1);
+    const updateState = await app.waitFor(
+      () =>
+        app.execute(`
+          const state = document.querySelector('[data-slot="about-update-status"]')?.dataset.state;
+          return state && state !== "loading" && state !== "checking" ? state : null;
+        `),
+      { description: "a settled update status" },
+    );
+    assert.ok(
+      ["development", "current", "failed", "available"].includes(updateState),
+      updateState,
+    );
+    await assertContained(app, '[role="dialog"]');
+    await app.capture("about-wide");
+
+    // Copy details gives a plain block for a bug report, with nothing private.
+    await app.execute(`
+      window.__copied = [];
+      navigator.clipboard.writeText = async (text) => { window.__copied.push(text); };
+    `);
+    await app.clickSelector(slot("about-copy-details"));
+    const [details] = await app.waitFor(
+      async () => {
+        const copied = await app.execute("return window.__copied;");
+        return copied.length === 1 ? copied : null;
+      },
+      { description: "copied details" },
+    );
+    assert.ok(details.startsWith(`Donut Browser ${system.app_version}\n`));
+    assert.ok(details.includes(`System: ${system.os} ${system.arch}`));
+    assert.ok(details.includes("Wayfern: "));
+    assert.doesNotMatch(details, /@|\/Users\/|\/home\/|\\Users\\/);
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return document.querySelector('[data-slot="about-copy-details"]')?.textContent.includes(arguments[0]);`,
+          [en.common.buttons.copied],
+        ),
+      { description: "the copied state" },
+    );
+
+    // One click is only a press; three quick ones open the lab.
+    await app.clickSelector(slot("about-logo"));
+    await waitForSelector(app, slot("donut-lab"), false);
+    await openLab();
+    await waitForSelector(app, slot("donut-lab"));
+    assert.equal(
+      await app.execute(
+        `return Boolean(document.querySelector('[data-slot="dialog-content"] > [data-slot="donut-lab"] canvas[role="img"]'));`,
+      ),
+      true,
+      "the lab is drawn inside the dialog",
+    );
+    await assertContained(app, slot("donut-lab"));
+    assert.equal(
+      await app.execute(`
+        const box = document.querySelector('[data-slot="dialog-content"]').getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return Boolean(hit?.closest('[data-slot="donut-lab"]'));
+      `),
+      true,
+      "the lab covers the About content",
+    );
+    assert.deepEqual(await lab(), { bites: 0, state: "whole" });
+    await app.capture("donut-lab");
+
+    await app.clickSelector(`${slot("donut-lab")} canvas`);
+    await app.waitFor(async () => (await lab()).bites === 1, {
+      description: "a bite from a click on the middle",
+    });
+    await app.execute(
+      `document.querySelector('[data-slot="donut-lab"] canvas').focus();`,
+    );
+    await app.pressShortcut({ key: "\uE007" });
+    await app.waitFor(async () => (await lab()).bites === 2, {
+      description: "a bite from Enter",
+    });
     await freezeAnimations(app);
     try {
-      await app.clickSelector(slot("donut-snack-bite"));
-      assert.equal(await biteCount(), 2);
-      await assertPopupReadable(app, slot("donut-snack"));
+      await app.pressShortcut({ key: "\uE007" });
+      await app.waitFor(async () => (await lab()).bites === 3, {
+        description: "a bite under a frozen clock",
+      });
+      await assertPopupReadable(app, slot("donut-lab"));
     } finally {
       await resumeAnimations(app);
     }
+    await app.capture("donut-lab-bitten");
     assert.deepEqual(
       await app.invoke("list_browser_profiles"),
       [],
-      "the snack never touches profiles",
+      "the donut never touches profiles",
     );
+
+    // Escape puts the donut away and gives the focus back to the logo.
     await app.pressShortcut({ key: "Escape" });
-    await waitForSelector(app, slot("donut-snack"), false);
+    await waitForSelector(app, slot("donut-lab"), false);
+    await waitForSelector(app, slot("about-diagnostics"));
+    assert.equal(
+      await app.execute(`return document.activeElement?.dataset.slot;`),
+      "about-logo",
+    );
+
+    // Closing About bakes a fresh donut for next time.
+    await openLab();
+    await waitForSelector(app, slot("donut-lab"));
+    await app.pressShortcut({ key: "Escape" });
+    await waitForSelector(app, slot("donut-lab"), false);
+    await app.pressShortcut({ key: "Escape" });
+    await waitForSelector(app, '[role="dialog"]', false);
     await openAbout();
-    await waitForSelector(app, slot("donut-snack"), false);
+    await waitForSelector(app, slot("donut-lab"), false);
+    await openLab();
+    await waitForSelector(app, slot("donut-lab"));
+    assert.deepEqual(await lab(), { bites: 0, state: "whole" });
+
+    await resize(app, 640, 400);
+    await assertContained(app, '[role="dialog"]');
+    await assertContained(app, slot("donut-lab"));
+    await app.capture("donut-lab-small");
   });
 });
 

@@ -2481,7 +2481,13 @@ test("About exposes a searchable, responsive third-party license inventory", asy
       exact: false,
       roles: ["menuitem"],
     });
-    await app.waitForText("Open-source anti-detect browser.");
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return Boolean(document.querySelector("[role='dialog'] [data-slot='about-diagnostics']"));`,
+        ),
+      { description: "About diagnostics" },
+    );
 
     const aboutText = await app.execute(
       `return document.querySelector("[role='dialog']")?.textContent ?? "";`,
@@ -2571,7 +2577,7 @@ test("About exposes a searchable, responsive third-party license inventory", asy
     await app.waitFor(
       () =>
         app.execute(
-          `return document.querySelector("[role='dialog'] [data-slot='dialog-title']")?.textContent === "About";`,
+          `return document.querySelector("[role='dialog'] [data-slot='dialog-title']")?.textContent === "Donut Browser";`,
         ),
       { description: "About view after returning from licenses" },
     );

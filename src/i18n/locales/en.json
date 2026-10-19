@@ -3270,21 +3270,61 @@
     "noOtherTargets": "No other Wayfern profiles selected"
   },
   "about": {
-    "title": "About",
-    "version": "Version {{version}}",
-    "portableBadge": "portable",
-    "licenseNotice": "Open-source anti-detect browser.",
     "website": "Website",
-    "github": "GitHub",
     "licenses": "Licenses",
     "searchLicenses": "Search licenses…",
     "noMatchingLicenses": "No matching licenses.",
     "openSource": "View {{name}} source code",
-    "snack": {
-      "found": "You found the snack drawer.",
-      "finished": "All crumbs. No cookies.",
-      "takeBite": "Take a bite",
-      "again": "One more donut"
+    "channel": {
+      "stable": "Stable",
+      "nightly": "Nightly",
+      "development": "Development"
+    },
+    "portable": "Portable",
+    "whatsNew": "What's new in this version",
+    "update": {
+      "checking": "Checking for updates…",
+      "development": "Updates are off for development builds",
+      "current": "Up to date",
+      "checkAgain": "Check again",
+      "failed": "Could not check for updates",
+      "available": "Version {{version}} is available",
+      "packageManager": "Version {{version}} is available from your package manager",
+      "update": "Update",
+      "download": "Download",
+      "downloading": "Downloading version {{version}}…",
+      "downloadingPercent": "Downloading version {{version}}… {{percent}}%",
+      "ready": "Version {{version}} is ready to install",
+      "restart": "Restart to update"
+    },
+    "diagnostics": {
+      "title": "Diagnostics",
+      "version": "Version",
+      "channel": "Channel",
+      "system": "System",
+      "yes": "Yes",
+      "no": "No",
+      "notInstalled": "Not installed",
+      "copy": "Copy details",
+      "copyFailed": "Could not copy the details",
+      "openLogs": "Open logs folder",
+      "openLogsFailed": "Could not open the logs folder"
+    },
+    "help": {
+      "title": "Help",
+      "reportBug": "Report a bug"
+    },
+    "footer": "Free and open-source software.",
+    "sourceCode": "Source code",
+    "lab": {
+      "hint": "Drag to turn it. Click to take a bite.",
+      "status_one": "{{count}} bite · {{left}}% left",
+      "status_other": "{{count}} bites · {{left}}% left",
+      "label": "Donut, {{left}}% left",
+      "description": "A 3D donut drawn with text characters. Drag it or use the arrow keys to turn it. Click it or press Space to take a bite.",
+      "eaten": "Only crumbs left.",
+      "bakeAnother": "Bake another",
+      "close": "Close the donut"
     }
   },
   "clearOnClose": {
@@ -3713,7 +3753,6 @@
     "hint": "Select a profile, then change its cookie or route.",
     "changed": "{{name}} changed. The other profile kept its own cookie and route.",
     "resetDone": "Both examples have been reset.",
-    "replay": "Explore profile isolation",
     "device": "Device",
     "site": "Site"
   },

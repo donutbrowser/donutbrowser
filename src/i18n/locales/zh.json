@@ -3270,21 +3270,61 @@
     "noOtherTargets": "未选择其他 Wayfern 配置文件"
   },
   "about": {
-    "title": "关于",
-    "version": "版本 {{version}}",
-    "portableBadge": "便携版",
-    "licenseNotice": "开源反检测浏览器。",
     "website": "官网",
-    "github": "GitHub",
     "licenses": "许可证",
     "searchLicenses": "搜索许可证…",
     "noMatchingLicenses": "没有匹配的许可证。",
     "openSource": "查看 {{name}} 源代码",
-    "snack": {
-      "found": "你发现了零食抽屉。",
-      "finished": "只有碎屑，没有 Cookie。",
-      "takeBite": "咬一口",
-      "again": "再来一个甜甜圈"
+    "channel": {
+      "stable": "稳定版",
+      "nightly": "Nightly",
+      "development": "开发版"
+    },
+    "portable": "便携版",
+    "whatsNew": "此版本的新功能",
+    "update": {
+      "checking": "正在检查更新…",
+      "development": "开发版已关闭更新",
+      "current": "已是最新版本",
+      "checkAgain": "再次检查",
+      "failed": "无法检查更新",
+      "available": "版本 {{version}} 可用",
+      "packageManager": "版本 {{version}} 可通过包管理器获取",
+      "update": "更新",
+      "download": "下载",
+      "downloading": "正在下载版本 {{version}}…",
+      "downloadingPercent": "正在下载版本 {{version}}… {{percent}}%",
+      "ready": "版本 {{version}} 已可安装",
+      "restart": "重启以更新"
+    },
+    "diagnostics": {
+      "title": "诊断",
+      "version": "版本",
+      "channel": "渠道",
+      "system": "系统",
+      "yes": "是",
+      "no": "否",
+      "notInstalled": "未安装",
+      "copy": "复制详细信息",
+      "copyFailed": "无法复制详细信息",
+      "openLogs": "打开日志文件夹",
+      "openLogsFailed": "无法打开日志文件夹"
+    },
+    "help": {
+      "title": "帮助",
+      "reportBug": "报告问题"
+    },
+    "footer": "免费的开源软件。",
+    "sourceCode": "源代码",
+    "lab": {
+      "hint": "拖动可旋转，点击可咬一口。",
+      "status_one": "{{count}} 口 · 剩余 {{left}}%",
+      "status_other": "{{count}} 口 · 剩余 {{left}}%",
+      "label": "甜甜圈，剩余 {{left}}%",
+      "description": "一个用文本字符绘制的 3D 甜甜圈。拖动或使用方向键旋转，点击或按空格键咬一口。",
+      "eaten": "只剩下碎屑了。",
+      "bakeAnother": "再烤一个",
+      "close": "关闭甜甜圈"
     }
   },
   "clearOnClose": {
@@ -3713,7 +3753,6 @@
     "hint": "选择一个配置文件，然后更改其 Cookie 或路由。",
     "changed": "{{name}} 已更改。另一个配置文件保留了自己的 Cookie 和路由。",
     "resetDone": "已重置两个示例。",
-    "replay": "探索配置文件隔离",
     "device": "设备",
     "site": "网站"
   },

@@ -3290,21 +3290,61 @@
     "noOtherTargets": "Aucun autre profil Wayfern sélectionné"
   },
   "about": {
-    "title": "À propos",
-    "version": "Version {{version}}",
-    "portableBadge": "portable",
-    "licenseNotice": "Navigateur anti-détection open source.",
     "website": "Site web",
-    "github": "GitHub",
     "licenses": "Licences",
     "searchLicenses": "Rechercher des licences…",
     "noMatchingLicenses": "Aucune licence correspondante.",
     "openSource": "Voir le code source de {{name}}",
-    "snack": {
-      "found": "Vous avez trouvé la réserve de gourmandises.",
-      "finished": "Des miettes, aucun cookie.",
-      "takeBite": "Prenez une bouchée",
-      "again": "Un autre donut"
+    "channel": {
+      "stable": "Stable",
+      "nightly": "Nightly",
+      "development": "Développement"
+    },
+    "portable": "Portable",
+    "whatsNew": "Nouveautés de cette version",
+    "update": {
+      "checking": "Recherche de mises à jour…",
+      "development": "Les mises à jour sont désactivées pour les versions de développement",
+      "current": "À jour",
+      "checkAgain": "Vérifier à nouveau",
+      "failed": "Impossible de rechercher les mises à jour",
+      "available": "La version {{version}} est disponible",
+      "packageManager": "La version {{version}} est disponible dans votre gestionnaire de paquets",
+      "update": "Mettre à jour",
+      "download": "Télécharger",
+      "downloading": "Téléchargement de la version {{version}}…",
+      "downloadingPercent": "Téléchargement de la version {{version}}… {{percent}} %",
+      "ready": "La version {{version}} est prête à être installée",
+      "restart": "Redémarrer pour mettre à jour"
+    },
+    "diagnostics": {
+      "title": "Diagnostic",
+      "version": "Version",
+      "channel": "Canal",
+      "system": "Système",
+      "yes": "Oui",
+      "no": "Non",
+      "notInstalled": "Non installé",
+      "copy": "Copier les détails",
+      "copyFailed": "Impossible de copier les détails",
+      "openLogs": "Ouvrir le dossier des journaux",
+      "openLogsFailed": "Impossible d'ouvrir le dossier des journaux"
+    },
+    "help": {
+      "title": "Aide",
+      "reportBug": "Signaler un bug"
+    },
+    "footer": "Logiciel libre et open source.",
+    "sourceCode": "Code source",
+    "lab": {
+      "hint": "Faites-le glisser pour le tourner. Cliquez pour croquer.",
+      "status_one": "{{count}} bouchée · il reste {{left}} %",
+      "status_other": "{{count}} bouchées · il reste {{left}} %",
+      "label": "Donut, il reste {{left}} %",
+      "description": "Un donut en 3D dessiné avec des caractères. Faites-le glisser ou utilisez les flèches pour le tourner. Cliquez dessus ou appuyez sur Espace pour croquer.",
+      "eaten": "Il ne reste que des miettes.",
+      "bakeAnother": "En cuire un autre",
+      "close": "Fermer le donut"
     }
   },
   "clearOnClose": {
@@ -3754,7 +3794,6 @@
     "hint": "Sélectionnez un profil, puis modifiez son cookie ou sa route.",
     "changed": "{{name}} a changé. L’autre profil a conservé son propre cookie et sa route.",
     "resetDone": "Les deux exemples ont été réinitialisés.",
-    "replay": "Découvrir l’isolation des profils",
     "device": "Appareil",
     "site": "Site"
   },

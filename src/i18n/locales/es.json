@@ -3290,21 +3290,61 @@
     "noOtherTargets": "No hay otros perfiles Wayfern seleccionados"
   },
   "about": {
-    "title": "Acerca de",
-    "version": "Versión {{version}}",
-    "portableBadge": "portable",
-    "licenseNotice": "Navegador anti-detección de código abierto.",
     "website": "Sitio web",
-    "github": "GitHub",
     "licenses": "Licencias",
     "searchLicenses": "Buscar licencias…",
     "noMatchingLicenses": "No hay licencias que coincidan.",
     "openSource": "Ver el código fuente de {{name}}",
-    "snack": {
-      "found": "Encontraste el cajón de los dulces.",
-      "finished": "Solo migas. Nada de cookies.",
-      "takeBite": "Da un mordisco",
-      "again": "Otro donut"
+    "channel": {
+      "stable": "Estable",
+      "nightly": "Nightly",
+      "development": "Desarrollo"
+    },
+    "portable": "Portátil",
+    "whatsNew": "Novedades de esta versión",
+    "update": {
+      "checking": "Buscando actualizaciones…",
+      "development": "Las actualizaciones están desactivadas en las compilaciones de desarrollo",
+      "current": "Actualizado",
+      "checkAgain": "Volver a comprobar",
+      "failed": "No se pudo buscar actualizaciones",
+      "available": "La versión {{version}} está disponible",
+      "packageManager": "La versión {{version}} está disponible en tu gestor de paquetes",
+      "update": "Actualizar",
+      "download": "Descargar",
+      "downloading": "Descargando la versión {{version}}…",
+      "downloadingPercent": "Descargando la versión {{version}}… {{percent}} %",
+      "ready": "La versión {{version}} está lista para instalarse",
+      "restart": "Reiniciar para actualizar"
+    },
+    "diagnostics": {
+      "title": "Diagnóstico",
+      "version": "Versión",
+      "channel": "Canal",
+      "system": "Sistema",
+      "yes": "Sí",
+      "no": "No",
+      "notInstalled": "No instalado",
+      "copy": "Copiar detalles",
+      "copyFailed": "No se pudieron copiar los detalles",
+      "openLogs": "Abrir carpeta de registros",
+      "openLogsFailed": "No se pudo abrir la carpeta de registros"
+    },
+    "help": {
+      "title": "Ayuda",
+      "reportBug": "Informar de un error"
+    },
+    "footer": "Software libre y de código abierto.",
+    "sourceCode": "Código fuente",
+    "lab": {
+      "hint": "Arrástralo para girarlo. Haz clic para darle un mordisco.",
+      "status_one": "{{count}} mordisco · queda un {{left}} %",
+      "status_other": "{{count}} mordiscos · queda un {{left}} %",
+      "label": "Dónut, queda un {{left}} %",
+      "description": "Un dónut en 3D dibujado con caracteres de texto. Arrástralo o usa las flechas para girarlo. Haz clic en él o pulsa Espacio para darle un mordisco.",
+      "eaten": "Solo quedan migas.",
+      "bakeAnother": "Hornear otro",
+      "close": "Cerrar el dónut"
     }
   },
   "clearOnClose": {
@@ -3754,7 +3794,6 @@
     "hint": "Selecciona un perfil y cambia su cookie o ruta.",
     "changed": "{{name}} cambió. El otro perfil conservó su propia cookie y ruta.",
     "resetDone": "Se restablecieron ambos ejemplos.",
-    "replay": "Explorar el aislamiento de perfiles",
     "device": "Dispositivo",
     "site": "Sitio"
   },
