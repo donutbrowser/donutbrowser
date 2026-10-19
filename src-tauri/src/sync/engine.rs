@@ -57,6 +57,21 @@ impl ProfileSyncOutcome {
   pub fn is_completed(&self) -> bool {
     matches!(self, Self::Completed)
   }
+
+  /// The `profile-sync-status` a finished reconcile leaves on the row. A skip
+  /// because the profile is busy waits for it; any other skip leaves the
+  /// copy as it was.
+  pub fn row_status(&self) -> &'static str {
+    match self {
+      Self::Skipped(
+        "profile is running remotely"
+        | "profile is running locally"
+        | "profile is locked elsewhere"
+        | "remote manifest is not available yet",
+      ) => "waiting",
+      Self::Completed | Self::Skipped(_) => "synced",
+    }
+  }
 }
 
 fn profile_sync_lock(profile_id: &str) -> Arc<TokioMutex<()>> {
@@ -941,25 +956,35 @@ impl SyncEngine {
       ))
     })?;
 
-    // Checkpoint any SQLite WAL files to ensure all data is in the main DB
-    // before we generate the manifest (WAL files are excluded from sync)
-    checkpoint_sqlite_wal_files(&profile_dir);
+    // Reading and hashing the whole profile directory blocks, so it runs off
+    // the async workers.
+    let local_manifest = {
+      let profile_dir = profile_dir.clone();
+      let profile_id = profile_id.clone();
+      tokio::task::spawn_blocking(move || {
+        // Checkpoint any SQLite WAL files to ensure all data is in the main DB
+        // before we generate the manifest (WAL files are excluded from sync)
+        checkpoint_sqlite_wal_files(&profile_dir);
 
-    #[cfg(target_os = "windows")]
-    match crate::profile_import::keyring::write_key_file_from_local_state(
-      &profile_dir.join("profile"),
-    ) {
-      Ok(true) => log::info!("Key file written from Local State profile={profile_id}"),
-      Ok(false) => {}
-      Err(e) => log::warn!("Key file not written profile={profile_id} err=\"{e}\""),
-    }
+        #[cfg(target_os = "windows")]
+        match crate::profile_import::keyring::write_key_file_from_local_state(
+          &profile_dir.join("profile"),
+        ) {
+          Ok(true) => log::info!("Key file written from Local State profile={profile_id}"),
+          Ok(false) => {}
+          Err(e) => log::warn!("Key file not written profile={profile_id} err=\"{e}\""),
+        }
 
-    // Load or create hash cache
-    let cache_path = get_cache_path(&profile_dir);
-    let mut hash_cache = HashCache::load(&cache_path);
-
-    // Generate local manifest
-    let local_manifest = generate_manifest(&profile_id, &profile_dir, &mut hash_cache)?;
+        let cache_path = get_cache_path(&profile_dir);
+        let mut hash_cache = HashCache::load(&cache_path);
+        let manifest = generate_manifest(&profile_id, &profile_dir, &mut hash_cache)?;
+        // Save the hash cache for future runs
+        hash_cache.save(&cache_path)?;
+        Ok::<_, SyncError>(manifest)
+      })
+      .await
+      .map_err(|e| SyncError::IoError(format!("Manifest task failed: {e}")))??
+    };
 
     let total_size: u64 = local_manifest.files.iter().map(|f| f.size).sum();
     let has_cookies = local_manifest
@@ -975,9 +1000,6 @@ impl SyncEngine {
       local_manifest.files.len()
     );
 
-    // Save the hash cache for future runs
-    hash_cache.save(&cache_path)?;
-
     // Try to download remote manifest
     let remote_manifest_key = format!("{}profiles/{}/manifest.json", key_prefix, profile_id);
     let remote_manifest = if reencrypt {
@@ -991,15 +1013,21 @@ impl SyncEngine {
         .await?
     };
 
-    if pending_session.is_some() && remote_manifest.is_none() {
-      return Ok(ProfileSyncOutcome::Skipped(
-        "remote manifest is not available yet",
-      ));
-    }
-    if self.read_only && remote_manifest.is_none() {
-      return Ok(ProfileSyncOutcome::Skipped(
-        "the team role cannot add profiles",
-      ));
+    let skipped = if pending_session.is_some() && remote_manifest.is_none() {
+      Some("remote manifest is not available yet")
+    } else if self.read_only && remote_manifest.is_none() {
+      Some("the team role cannot add profiles")
+    } else {
+      None
+    };
+    if let Some(reason) = skipped {
+      // "syncing" went out above; every caller needs the row to settle.
+      let outcome = ProfileSyncOutcome::Skipped(reason);
+      let _ = events::emit(
+        "profile-sync-status",
+        serde_json::json!({ "profile_id": profile_id, "status": outcome.row_status() }),
+      );
+      return Ok(outcome);
     }
 
     // Compute diff
@@ -1132,12 +1160,25 @@ impl SyncEngine {
     let local_changed =
       !diff.files_to_download.is_empty() || !diff.files_to_delete_local.is_empty();
     let final_manifest = if local_changed {
-      let mut new_cache = HashCache::load(&cache_path);
-      for file in &diff.files_to_download {
-        new_cache.entries.remove(&file.path);
-      }
-      let mut regenerated = generate_manifest(&profile_id, &profile_dir, &mut new_cache)?;
-      new_cache.save(&cache_path)?;
+      let downloaded: Vec<String> = diff
+        .files_to_download
+        .iter()
+        .map(|file| file.path.clone())
+        .collect();
+      let profile_dir = profile_dir.clone();
+      let profile_id = profile_id.clone();
+      let mut regenerated = tokio::task::spawn_blocking(move || {
+        let cache_path = get_cache_path(&profile_dir);
+        let mut new_cache = HashCache::load(&cache_path);
+        for path in &downloaded {
+          new_cache.entries.remove(path);
+        }
+        let regenerated = generate_manifest(&profile_id, &profile_dir, &mut new_cache)?;
+        new_cache.save(&cache_path)?;
+        Ok::<_, SyncError>(regenerated)
+      })
+      .await
+      .map_err(|e| SyncError::IoError(format!("Manifest task failed: {e}")))??;
       regenerated.encrypted = encryption_key.is_some();
       regenerated
     } else {
@@ -1182,12 +1223,7 @@ impl SyncEngine {
     }
 
     let mut updated_profile = profile.clone();
-    updated_profile.last_sync = Some(
-      std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs(),
-    );
+    updated_profile.last_sync = Some(super::conflicts::synced_at(updated_profile.updated_at));
     profile_manager
       .save_profile(&updated_profile)
       .map_err(|e| {
@@ -1345,6 +1381,15 @@ impl SyncEngine {
       return Ok(profile.clone());
     }
 
+    super::conflicts::note_download(
+      self.read_only,
+      "profile",
+      &profile_id,
+      Some(&profile.name),
+      local_updated,
+      profile.last_sync,
+      remote_updated,
+    );
     let mut remote = self.download_profile_metadata(&remote_key).await?;
     // Process state is device-local and deliberately stripped from uploads.
     remote.process_id = profile.process_id;
@@ -1976,6 +2021,15 @@ impl SyncEngine {
         let remote_updated = self.remote_updated_at(&stat, &remote_key).await;
 
         if self.remote_wins(local_updated_at, remote_updated) {
+          super::conflicts::note_download(
+            self.read_only,
+            "proxy",
+            proxy_id,
+            Some(&proxy.name),
+            local_updated_at,
+            proxy.last_sync,
+            remote_updated,
+          );
           self.download_proxy(proxy_id, app_handle).await?;
         } else if local_updated_at > remote_updated {
           self.upload_proxy(&proxy).await?;
@@ -2045,12 +2099,7 @@ impl SyncEngine {
     let mut proxy: crate::proxy_manager::StoredProxy = serde_json::from_slice(&data)
       .map_err(|e| SyncError::SerializationError(format!("Failed to parse proxy JSON: {e}")))?;
 
-    proxy.last_sync = Some(
-      std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs(),
-    );
+    proxy.last_sync = Some(super::conflicts::synced_at(proxy.updated_at));
 
     // The id names the file below, and the JSON came from the server.
     if !crate::app_dirs::is_plain_path_part(&proxy.id) {
@@ -2130,6 +2179,15 @@ impl SyncEngine {
         let remote_updated = self.remote_updated_at(&stat, &remote_key).await;
 
         if self.remote_wins(local_updated_at, remote_updated) {
+          super::conflicts::note_download(
+            self.read_only,
+            "group",
+            group_id,
+            Some(&group.name),
+            local_updated_at,
+            group.last_sync,
+            remote_updated,
+          );
           self.download_group(group_id, app_handle).await?;
         } else if local_updated_at > remote_updated {
           self.upload_group(&group).await?;
@@ -2196,12 +2254,7 @@ impl SyncEngine {
     let mut group: crate::group_manager::ProfileGroup = serde_json::from_slice(&data)
       .map_err(|e| SyncError::SerializationError(format!("Failed to parse group JSON: {e}")))?;
 
-    group.last_sync = Some(
-      std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs(),
-    );
+    group.last_sync = Some(super::conflicts::synced_at(group.updated_at));
 
     // Save or update local group
     {
@@ -2384,6 +2437,15 @@ impl SyncEngine {
         let remote_updated = self.remote_updated_at(&stat, &remote_key).await;
 
         if self.remote_wins(local_updated_at, remote_updated) {
+          super::conflicts::note_download(
+            self.read_only,
+            "vpn",
+            vpn_id,
+            Some(&vpn.name),
+            local_updated_at,
+            vpn.last_sync,
+            remote_updated,
+          );
           self.download_vpn(vpn_id, app_handle).await?;
         } else if local_updated_at > remote_updated {
           self.upload_vpn(&vpn).await?;
@@ -2454,12 +2516,7 @@ impl SyncEngine {
     crate::vpn::VpnStorage::ensure_single_peer(vpn.vpn_type, &vpn.config_data)
       .map_err(|e| SyncError::InvalidData(format!("Rejected synced VPN {vpn_id}: {e}")))?;
 
-    vpn.last_sync = Some(
-      std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs(),
-    );
+    vpn.last_sync = Some(super::conflicts::synced_at(vpn.updated_at));
     vpn.sync_enabled = true;
 
     // Save via VPN storage (handles encryption)
@@ -2546,6 +2603,15 @@ impl SyncEngine {
         let remote_updated = self.remote_updated_at(&stat, &remote_key).await;
 
         if self.remote_wins(local_updated_at, remote_updated) {
+          super::conflicts::note_download(
+            self.read_only,
+            "extension",
+            ext_id,
+            Some(&ext.name),
+            local_updated_at,
+            ext.last_sync,
+            remote_updated,
+          );
           self.download_extension(ext_id, app_handle).await?;
         } else if local_updated_at > remote_updated {
           self.upload_extension(&ext).await?;
@@ -2641,12 +2707,7 @@ impl SyncEngine {
     let mut ext: crate::extension_manager::Extension = serde_json::from_slice(&data)
       .map_err(|e| SyncError::SerializationError(format!("Failed to parse extension JSON: {e}")))?;
 
-    ext.last_sync = Some(
-      std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs(),
-    );
+    ext.last_sync = Some(super::conflicts::synced_at(Some(ext.updated_at)));
     ext.sync_enabled = true;
 
     // Both become path parts below, and the JSON came from the server.
@@ -2760,6 +2821,15 @@ impl SyncEngine {
         let remote_updated = self.remote_updated_at(&stat, &remote_key).await;
 
         if self.remote_wins(local_updated_at, remote_updated) {
+          super::conflicts::note_download(
+            self.read_only,
+            "extension_group",
+            group_id,
+            Some(&group.name),
+            local_updated_at,
+            group.last_sync,
+            remote_updated,
+          );
           self.download_extension_group(group_id, app_handle).await?;
         } else if local_updated_at > remote_updated {
           self.upload_extension_group(&group).await?;
@@ -2832,12 +2902,7 @@ impl SyncEngine {
         SyncError::SerializationError(format!("Failed to parse extension group JSON: {e}"))
       })?;
 
-    group.last_sync = Some(
-      std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs(),
-    );
+    group.last_sync = Some(super::conflicts::synced_at(Some(group.updated_at)));
     group.sync_enabled = true;
 
     // Save or update local group
@@ -2878,6 +2943,40 @@ impl SyncEngine {
 
     log::info!("Extension group deleted from cloud extension_group={group_id}");
     Ok(())
+  }
+
+  /// Remove the tombstone a delete wrote under `tombstones/<folder>/<id>.json`.
+  /// An entity restored from the trash keeps its id, and the tombstone would
+  /// keep it off every other device. Unlike `clear_config_tombstone`, a
+  /// failure is returned, so the restore can keep sync off.
+  pub async fn delete_config_tombstone(&self, folder: &str, id: &str) -> SyncResult<()> {
+    if self.skips_remote_write(&format!("tombstone {folder}={id}")) {
+      return Ok(());
+    }
+    self
+      .client
+      .delete(&format!("tombstones/{folder}/{id}.json"), None)
+      .await?;
+    Ok(())
+  }
+
+  /// Whether `tombstones/<folder>/<id>.json` is still in the cloud. A
+  /// tombstone event can be stale: a restore from the trash removes it and
+  /// the entity is live again. A check that fails counts as gone, so a doubt
+  /// keeps the local copy, as for profiles.
+  /// `None` when the cloud could not be asked.
+  pub async fn config_tombstone_exists(&self, folder: &str, id: &str) -> Option<bool> {
+    let key = format!("tombstones/{folder}/{id}.json");
+    match self.client.stat(&key).await {
+      Ok(stat) => {
+        TOMBSTONE_CHECK.succeeded(&format!("key={key}"));
+        Some(stat.exists)
+      }
+      Err(e) => {
+        TOMBSTONE_CHECK.failed(&format!("key={key}"), e);
+        None
+      }
+    }
   }
 
   /// Download a profile from S3 if it exists remotely but not locally
@@ -3690,7 +3789,12 @@ pub async fn set_profile_sync_mode(
     "Disabled" => SyncMode::Disabled,
     "Regular" => SyncMode::Regular,
     "Encrypted" => SyncMode::Encrypted,
-    _ => return Err(format!("Invalid sync mode: {sync_mode}")),
+    _ => {
+      return Err(crate::backend_error_with_detail(
+        "INTERNAL_ERROR",
+        format!("invalid sync mode {sync_mode}"),
+      ))
+    }
   };
   apply_profile_sync_mode(app_handle, profile_id, new_mode, false).await
 }
@@ -3717,17 +3821,17 @@ async fn apply_profile_sync_mode(
   let profile_manager = ProfileManager::instance();
   let profiles = profile_manager
     .list_profiles()
-    .map_err(|e| format!("Failed to list profiles: {e}"))?;
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
 
   let profile_uuid =
-    uuid::Uuid::parse_str(&profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
+    uuid::Uuid::parse_str(&profile_id).map_err(|_| crate::backend_error("INVALID_PROFILE_ID"))?;
   let mut profile = profiles
     .into_iter()
     .find(|p| p.id == profile_uuid)
-    .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    .ok_or_else(|| crate::backend_error("PROFILE_NOT_FOUND"))?;
 
   if !syncs_browser_files(&profile) {
-    return Err("Cannot modify sync settings for a cross-OS profile".to_string());
+    return Err(crate::backend_error("SYNC_CROSS_OS_PROFILE"));
   }
 
   let enabling_now = new_mode != SyncMode::Disabled;
@@ -3736,7 +3840,7 @@ async fn apply_profile_sync_mode(
   }
 
   if profile.ephemeral {
-    return Err("Cannot enable sync for an ephemeral profile".to_string());
+    return Err(crate::backend_error("SYNC_EPHEMERAL_PROFILE"));
   }
 
   let old_mode = profile.sync_mode;
@@ -3749,35 +3853,27 @@ async fn apply_profile_sync_mode(
       let manager = SettingsManager::instance();
       let settings = manager
         .load_settings()
-        .map_err(|e| format!("Failed to load settings: {e}"))?;
+        .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
 
-      if settings.sync_server_url.is_none() {
+      let configured = settings.sync_server_url.is_some()
+        && manager
+          .get_sync_token(&app_handle)
+          .await
+          .ok()
+          .flatten()
+          .is_some();
+      if !configured {
+        let not_configured = crate::backend_error("SYNC_NOT_CONFIGURED");
         let _ = events::emit(
           "profile-sync-status",
           serde_json::json!({
             "profile_id": profile_id,
             "profile_name": profile.name,
             "status": "error",
-            "error": "Sync server not configured. Please configure sync settings first."
+            "error": not_configured
           }),
         );
-        return Err(
-          "Sync server not configured. Please configure sync settings first.".to_string(),
-        );
-      }
-
-      let token = manager.get_sync_token(&app_handle).await.ok().flatten();
-      if token.is_none() {
-        let _ = events::emit(
-          "profile-sync-status",
-          serde_json::json!({
-            "profile_id": profile_id,
-            "profile_name": profile.name,
-            "status": "error",
-            "error": "Sync token not configured. Please configure sync settings first."
-          }),
-        );
-        return Err("Sync token not configured. Please configure sync settings first.".to_string());
+        return Err(not_configured);
       }
     }
   }
@@ -3785,7 +3881,7 @@ async fn apply_profile_sync_mode(
   // If switching to Encrypted, verify password is set and generate salt
   if new_mode == SyncMode::Encrypted {
     if !encryption::has_e2e_password() {
-      return Err("E2E password not set. Please set a password in Settings first.".to_string());
+      return Err(crate::backend_error("NO_E2E_PASSWORD_SET"));
     }
     if profile.encryption_salt.is_none() {
       profile.encryption_salt = Some(encryption::generate_salt());
@@ -3821,7 +3917,10 @@ async fn apply_profile_sync_mode(
     };
     if let Err(e) = cleared {
       if require_tombstone_cleared {
-        return Err(format!("Could not clear the profile's tombstone: {e}"));
+        return Err(crate::backend_error_with_detail(
+          "SYNC_TOMBSTONE_NOT_CLEARED",
+          e,
+        ));
       }
       log::warn!(
         "Profile tombstone not cleared profile={} err=\"{e}\"",
@@ -3834,7 +3933,7 @@ async fn apply_profile_sync_mode(
 
   profile_manager
     .save_profile(&profile)
-    .map_err(|e| format!("Failed to save profile: {e}"))?;
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
 
   // A remote run obtains the profile through sync, so a local-only profile has
   // nothing there — and switching to Encrypted leaves a copy that cannot be
@@ -3974,17 +4073,17 @@ pub async fn request_profile_sync(
   let profile_manager = ProfileManager::instance();
   let profiles = profile_manager
     .list_profiles()
-    .map_err(|e| format!("Failed to list profiles: {e}"))?;
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
 
   let profile_uuid =
-    uuid::Uuid::parse_str(&profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
+    uuid::Uuid::parse_str(&profile_id).map_err(|_| crate::backend_error("INVALID_PROFILE_ID"))?;
   let profile = profiles
     .into_iter()
     .find(|p| p.id == profile_uuid)
-    .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    .ok_or_else(|| crate::backend_error("PROFILE_NOT_FOUND"))?;
 
   if !profile.is_sync_enabled() {
-    return Err("Sync is not enabled for this profile".to_string());
+    return Err(crate::backend_error("SYNC_NOT_ENABLED"));
   }
 
   // Queue sync via scheduler
@@ -4002,7 +4101,7 @@ pub async fn request_profile_sync(
     scheduler.queue_profile_sync_immediate(profile_id).await;
     Ok(())
   } else {
-    Err("Sync scheduler not initialized".to_string())
+    Err(crate::backend_error("SYNC_NOT_CONFIGURED"))
   }
 }
 
@@ -4039,24 +4138,27 @@ pub async fn trigger_sync_for_profile(
 ) -> Result<(), String> {
   let engine = SyncEngine::create_from_settings(&app_handle)
     .await
-    .map_err(|e| format!("Failed to create sync engine: {e}"))?;
+    .map_err(|e| super::types::engine_setup_code(&e))?;
 
   let profile_manager = ProfileManager::instance();
   let profiles = profile_manager
     .list_profiles()
-    .map_err(|e| format!("Failed to list profiles: {e}"))?;
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
 
   let profile_uuid =
-    uuid::Uuid::parse_str(&profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
+    uuid::Uuid::parse_str(&profile_id).map_err(|_| crate::backend_error("INVALID_PROFILE_ID"))?;
   let profile = profiles
     .into_iter()
     .find(|p| p.id == profile_uuid)
-    .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    .ok_or_else(|| crate::backend_error("PROFILE_NOT_FOUND"))?;
 
   engine
     .sync_profile(&app_handle, &profile)
     .await
-    .map_err(|e| format!("Sync failed: {e}"))?;
+    .map_err(|e| {
+      log::warn!("Profile sync failed profile={profile_id} err=\"{e}\"");
+      e.to_code_json()
+    })?;
 
   Ok(())
 }
@@ -4742,6 +4844,27 @@ pub async fn rollover_encryption_for_all_entities(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn every_skip_leaves_a_final_row_status() {
+    assert_eq!(ProfileSyncOutcome::Completed.row_status(), "synced");
+    for busy in [
+      "profile is running remotely",
+      "profile is running locally",
+      "profile is locked elsewhere",
+      "remote manifest is not available yet",
+    ] {
+      assert_eq!(ProfileSyncOutcome::Skipped(busy).row_status(), "waiting");
+    }
+    for settled in [
+      "cross-OS profile",
+      "remote work was already pulled",
+      "team profile, self-hosted sync",
+      "the team role cannot add profiles",
+    ] {
+      assert_eq!(ProfileSyncOutcome::Skipped(settled).row_status(), "synced");
+    }
+  }
 
   #[tokio::test]
   async fn a_read_only_engine_takes_the_team_copy_of_any_change() {

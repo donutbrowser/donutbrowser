@@ -241,6 +241,54 @@ pub fn is_launch_placeholder_pid(pid: u32) -> bool {
   pid >= LAUNCH_PLACEHOLDER_PID_MIN
 }
 
+/// Start times of the processes in `pids` that are alive, from one targeted
+/// read of the process table. A process that exited but is still listed
+/// (a zombie) is not alive.
+fn live_process_start_times(pids: &[u32]) -> HashMap<u32, u64> {
+  use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+  if pids.is_empty() {
+    return HashMap::new();
+  }
+  let pids: Vec<sysinfo::Pid> = pids
+    .iter()
+    .map(|&pid| sysinfo::Pid::from_u32(pid))
+    .collect();
+  let mut system = System::new();
+  system.refresh_processes_specifics(
+    ProcessesToUpdate::Some(&pids),
+    true,
+    ProcessRefreshKind::nothing(),
+  );
+  pids
+    .iter()
+    .filter_map(|pid| {
+      let process = system.process(*pid)?;
+      crate::proxy_storage::snapshot_process_is_alive(process)
+        .then(|| (pid.as_u32(), process.start_time()))
+    })
+    .collect()
+}
+
+/// Worker records whose worker is gone: not tracked, not being recovered,
+/// past the 120 s launch grace, and with a PID that no longer runs. A record
+/// without a PID may be a worker still starting, so it stays.
+fn orphaned_worker_records<'a>(
+  configs: &'a [crate::proxy_storage::ProxyConfig],
+  tracked_ids: &std::collections::HashSet<String>,
+  recovering_ids: &std::collections::HashSet<String>,
+  is_alive: impl Fn(u32) -> bool,
+) -> Vec<&'a crate::proxy_storage::ProxyConfig> {
+  configs
+    .iter()
+    .filter(|config| {
+      !recovering_ids.contains(&config.id)
+        && !tracked_ids.contains(&config.id)
+        && crate::proxy_storage::proxy_config_age_secs(&config.id) >= 120
+        && config.pid.is_some_and(|pid| !is_alive(pid))
+    })
+    .collect()
+}
+
 /// Write the exact browser process identity (PID plus its start time) onto a
 /// worker's on-disk config. Both halves matter: the PID says which process to
 /// watch, the start time pins it to THAT process so a recycled PID can never
@@ -2022,6 +2070,7 @@ impl ProxyManager {
     local_protocol: &str,
   ) -> Result<ProxySettings, String> {
     let _lifecycle = self.worker_lifecycle.lock().await;
+    ensure_route_health_monitor();
     let started = std::time::Instant::now();
     if let Some(name) = profile_id {
       // Check if we have an active proxy recorded for this profile
@@ -2344,6 +2393,9 @@ impl ProxyManager {
       Err(e) => log::warn!("Proxy worker stop command did not run id={proxy_id} err=\"{e}\""),
     }
     worker.log_stopped(&proxy_id);
+    if let Some(id) = profile_id.as_deref() {
+      clear_route_health(id);
+    }
 
     // Clear profile-to-proxy mapping if it references this proxy
     if let Some(id) = profile_id {
@@ -2508,96 +2560,63 @@ impl ProxyManager {
     &self,
     _app_handle: tauri::AppHandle,
   ) -> Result<Vec<u32>, String> {
-    let _lifecycle = self.worker_lifecycle.lock().await;
     let dead_pids: Vec<u32> = Vec::new();
+    let mut changed = false;
 
-    // Read disk as well as the in-memory map. A browser and its route can
-    // outlive the GUI, so a fresh GUI has no active_proxies entry for them.
+    // One read of the worker records serves the whole pass. Disk as well as
+    // the in-memory map: a browser and its route can outlive the GUI, so a
+    // fresh GUI has no active_proxies entry for them.
+    let configs = crate::proxy_storage::list_proxy_configs();
+    let worker_pids: Vec<u32> = configs.iter().filter_map(|config| config.pid).collect();
+    let live_workers = live_process_start_times(&worker_pids);
+
     let mut recovering_ids = std::collections::HashSet::new();
-    for config in crate::proxy_storage::list_proxy_configs() {
-      if !crate::proxy_runner::proxy_needs_recovery(&config) {
-        continue;
-      }
-      recovering_ids.insert(config.id.clone());
-      let key = format!(
-        "profile={} proxy_worker={}",
-        config.profile_id.as_deref().unwrap_or("none"),
-        config.id
-      );
-      match crate::proxy_runner::recover_proxy_process(&config.id).await {
-        Ok(Some(recovered)) => {
-          PROXY_RECOVERY.succeeded(&key);
-          log::info!(
-            "Proxy worker recovered {key} old_pid={} pid={} port={}",
-            config.pid.unwrap_or_default(),
-            recovered.pid.unwrap_or_default(),
-            recovered.local_port.unwrap_or_default()
-          );
+    {
+      // Recovery starts workers again, and a requested stop must not race it.
+      let _lifecycle = self.worker_lifecycle.lock().await;
+      for config in &configs {
+        if !crate::proxy_runner::proxy_needs_recovery(config) {
+          continue;
         }
-        Ok(None) => {}
-        Err(error) => PROXY_RECOVERY.failed(&key, error),
+        recovering_ids.insert(config.id.clone());
+        let key = format!(
+          "profile={} proxy_worker={}",
+          config.profile_id.as_deref().unwrap_or("none"),
+          config.id
+        );
+        match crate::proxy_runner::recover_proxy_process(&config.id).await {
+          Ok(Some(recovered)) => {
+            changed = true;
+            PROXY_RECOVERY.succeeded(&key);
+            log::info!(
+              "Proxy worker recovered {key} old_pid={} pid={} port={}",
+              config.pid.unwrap_or_default(),
+              recovered.pid.unwrap_or_default(),
+              recovered.local_port.unwrap_or_default()
+            );
+          }
+          Ok(None) => {}
+          Err(error) => PROXY_RECOVERY.failed(&key, error),
+        }
       }
-    }
 
-    let orphaned_configs = {
-      use crate::proxy_storage::{is_process_running, list_proxy_configs};
-
-      let all_configs = list_proxy_configs();
       let tracked_proxy_ids: std::collections::HashSet<String> = {
         let proxies = self.active_proxies.lock().unwrap();
         proxies.values().map(|p| p.id.clone()).collect()
       };
-
-      all_configs
-        .into_iter()
-        .filter(|config| {
-          // Keep a failed recovery's route so the next pass can retry it.
-          if recovering_ids.contains(&config.id) {
-            return false;
-          }
-          // If proxy is tracked in active_proxies, it's definitely not orphaned
-          if tracked_proxy_ids.contains(&config.id) {
-            return false;
-          }
-
-          // Creation time comes from the proxy ID (format: proxy_{timestamp}_{random}),
-          // giving newly created proxies a grace period.
-          let proxy_age = crate::proxy_storage::proxy_config_age_secs(&config.id);
-
-          // Grace period: don't clean up proxies created in the last 120 seconds
-          // This prevents race conditions during startup (increased from 60 to 120 for safety)
-          if proxy_age < 120 {
-            return false;
-          }
-
-          // ONLY clean up if we can verify the proxy process is dead
-          // If proxy process is running, leave it alone (even if idle)
-          if let Some(proxy_pid) = config.pid {
-            // Check if proxy process is actually dead
-            if !is_process_running(proxy_pid) {
-              return true;
-            }
-            // Proxy process is running - leave it alone
-            return false;
-          }
-
-          // No PID in config - can't verify if process is dead
-          // Be conservative: don't clean up (might be starting up or PID not set yet)
-          false
-        })
-        .collect::<Vec<_>>()
-    };
-
-    // Clean up orphaned config files (proxy process is dead)
-    for config in orphaned_configs {
-      log::info!(
-        "Proxy worker exited, record removed id={} pid={} profile={}",
-        config.id,
-        config.pid.unwrap_or_default(),
-        config.profile_id.as_deref().unwrap_or("none")
-      );
-      use crate::proxy_storage::delete_proxy_config;
-      delete_proxy_config(&config.id);
+      for config in orphaned_worker_records(&configs, &tracked_proxy_ids, &recovering_ids, |pid| {
+        live_workers.contains_key(&pid)
+      }) {
+        log::info!(
+          "Proxy worker exited, record removed id={} pid={} profile={}",
+          config.id,
+          config.pid.unwrap_or_default(),
+          config.profile_id.as_deref().unwrap_or("none")
+        );
+        if crate::proxy_storage::delete_proxy_config(&config.id) {
+          changed = true;
+        }
+      }
     }
 
     // Kill stale profileless proxy workers — these are check workers
@@ -2605,37 +2624,26 @@ impl ProxyManager {
     // Profile-associated proxies are left alone to avoid the regression
     // where killing proxies for "dead" browsers on Linux also killed
     // proxies for running browsers (due to launcher-vs-browser PID mismatch).
-    {
-      use crate::proxy_storage::{is_process_running, list_proxy_configs};
-
-      let all_configs = list_proxy_configs();
-      for config in all_configs {
-        // Only target proxies WITHOUT a profile_id (check workers)
-        if config.profile_id.is_some() {
-          continue;
-        }
-
-        // Must have a running process to kill
-        let Some(pid) = config.pid else { continue };
-        if !is_process_running(pid) {
-          continue;
-        }
-
-        // Check age: only kill if older than 5 minutes
-        let proxy_age = crate::proxy_storage::proxy_config_age_secs(&config.id);
-
-        if proxy_age > 300 {
-          let _ =
-            crate::proxy_runner::stop_proxy_process_because(&config.id, "stale_check_worker").await;
-        }
+    for config in &configs {
+      let stale_check_worker = config.profile_id.is_none()
+        && config
+          .pid
+          .is_some_and(|pid| live_workers.contains_key(&pid))
+        && crate::proxy_storage::proxy_config_age_secs(&config.id) > 300;
+      if stale_check_worker
+        && crate::proxy_runner::stop_proxy_process_because(&config.id, "stale_check_worker")
+          .await
+          .unwrap_or(false)
+      {
+        changed = true;
       }
     }
 
     // Kill proxy workers whose browser process has died.
     //
     // active_proxies is keyed by the EXACT browser PID that was recorded in
-    // update_proxy_pid(). That PID is matched against a single process-table
-    // snapshot AND, when the worker's config records one, against the browser's
+    // update_proxy_pid(). That PID is checked in one targeted process-table
+    // read AND, when the worker's config records one, against the browser's
     // start time — existence alone would let a recycled PID keep a dead
     // browser's worker alive indefinitely. This avoids the fuzzy
     // launcher-vs-browser detection used by check_browser_status (which
@@ -2648,7 +2656,7 @@ impl ProxyManager {
     // donut-proxy processes accumulating this way.
     {
       // Snapshot current active entries first so we don't hold the mutex
-      // while running the (expensive on Windows) sysinfo scan.
+      // while reading the process table.
       let snapshot: Vec<(u32, String, Option<String>)> = {
         let proxies = self.active_proxies.lock().unwrap();
         proxies
@@ -2658,15 +2666,23 @@ impl ProxyManager {
       };
 
       if !snapshot.is_empty() {
-        // One process-table scan for all candidates
-        let system = sysinfo::System::new_with_specifics(
-          sysinfo::RefreshKind::nothing().with_processes(sysinfo::ProcessRefreshKind::everything()),
-        );
+        // Launch placeholders (and the legacy 0 sentinel) are not real
+        // browser PIDs — update_proxy_pid hasn't recorded the real one yet.
+        let browser_pids: Vec<u32> = snapshot
+          .iter()
+          .map(|(browser_pid, _, _)| *browser_pid)
+          .filter(|&pid| pid != 0 && !is_launch_placeholder_pid(pid))
+          .collect();
+        let live_browsers = live_process_start_times(&browser_pids);
+        let start_time_by_worker: HashMap<&str, u64> = configs
+          .iter()
+          .filter_map(|config| Some((config.id.as_str(), config.browser_pid_start_time?)))
+          .collect();
 
         // Two-state classification: alive PIDs reset their miss counter,
         // dead PIDs increment it. A worker is only reaped after MISS_THRESHOLD
         // consecutive misses (~60s by default given the 30s cleanup cadence),
-        // so a single sysinfo blip under heavy load doesn't kill a healthy worker.
+        // so a single process-table blip under heavy load doesn't kill a healthy worker.
         const MISS_THRESHOLD: u8 = 2;
 
         let mut alive_pids: Vec<u32> = Vec::new();
@@ -2674,26 +2690,15 @@ impl ProxyManager {
         let mut snapshot_pids: std::collections::HashSet<u32> = std::collections::HashSet::new();
         for (browser_pid, proxy_id, profile_id) in snapshot {
           snapshot_pids.insert(browser_pid);
-          // Launch placeholders (and the legacy 0 sentinel) are not real
-          // browser PIDs — update_proxy_pid hasn't recorded the real one yet.
           if browser_pid == 0 || is_launch_placeholder_pid(browser_pid) {
             continue;
           }
-          // Reuse the single scan rather than re-querying per PID, but hold the
-          // entry to the recorded identity when the worker has one.
-          let expected_start_time = crate::proxy_storage::get_proxy_config(&proxy_id)
-            .and_then(|config| config.browser_pid_start_time);
-          let still_the_same_browser = match system.process(sysinfo::Pid::from_u32(browser_pid)) {
-            // An exited-but-unreaped browser still occupies its PID in this
-            // snapshot; only a genuinely live process counts.
-            Some(process) if crate::proxy_storage::snapshot_process_is_alive(process) => {
-              expected_start_time.is_none_or(|expected| {
-                // Same PID, different process: the browser died and its PID was reused.
-                process.start_time() == expected
-              })
-            }
-            _ => false,
-          };
+          // Hold the entry to the recorded identity when the worker has one:
+          // same PID with a different start time is a reused PID.
+          let expected_start_time = start_time_by_worker.get(proxy_id.as_str()).copied();
+          let still_the_same_browser = live_browsers
+            .get(&browser_pid)
+            .is_some_and(|&started| expected_start_time.is_none_or(|expected| started == expected));
           if still_the_same_browser {
             alive_pids.push(browser_pid);
           } else {
@@ -2722,28 +2727,33 @@ impl ProxyManager {
           to_reap
         };
 
-        for (browser_pid, proxy_id, profile_id) in dead_browser_entries {
-          {
-            let mut proxies = self.active_proxies.lock().unwrap();
-            // Re-check the entry still maps to the same proxy_id — another
-            // thread may have replaced it with a new proxy since we snapshotted.
-            if let Some(current) = proxies.get(&browser_pid) {
-              if current.id != proxy_id {
+        if !dead_browser_entries.is_empty() {
+          // A launch reusing the profile's worker must not race its stop.
+          let _lifecycle = self.worker_lifecycle.lock().await;
+          for (browser_pid, proxy_id, profile_id) in dead_browser_entries {
+            {
+              let mut proxies = self.active_proxies.lock().unwrap();
+              // Re-check the entry still maps to the same proxy_id — another
+              // thread may have replaced it with a new proxy since we snapshotted.
+              if let Some(current) = proxies.get(&browser_pid) {
+                if current.id != proxy_id {
+                  continue;
+                }
+              } else {
                 continue;
               }
-            } else {
-              continue;
+              proxies.remove(&browser_pid);
             }
-            proxies.remove(&browser_pid);
-          }
-          if let Some(ref pid) = profile_id {
-            let mut map = self.profile_active_proxy_ids.lock().unwrap();
-            if map.get(pid) == Some(&proxy_id) {
-              map.remove(pid);
+            changed = true;
+            if let Some(ref pid) = profile_id {
+              let mut map = self.profile_active_proxy_ids.lock().unwrap();
+              if map.get(pid) == Some(&proxy_id) {
+                map.remove(pid);
+              }
             }
+            let reason = format!("browser_exited({browser_pid})");
+            let _ = crate::proxy_runner::stop_proxy_process_because(&proxy_id, &reason).await;
           }
-          let reason = format!("browser_exited({browser_pid})");
-          let _ = crate::proxy_runner::stop_proxy_process_because(&proxy_id, &reason).await;
         }
       }
     }
@@ -2763,7 +2773,9 @@ impl ProxyManager {
               worker.vpn_id
             );
             let _ = std::fs::remove_file(&worker.config_file_path);
-            delete_vpn_worker_config(&worker.id);
+            if delete_vpn_worker_config(&worker.id) {
+              changed = true;
+            }
           }
         }
       }
@@ -2777,15 +2789,44 @@ impl ProxyManager {
         let dead = worker
           .pid
           .is_some_and(|pid| !process_identity_matches(pid, worker.pid_start_time));
-        if dead || unstarted_worker_is_stale(&worker) {
-          let _ = crate::xray_worker_runner::stop_xray_worker(&worker.id).await;
+        if (dead || unstarted_worker_is_stale(&worker))
+          && crate::xray_worker_runner::stop_xray_worker(&worker.id)
+            .await
+            .unwrap_or(false)
+        {
+          changed = true;
         }
       }
     }
 
-    // Emit event for reactive UI updates
-    if let Err(e) = events::emit_empty("proxies-changed") {
-      log::warn!("Event emit failed event=proxies-changed err=\"{e}\"");
+    // Traffic files of workers that no longer run. A worker that started
+    // during this pass is not in `configs`; the sweep spares recent files.
+    let live_stats_keys: std::collections::HashSet<String> = configs
+      .iter()
+      .filter(|config| {
+        recovering_ids.contains(&config.id)
+          || config.pid.is_none_or(|pid| live_workers.contains_key(&pid))
+      })
+      .map(|config| {
+        config
+          .profile_id
+          .clone()
+          .unwrap_or_else(|| config.id.clone())
+      })
+      .collect();
+    if let Err(e) =
+      tokio::task::spawn_blocking(move || crate::traffic_stats::sweep_stale_files(&live_stats_keys))
+        .await
+    {
+      log::warn!("Traffic stats sweep failed err=\"{e}\"");
+    }
+
+    // Each emit makes the GUI reload its lists, so only a pass that changed
+    // something says so.
+    if changed {
+      if let Err(e) = events::emit_empty("proxies-changed") {
+        log::warn!("Event emit failed event=proxies-changed err=\"{e}\"");
+      }
     }
 
     Ok(dead_pids)
@@ -2846,11 +2887,540 @@ impl ProxyManager {
 pub static PROXY_MANAGER: std::sync::LazyLock<ProxyManager> =
   std::sync::LazyLock::new(ProxyManager::new);
 
+/// A check result this recent stands in for a live check before a launch.
+pub const ROUTE_CHECK_FRESH_SECS: u64 = 120;
+/// The live pre-launch check never holds a launch longer than this.
+pub const ROUTE_CHECK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// A profile route the pre-launch check could not get through.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RouteUnreachable {
+  /// `proxy` or `vpn`.
+  pub kind: String,
+  pub id: String,
+  /// A backend error code.
+  pub code: String,
+}
+
+#[derive(Debug, Clone)]
+struct RouteVerdict {
+  checked_at: u64,
+  failure: Option<String>,
+}
+
+/// Verdicts of recent pre-launch checks, by `kind:id`, so a bulk launch
+/// checks each distinct route once.
+static ROUTE_VERDICTS: std::sync::LazyLock<Mutex<HashMap<String, RouteVerdict>>> =
+  std::sync::LazyLock::new(Default::default);
+
+/// One lock per route: a second launch through the same route waits for the
+/// first check and takes its verdict.
+static ROUTE_CHECK_LOCKS: std::sync::LazyLock<
+  Mutex<HashMap<String, std::sync::Arc<tokio::sync::Mutex<()>>>>,
+> = std::sync::LazyLock::new(Default::default);
+
+fn is_fresh(checked_at: u64, now: u64) -> bool {
+  now.saturating_sub(checked_at) < ROUTE_CHECK_FRESH_SECS
+}
+
+/// The verdict a cached proxy check gives, when it is recent enough.
+fn verdict_from_cached_check(result: &ProxyCheckResult, now: u64) -> Option<Option<String>> {
+  is_fresh(result.timestamp, now)
+    .then(|| (!result.is_valid).then(|| "PROXY_NOT_WORKING".to_string()))
+}
+
+/// Whether the profile's proxy or VPN route answers, before a launch. Takes
+/// a recent result when there is one, else checks live within
+/// `ROUTE_CHECK_TIMEOUT`. `None` when the route answered or cannot be judged
+/// from here: the launch decides those.
+pub async fn check_route_before_launch(
+  proxy_id: Option<&str>,
+  vpn_id: Option<&str>,
+) -> Option<RouteUnreachable> {
+  let (kind, id) = match (
+    vpn_id.filter(|id| !id.is_empty()),
+    proxy_id.filter(|id| !id.is_empty()),
+  ) {
+    (Some(vpn), _) => ("vpn", vpn),
+    (None, Some(proxy)) => ("proxy", proxy),
+    (None, None) => return None,
+  };
+  if kind == "proxy" && PROXY_MANAGER.is_cloud_or_derived(id) {
+    return None;
+  }
+  let key = format!("{kind}:{id}");
+  let lock = ROUTE_CHECK_LOCKS
+    .lock()
+    .map(|mut locks| locks.entry(key.clone()).or_default().clone())
+    .ok()?;
+  let _checking = lock.lock().await;
+
+  let now = now_secs();
+  let remembered = ROUTE_VERDICTS
+    .lock()
+    .ok()
+    .and_then(|verdicts| verdicts.get(&key).cloned())
+    .filter(|verdict| is_fresh(verdict.checked_at, now))
+    .map(|verdict| verdict.failure);
+  let cached = || {
+    (kind == "proxy")
+      .then(|| PROXY_MANAGER.get_cached_proxy_check(id))
+      .flatten()
+      .and_then(|result| verdict_from_cached_check(&result, now))
+  };
+  let failure = match remembered.or_else(cached) {
+    Some(failure) => failure,
+    None => {
+      let started = std::time::Instant::now();
+      let failure = if kind == "vpn" {
+        probe_vpn_route(id).await
+      } else {
+        probe_proxy_route(id).await
+      };
+      log::info!(
+        "Route checked before launch {kind}={id} ok={} code={} elapsed_ms={}",
+        failure.is_none(),
+        failure.as_deref().unwrap_or("none"),
+        started.elapsed().as_millis()
+      );
+      if let Ok(mut verdicts) = ROUTE_VERDICTS.lock() {
+        verdicts.retain(|_, verdict| is_fresh(verdict.checked_at, now));
+        verdicts.insert(
+          key,
+          RouteVerdict {
+            checked_at: now,
+            failure: failure.clone(),
+          },
+        );
+      }
+      failure
+    }
+  };
+  failure.map(|code| RouteUnreachable {
+    kind: kind.to_string(),
+    id: id.to_string(),
+    code,
+  })
+}
+
+/// A dial error as the code the app shows.
+fn route_failure_code(error: &str) -> &'static str {
+  let error = error.to_ascii_lowercase();
+  if error.contains("402") {
+    "PROXY_PAYMENT_REQUIRED"
+  } else if error.contains("407") || error.contains("auth") {
+    "PROXY_AUTH_FAILED"
+  } else if error.contains("timed out") || error.contains("timeout") {
+    "PROXY_UPSTREAM_TIMEOUT"
+  } else {
+    "PROXY_UPSTREAM_UNREACHABLE"
+  }
+}
+
+/// One request through the proxy, as the browser would send it. Share-link
+/// proxies over TCP get a connection to their server; QUIC ones cannot be
+/// judged without starting their worker, so they pass.
+async fn probe_proxy_route(proxy_id: &str) -> Option<String> {
+  let settings = PROXY_MANAGER.get_proxy_settings_by_id(proxy_id)?;
+  // A dynamic proxy learns its address at launch.
+  let dynamic = PROXY_MANAGER
+    .stored_proxies
+    .lock()
+    .ok()
+    .and_then(|proxies| proxies.get(proxy_id).map(|p| p.dynamic_proxy_url.is_some()))
+    .unwrap_or(false);
+  if dynamic {
+    return None;
+  }
+  if crate::xray::is_xray_proxy_type(&settings.proxy_type) {
+    let config = crate::xray::parse_share_link(settings.vless_uri.as_deref()?.trim())
+      .ok()?
+      .config;
+    if config.protocol() == crate::xray::XrayProtocol::Hysteria2 {
+      return None;
+    }
+    let dial = tokio::net::TcpStream::connect((config.address.as_str(), config.port));
+    return match tokio::time::timeout(ROUTE_CHECK_TIMEOUT, dial).await {
+      Ok(Ok(_)) => None,
+      Ok(Err(e)) => Some(route_failure_code(&e.to_string()).to_string()),
+      Err(_) => Some("PROXY_UPSTREAM_TIMEOUT".to_string()),
+    };
+  }
+  if settings.host.is_empty() || settings.port == 0 {
+    return None;
+  }
+  let url = ProxyManager::build_probe_proxy_url(&settings);
+  if !crate::proxy_storage::reqwest_can_proxy(&url) {
+    return None;
+  }
+  let proxy = reqwest::Proxy::all(&url).ok()?;
+  let client = reqwest::Client::builder()
+    .no_proxy()
+    .proxy(proxy)
+    .timeout(ROUTE_CHECK_TIMEOUT)
+    .build()
+    .ok()?;
+  // Any answer from the site proves the route; only a failure to get one
+  // through the proxy counts.
+  match client
+    .head("https://cp.cloudflare.com/generate_204")
+    .send()
+    .await
+  {
+    Ok(_) => None,
+    Err(e) if e.is_timeout() => Some("PROXY_UPSTREAM_TIMEOUT".to_string()),
+    Err(e) => {
+      let detail = format!("{e:?}");
+      Some(route_failure_code(&detail).to_string())
+    }
+  }
+}
+
+/// A WireGuard handshake with the VPN's server. A tunnel already up for
+/// this VPN answers for itself.
+async fn probe_vpn_route(vpn_id: &str) -> Option<String> {
+  if crate::vpn_worker_storage::find_vpn_worker_by_vpn_id(vpn_id)
+    .and_then(|worker| worker.pid)
+    .is_some_and(crate::proxy_storage::is_process_running)
+  {
+    return None;
+  }
+  let config = crate::vpn::VPN_STORAGE
+    .lock()
+    .ok()
+    .and_then(|storage| storage.load_config(vpn_id).ok())?;
+  let wireguard = crate::vpn::parse_wireguard_config(&config.config_data).ok()?;
+  let handshake = tokio::task::spawn_blocking(move || wireguard_handshake(&wireguard));
+  match tokio::time::timeout(ROUTE_CHECK_TIMEOUT, handshake).await {
+    Ok(Ok(result)) => result.err(),
+    Ok(Err(_)) => None,
+    Err(_) => Some("VPN_UNREACHABLE".to_string()),
+  }
+}
+
+/// Send handshake initiations until the server answers, within the check's
+/// time. `Err` carries the code when it never does.
+fn wireguard_handshake(config: &crate::vpn::WireGuardConfig) -> Result<(), String> {
+  use boringtun::noise::{Tunn, TunnResult};
+  use boringtun::x25519::{PublicKey, StaticSecret};
+  use std::net::ToSocketAddrs;
+
+  let key = |encoded: &str| -> Option<[u8; 32]> {
+    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded.trim())
+      .ok()?
+      .try_into()
+      .ok()
+  };
+  // A config that does not parse is the launch's to report.
+  let (Some(private), Some(public)) = (key(&config.private_key), key(&config.peer_public_key))
+  else {
+    return Ok(());
+  };
+  let preshared = config.preshared_key.as_deref().and_then(key);
+  let Some(peer) = config
+    .peer_endpoint
+    .to_socket_addrs()
+    .ok()
+    .and_then(|mut addresses| addresses.next())
+  else {
+    return Err("VPN_UNREACHABLE".to_string());
+  };
+  let mut tunnel = Tunn::new(
+    StaticSecret::from(private),
+    PublicKey::from(public),
+    preshared,
+    None,
+    0,
+    None,
+  );
+  let bind = if peer.is_ipv6() {
+    "[::]:0"
+  } else {
+    "0.0.0.0:0"
+  };
+  let socket = std::net::UdpSocket::bind(bind).map_err(|_| "VPN_UNREACHABLE".to_string())?;
+  socket
+    .set_read_timeout(Some(std::time::Duration::from_millis(1800)))
+    .map_err(|_| "VPN_UNREACHABLE".to_string())?;
+  for _ in 0..2 {
+    let mut packet = vec![0u8; 2048];
+    if let TunnResult::WriteToNetwork(initiation) =
+      tunnel.format_handshake_initiation(&mut packet, true)
+    {
+      if socket.send_to(initiation, peer).is_err() {
+        return Err("VPN_UNREACHABLE".to_string());
+      }
+    }
+    let mut reply = vec![0u8; 2048];
+    if let Ok((len, _)) = socket.recv_from(&mut reply) {
+      let mut out = vec![0u8; 2048];
+      if !matches!(
+        tunnel.decapsulate(None, &reply[..len], &mut out),
+        TunnResult::Err(_)
+      ) {
+        return Ok(());
+      }
+    }
+  }
+  Err("VPN_UNREACHABLE".to_string())
+}
+
+/// How often the route health of running profiles is read.
+const ROUTE_HEALTH_POLL: std::time::Duration = std::time::Duration::from_secs(5);
+
+static ROUTE_HEALTH_STREAK: crate::log_streak::KeyedStreak =
+  crate::log_streak::KeyedStreak::new(module_path!(), "Proxy route");
+
+static ROUTE_HEALTH: std::sync::LazyLock<
+  Mutex<HashMap<String, crate::traffic_stats::RouteHealthWindow>>,
+> = std::sync::LazyLock::new(Default::default);
+
+static ROUTE_HEALTH_MONITOR: std::sync::atomic::AtomicBool =
+  std::sync::atomic::AtomicBool::new(false);
+
+/// Start the route health loop once, at the first worker start.
+fn ensure_route_health_monitor() {
+  if ROUTE_HEALTH_MONITOR.swap(true, std::sync::atomic::Ordering::SeqCst) {
+    return;
+  }
+  tauri::async_runtime::spawn(async {
+    let mut ticker = tokio::time::interval(ROUTE_HEALTH_POLL);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+      ticker.tick().await;
+      PROXY_MANAGER.poll_route_health();
+    }
+  });
+}
+
+/// The `proxy-health-changed` payload for a verdict.
+fn route_health_payload(
+  profile_id: &str,
+  verdict: crate::traffic_stats::RouteHealthVerdict,
+  at: u64,
+) -> serde_json::Value {
+  let (status, code) = verdict;
+  let mut payload = serde_json::json!({ "profile_id": profile_id, "status": status, "at": at });
+  if let Some(code) = code {
+    payload["code"] = serde_json::Value::from(code);
+  }
+  payload
+}
+
+/// Forget a stopped profile's route health and tell the app, when it had any.
+fn clear_route_health(profile_id: &str) {
+  let had_verdict = ROUTE_HEALTH
+    .lock()
+    .ok()
+    .and_then(|mut windows| windows.remove(profile_id))
+    .is_some_and(|window| window.current().is_some());
+  ROUTE_HEALTH_STREAK.succeeded(&format!("profile={profile_id}"));
+  if had_verdict {
+    let payload = serde_json::json!({ "profile_id": profile_id, "cleared": true });
+    if let Err(e) = events::emit("proxy-health-changed", payload) {
+      log::warn!("Event emit failed event=proxy-health-changed err=\"{e}\"");
+    }
+  }
+}
+
+impl ProxyManager {
+  /// Profiles running behind an upstream proxy or VPN.
+  fn routed_profiles(&self) -> Vec<String> {
+    let proxies = self.active_proxies.lock().unwrap();
+    let mut ids: Vec<String> = proxies
+      .values()
+      .filter(|info| info.upstream_type != "DIRECT")
+      .filter_map(|info| info.profile_id.clone())
+      .collect();
+    ids.sort();
+    ids.dedup();
+    ids
+  }
+
+  fn poll_route_health(&self) {
+    let running = self.routed_profiles();
+    let gone: Vec<String> = ROUTE_HEALTH
+      .lock()
+      .map(|windows| {
+        windows
+          .keys()
+          .filter(|id| !running.contains(id))
+          .cloned()
+          .collect()
+      })
+      .unwrap_or_default();
+    for profile_id in gone {
+      clear_route_health(&profile_id);
+    }
+
+    let now = now_secs();
+    for profile_id in running {
+      let counts = crate::traffic_stats::upstream_counts_for_profile(&profile_id);
+      let change = {
+        let Ok(mut windows) = ROUTE_HEALTH.lock() else {
+          return;
+        };
+        let window = windows.entry(profile_id.clone()).or_default();
+        window.observe(now, counts.unwrap_or_default())
+      };
+      let Some(verdict) = change else {
+        continue;
+      };
+      let key = format!("profile={profile_id}");
+      match verdict {
+        (crate::traffic_stats::RouteHealthStatus::Ok, _) => ROUTE_HEALTH_STREAK.succeeded(&key),
+        (status, code) => ROUTE_HEALTH_STREAK.failed(
+          &key,
+          format_args!(
+            "status={} code={}",
+            serde_json::to_value(status)
+              .ok()
+              .and_then(|v| v.as_str().map(str::to_string))
+              .unwrap_or_default(),
+            code.unwrap_or("none")
+          ),
+        ),
+      }
+      if let Err(e) = events::emit(
+        "proxy-health-changed",
+        route_health_payload(&profile_id, verdict, now),
+      ) {
+        log::warn!("Event emit failed event=proxy-health-changed err=\"{e}\"");
+      }
+    }
+  }
+}
+
+#[cfg(test)]
+mod route_check_tests {
+  use super::*;
+
+  fn check(timestamp: u64, is_valid: bool) -> ProxyCheckResult {
+    ProxyCheckResult {
+      ip: String::new(),
+      city: None,
+      country: None,
+      country_code: None,
+      timestamp,
+      is_valid,
+      isp: None,
+      timezone: None,
+      udp: crate::proxy_udp::UdpSupport::Unknown,
+      latency_ms: None,
+    }
+  }
+
+  #[test]
+  fn a_recent_check_stands_in_for_a_live_one() {
+    assert_eq!(
+      verdict_from_cached_check(&check(1_000, true), 1_100),
+      Some(None)
+    );
+    assert_eq!(
+      verdict_from_cached_check(&check(1_000, false), 1_100),
+      Some(Some("PROXY_NOT_WORKING".to_string()))
+    );
+  }
+
+  #[test]
+  fn an_old_check_asks_for_a_live_one() {
+    assert_eq!(verdict_from_cached_check(&check(1_000, true), 1_120), None);
+    assert_eq!(verdict_from_cached_check(&check(1_000, false), 5_000), None);
+  }
+
+  #[test]
+  fn dial_errors_become_codes() {
+    assert_eq!(
+      route_failure_code("Connection refused (os error 61)"),
+      "PROXY_UPSTREAM_UNREACHABLE"
+    );
+    assert_eq!(
+      route_failure_code("operation timed out"),
+      "PROXY_UPSTREAM_TIMEOUT"
+    );
+    assert_eq!(
+      route_failure_code("unsuccessful tunnel: 407 Proxy Authentication Required"),
+      "PROXY_AUTH_FAILED"
+    );
+    assert_eq!(
+      route_failure_code("unsuccessful tunnel: 402 Payment Required"),
+      "PROXY_PAYMENT_REQUIRED"
+    );
+  }
+
+  #[test]
+  fn the_health_payload_matches_the_frontend_contract() {
+    let down = route_health_payload(
+      "p-1",
+      (
+        crate::traffic_stats::RouteHealthStatus::Down,
+        Some("PROXY_UPSTREAM_UNREACHABLE"),
+      ),
+      7,
+    );
+    assert_eq!(
+      down,
+      serde_json::json!({
+        "profile_id": "p-1",
+        "status": "down",
+        "code": "PROXY_UPSTREAM_UNREACHABLE",
+        "at": 7
+      })
+    );
+    let ok = route_health_payload(
+      "p-1",
+      (crate::traffic_stats::RouteHealthStatus::Ok, None),
+      8,
+    );
+    assert_eq!(
+      ok,
+      serde_json::json!({ "profile_id": "p-1", "status": "ok", "at": 8 })
+    );
+  }
+
+  #[tokio::test]
+  async fn a_profile_with_no_route_is_never_checked() {
+    assert_eq!(check_route_before_launch(None, None).await, None);
+    assert_eq!(check_route_before_launch(Some(""), Some("")).await, None);
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
   use std::env;
   use std::path::PathBuf;
+
+  #[test]
+  fn only_dead_untracked_settled_workers_lose_their_record() {
+    let now = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap()
+      .as_secs();
+    let record = |id: String, pid: Option<u32>| crate::proxy_storage::ProxyConfig {
+      pid,
+      ..crate::proxy_storage::ProxyConfig::new(id, "DIRECT".into(), None)
+    };
+    let old = now - 600;
+    let configs = vec![
+      record(format!("proxy_{old}_1"), Some(11)),
+      record(format!("proxy_{old}_2"), Some(22)),
+      record(format!("proxy_{old}_3"), Some(33)),
+      record(format!("proxy_{old}_4"), Some(44)),
+      record(format!("proxy_{old}_5"), None),
+      record(format!("proxy_{now}_6"), Some(66)),
+    ];
+    let tracked = std::collections::HashSet::from([format!("proxy_{old}_3")]);
+    let recovering = std::collections::HashSet::from([format!("proxy_{old}_4")]);
+    let orphans: Vec<&str> =
+      orphaned_worker_records(&configs, &tracked, &recovering, |pid| pid == 22)
+        .into_iter()
+        .map(|config| config.id.as_str())
+        .collect();
+    // 2 runs, 3 is tracked, 4 is being recovered, 5 may still be starting,
+    // 6 is inside the launch grace.
+    assert_eq!(orphans, [format!("proxy_{old}_1")]);
+  }
   use std::process::Stdio;
   use std::time::Duration;
   use tokio::process::Command;

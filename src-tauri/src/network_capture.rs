@@ -24,6 +24,9 @@ const MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
 const MAX_STORED_BODY_BYTES: usize = 32 * 1024 * 1024;
 /// The longest request body kept.
 const MAX_POST_DATA_BYTES: usize = 64 * 1024;
+/// What Chromium keeps per tab for body reads. Its default is far larger than
+/// the bodies kept here, and it holds that memory for as long as capture runs.
+const BROWSER_BUFFER_BYTES: usize = 8 * 1024 * 1024;
 /// How much of a URL a list shows.
 const LIST_URL_CHARS: usize = 300;
 /// Headers whose values are credentials.
@@ -320,7 +323,11 @@ impl CaptureLog {
       Command::setup(
         child,
         "Network.enable",
-        json!({ "maxPostDataSize": MAX_POST_DATA_BYTES }),
+        json!({
+          "maxPostDataSize": MAX_POST_DATA_BYTES,
+          "maxTotalBufferSize": BROWSER_BUFFER_BYTES,
+          "maxResourceBufferSize": MAX_BODY_BYTES,
+        }),
       ),
       Command::setup(
         child,
@@ -885,9 +892,105 @@ async fn pump(
   }
 }
 
+/// The most requests the window lists at once.
+const MAX_WINDOW_LIST: usize = 500;
+
+impl CaptureLog {
+  /// The newest `limit` requests after `after`, for the window: it shows the
+  /// end of the capture, where `list` pages from the start.
+  fn newest(&self, after: u64, limit: usize) -> Value {
+    let after = after.max(self.next_id.saturating_sub(limit as u64));
+    let mut answer = self.list(&ListQuery {
+      after,
+      limit,
+      ..Default::default()
+    });
+    answer["capturing"] = Value::from(true);
+    answer
+  }
+}
+
+/// Start capturing the traffic of a profile running on this computer, from
+/// the window. The same capture the MCP tools read, with the same redaction.
+#[tauri::command]
+pub async fn start_network_capture(profile_id: String) -> Result<Value, String> {
+  let profile = crate::profile::ProfileManager::instance()
+    .list_profiles()
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?
+    .into_iter()
+    .find(|p| p.id.to_string() == profile_id)
+    .ok_or_else(|| crate::backend_error("PROFILE_NOT_FOUND"))?;
+  start(&profile).await.map_err(|e| match e {
+    StartError::NotLocal => crate::backend_error("PROFILE_NOT_RUNNING"),
+    StartError::Refused(reason) => {
+      log::warn!("Network capture start failed profile={profile_id} err=\"{reason}\"");
+      crate::backend_error_with_detail("NETWORK_CAPTURE_FAILED", reason)
+    }
+  })
+}
+
+#[tauri::command]
+pub fn stop_network_capture(profile_id: String) -> Value {
+  match stop(&profile_id) {
+    Some(requests) => json!({ "stopped": true, "requests": requests }),
+    None => json!({ "stopped": false }),
+  }
+}
+
+/// The newest captured requests after `after`, at most `limit` (500).
+/// `{ "capturing": false }` when no capture runs.
+#[tauri::command]
+pub fn list_network_requests(
+  profile_id: String,
+  after: Option<u64>,
+  limit: Option<usize>,
+) -> Value {
+  let limit = limit.unwrap_or(MAX_WINDOW_LIST).clamp(1, MAX_WINDOW_LIST);
+  read(&profile_id, |log| log.newest(after.unwrap_or(0), limit))
+    .unwrap_or_else(|| json!({ "capturing": false }))
+}
+
+/// One captured request with its redacted headers; `null` once it is gone.
+#[tauri::command]
+pub fn get_network_request(profile_id: String, request_id: u64) -> Result<Option<Value>, String> {
+  read(&profile_id, |log| log.detail(request_id, false, 0, 0))
+    .ok_or_else(|| crate::backend_error("NETWORK_CAPTURE_NOT_RUNNING"))
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn the_window_lists_the_newest_requests_and_the_cursor_holds() {
+    let mut log = CaptureLog::default();
+    attached_page(&mut log);
+    for n in 0..10 {
+      request(
+        &mut log,
+        &format!("r{n}"),
+        &format!("https://a.test/{n}"),
+        false,
+      );
+    }
+    let ids = |answer: &Value| -> Vec<u64> {
+      answer["requests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].as_u64().unwrap())
+        .collect()
+    };
+    let newest = log.newest(0, 3);
+    assert_eq!(newest["capturing"], true);
+    let last = ids(&newest);
+    assert_eq!(last.len(), 3);
+    assert_eq!(*last.last().unwrap(), newest["last_id"].as_u64().unwrap());
+    let after_cursor = log.newest(*last.last().unwrap() - 1, 3);
+    assert_eq!(ids(&after_cursor), vec![*last.last().unwrap()]);
+    let auth = log.detail(last[0], false, 0, 0).unwrap();
+    assert_eq!(auth["request_headers"]["Authorization"], REDACTED);
+  }
 
   const PAGE: &str = "S1";
 
@@ -960,6 +1063,8 @@ mod tests {
     let methods: Vec<&str> = commands.iter().map(|c| c.method).collect();
     assert_eq!(methods, ["Network.enable", "Target.setAutoAttach"]);
     assert!(commands.iter().all(|c| c.session.as_deref() == Some(PAGE)));
+    assert_eq!(commands[0].params["maxTotalBufferSize"], 8 * 1024 * 1024);
+    assert_eq!(commands[0].params["maxResourceBufferSize"], 2 * 1024 * 1024);
     assert_eq!(commands[1].params["filter"], json!([{ "type": "iframe" }]));
 
     let frame = log.on_event(

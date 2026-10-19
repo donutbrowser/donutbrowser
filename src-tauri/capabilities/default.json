@@ -16,6 +16,9 @@
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-request-user-attention",
+    "core:window:allow-is-visible",
+    "core:window:allow-is-focused",
+    "core:window:allow-is-minimized",
     {
       "identifier": "opener:allow-open-url",
       "allow": [
@@ -43,6 +46,9 @@
     "macos-permissions:allow-check-microphone-permission",
     "macos-permissions:allow-check-camera-permission",
     "log:default",
-    "clipboard-manager:allow-write-text"
+    "clipboard-manager:allow-write-text",
+    "notification:allow-is-permission-granted",
+    "notification:allow-request-permission",
+    "notification:allow-notify"
   ]
 }

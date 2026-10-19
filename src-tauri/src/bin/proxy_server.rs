@@ -55,7 +55,9 @@ fn set_high_priority() {
   }
 }
 
-#[tokio::main(flavor = "multi_thread")]
+// One worker runs per running profile; a thread per CPU core in each one
+// adds up to hundreds of idle threads.
+#[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
   // Initialize logger to write to stderr (which will be redirected to file).
   //

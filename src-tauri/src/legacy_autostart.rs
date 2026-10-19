@@ -112,6 +112,20 @@ mod tests {
     assert!(!path.exists());
   }
 
+  /// `autostart` names its login item after the app; this cleanup must never
+  /// match it.
+  #[test]
+  fn the_login_item_never_shares_a_name_with_the_old_daemon_entry() {
+    let name = crate::app_dirs::app_name();
+    for legacy in [
+      "com.donutbrowser.daemon",
+      "donut-daemon",
+      "DonutBrowserDaemon",
+    ] {
+      assert_ne!(name, legacy);
+    }
+  }
+
   #[test]
   fn a_missing_entry_is_left_alone() {
     let dir = tempfile::tempdir().unwrap();

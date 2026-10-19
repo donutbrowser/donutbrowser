@@ -234,6 +234,31 @@ fn explain_engine_refusal(mut error: McpError, device_refusal: Option<String>) -
   error
 }
 
+/// The create_profile result. A setting that failed after the profile was
+/// created is named as not applied, so the agent never takes it as set.
+fn created_profile_result(
+  name: &str,
+  id: &str,
+  not_applied: &[(&str, String)],
+) -> serde_json::Value {
+  let mut text = format!("Profile '{name}' created (id: {id})");
+  if !not_applied.is_empty() {
+    let failures: Vec<String> = not_applied
+      .iter()
+      .map(|(field, err)| format!("{field} ({err})"))
+      .collect();
+    text.push_str(&format!(
+      "\nNot applied: {}. Set them again with update_profile.",
+      failures.join("; ")
+    ));
+  }
+  let fields: Vec<&str> = not_applied.iter().map(|(field, _)| *field).collect();
+  serde_json::json!({
+    "content": [{ "type": "text", "text": text }],
+    "structuredContent": { "id": id, "not_applied": fields },
+  })
+}
+
 /// The proxy types the proxy tools accept. The last four are Xray share links
 /// passed in `vless_uri`.
 const MCP_PROXY_TYPES: [&str; 9] = [
@@ -7155,9 +7180,14 @@ impl McpServer {
         })?;
     }
 
+    let profile_id = profile.id.to_string();
+    let mut not_applied: Vec<(&str, String)> = Vec::new();
+
     if let Some(start_urls) = start_urls.filter(|urls| !urls.is_empty()) {
-      let _ =
-        ProfileManager::instance().update_profile_start_urls(&profile.id.to_string(), start_urls);
+      if let Err(e) = ProfileManager::instance().update_profile_start_urls(&profile_id, start_urls)
+      {
+        not_applied.push(("start_urls", e.to_string()));
+      }
     }
 
     if let Some(status_id) = arguments
@@ -7165,30 +7195,41 @@ impl McpServer {
       .and_then(|v| v.as_str())
       .filter(|id| !id.is_empty())
     {
-      let _ = ProfileManager::instance()
-        .set_profiles_status(&[profile.id.to_string()], Some(status_id.to_string()));
-    }
-
-    if let Some(tags) = tags {
-      let _ = ProfileManager::instance().update_profile_tags(
-        &app_handle,
-        &profile.id.to_string(),
-        tags.clone(),
-      );
-      profile.tags = tags;
-      if let Ok(profiles) = ProfileManager::instance().list_profiles() {
-        let _ = crate::tag_manager::TAG_MANAGER
-          .lock()
-          .map(|manager| manager.rebuild_from_profiles(&profiles));
+      if let Err(e) = ProfileManager::instance().set_profiles_status(
+        std::slice::from_ref(&profile_id),
+        Some(status_id.to_string()),
+      ) {
+        not_applied.push(("status_id", e.to_string()));
       }
     }
 
-    Ok(serde_json::json!({
-      "content": [{
-        "type": "text",
-        "text": format!("Profile '{}' created (id: {})", profile.name, profile.id)
-      }]
-    }))
+    if let Some(tags) = tags {
+      match ProfileManager::instance().update_profile_tags(&app_handle, &profile_id, tags) {
+        Ok(updated) => {
+          profile.tags = updated.tags;
+          if let Ok(profiles) = ProfileManager::instance().list_profiles() {
+            let _ = crate::tag_manager::TAG_MANAGER
+              .lock()
+              .map(|manager| manager.rebuild_from_profiles(&profiles));
+          }
+        }
+        Err(e) => not_applied.push(("tags", e.to_string())),
+      }
+    }
+
+    if !not_applied.is_empty() {
+      let fields: Vec<&str> = not_applied.iter().map(|(field, _)| *field).collect();
+      log::warn!(
+        "MCP profile created with settings not applied profile={profile_id} fields={}",
+        fields.join(",")
+      );
+    }
+
+    Ok(created_profile_result(
+      &profile.name,
+      &profile_id,
+      &not_applied,
+    ))
   }
 
   async fn handle_update_profile(
@@ -15438,5 +15479,34 @@ mod tests {
     assert_eq!(error.code, -32602);
     let stopped = McpServer::handle_stop_network_capture(&profile).unwrap();
     assert_eq!(stopped["structuredContent"]["stopped"], false);
+  }
+
+  #[test]
+  fn a_create_setting_that_failed_is_reported_as_not_applied() {
+    let clean = created_profile_result("Shop", "p-1", &[]);
+    assert_eq!(
+      clean["content"][0]["text"],
+      "Profile 'Shop' created (id: p-1)"
+    );
+    assert_eq!(
+      clean["structuredContent"]["not_applied"],
+      serde_json::json!([])
+    );
+
+    let failed = created_profile_result(
+      "Shop",
+      "p-1",
+      &[
+        ("status_id", "PROFILE_STATUS_NOT_FOUND".to_string()),
+        ("tags", "disk full".to_string()),
+      ],
+    );
+    let text = failed["content"][0]["text"].as_str().unwrap();
+    assert!(text.starts_with("Profile 'Shop' created (id: p-1)"));
+    assert!(text.contains("Not applied: status_id (PROFILE_STATUS_NOT_FOUND); tags (disk full)"));
+    assert_eq!(
+      failed["structuredContent"]["not_applied"],
+      serde_json::json!(["status_id", "tags"])
+    );
   }
 }

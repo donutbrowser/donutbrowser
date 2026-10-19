@@ -9,7 +9,8 @@ use chrono::Utc;
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use uuid::Uuid;
 
 /// Storage format version for migration support
@@ -40,10 +41,16 @@ struct StoredVpnConfig {
   updated_at: Option<u64>,
 }
 
+const KEY_FILE: &str = ".vpn_key";
+const KEY_BACKUP_FILE: &str = ".vpn_key.bak";
+
 /// VPN storage manager with encryption
 pub struct VpnStorage {
   storage_path: PathBuf,
-  encryption_key: [u8; 32],
+  key_dir: PathBuf,
+  /// Read on first use and kept. A key that cannot be read is not cached, so
+  /// a passing read error does not last until the app restarts.
+  encryption_key: Mutex<Option<[u8; 32]>>,
 }
 
 impl Default for VpnStorage {
@@ -52,52 +59,93 @@ impl Default for VpnStorage {
   }
 }
 
+/// Read a key file. `None` when it is missing, unreadable or the wrong size.
+fn read_key_file(path: &Path) -> Option<[u8; 32]> {
+  fs::read(path)
+    .ok()
+    .and_then(|bytes| <[u8; 32]>::try_from(bytes.as_slice()).ok())
+}
+
+/// Write a key owner-only to a temporary file, flush it, then rename it into
+/// place, so a crash never leaves a half-written key behind.
+fn write_key_file(path: &Path, key: &[u8; 32]) -> std::io::Result<()> {
+  use std::io::Write;
+  let file_name = path
+    .file_name()
+    .map(|name| name.to_string_lossy().into_owned())
+    .unwrap_or_default();
+  let tmp = path.with_file_name(format!("{file_name}.tmp"));
+  let mut file = crate::app_dirs::create_owner_only(&tmp)?;
+  file.write_all(key)?;
+  file.sync_all()?;
+  drop(file);
+  fs::rename(&tmp, path)
+}
+
+/// The key that seals every stored config, from `dir`.
+///
+/// A key is made only when neither the key file nor its backup exists. A key
+/// file that exists but cannot be read, or has the wrong size, is never
+/// replaced: every stored config is sealed with it, and a new key would make
+/// all of them unreadable for good. The backup stands in for it when it is
+/// valid.
+fn load_or_create_key(dir: &Path) -> Result<[u8; 32], VpnError> {
+  let key_path = dir.join(KEY_FILE);
+  let backup_path = dir.join(KEY_BACKUP_FILE);
+  let fault = match fs::read(&key_path) {
+    Ok(bytes) => match <[u8; 32]>::try_from(bytes.as_slice()) {
+      Ok(key) => {
+        if !backup_path.exists() {
+          if let Err(e) = write_key_file(&backup_path, &key) {
+            log::warn!("VPN key backup not written err=\"{e}\"");
+          }
+        }
+        return Ok(key);
+      }
+      Err(_) => format!("size={}", bytes.len()),
+    },
+    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+      if let Some(key) = read_key_file(&backup_path) {
+        write_key_file(&key_path, &key).map_err(VpnError::Io)?;
+        log::warn!("VPN key missing, restored from backup");
+        return Ok(key);
+      }
+      let key: [u8; 32] = rand::rng().random();
+      fs::create_dir_all(dir).map_err(VpnError::Io)?;
+      write_key_file(&key_path, &key).map_err(VpnError::Io)?;
+      if let Err(e) = write_key_file(&backup_path, &key) {
+        log::warn!("VPN key backup not written err=\"{e}\"");
+      }
+      log::info!("VPN key created");
+      return Ok(key);
+    }
+    Err(e) => format!("err=\"{e}\""),
+  };
+  if let Some(key) = read_key_file(&backup_path) {
+    log::warn!("VPN key unreadable, using its backup {fault}");
+    return Ok(key);
+  }
+  log::error!("VPN key unreadable and kept as is; stored VPN configs cannot be opened {fault}");
+  Err(VpnError::KeyUnreadable)
+}
+
 impl VpnStorage {
   /// Create a new VPN storage manager
   pub fn new() -> Self {
     let storage_path = Self::get_storage_path();
-    let encryption_key = Self::get_or_create_key();
-
     Self {
       storage_path,
-      encryption_key,
+      key_dir: crate::app_dirs::vpn_dir(),
+      encryption_key: Mutex::new(None),
     }
   }
 
   /// Create a VPN storage manager with a custom storage directory
-  pub fn with_dir(dir: &std::path::Path) -> Self {
-    let storage_path = dir.join("vpn_configs.json");
-    let key_path = dir.join(".vpn_key");
-
-    // Persist a freshly generated key with owner-only (0600) permissions so the
-    // WireGuard-key-encrypting key isn't left world-readable.
-    let write_key = |key: &[u8; 32]| {
-      let _ = fs::write(&key_path, key);
-      crate::app_dirs::restrict_to_owner(&key_path);
-    };
-    let encryption_key = if key_path.exists() {
-      if let Ok(key_data) = fs::read(&key_path) {
-        if let Ok(key) = <[u8; 32]>::try_from(key_data.as_slice()) {
-          key
-        } else {
-          let key: [u8; 32] = rand::rng().random();
-          write_key(&key);
-          key
-        }
-      } else {
-        let key: [u8; 32] = rand::rng().random();
-        write_key(&key);
-        key
-      }
-    } else {
-      let key: [u8; 32] = rand::rng().random();
-      write_key(&key);
-      key
-    };
-
+  pub fn with_dir(dir: &Path) -> Self {
     Self {
-      storage_path,
-      encryption_key,
+      storage_path: dir.join("vpn_configs.json"),
+      key_dir: dir.to_path_buf(),
+      encryption_key: Mutex::new(None),
     }
   }
 
@@ -111,30 +159,21 @@ impl VpnStorage {
     vpn_dir.join("vpn_configs.json")
   }
 
-  /// Get or create the encryption key
-  fn get_or_create_key() -> [u8; 32] {
-    let key_path = crate::app_dirs::vpn_dir().join(".vpn_key");
-
-    if key_path.exists() {
-      if let Ok(key_data) = fs::read(&key_path) {
-        if key_data.len() == 32 {
-          let mut key = [0u8; 32];
-          key.copy_from_slice(&key_data);
-          return key;
-        }
-      }
+  fn key(&self) -> Result<[u8; 32], VpnError> {
+    let mut cached = self
+      .encryption_key
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(key) = *cached {
+      return Ok(key);
     }
-
-    // Generate a new key
-    let key: [u8; 32] = rand::rng().random();
-    let _ = fs::write(&key_path, key);
-    crate::app_dirs::restrict_to_owner(&key_path);
-
-    key
+    let key = load_or_create_key(&self.key_dir)?;
+    *cached = Some(key);
+    Ok(key)
   }
 
   /// Migrate VPN configs from the old ProjectDirs location to the new app_dirs location.
-  fn migrate_from_old_location(new_dir: &std::path::Path) {
+  fn migrate_from_old_location(new_dir: &Path) {
     let old_dir = match directories::ProjectDirs::from("com", "donut", "donutbrowser") {
       Some(dirs) => dirs.data_local_dir().to_path_buf(),
       None => return,
@@ -188,7 +227,7 @@ impl VpnStorage {
 
   /// Encrypt config data
   fn encrypt(&self, data: &str) -> Result<(String, String), VpnError> {
-    let cipher = Aes256Gcm::new_from_slice(&self.encryption_key)
+    let cipher = Aes256Gcm::new_from_slice(&self.key()?)
       .map_err(|e| VpnError::Encryption(format!("Failed to create cipher: {e}")))?;
 
     let nonce_bytes: [u8; 12] = rand::rng().random();
@@ -206,7 +245,7 @@ impl VpnStorage {
 
   /// Decrypt config data
   fn decrypt(&self, encrypted_data: &str, nonce_str: &str) -> Result<String, VpnError> {
-    let cipher = Aes256Gcm::new_from_slice(&self.encryption_key)
+    let cipher = Aes256Gcm::new_from_slice(&self.key()?)
       .map_err(|e| VpnError::Encryption(format!("Failed to create cipher: {e}")))?;
 
     let ciphertext =
@@ -317,6 +356,47 @@ impl VpnStorage {
     }
 
     self.save_storage(&storage)
+  }
+
+  /// Remove a config and return it as stored, still sealed with the key, so
+  /// the trash never holds a WireGuard private key in the clear.
+  pub fn take_sealed(&self, id: &str) -> Result<serde_json::Value, VpnError> {
+    let mut storage = self.load_storage()?;
+    let position = storage
+      .configs
+      .iter()
+      .position(|c| c.id == id)
+      .ok_or_else(|| VpnError::NotFound(id.to_string()))?;
+    let stored = storage.configs.remove(position);
+    let sealed = serde_json::to_value(&stored)
+      .map_err(|e| VpnError::Storage(format!("Failed to serialize config: {e}")))?;
+    self.save_storage(&storage)?;
+    Ok(sealed)
+  }
+
+  /// Put back a config `take_sealed` returned, under its own id, with the
+  /// name, sync switch and edit time given. `false`, and nothing written,
+  /// when a config with that id already exists.
+  pub fn put_sealed(
+    &self,
+    sealed: serde_json::Value,
+    name: &str,
+    sync_enabled: bool,
+    updated_at: u64,
+  ) -> Result<bool, VpnError> {
+    let mut stored: StoredVpnConfig = serde_json::from_value(sealed)
+      .map_err(|e| VpnError::Storage(format!("Failed to parse config: {e}")))?;
+    let mut storage = self.load_storage()?;
+    if storage.configs.iter().any(|c| c.id == stored.id) {
+      return Ok(false);
+    }
+    stored.name = name.to_string();
+    stored.sync_enabled = sync_enabled;
+    stored.last_sync = None;
+    stored.updated_at = Some(updated_at);
+    storage.configs.push(stored);
+    self.save_storage(&storage)?;
+    Ok(true)
   }
 
   /// Update last_used timestamp
@@ -559,6 +639,120 @@ mod tests {
 
     storage.delete_config("delete-me").unwrap();
     assert!(storage.load_config("delete-me").is_err());
+  }
+
+  fn sample_config(id: &str) -> VpnConfig {
+    VpnConfig {
+      id: id.to_string(),
+      name: "Office".to_string(),
+      vpn_type: VpnType::WireGuard,
+      config_data: "[Interface]\nPrivateKey = secret\n[Peer]\nPublicKey = peer".to_string(),
+      created_at: 1000,
+      last_used: None,
+      sync_enabled: true,
+      last_sync: Some(5),
+      updated_at: Some(10),
+    }
+  }
+
+  #[test]
+  fn a_new_key_is_written_once_with_a_backup() {
+    let temp = TempDir::new().unwrap();
+    let first = VpnStorage::with_dir(temp.path());
+    first.save_config(&sample_config("a")).unwrap();
+    let key = fs::read(temp.path().join(KEY_FILE)).unwrap();
+    assert_eq!(key.len(), 32);
+    assert_eq!(fs::read(temp.path().join(KEY_BACKUP_FILE)).unwrap(), key);
+    assert!(!temp.path().join(".vpn_key.tmp").exists());
+
+    let second = VpnStorage::with_dir(temp.path());
+    assert_eq!(
+      second.load_config("a").unwrap().config_data,
+      sample_config("a").config_data
+    );
+    assert_eq!(fs::read(temp.path().join(KEY_FILE)).unwrap(), key);
+  }
+
+  #[test]
+  fn a_short_key_is_never_replaced() {
+    let temp = TempDir::new().unwrap();
+    fs::write(temp.path().join(KEY_FILE), b"short").unwrap();
+    let storage = VpnStorage::with_dir(temp.path());
+    let err = storage.save_config(&sample_config("a")).unwrap_err();
+    assert!(matches!(err, VpnError::KeyUnreadable), "{err}");
+    assert!(err.to_string().contains("VPN_KEY_UNREADABLE"));
+    assert_eq!(fs::read(temp.path().join(KEY_FILE)).unwrap(), b"short");
+    assert!(!temp.path().join(KEY_BACKUP_FILE).exists());
+  }
+
+  #[test]
+  fn an_unreadable_key_file_is_kept() {
+    let temp = TempDir::new().unwrap();
+    // A directory in the key's place makes every read fail.
+    fs::create_dir_all(temp.path().join(KEY_FILE).join("inner")).unwrap();
+    let storage = VpnStorage::with_dir(temp.path());
+    let err = storage.save_config(&sample_config("a")).unwrap_err();
+    assert!(matches!(err, VpnError::KeyUnreadable), "{err}");
+    assert!(temp.path().join(KEY_FILE).join("inner").is_dir());
+  }
+
+  #[test]
+  fn the_backup_opens_configs_when_the_key_is_damaged_or_gone() {
+    let temp = TempDir::new().unwrap();
+    VpnStorage::with_dir(temp.path())
+      .save_config(&sample_config("a"))
+      .unwrap();
+    let key = fs::read(temp.path().join(KEY_FILE)).unwrap();
+
+    fs::write(temp.path().join(KEY_FILE), b"damaged").unwrap();
+    let storage = VpnStorage::with_dir(temp.path());
+    assert!(storage.load_config("a").is_ok());
+    assert_eq!(fs::read(temp.path().join(KEY_FILE)).unwrap(), b"damaged");
+
+    fs::remove_file(temp.path().join(KEY_FILE)).unwrap();
+    let storage = VpnStorage::with_dir(temp.path());
+    assert!(storage.load_config("a").is_ok());
+    assert_eq!(fs::read(temp.path().join(KEY_FILE)).unwrap(), key);
+  }
+
+  #[test]
+  fn listing_needs_no_key() {
+    let temp = TempDir::new().unwrap();
+    VpnStorage::with_dir(temp.path())
+      .save_config(&sample_config("a"))
+      .unwrap();
+    fs::write(temp.path().join(KEY_FILE), b"short").unwrap();
+    fs::remove_file(temp.path().join(KEY_BACKUP_FILE)).unwrap();
+    let storage = VpnStorage::with_dir(temp.path());
+    assert_eq!(storage.list_configs().unwrap().len(), 1);
+    assert!(matches!(
+      storage.load_config("a").unwrap_err(),
+      VpnError::KeyUnreadable
+    ));
+  }
+
+  #[test]
+  fn a_sealed_config_comes_back_intact() {
+    let (storage, _temp) = create_test_storage();
+    storage.save_config(&sample_config("a")).unwrap();
+    let sealed = storage.take_sealed("a").unwrap();
+    assert!(storage.load_config("a").is_err());
+    assert!(!sealed.to_string().contains("secret"));
+
+    assert!(storage
+      .put_sealed(sealed.clone(), "Office (restored)", false, 99)
+      .unwrap());
+    let back = storage.load_config("a").unwrap();
+    assert_eq!(back.name, "Office (restored)");
+    assert_eq!(back.config_data, sample_config("a").config_data);
+    assert!(!back.sync_enabled);
+    assert_eq!(back.last_sync, None);
+    assert_eq!(back.updated_at, Some(99));
+    assert!(!storage.put_sealed(sealed, "Office", false, 100).unwrap());
+    assert!(matches!(
+      storage.take_sealed("missing").unwrap_err(),
+      VpnError::NotFound(_)
+    ));
   }
 
   #[test]

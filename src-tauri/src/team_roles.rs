@@ -24,6 +24,10 @@ const TEAM_DATA_COMMANDS: &[&str] = &[
   "restore_trashed_profile",
   "purge_trashed_profile",
   "empty_trash",
+  // Proxies, VPNs, groups, extensions and templates in the trash
+  "trash_entity",
+  "restore_trashed_entity",
+  "purge_trashed_entity",
   "update_profile_proxy",
   "update_profile_vpn",
   "update_profile_tags",

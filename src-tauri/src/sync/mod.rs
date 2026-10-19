@@ -1,8 +1,10 @@
 pub mod account_server;
 mod client;
 pub mod config_entities;
+mod conflicts;
 pub mod encryption;
 mod engine;
+pub mod health;
 pub mod manifest;
 pub mod pending_deletes;
 pub mod preflight;
@@ -58,6 +60,7 @@ pub fn stop_pipeline() {
   if let Some(scheduler) = get_global_scheduler() {
     scheduler.stop();
   }
+  health::reset();
   if let Ok(mut guard) = GLOBAL_SUBSCRIPTION.lock() {
     if let Some(subscription) = guard.as_mut() {
       subscription.stop();

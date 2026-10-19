@@ -1,7 +1,7 @@
 use super::config::{VpnError, WireGuardConfig};
 use boringtun::noise::{Tunn, TunnResult};
 use boringtun::x25519::{PublicKey, StaticSecret};
-use smoltcp::iface::{Config as IfaceConfig, Interface, SocketHandle, SocketSet};
+use smoltcp::iface::{Config as IfaceConfig, Interface, PollResult, SocketHandle, SocketSet};
 use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
 use smoltcp::socket::dns;
 use smoltcp::socket::tcp::{Socket as TcpSocket, SocketBuffer};
@@ -16,6 +16,50 @@ use tokio::net::{TcpListener, TcpStream};
 const SMOLTCP_TCP_RX_BUF: usize = 65536;
 const SMOLTCP_TCP_TX_BUF: usize = 65536;
 const SMOLTCP_UDP_BUF: usize = 65536;
+
+/// How often boringtun's timers run: handshake renewal, keepalives.
+const WG_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// How long the relay loop waits before its next pass. A pass that moved
+/// nothing doubles the wait, from 1 ms up to 8 ms, so an idle tunnel wakes
+/// about 125 times a second instead of about 1000; any activity drops it back
+/// to 1 ms. A new SOCKS5 connection ends the wait at once. Packets from the
+/// peer and from the browser do not end it, so the cap is also the most an
+/// idle tunnel adds to the first packet after a pause.
+#[derive(Debug)]
+struct IdleBackoff {
+  wait_ms: u64,
+}
+
+impl IdleBackoff {
+  const MIN_MS: u64 = 1;
+  const MAX_MS: u64 = 8;
+
+  fn new() -> Self {
+    Self {
+      wait_ms: Self::MIN_MS,
+    }
+  }
+
+  /// The wait after a pass. `active` is whether the pass moved bytes,
+  /// packets or connection state; `smoltcp_due` is when smoltcp next needs a
+  /// poll (a retransmit, a DNS retry), which the wait never overshoots.
+  fn next_wait(
+    &mut self,
+    active: bool,
+    smoltcp_due: Option<std::time::Duration>,
+  ) -> std::time::Duration {
+    self.wait_ms = if active {
+      Self::MIN_MS
+    } else {
+      (self.wait_ms * 2).min(Self::MAX_MS)
+    };
+    let wait = std::time::Duration::from_millis(self.wait_ms);
+    smoltcp_due
+      .map_or(wait, |due| wait.min(due))
+      .max(std::time::Duration::from_millis(Self::MIN_MS))
+  }
+}
 
 /// Parse an RFC 1928 §7 UDP request header. Returns the destination endpoint
 /// and the payload offset, or None if malformed, fragmented, or domain-typed.
@@ -77,11 +121,14 @@ struct WgDevice {
 }
 
 impl WgDevice {
-  fn pump_wg_to_rx(&mut self) {
+  /// Decrypt every datagram the peer sent. Returns how many arrived.
+  fn pump_wg_to_rx(&mut self) -> usize {
     let mut recv_buf = vec![0u8; 2048];
+    let mut received = 0;
     loop {
       match self.udp_socket.recv_from(&mut recv_buf) {
         Ok((len, _)) => {
+          received += 1;
           let mut dst = vec![0u8; 2048];
           let mut tunn = self.tunn.lock().unwrap();
           let result = tunn.decapsulate(None, &recv_buf[..len], &mut dst);
@@ -99,10 +146,14 @@ impl WgDevice {
         Err(_) => break,
       }
     }
+    received
   }
 
-  fn flush_tx_queue(&mut self) {
+  /// Encrypt and send what smoltcp queued. Returns how many packets.
+  fn flush_tx_queue(&mut self) -> usize {
+    let mut sent = 0;
     while let Some(ip_packet) = self.tx_queue.pop_front() {
+      sent += 1;
       let mut dst = vec![0u8; ip_packet.len() + 256];
       let mut tunn = self.tunn.lock().unwrap();
       let result = tunn.encapsulate(&ip_packet, &mut dst);
@@ -128,6 +179,7 @@ impl WgDevice {
         }
       }
     }
+    sent
   }
 
   fn tick_timers(&mut self) {
@@ -597,13 +649,18 @@ impl WireGuardSocks5Server {
     }
 
     let mut connections: Vec<Connection> = Vec::new();
-    let mut timer_counter: u64 = 0;
+    let mut idle = IdleBackoff::new();
+    let mut last_timer_tick = std::time::Instant::now();
+    let mut accepted: Option<TcpStream> = None;
 
     loop {
-      // Accept new SOCKS5 connections (non-blocking via short timeout)
-      if let Ok(Ok((stream, _addr))) =
-        tokio::time::timeout(tokio::time::Duration::from_millis(1), listener.accept()).await
-      {
+      // Whether this pass moved bytes, packets or connection state. A pass
+      // that did not lets the loop sleep longer.
+      let mut active = false;
+
+      // A SOCKS5 connection the wait below accepted.
+      if let Some(stream) = accepted.take() {
+        active = true;
         let tcp_rx = SocketBuffer::new(vec![0u8; SMOLTCP_TCP_RX_BUF]);
         let tcp_tx = SocketBuffer::new(vec![0u8; SMOLTCP_TCP_TX_BUF]);
         let tcp_socket = TcpSocket::new(tcp_rx, tcp_tx);
@@ -623,14 +680,20 @@ impl WireGuardSocks5Server {
       }
 
       // Pump WireGuard packets into smoltcp rx queue
-      device.pump_wg_to_rx();
+      if device.pump_wg_to_rx() > 0 {
+        active = true;
+      }
 
       // Poll the smoltcp interface
       let timestamp = SmolInstant::now();
-      let _changed = iface.poll(timestamp, &mut device, &mut sockets);
+      if iface.poll(timestamp, &mut device, &mut sockets) == PollResult::SocketStateChanged {
+        active = true;
+      }
 
       // Flush encrypted packets out through WireGuard
-      device.flush_tx_queue();
+      if device.flush_tx_queue() > 0 {
+        active = true;
+      }
 
       // Process each connection
       let mut completed = Vec::new();
@@ -673,6 +736,7 @@ impl WireGuardSocks5Server {
               conn.pending_dns = Some(pending);
             }
             DnsOutcome::Resolved(ip) => {
+              active = true;
               conn.dest_addr = Some(SocketAddr::new(smol_to_std_ip(ip), pending.port));
               let socket = sockets.get_mut::<TcpSocket>(conn.smol_handle);
               let local_port = 10000 + (rand::random::<u16>() % 50000);
@@ -689,6 +753,7 @@ impl WireGuardSocks5Server {
               conn.connecting = true;
             }
             DnsOutcome::NoRecord | DnsOutcome::Failed => {
+              active = true;
               // No record for this family (or the query failed). Retry once with
               // the other family if the tunnel carries it — a dual-stack name
               // that only had the other record, or an IPv4-preferred query for
@@ -726,6 +791,7 @@ impl WireGuardSocks5Server {
         } else if conn.connecting {
           let socket = sockets.get_mut::<TcpSocket>(conn.smol_handle);
           if socket.may_send() {
+            active = true;
             let _ = conn.tcp_stream.try_write(&[
               0x05,
               0x00,
@@ -755,6 +821,7 @@ impl WireGuardSocks5Server {
               continue;
             }
             Ok(n) => {
+              active = true;
               conn.read_buf.extend_from_slice(&buf[..n]);
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
@@ -1026,6 +1093,7 @@ impl WireGuardSocks5Server {
           loop {
             match udp.relay.recv_from(&mut dbuf) {
               Ok((n, src)) => {
+                active = true;
                 udp.client_addr = Some(src);
                 if let Some((dst, off)) = parse_udp_datagram(&dbuf[..n]) {
                   let socket = sockets.get_mut::<udp::Socket>(handle);
@@ -1049,46 +1117,72 @@ impl WireGuardSocks5Server {
               Ok((data, meta)) => (data.to_vec(), meta.endpoint),
               Err(_) => break,
             };
+            active = true;
             if let Some(client) = udp.client_addr {
               let resp = build_udp_datagram(src, &payload);
               let _ = udp.relay.send_to(&resp, client);
             }
           }
         } else {
-          // Data relay between SOCKS5 client and smoltcp socket
+          // Data relay between SOCKS5 client and smoltcp socket. Bytes move
+          // only as far as the other side takes them: what smoltcp has no
+          // room for stays in the client socket, and what the client cannot
+          // take yet stays in smoltcp, so a full buffer never drops data.
           let socket = sockets.get_mut::<TcpSocket>(conn.smol_handle);
 
-          // Client → smoltcp
-          let mut buf = [0u8; 4096];
-          match conn.tcp_stream.try_read(&mut buf) {
-            Ok(0) => {
-              socket.close();
-              completed.push(idx);
-              continue;
-            }
-            Ok(n) => {
-              if socket.can_send() {
-                let _ = socket.send_slice(&buf[..n]);
+          // Client → smoltcp, read straight into smoltcp's free space.
+          if socket.can_send() {
+            let read = socket.send(|free| {
+              if free.is_empty() {
+                return (0, Err(std::io::ErrorKind::WouldBlock.into()));
               }
-            }
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
-            Err(_) => {
-              socket.close();
-              completed.push(idx);
-              continue;
-            }
-          }
-
-          // smoltcp → Client
-          if socket.can_recv() {
-            match socket.recv(|data| (data.len(), data.to_vec())) {
-              Ok(data) if !data.is_empty() && conn.tcp_stream.try_write(&data).is_err() => {
+              match conn.tcp_stream.try_read(free) {
+                Ok(n) => (n, Ok(n)),
+                Err(e) => (0, Err(e)),
+              }
+            });
+            match read {
+              Ok(Ok(0)) => {
                 socket.close();
                 completed.push(idx);
                 continue;
               }
-              _ => {}
+              Ok(Ok(_)) => active = true,
+              Ok(Err(ref e)) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+              Ok(Err(_)) | Err(_) => {
+                socket.close();
+                completed.push(idx);
+                continue;
+              }
             }
+          }
+
+          // smoltcp → Client: dequeue only what the client socket took. Two
+          // rounds cover a receive buffer that wraps around.
+          let mut write_failed = false;
+          for _ in 0..2 {
+            if !socket.can_recv() {
+              break;
+            }
+            let written = socket.recv(|data| match conn.tcp_stream.try_write(data) {
+              Ok(n) => (n, Ok(n)),
+              Err(e) => (0, Err(e)),
+            });
+            match written {
+              Ok(Ok(0)) => break,
+              Ok(Ok(_)) => active = true,
+              Ok(Err(ref e)) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+              Ok(Err(_)) => {
+                write_failed = true;
+                break;
+              }
+              Err(_) => break,
+            }
+          }
+          if write_failed {
+            socket.close();
+            completed.push(idx);
+            continue;
           }
 
           // Check if smoltcp socket closed
@@ -1099,6 +1193,9 @@ impl WireGuardSocks5Server {
       }
 
       // Remove completed connections (in reverse order)
+      if !completed.is_empty() {
+        active = true;
+      }
       completed.sort_unstable();
       completed.dedup();
       for idx in completed.into_iter().rev() {
@@ -1112,13 +1209,30 @@ impl WireGuardSocks5Server {
       }
 
       // Timer ticks for WireGuard keepalives
-      timer_counter += 1;
-      if timer_counter.is_multiple_of(500) {
+      if last_timer_tick.elapsed() >= WG_TIMER_INTERVAL {
         device.tick_timers();
+        last_timer_tick = std::time::Instant::now();
       }
 
-      // Small sleep to avoid busy-spinning
-      tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+      // Wait for the next pass: briefly while traffic flows, longer while the
+      // tunnel is idle, never past a smoltcp or WireGuard timer, and no
+      // longer than it takes a new SOCKS5 connection to arrive.
+      let smoltcp_due = iface
+        .poll_delay(SmolInstant::now(), &sockets)
+        .map(|due| std::time::Duration::from_millis(due.total_millis()));
+      let timer_due = WG_TIMER_INTERVAL.saturating_sub(last_timer_tick.elapsed());
+      let due = Some(smoltcp_due.map_or(timer_due, |due| due.min(timer_due)));
+      let wait = idle.next_wait(active, due);
+      tokio::select! {
+        result = listener.accept() => match result {
+          Ok((stream, _addr)) => accepted = Some(stream),
+          Err(e) => {
+            crate::proxy_server::warn_throttled(&format!("SOCKS5 accept failed err=\"{e}\""));
+            tokio::time::sleep(wait).await;
+          }
+        },
+        _ = tokio::time::sleep(wait) => {}
+      }
     }
   }
 }
@@ -1166,5 +1280,38 @@ mod tests {
   #[test]
   fn test_parse_key_invalid() {
     assert!(parse_key("not-valid").is_err());
+  }
+
+  #[test]
+  fn an_idle_loop_backs_off_and_activity_resets_it() {
+    use std::time::Duration;
+    let ms = Duration::from_millis;
+    let mut idle = IdleBackoff::new();
+    assert_eq!(idle.next_wait(true, None), ms(1), "traffic keeps 1 ms");
+    let waits: Vec<_> = (0..5).map(|_| idle.next_wait(false, None)).collect();
+    assert_eq!(
+      waits,
+      vec![ms(2), ms(4), ms(8), ms(8), ms(8)],
+      "an idle tunnel doubles up to 8 ms"
+    );
+    assert_eq!(idle.next_wait(true, None), ms(1), "activity drops it back");
+    assert_eq!(idle.next_wait(false, None), ms(2));
+  }
+
+  #[test]
+  fn the_backoff_never_sleeps_past_a_timer_or_spins() {
+    use std::time::Duration;
+    let ms = Duration::from_millis;
+    let mut idle = IdleBackoff::new();
+    for _ in 0..10 {
+      idle.next_wait(false, None);
+    }
+    assert_eq!(idle.next_wait(false, Some(ms(5))), ms(5), "a due timer");
+    assert_eq!(
+      idle.next_wait(false, Some(Duration::ZERO)),
+      ms(1),
+      "a timer due now still waits 1 ms, so the loop never spins"
+    );
+    assert_eq!(idle.next_wait(false, Some(ms(500))), ms(8));
   }
 }

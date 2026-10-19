@@ -240,12 +240,20 @@ fn parse_uuid(profile_id: &str) -> Result<uuid::Uuid, String> {
 }
 
 fn load_profile(profile_id: &uuid::Uuid) -> Result<crate::profile::BrowserProfile, String> {
-  let manager = ProfileManager::instance();
-  let profiles = manager.list_profiles().map_err(err_internal)?;
-  profiles
-    .into_iter()
-    .find(|p| p.id == *profile_id)
+  ProfileManager::instance()
+    .lookup_profile(profile_id)
+    .map_err(err_internal)?
     .ok_or_else(|| err_code("PROFILE_NOT_FOUND"))
+}
+
+/// Key derivation, encryption and the copy lock run on the blocking pool, so a
+/// command never stalls the async runtime that serves the window.
+async fn blocking<T: Send + 'static>(
+  work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+  crate::profile::manager::run_blocking(work)
+    .await
+    .map_err(err_internal)?
 }
 
 fn profile_data_dir(profile: &crate::profile::BrowserProfile) -> PathBuf {
@@ -270,6 +278,10 @@ pub async fn is_profile_locked(profile_id: String) -> Result<bool, String> {
 pub async fn set_profile_password(profile_id: String, password: String) -> Result<(), String> {
   validate_password(&password)?;
   let id = parse_uuid(&profile_id)?;
+  blocking(move || set_password_blocking(id, &password)).await
+}
+
+fn set_password_blocking(id: uuid::Uuid, password: &str) -> Result<(), String> {
   let mut profile = load_profile(&id)?;
 
   if profile.password_protected {
@@ -301,7 +313,7 @@ pub async fn set_profile_password(profile_id: String, password: String) -> Resul
   }
 
   let salt = fresh_salt();
-  let key = derive_profile_key(&password, &salt).map_err(err_internal)?;
+  let key = derive_profile_key(password, &salt).map_err(err_internal)?;
 
   // Encrypt into a sibling staging dir, then atomically swap.
   let staging = plaintext_dir.with_extension("encrypting");
@@ -356,26 +368,29 @@ pub async fn verify_profile_password(profile_id: String, password: String) -> Re
   // record/clear branches below. See `attempt_lock`.
   let attempt = attempt_lock(&id);
   let _attempt_guard = attempt.lock().await;
-  if let Err(secs) = check_lockout(&id) {
-    return Err(err_with("LOCKED_OUT", &[("seconds", secs.to_string())]));
-  }
-  let salt = profile
-    .encryption_salt
-    .as_deref()
-    .ok_or_else(|| err_code("PROFILE_MISSING_SALT"))?;
-  let key = derive_profile_key(&password, salt).map_err(err_internal)?;
-  let dir = profile_data_dir(&profile);
-  match verify_key_against_dir(&key, &dir) {
-    Ok(()) => {
-      clear_failed_attempts(&id);
-      Ok(())
+  blocking(move || {
+    if let Err(secs) = check_lockout(&id) {
+      return Err(err_with("LOCKED_OUT", &[("seconds", secs.to_string())]));
     }
-    Err(crate::profile::encryption::PasswordError::WrongPassword) => {
-      record_failed_attempt(id);
-      Err(err_code("INCORRECT_PASSWORD"))
+    let salt = profile
+      .encryption_salt
+      .as_deref()
+      .ok_or_else(|| err_code("PROFILE_MISSING_SALT"))?;
+    let key = derive_profile_key(&password, salt).map_err(err_internal)?;
+    let dir = profile_data_dir(&profile);
+    match verify_key_against_dir(&key, &dir) {
+      Ok(()) => {
+        clear_failed_attempts(&id);
+        Ok(())
+      }
+      Err(crate::profile::encryption::PasswordError::WrongPassword) => {
+        record_failed_attempt(id);
+        Err(err_code("INCORRECT_PASSWORD"))
+      }
+      Err(other) => Err(err_internal(other)),
     }
-    Err(other) => Err(err_internal(other)),
-  }
+  })
+  .await
 }
 
 #[tauri::command]
@@ -389,30 +404,37 @@ pub async fn unlock_profile(profile_id: String, password: String) -> Result<(), 
   // record/clear branches below. See `attempt_lock`.
   let attempt = attempt_lock(&id);
   let _attempt_guard = attempt.lock().await;
-  if let Err(secs) = check_lockout(&id) {
-    return Err(err_with("LOCKED_OUT", &[("seconds", secs.to_string())]));
-  }
-  let salt = profile
-    .encryption_salt
-    .as_deref()
-    .ok_or_else(|| err_code("PROFILE_MISSING_SALT"))?;
+  blocking(move || {
+    if let Err(secs) = check_lockout(&id) {
+      return Err(err_with("LOCKED_OUT", &[("seconds", secs.to_string())]));
+    }
+    let salt = profile
+      .encryption_salt
+      .as_deref()
+      .ok_or_else(|| err_code("PROFILE_MISSING_SALT"))?;
 
-  match unlock_dir(id, &password, salt, &profile_data_dir(&profile)) {
-    Ok(()) => {
-      clear_failed_attempts(&id);
-      Ok(())
+    match unlock_dir(id, &password, salt, &profile_data_dir(&profile)) {
+      Ok(()) => {
+        clear_failed_attempts(&id);
+        Ok(())
+      }
+      Err(crate::profile::encryption::PasswordError::WrongPassword) => {
+        record_failed_attempt(id);
+        Err(err_code("INCORRECT_PASSWORD"))
+      }
+      Err(other) => Err(err_internal(other)),
     }
-    Err(crate::profile::encryption::PasswordError::WrongPassword) => {
-      record_failed_attempt(id);
-      Err(err_code("INCORRECT_PASSWORD"))
-    }
-    Err(other) => Err(err_internal(other)),
-  }
+  })
+  .await
 }
 
 #[tauri::command]
 pub async fn lock_profile(profile_id: String) -> Result<(), String> {
   let id = parse_uuid(&profile_id)?;
+  blocking(move || lock_blocking(id)).await
+}
+
+fn lock_blocking(id: uuid::Uuid) -> Result<(), String> {
   let profile = load_profile(&id)?;
   if !profile.password_protected {
     return Ok(());
@@ -453,7 +475,7 @@ pub async fn change_profile_password(
 ) -> Result<(), String> {
   validate_password(&new_password)?;
   let id = parse_uuid(&profile_id)?;
-  let mut profile = load_profile(&id)?;
+  let profile = load_profile(&id)?;
 
   if !profile.password_protected {
     return Err(err_code("PROFILE_NOT_PROTECTED"));
@@ -469,6 +491,15 @@ pub async fn change_profile_password(
   // record/clear branches below. See `attempt_lock`.
   let attempt = attempt_lock(&id);
   let _attempt_guard = attempt.lock().await;
+  blocking(move || change_password_blocking(id, profile, &old_password, &new_password)).await
+}
+
+fn change_password_blocking(
+  id: uuid::Uuid,
+  mut profile: crate::profile::BrowserProfile,
+  old_password: &str,
+  new_password: &str,
+) -> Result<(), String> {
   if let Err(secs) = check_lockout(&id) {
     return Err(err_with("LOCKED_OUT", &[("seconds", secs.to_string())]));
   }
@@ -477,7 +508,7 @@ pub async fn change_profile_password(
     .encryption_salt
     .as_deref()
     .ok_or_else(|| err_code("PROFILE_MISSING_SALT"))?;
-  let old_key = derive_profile_key(&old_password, old_salt).map_err(err_internal)?;
+  let old_key = derive_profile_key(old_password, old_salt).map_err(err_internal)?;
   let dir = profile_data_dir(&profile);
   if let Err(e) = verify_key_against_dir(&old_key, &dir) {
     return match e {
@@ -491,7 +522,7 @@ pub async fn change_profile_password(
   clear_failed_attempts(&id);
 
   let new_salt = fresh_salt();
-  let new_key = derive_profile_key(&new_password, &new_salt).map_err(err_internal)?;
+  let new_key = derive_profile_key(new_password, &new_salt).map_err(err_internal)?;
   {
     let lock = copy_lock(&id);
     let _copy = lock
@@ -521,7 +552,7 @@ pub async fn change_profile_password(
 #[tauri::command]
 pub async fn remove_profile_password(profile_id: String, password: String) -> Result<(), String> {
   let id = parse_uuid(&profile_id)?;
-  let mut profile = load_profile(&id)?;
+  let profile = load_profile(&id)?;
   if !profile.password_protected {
     return Err(err_code("PROFILE_NOT_PROTECTED"));
   }
@@ -536,6 +567,14 @@ pub async fn remove_profile_password(profile_id: String, password: String) -> Re
   // record/clear branches below. See `attempt_lock`.
   let attempt = attempt_lock(&id);
   let _attempt_guard = attempt.lock().await;
+  blocking(move || remove_password_blocking(id, profile, &password)).await
+}
+
+fn remove_password_blocking(
+  id: uuid::Uuid,
+  mut profile: crate::profile::BrowserProfile,
+  password: &str,
+) -> Result<(), String> {
   if let Err(secs) = check_lockout(&id) {
     return Err(err_with("LOCKED_OUT", &[("seconds", secs.to_string())]));
   }
@@ -544,7 +583,7 @@ pub async fn remove_profile_password(profile_id: String, password: String) -> Re
     .encryption_salt
     .as_deref()
     .ok_or_else(|| err_code("PROFILE_MISSING_SALT"))?;
-  let key = derive_profile_key(&password, salt).map_err(err_internal)?;
+  let key = derive_profile_key(password, salt).map_err(err_internal)?;
   let encrypted_dir = profile_data_dir(&profile);
   if let Err(e) = verify_key_against_dir(&key, &encrypted_dir) {
     return match e {

@@ -19,9 +19,11 @@
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use rand::RngExt;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use crate::file_stamp::FileStamp;
 use crate::sync::encryption::{decode_salt, derive_vault_key, encode_salt};
 
 pub const VAULT_KEY_FILE: &str = "vault.key";
@@ -36,6 +38,47 @@ const LEGACY_PASSWORD: &str = include_str!(concat!(env!("OUT_DIR"), "/legacy_vau
 /// The installation key, cached with the file it came from so a test that
 /// moves the settings folder never reads a key from the previous one.
 static INSTALL_KEY: Mutex<Option<(PathBuf, [u8; KEY_LEN])>> = Mutex::new(None);
+
+/// A secret already opened, with what its file looked like then. Opening runs
+/// Argon2id, and callers read the same few files on every request.
+struct Opened {
+  stamp: FileStamp,
+  magic: [u8; 6],
+  key: [u8; KEY_LEN],
+  secret: String,
+}
+
+static OPENED: std::sync::LazyLock<Mutex<HashMap<PathBuf, Opened>>> =
+  std::sync::LazyLock::new(Default::default);
+
+fn remember(file: &Path, stamp: FileStamp, magic: &[u8; 6], key: &[u8; KEY_LEN], secret: String) {
+  if let Ok(mut opened) = OPENED.lock() {
+    opened.insert(
+      file.to_path_buf(),
+      Opened {
+        stamp,
+        magic: *magic,
+        key: *key,
+        secret,
+      },
+    );
+  }
+}
+
+fn forget(file: &Path) {
+  if let Ok(mut opened) = OPENED.lock() {
+    opened.remove(file);
+  }
+}
+
+/// The secret remembered for `file` as it is now, with the key it opened under.
+fn recall(file: &Path, stamp: &FileStamp, magic: &[u8; 6]) -> Option<([u8; KEY_LEN], String)> {
+  let opened = OPENED.lock().ok()?;
+  opened
+    .get(file)
+    .filter(|entry| entry.stamp == *stamp && entry.magic == *magic)
+    .map(|entry| (entry.key, entry.secret.clone()))
+}
 
 fn key_file() -> PathBuf {
   crate::app_dirs::settings_dir().join(VAULT_KEY_FILE)
@@ -125,7 +168,11 @@ fn seal_with(file: &Path, magic: &[u8; 6], secret: &str, material: &[u8]) -> Res
   data.extend_from_slice(&(ciphertext.len() as u32).to_le_bytes());
   data.extend_from_slice(&ciphertext);
 
-  std::fs::write(file, data).map_err(|e| format!("Failed to write file: {e}"))?;
+  forget(file);
+  let written = std::fs::write(file, data).map_err(|e| format!("Failed to write file: {e}"));
+  // File times can be too coarse to show two quick writes apart.
+  forget(file);
+  written?;
   crate::app_dirs::restrict_to_owner(file);
   Ok(())
 }
@@ -197,16 +244,30 @@ fn unseal(sealed: &Sealed<'_>, material: &[u8]) -> Result<Option<String>, String
 /// installation's key before the secret is returned. A seal that neither key
 /// opens is an error: the file is real, and the caller must not mint over it
 /// as if it were absent.
+///
+/// An opened secret is kept in memory until its file changes, so a read of an
+/// unchanged file costs a stat, not a key derivation.
 pub fn open(file: &Path, magic: &[u8; 6]) -> Result<Option<String>, String> {
-  if !file.exists() {
+  // Stat before reading: a write between the two leaves an older stamp on the
+  // remembered secret, which the next call sees as changed.
+  let Ok(meta) = std::fs::metadata(file) else {
+    forget(file);
     return Ok(None);
+  };
+  let stamp = FileStamp::of(&meta);
+  if let Some((opened_under, secret)) = recall(file, &stamp, magic) {
+    if opened_under == install_key()? {
+      return Ok(Some(secret));
+    }
   }
+
   let data = std::fs::read(file).map_err(|e| format!("Failed to read file: {e}"))?;
   let Some(sealed) = parse(&data, magic)? else {
     return Ok(None);
   };
   let key = install_key()?;
   if let Some(secret) = unseal(&sealed, &key)? {
+    remember(file, stamp, magic, &key, secret.clone());
     return Ok(Some(secret));
   }
   match unseal(&sealed, LEGACY_PASSWORD.trim().as_bytes())? {
@@ -292,6 +353,40 @@ mod tests {
     let other: [u8; KEY_LEN] = rand::rng().random();
     seal_with(&file, b"DBTST\x02", "elsewhere", &other).unwrap();
     assert!(open(&file, b"DBTST\x02").is_err());
+  }
+
+  #[test]
+  fn an_opened_secret_is_remembered_until_its_file_changes() {
+    let (dir, _guard) = isolated();
+    let file = dir.path().join("remembered.dat");
+    seal(&file, b"DBTST\x02", "first").unwrap();
+    assert_eq!(open(&file, b"DBTST\x02").unwrap().as_deref(), Some("first"));
+    assert!(OPENED.lock().unwrap().contains_key(&file));
+    assert_eq!(open(&file, b"DBTST\x02").unwrap().as_deref(), Some("first"));
+    // Another magic is never answered from what this one opened.
+    assert_eq!(open(&file, b"DBOTH\x02").unwrap(), None);
+
+    // A seal through this module drops what was remembered.
+    seal(&file, b"DBTST\x02", "second").unwrap();
+    assert!(!OPENED.lock().unwrap().contains_key(&file));
+    assert_eq!(
+      open(&file, b"DBTST\x02").unwrap().as_deref(),
+      Some("second")
+    );
+
+    // So does a file replaced by other code.
+    let staging = dir.path().join("staging.dat");
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    seal(&staging, b"DBTST\x02", "third!").unwrap();
+    std::fs::rename(&staging, &file).unwrap();
+    assert_eq!(
+      open(&file, b"DBTST\x02").unwrap().as_deref(),
+      Some("third!")
+    );
+
+    std::fs::remove_file(&file).unwrap();
+    assert_eq!(open(&file, b"DBTST\x02").unwrap(), None);
+    assert!(!OPENED.lock().unwrap().contains_key(&file));
   }
 
   #[test]

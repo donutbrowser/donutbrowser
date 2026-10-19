@@ -355,6 +355,7 @@ pub fn stop(app: Option<&AppHandle>) {
     handle.abort();
   }
   drop(slot);
+  BRIDGE_STOP.ring();
   // Unconditionally, not only when there is a handle to notify: a stopped
   // bridge has no last error by definition, and the screen has to learn it was
   // stopped even when the caller is a teardown path with no handle.
@@ -523,7 +524,7 @@ async fn run() {
     }
     let delay = crate::remote_session::jittered(crate::remote_session::reconnect_delay(attempt));
     attempt = attempt.saturating_add(1);
-    sleep_unless_stopped(delay).await;
+    BRIDGE_STOP.sleep(delay, &BRIDGE_RUNNING).await;
   }
 
   BRIDGE_CONNECTED.store(false, Ordering::SeqCst);
@@ -564,18 +565,8 @@ const TERMINAL_BACKOFF_ATTEMPT: u32 = 6;
 /// loop spin.
 const MIN_UPTIME_FOR_BACKOFF_RESET: Duration = Duration::from_secs(60);
 
-/// Granularity of the cancellable sleep, so switching remote control off is not
-/// held up by a minute-long backoff.
-const SHUTDOWN_POLL: Duration = Duration::from_millis(250);
-
-async fn sleep_unless_stopped(total: Duration) {
-  let mut slept = Duration::ZERO;
-  while slept < total && BRIDGE_RUNNING.load(Ordering::SeqCst) {
-    let step = SHUTDOWN_POLL.min(total - slept);
-    tokio::time::sleep(step).await;
-    slept += step;
-  }
-}
+/// Ends the backoff sleep the moment remote control is switched off.
+static BRIDGE_STOP: crate::remote_session::StopBell = crate::remote_session::StopBell::new();
 
 type BridgeStream =
   tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;

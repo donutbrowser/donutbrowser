@@ -32,6 +32,24 @@ pub enum TableDensity {
   Comfortable,
 }
 
+/// A named table view: the search, filters, sort, visible columns and column
+/// order saved under one name.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct TableSavedView {
+  pub id: String,
+  pub name: String,
+  #[serde(default)]
+  pub query: String,
+  #[serde(default)]
+  pub filters: BTreeMap<String, Vec<String>>,
+  #[serde(default)]
+  pub sorting: Vec<TableSort>,
+  #[serde(default)]
+  pub visibility: BTreeMap<String, bool>,
+  #[serde(default)]
+  pub column_order: Vec<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct TablePreferences {
@@ -39,6 +57,14 @@ pub struct TablePreferences {
   pub sizing: BTreeMap<String, f64>,
   pub sorting: Vec<TableSort>,
   pub density: TableDensity,
+  /// Column ids, left to right. Columns not listed keep their place.
+  #[serde(skip_serializing_if = "Vec::is_empty")]
+  pub column_order: Vec<String>,
+  #[serde(skip_serializing_if = "Vec::is_empty")]
+  pub views: Vec<TableSavedView>,
+  /// The id of the view applied when the app starts.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub default_view: Option<String>,
 }
 
 impl Default for TablePreferences {
@@ -51,30 +77,81 @@ impl Default for TablePreferences {
         desc: false,
       }],
       density: TableDensity::Compact,
+      column_order: Vec::new(),
+      views: Vec::new(),
+      default_view: None,
     }
   }
 }
 
+const TABLE_VIEW_LIMIT: usize = 32;
+
+fn valid_table_column_id(id: &str) -> bool {
+  !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+}
+
+fn valid_table_sorting(sorting: &[TableSort]) -> bool {
+  let mut ids = HashSet::new();
+  sorting.len() <= 16
+    && sorting
+      .iter()
+      .all(|sort| valid_table_column_id(&sort.id) && ids.insert(sort.id.as_str()))
+}
+
+fn valid_table_visibility(visibility: &BTreeMap<String, bool>) -> bool {
+  visibility.len() <= 64 && visibility.keys().all(|id| valid_table_column_id(id))
+}
+
+fn valid_table_column_order(order: &[String]) -> bool {
+  let mut ids = HashSet::new();
+  order.len() <= 64
+    && order
+      .iter()
+      .all(|id| valid_table_column_id(id) && ids.insert(id.as_str()))
+}
+
+fn valid_table_view(view: &TableSavedView) -> bool {
+  !view.id.is_empty()
+    && view.id.len() <= 64
+    && view
+      .id
+      .bytes()
+      .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    && !view.name.trim().is_empty()
+    && view.name.chars().count() <= 80
+    && view.query.chars().count() <= 1000
+    && view.filters.len() <= 32
+    && view.filters.iter().all(|(id, values)| {
+      valid_table_column_id(id)
+        && values.len() <= 256
+        && values.iter().all(|value| value.chars().count() <= 256)
+    })
+    && valid_table_sorting(&view.sorting)
+    && valid_table_visibility(&view.visibility)
+    && valid_table_column_order(&view.column_order)
+}
+
 fn table_preferences_valid(table_id: &str, preferences: &TablePreferences) -> bool {
-  let valid_id = |id: &str| {
-    !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-  };
-  let mut sort_ids = HashSet::new();
+  let mut view_ids = HashSet::new();
   matches!(
     table_id,
-    "profiles" | "proxies" | "vpns" | "extensions" | "extensionGroups" | "groups"
-  ) && preferences.visibility.len() <= 64
+    "profiles" | "proxies" | "vpns" | "extensions" | "extensionGroups" | "groups" | "trash"
+  ) && valid_table_visibility(&preferences.visibility)
     && preferences.sizing.len() <= 64
-    && preferences.sorting.len() <= 16
-    && preferences.visibility.keys().all(|id| valid_id(id))
+    && preferences.sizing.iter().all(|(id, width)| {
+      valid_table_column_id(id) && width.is_finite() && (28.0..=1600.0).contains(width)
+    })
+    && valid_table_sorting(&preferences.sorting)
+    && valid_table_column_order(&preferences.column_order)
+    && preferences.views.len() <= TABLE_VIEW_LIMIT
     && preferences
-      .sizing
+      .views
       .iter()
-      .all(|(id, width)| valid_id(id) && width.is_finite() && (28.0..=1600.0).contains(width))
+      .all(|view| valid_table_view(view) && view_ids.insert(view.id.as_str()))
     && preferences
-      .sorting
-      .iter()
-      .all(|sort| valid_id(&sort.id) && sort_ids.insert(&sort.id))
+      .default_view
+      .as_ref()
+      .is_none_or(|id| view_ids.contains(id.as_str()))
 }
 
 #[tauri::command]
@@ -101,6 +178,13 @@ pub fn get_table_preferences(table_id: String) -> Result<TablePreferences, Strin
       preferences.sorting = vec![TableSort {
         id: legacy.column,
         desc: legacy.direction == "desc",
+      }];
+    }
+    if table_id == "trash" {
+      // What was deleted last is what is most often brought back.
+      preferences.sorting = vec![TableSort {
+        id: "deleted".into(),
+        desc: true,
       }];
     }
     Ok(preferences)
@@ -284,6 +368,28 @@ pub struct AppSettings {
   /// every tool.
   #[serde(default)]
   pub mcp_toolsets: Vec<String>,
+  /// Pause between two launches of one bulk run, in milliseconds.
+  #[serde(
+    default = "default_bulk_launch_delay_ms",
+    deserialize_with = "deserialize_bulk_launch_delay_ms"
+  )]
+  pub bulk_launch_delay_ms: u32,
+  /// How many profiles of one bulk run may be starting at the same time.
+  #[serde(
+    default = "default_bulk_launch_concurrency",
+    deserialize_with = "deserialize_bulk_launch_concurrency"
+  )]
+  pub bulk_launch_concurrency: u32,
+  /// System notifications for events that finish while the window is not in
+  /// front: an agent asking for help, a bulk job, a failed sync.
+  #[serde(default = "default_system_notifications")]
+  pub system_notifications: bool,
+  /// Start Donut when the user logs in.
+  #[serde(default)]
+  pub launch_at_login: bool,
+  /// Open again, at startup, the profiles that were running when Donut quit.
+  #[serde(default)]
+  pub reopen_running_profiles: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -303,6 +409,47 @@ fn default_api_port() -> u16 {
 }
 
 fn default_tips_auto_show() -> bool {
+  true
+}
+
+pub const DEFAULT_BULK_LAUNCH_DELAY_MS: u32 = 800;
+pub const MAX_BULK_LAUNCH_DELAY_MS: u32 = 60_000;
+pub const DEFAULT_BULK_LAUNCH_CONCURRENCY: u32 = 3;
+pub const MAX_BULK_LAUNCH_CONCURRENCY: u32 = 20;
+
+fn default_bulk_launch_delay_ms() -> u32 {
+  DEFAULT_BULK_LAUNCH_DELAY_MS
+}
+
+fn default_bulk_launch_concurrency() -> u32 {
+  DEFAULT_BULK_LAUNCH_CONCURRENCY
+}
+
+fn deserialize_bulk_launch_delay_ms<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+  D: serde::Deserializer<'de>,
+{
+  let delay = f64::deserialize(deserializer)?;
+  Ok(
+    delay
+      .round()
+      .clamp(0.0, f64::from(MAX_BULK_LAUNCH_DELAY_MS)) as u32,
+  )
+}
+
+fn deserialize_bulk_launch_concurrency<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+  D: serde::Deserializer<'de>,
+{
+  let concurrency = f64::deserialize(deserializer)?;
+  Ok(
+    concurrency
+      .round()
+      .clamp(1.0, f64::from(MAX_BULK_LAUNCH_CONCURRENCY)) as u32,
+  )
+}
+
+fn default_system_notifications() -> bool {
   true
 }
 
@@ -394,6 +541,11 @@ impl Default for AppSettings {
       ui_sound_events: true,
       ui_sound_pack: DEFAULT_UI_SOUND_PACK.to_string(),
       mcp_toolsets: Vec::new(),
+      bulk_launch_delay_ms: DEFAULT_BULK_LAUNCH_DELAY_MS,
+      bulk_launch_concurrency: DEFAULT_BULK_LAUNCH_CONCURRENCY,
+      system_notifications: true,
+      launch_at_login: false,
+      reopen_running_profiles: false,
     }
   }
 }
@@ -495,6 +647,8 @@ impl SettingsManager {
     Ok(sorting)
   }
 
+  /// The pre-table-views sort file. Only migration reads it now.
+  #[cfg(test)]
   pub fn save_table_sorting(
     &self,
     sorting: &TableSortingSettings,
@@ -804,12 +958,18 @@ pub async fn save_app_settings(
     .map_err(|e| format!("Failed to save settings: {e}"))?;
   drop(tips_serial);
 
+  {
+    let handle = app_handle.clone();
+    let launch_at_login = settings.launch_at_login;
+    tauri::async_runtime::spawn_blocking(move || crate::autostart::apply(&handle, launch_at_login));
+  }
+
   // A shorter retention applies to what is already in the trash. Sweep now
   // rather than at the next six-hourly pass, so "delete after 1 day" does not
   // keep a month-old profile until then.
   if previous_retention != Some(settings.trash_retention_days) {
     tauri::async_runtime::spawn_blocking(|| {
-      crate::profile::ProfileManager::instance().purge_expired_trash();
+      crate::profile::trash::purge_expired_everywhere();
     });
   }
 
@@ -942,22 +1102,6 @@ pub async fn open_log_directory(app_handle: tauri::AppHandle) -> Result<(), Stri
     );
   }
   Ok(())
-}
-
-#[tauri::command]
-pub async fn get_table_sorting_settings() -> Result<TableSortingSettings, String> {
-  let manager = SettingsManager::instance();
-  manager
-    .load_table_sorting()
-    .map_err(|e| format!("Failed to load table sorting settings: {e}"))
-}
-
-#[tauri::command]
-pub async fn save_table_sorting_settings(sorting: TableSortingSettings) -> Result<(), String> {
-  let manager = SettingsManager::instance();
-  manager
-    .save_table_sorting(&sorting)
-    .map_err(|e| format!("Failed to save table sorting settings: {e}"))
 }
 
 #[tauri::command]
@@ -1798,6 +1942,89 @@ mod tests {
     );
   }
 
+  fn table_view(id: &str, name: &str) -> TableSavedView {
+    TableSavedView {
+      id: id.into(),
+      name: name.into(),
+      query: "tag:work".into(),
+      filters: BTreeMap::from([("status".into(), vec!["running".into(), String::new()])]),
+      sorting: vec![TableSort {
+        id: "created_at".into(),
+        desc: true,
+      }],
+      visibility: BTreeMap::from([("note".into(), false)]),
+      column_order: vec!["name".into(), "tags".into()],
+    }
+  }
+
+  #[test]
+  fn table_preferences_from_an_older_file_get_empty_views() {
+    let old = r#"{"visibility":{"note":false},"sizing":{"name":280.5},"sorting":[{"id":"name","desc":true}],"density":"comfortable"}"#;
+    let preferences: TablePreferences = serde_json::from_str(old).unwrap();
+    assert!(preferences.column_order.is_empty());
+    assert!(preferences.views.is_empty());
+    assert_eq!(preferences.default_view, None);
+    assert!(table_preferences_valid("profiles", &preferences));
+    assert_eq!(
+      serde_json::to_value(&preferences).unwrap(),
+      serde_json::from_str::<serde_json::Value>(old).unwrap(),
+      "empty view fields stay out of the file"
+    );
+  }
+
+  #[test]
+  fn table_views_and_column_order_round_trip() {
+    let preferences = TablePreferences {
+      column_order: vec!["tags".into(), "name".into()],
+      views: vec![table_view("view-1", "Work"), table_view("view_2", "Idle")],
+      default_view: Some("view_2".into()),
+      ..TablePreferences::default()
+    };
+    assert!(table_preferences_valid("proxies", &preferences));
+    let json = serde_json::to_string(&preferences).unwrap();
+    assert_eq!(
+      serde_json::from_str::<TablePreferences>(&json).unwrap(),
+      preferences
+    );
+    let partial: TableSavedView = serde_json::from_str(r#"{"id":"a","name":"Bare"}"#).unwrap();
+    assert_eq!(partial.query, "");
+    assert!(partial.filters.is_empty() && partial.sorting.is_empty());
+    assert!(partial.visibility.is_empty() && partial.column_order.is_empty());
+  }
+
+  #[test]
+  fn invalid_table_views_are_rejected() {
+    let with = |change: &dyn Fn(&mut TablePreferences)| {
+      let mut preferences = TablePreferences {
+        views: vec![table_view("a", "One")],
+        default_view: Some("a".into()),
+        ..TablePreferences::default()
+      };
+      change(&mut preferences);
+      table_preferences_valid("groups", &preferences)
+    };
+    assert!(with(&|_| {}));
+    assert!(!with(&|p| p.default_view = Some("missing".into())));
+    assert!(!with(&|p| p.views.push(table_view("a", "Twin"))));
+    assert!(!with(&|p| p.views[0].name = "  ".into()));
+    assert!(!with(&|p| p.views[0].name = "n".repeat(81)));
+    assert!(!with(&|p| p.views[0].id = "../a".into()));
+    assert!(!with(&|p| p.views[0].query = "q".repeat(1001)));
+    assert!(!with(&|p| {
+      p.views[0].filters.insert("bad-id".into(), vec!["x".into()]);
+    }));
+    assert!(!with(
+      &|p| p.views[0].column_order = vec!["name".into(), "name".into()]
+    ));
+    assert!(!with(&|p| p.column_order = vec!["a b".into()]));
+    assert!(!with(&|p| {
+      p.views = (0..=TABLE_VIEW_LIMIT)
+        .map(|i| table_view(&format!("v{i}"), "View"))
+        .collect();
+      p.default_view = None;
+    }));
+  }
+
   #[test]
   fn test_default_table_sorting_settings() {
     let default_sorting = TableSortingSettings::default();
@@ -1875,6 +2102,11 @@ mod tests {
       ui_sound_events: false,
       ui_sound_pack: "retro".to_string(),
       mcp_toolsets: vec!["network".to_string()],
+      bulk_launch_delay_ms: 800,
+      bulk_launch_concurrency: 3,
+      system_notifications: true,
+      launch_at_login: false,
+      reopen_running_profiles: false,
     };
 
     let save_result = manager.save_settings(&test_settings);

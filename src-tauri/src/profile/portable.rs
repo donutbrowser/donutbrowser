@@ -221,7 +221,7 @@ pub fn export_to(
   }
   let file = fs::File::create(destination).map_err(|e| err("could not create the archive", e))?;
   let mut writer = zip::ZipWriter::new(file);
-  let options: zip::write::FileOptions<'_, ()> =
+  let options: zip::write::SimpleFileOptions =
     zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
   writer
@@ -458,6 +458,16 @@ pub fn unique_imported_name(name: &str, taken: &[String]) -> String {
   }
 }
 
+/// The archive work runs on the blocking pool: it reads or writes a whole
+/// profile directory, and the window would freeze for as long.
+async fn blocking<T: Send + 'static>(
+  work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+  crate::profile::manager::run_blocking(work)
+    .await
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?
+}
+
 /// Write an export of `profile_id` to `destination`.
 #[tauri::command]
 pub async fn export_profile(
@@ -465,13 +475,22 @@ pub async fn export_profile(
   destination: String,
   include_data: Option<bool>,
 ) -> Result<PortableManifest, String> {
+  blocking(move || export_blocking(&profile_id, &destination, include_data.unwrap_or(true))).await
+}
+
+fn export_blocking(
+  profile_id: &str,
+  destination: &str,
+  include_data: bool,
+) -> Result<PortableManifest, String> {
   let manager = crate::profile::ProfileManager::instance();
-  let profile = manager
-    .list_profiles()
-    .map_err(|e| err("could not read the profiles", e))?
-    .into_iter()
-    .find(|p| p.id.to_string() == profile_id)
-    .ok_or_else(|| crate::backend_error("PROFILE_NOT_FOUND"))?;
+  let profile = match uuid::Uuid::parse_str(profile_id) {
+    Ok(id) => manager
+      .lookup_profile(&id)
+      .map_err(|e| err("could not read the profiles", e))?,
+    Err(_) => None,
+  }
+  .ok_or_else(|| crate::backend_error("PROFILE_NOT_FOUND"))?;
   // An export reads the whole profile directory; a browser writing to it at
   // the same time produces an archive of half-written databases.
   if profile
@@ -507,8 +526,8 @@ pub async fn export_profile(
   export_to(
     &profile,
     &data_dir,
-    Path::new(&destination),
-    include_data.unwrap_or(true),
+    Path::new(destination),
+    include_data,
     proxy_name,
     group_name,
   )
@@ -516,8 +535,8 @@ pub async fn export_profile(
 
 /// What an archive holds, so the user can decide before anything is created.
 #[tauri::command]
-pub fn preview_profile_archive(path: String) -> Result<PortablePreview, String> {
-  preview(Path::new(&path))
+pub async fn preview_profile_archive(path: String) -> Result<PortablePreview, String> {
+  blocking(move || preview(Path::new(&path))).await
 }
 
 /// Create a profile from an archive.
@@ -526,54 +545,63 @@ pub async fn import_profile_archive(
   path: String,
   name: Option<String>,
 ) -> Result<BrowserProfile, String> {
-  let archive_path = Path::new(&path);
-  let details = preview(archive_path)?;
-  let manager = crate::profile::ProfileManager::instance();
-  let existing = manager
-    .list_profiles()
-    .map_err(|e| import_err(format!("could not read the profiles: {e}")))?;
-  let taken: Vec<String> = existing.iter().map(|p| p.name.clone()).collect();
-  let wanted = name
-    .as_deref()
-    .map(str::trim)
-    .filter(|n| !n.is_empty())
-    .unwrap_or(&details.manifest.profile_name);
-  if wanted.is_empty() {
-    return Err(crate::backend_error("NAME_CANNOT_BE_EMPTY"));
-  }
+  let read_path = path.clone();
+  let (mut profile, includes_data) = blocking(move || {
+    let archive_path = Path::new(&read_path);
+    let details = preview(archive_path)?;
+    let existing = crate::profile::ProfileManager::instance()
+      .list_profiles()
+      .map_err(|e| import_err(format!("could not read the profiles: {e}")))?;
+    let taken: Vec<String> = existing.iter().map(|p| p.name.clone()).collect();
+    let wanted = name
+      .as_deref()
+      .map(str::trim)
+      .filter(|n| !n.is_empty())
+      .unwrap_or(&details.manifest.profile_name);
+    if wanted.is_empty() {
+      return Err(crate::backend_error("NAME_CANNOT_BE_EMPTY"));
+    }
 
-  let mut archive = open_archive(archive_path)?;
-  let stored: serde_json::Value =
-    serde_json::from_str(&read_entry(&mut archive, PROFILE_ENTRY)?)
+    let mut archive = open_archive(archive_path)?;
+    let stored: serde_json::Value = serde_json::from_str(&read_entry(&mut archive, PROFILE_ENTRY)?)
       .map_err(|e| import_err(format!("its profile is malformed: {e}")))?;
-  drop(archive);
+    drop(archive);
 
-  let mut profile = imported_profile(&stored, &unique_imported_name(wanted, &taken))?;
+    let profile = imported_profile(&stored, &unique_imported_name(wanted, &taken))?;
+    Ok((profile, details.manifest.includes_data))
+  })
+  .await?;
   if let Some(config) = profile.wayfern_config.as_mut() {
     config.sanitize_launch_args().await;
   }
-  let data_dir = manager
-    .get_profiles_dir()
-    .join(profile.id.to_string())
-    .join("profile");
-  fs::create_dir_all(&data_dir)
-    .map_err(|e| import_err(format!("could not create the profile directory: {e}")))?;
 
-  if details.manifest.includes_data {
-    if let Err(e) = extract_data(archive_path, &data_dir) {
-      // Nothing half-imported is left behind: the profile was never saved, so
-      // removing its directory removes every trace of the attempt.
-      let _ = fs::remove_dir_all(data_dir.parent().unwrap_or(&data_dir));
-      return Err(e);
+  blocking(move || {
+    let archive_path = Path::new(&path);
+    let manager = crate::profile::ProfileManager::instance();
+    let data_dir = manager
+      .get_profiles_dir()
+      .join(profile.id.to_string())
+      .join("profile");
+    fs::create_dir_all(&data_dir)
+      .map_err(|e| import_err(format!("could not create the profile directory: {e}")))?;
+
+    if includes_data {
+      if let Err(e) = extract_data(archive_path, &data_dir) {
+        // Nothing half-imported is left behind: the profile was never saved, so
+        // removing its directory removes every trace of the attempt.
+        let _ = fs::remove_dir_all(data_dir.parent().unwrap_or(&data_dir));
+        return Err(e);
+      }
     }
-  }
 
-  manager.save_profile(&profile).map_err(|e| {
-    let _ = fs::remove_dir_all(data_dir.parent().unwrap_or(&data_dir));
-    import_err(format!("could not save it: {e}"))
-  })?;
-  let _ = crate::events::emit("profiles-changed", serde_json::json!({}));
-  Ok(profile)
+    manager.save_profile(&profile).map_err(|e| {
+      let _ = fs::remove_dir_all(data_dir.parent().unwrap_or(&data_dir));
+      import_err(format!("could not save it: {e}"))
+    })?;
+    let _ = crate::events::emit("profiles-changed", serde_json::json!({}));
+    Ok(profile)
+  })
+  .await
 }
 
 #[cfg(test)]
@@ -610,7 +638,7 @@ mod tests {
   fn entries(path: &Path) -> Vec<String> {
     let mut archive = open_archive(path).unwrap();
     (0..archive.len())
-      .map(|i| archive.by_index(i).unwrap().name().to_string())
+      .map(|i| archive.by_index(i).unwrap().name().unwrap().into_owned())
       .collect()
   }
 
@@ -736,7 +764,7 @@ mod tests {
     {
       let file = fs::File::create(&hostile).unwrap();
       let mut writer = zip::ZipWriter::new(file);
-      let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+      let options: zip::write::SimpleFileOptions = zip::write::FileOptions::default();
       writer.start_file("manifest.json", options).unwrap();
       writer.write_all(b"{}").unwrap();
       writer.start_file("data/../../escaped", options).unwrap();
@@ -757,7 +785,7 @@ mod tests {
     {
       let file = fs::File::create(&archive).unwrap();
       let mut writer = zip::ZipWriter::new(file);
-      let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+      let options: zip::write::SimpleFileOptions = zip::write::FileOptions::default();
       writer.start_file("manifest.json", options).unwrap();
       writer
         .write_all(

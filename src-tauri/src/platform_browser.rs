@@ -13,7 +13,7 @@ use std::process::Command;
 /// form, so nothing Donut launches is missed.
 ///
 /// Only the macOS and Linux process-kill paths use this; Windows has no
-/// `find_processes_by_profile_path`, so gate it to avoid a dead-code error there.
+/// profile-path sweep, so gate it to avoid a dead-code error there.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn cmd_matches_profile_path(cmd: &[std::ffi::OsString], profile_path: &str) -> bool {
   cmd.iter().filter_map(|a| a.to_str()).any(|arg| {
@@ -32,6 +32,130 @@ fn cmd_matches_profile_path(cmd: &[std::ffi::OsString], profile_path: &str) -> b
 fn is_browser_process_name(name: &std::ffi::OsStr) -> bool {
   let exe_name = name.to_string_lossy().to_lowercase();
   exe_name.contains("wayfern") || exe_name.contains("chromium") || exe_name.contains("chrome")
+}
+
+/// Process lookups for the kill paths: one refresh of only what is read, instead
+/// of a full system scan (CPU, disks, networks, every process field) per call.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod unix_processes {
+  use std::collections::HashMap;
+  use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+
+  /// Every process with its command line. Parents come with any refresh.
+  pub fn snapshot() -> System {
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+      ProcessesToUpdate::All,
+      true,
+      ProcessRefreshKind::nothing()
+        .with_cmd(UpdateKind::OnlyIfNotSet)
+        .without_tasks(),
+    );
+    system
+  }
+
+  /// Browser processes started on `profile_path`.
+  pub fn on_profile_path(system: &System, profile_path: &str) -> Vec<u32> {
+    system
+      .processes()
+      .iter()
+      .filter(|(_, process)| {
+        !process.cmd().is_empty()
+          && super::is_browser_process_name(process.name())
+          && super::cmd_matches_profile_path(process.cmd(), profile_path)
+      })
+      .map(|(pid, _)| pid.as_u32())
+      .collect()
+  }
+
+  /// Every descendant of `parent_pid`.
+  pub fn descendants(system: &System, parent_pid: u32) -> Vec<u32> {
+    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    for (pid, process) in system.processes() {
+      if let Some(parent) = process.parent() {
+        children
+          .entry(parent.as_u32())
+          .or_default()
+          .push(pid.as_u32());
+      }
+    }
+    let mut descendants = Vec::new();
+    let mut to_check = vec![parent_pid];
+    let mut checked = std::collections::HashSet::new();
+    while let Some(current) = to_check.pop() {
+      if !checked.insert(current) {
+        continue;
+      }
+      for &child in children
+        .get(&current)
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+      {
+        if !checked.contains(&child) {
+          descendants.push(child);
+          to_check.push(child);
+        }
+      }
+    }
+    descendants
+  }
+
+  /// Which of `pids` are still alive, from one refresh of those processes.
+  pub fn still_alive(pids: &[u32]) -> Vec<u32> {
+    let wanted: Vec<Pid> = pids.iter().map(|pid| Pid::from_u32(*pid)).collect();
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+      ProcessesToUpdate::Some(&wanted),
+      true,
+      ProcessRefreshKind::nothing(),
+    );
+    pids
+      .iter()
+      .copied()
+      .filter(|pid| {
+        system
+          .process(Pid::from_u32(*pid))
+          .is_some_and(crate::proxy_storage::snapshot_process_is_alive)
+      })
+      .collect()
+  }
+
+  pub fn sigkill(pid: u32) {
+    use nix::sys::signal::{kill, Signal};
+    let _ = kill(nix::unistd::Pid::from_raw(pid as i32), Signal::SIGKILL);
+  }
+
+  /// `pkill` without blocking the async runtime.
+  pub async fn pkill(args: &[&str]) {
+    let _ = tokio::process::Command::new("pkill")
+      .args(args)
+      .stdin(std::process::Stdio::null())
+      .stdout(std::process::Stdio::null())
+      .stderr(std::process::Stdio::null())
+      .status()
+      .await;
+  }
+
+  #[cfg(test)]
+  mod tests {
+    use super::*;
+
+    #[test]
+    fn this_process_is_alive_and_a_child_is_its_descendant() {
+      let me = std::process::id();
+      assert_eq!(still_alive(&[me]), vec![me]);
+
+      let mut child = std::process::Command::new("sleep")
+        .arg("30")
+        .spawn()
+        .unwrap();
+      let system = snapshot();
+      assert!(descendants(&system, me).contains(&child.id()));
+      sigkill(child.id());
+      let _ = child.wait();
+      assert!(still_alive(&[child.id()]).is_empty());
+    }
+  }
 }
 
 #[cfg(all(test, any(target_os = "macos", target_os = "linux")))]
@@ -92,7 +216,6 @@ mod profile_path_match_tests {
 #[allow(dead_code)]
 pub mod macos {
   use super::*;
-  use sysinfo::{Pid, System};
 
   pub async fn launch_browser_process(
     executable_path: &std::path::Path,
@@ -141,78 +264,60 @@ pub mod macos {
     pid: u32,
     profile_data_path: Option<&str>,
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use super::unix_processes::{
+      descendants, on_profile_path, pkill, sigkill, snapshot, still_alive,
+    };
+
     let mut pids_to_kill = vec![pid];
 
-    let descendants = get_all_descendant_pids(pid).await;
-    pids_to_kill.extend(descendants);
-
-    if let Some(profile_path) = profile_data_path {
-      let additional_pids = find_processes_by_profile_path(profile_path).await;
-      for p in additional_pids {
-        if !pids_to_kill.contains(&p) {
-          log::debug!("Found another process on the profile path pid={p}");
-          pids_to_kill.push(p);
-        }
+    let profile_path = profile_data_path.map(str::to_string);
+    let (descendant_pids, profile_pids) = tokio::task::spawn_blocking(move || {
+      let system = snapshot();
+      (
+        descendants(&system, pid),
+        profile_path
+          .map(|path| on_profile_path(&system, &path))
+          .unwrap_or_default(),
+      )
+    })
+    .await
+    .unwrap_or_default();
+    pids_to_kill.extend(descendant_pids);
+    for p in profile_pids {
+      if !pids_to_kill.contains(&p) {
+        log::debug!("Found another process on the profile path pid={p}");
+        pids_to_kill.push(p);
       }
     }
 
     log::debug!("Force killing browser processes pid={pid} pids={pids_to_kill:?}");
 
     for &p in &pids_to_kill {
-      let _ = Command::new("kill")
-        .args(["-KILL", &p.to_string()])
-        .output();
+      sigkill(p);
     }
 
     let pid_str = pid.to_string();
+    pkill(&["-KILL", "-P", &pid_str]).await;
+    pkill(&["-KILL", "-g", &pid_str]).await;
 
-    let _ = Command::new("pkill")
-      .args(["-KILL", "-P", &pid_str])
-      .output();
-
-    let _ = Command::new("pkill")
-      .args(["-KILL", "-g", &pid_str])
-      .output();
-
-    for &p in &pids_to_kill {
-      let system = System::new_all();
-      if system.process(Pid::from(p as usize)).is_some() {
-        log::debug!("Process still running, killing again pid={p}");
-        let _ = Command::new("kill")
-          .args(["-KILL", &p.to_string()])
-          .output();
-      }
+    for p in still_alive(&pids_to_kill) {
+      log::debug!("Process still running, killing again pid={p}");
+      sigkill(p);
     }
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    let system = System::new_all();
-    let mut still_running = Vec::new();
-    for &p in &pids_to_kill {
-      if system.process(Pid::from(p as usize)).is_some() {
-        still_running.push(p);
-      }
-    }
-
+    let still_running = still_alive(&pids_to_kill);
     if !still_running.is_empty() {
       log::debug!("Processes still running, final kill pids={still_running:?}");
 
-      for p in &still_running {
-        let _ = Command::new("/bin/kill")
-          .args(["-KILL", &p.to_string()])
-          .output();
+      for &p in &still_running {
+        sigkill(p);
       }
 
       tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
-      let system = System::new_all();
-      let mut final_still_running = Vec::new();
-      for &p in &pids_to_kill {
-        if system.process(Pid::from(p as usize)).is_some() {
-          final_still_running.push(p);
-        }
-      }
-
+      let final_still_running = still_alive(&pids_to_kill);
       if !final_still_running.is_empty() {
         return Err(
           format!(
@@ -231,60 +336,6 @@ pub mod macos {
     Ok(())
   }
 
-  async fn find_processes_by_profile_path(profile_path: &str) -> Vec<u32> {
-    use sysinfo::System;
-
-    let mut pids = Vec::new();
-    let system = System::new_all();
-
-    for (pid, process) in system.processes() {
-      let cmd = process.cmd();
-      if cmd.is_empty() {
-        continue;
-      }
-
-      if !is_browser_process_name(process.name()) {
-        continue;
-      }
-
-      if cmd_matches_profile_path(cmd, profile_path) {
-        pids.push(pid.as_u32());
-      }
-    }
-
-    pids
-  }
-
-  // Recursively find all descendant processes
-  async fn get_all_descendant_pids(parent_pid: u32) -> Vec<u32> {
-    use sysinfo::System;
-
-    let system = System::new_all();
-    let mut descendants = Vec::new();
-    let mut to_check = vec![parent_pid];
-    let mut checked = std::collections::HashSet::new();
-
-    while let Some(current_pid) = to_check.pop() {
-      if checked.contains(&current_pid) {
-        continue;
-      }
-      checked.insert(current_pid);
-
-      // Find direct children of current_pid
-      for (pid, process) in system.processes() {
-        let pid_u32 = pid.as_u32();
-        if let Some(parent) = process.parent() {
-          if parent.as_u32() == current_pid && !checked.contains(&pid_u32) {
-            descendants.push(pid_u32);
-            to_check.push(pid_u32);
-          }
-        }
-      }
-    }
-
-    descendants
-  }
-
   pub async fn open_url_in_existing_browser_chromium(
     profile: &BrowserProfile,
     url: &str,
@@ -299,12 +350,13 @@ pub mod macos {
     let browser = create_browser(browser_type);
     if let Ok(executable_path) = browser.get_executable_path(browser_dir) {
       let profile_data_path = profile.get_profile_data_path(_profiles_dir);
-      let remote_output = Command::new(executable_path)
+      let remote_output = tokio::process::Command::new(executable_path)
         .args([
           &format!("--user-data-dir={}", profile_data_path.to_string_lossy()),
           url,
         ])
-        .output();
+        .output()
+        .await;
 
       match remote_output {
         Ok(output) if output.status.success() => {
@@ -434,26 +486,30 @@ pub mod windows {
   pub async fn kill_browser_process_impl(
     pid: u32,
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // First try using sysinfo (cross-platform approach)
-    use sysinfo::{Pid, System};
-    let system = System::new_all();
-    if let Some(process) = system.process(Pid::from(pid as usize)) {
+    // First try using sysinfo (cross-platform approach), refreshing only this
+    // process.
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+    let sysinfo_pid = Pid::from_u32(pid);
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+      ProcessesToUpdate::Some(&[sysinfo_pid]),
+      true,
+      ProcessRefreshKind::nothing(),
+    );
+    if let Some(process) = system.process(sysinfo_pid) {
       if process.kill() {
         log::debug!("Browser process killed pid={pid}");
         return Ok(());
       }
     }
 
-    // Fallback to Windows-specific process termination
-    use std::process::Command;
-
-    // Try taskkill command as fallback
-    use std::os::windows::process::CommandExt;
+    // Fallback: taskkill, awaited without blocking the async runtime.
     const CREATE_NO_WINDOW: u32 = 0x08000000;
-    let output = Command::new("taskkill")
+    let output = tokio::process::Command::new("taskkill")
       .args(["/F", "/PID", &pid.to_string()])
       .creation_flags(CREATE_NO_WINDOW)
-      .output();
+      .output()
+      .await;
 
     match output {
       Ok(result) => {
@@ -620,12 +676,13 @@ pub mod linux {
       .map_err(|e| format!("Failed to get executable path: {}", e))?;
 
     let profile_data_path = profile.get_profile_data_path(profiles_dir);
-    let output = Command::new(executable_path)
+    let output = tokio::process::Command::new(executable_path)
       .args([
         &format!("--user-data-dir={}", profile_data_path.to_string_lossy()),
         url,
       ])
-      .output()?;
+      .output()
+      .await?;
 
     if !output.status.success() {
       return Err(
@@ -644,22 +701,31 @@ pub mod linux {
     pid: u32,
     profile_data_path: Option<&str>,
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
+    use super::unix_processes::{
+      descendants, on_profile_path, pkill, sigkill, snapshot, still_alive,
+    };
 
     let mut pids_to_kill = vec![pid];
 
-    // Find all descendant processes
-    let descendants = get_all_descendant_pids(pid);
-    pids_to_kill.extend(descendants);
-
-    // Find additional processes using the same profile path
-    if let Some(profile_path) = profile_data_path {
-      let additional_pids = find_processes_by_profile_path(profile_path);
-      for p in additional_pids {
-        if !pids_to_kill.contains(&p) {
-          log::debug!("Found another process on the profile path pid={p}");
-          pids_to_kill.push(p);
-        }
+    // Find all descendant processes, and other processes on the same profile
+    // path, from one scan off the async runtime.
+    let profile_path = profile_data_path.map(str::to_string);
+    let (descendant_pids, profile_pids) = tokio::task::spawn_blocking(move || {
+      let system = snapshot();
+      (
+        descendants(&system, pid),
+        profile_path
+          .map(|path| on_profile_path(&system, &path))
+          .unwrap_or_default(),
+      )
+    })
+    .await
+    .unwrap_or_default();
+    pids_to_kill.extend(descendant_pids);
+    for p in profile_pids {
+      if !pids_to_kill.contains(&p) {
+        log::debug!("Found another process on the profile path pid={p}");
+        pids_to_kill.push(p);
       }
     }
 
@@ -667,51 +733,26 @@ pub mod linux {
 
     // Send SIGKILL to all identified processes
     for &p in &pids_to_kill {
-      let _ = Command::new("kill")
-        .args(["-KILL", &p.to_string()])
-        .output();
+      sigkill(p);
     }
 
-    // Also kill by process group and parent PID
-    let pid_str = pid.to_string();
-    let _ = Command::new("pkill")
-      .args(["-KILL", "-P", &pid_str])
-      .output();
+    // Also kill by parent PID
+    pkill(&["-KILL", "-P", &pid.to_string()]).await;
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     // Verify processes are dead
-    let system = System::new_with_specifics(
-      RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
-    );
-    let mut still_running = Vec::new();
-    for &p in &pids_to_kill {
-      if system.process(Pid::from(p as usize)).is_some() {
-        still_running.push(p);
-      }
-    }
-
+    let still_running = still_alive(&pids_to_kill);
     if !still_running.is_empty() {
       log::debug!("Processes still running, final kill pids={still_running:?}");
 
-      for p in &still_running {
-        let _ = Command::new("kill")
-          .args(["-KILL", &p.to_string()])
-          .output();
+      for &p in &still_running {
+        sigkill(p);
       }
 
       tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
-      let system = System::new_with_specifics(
-        RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
-      );
-      let mut final_still_running = Vec::new();
-      for &p in &pids_to_kill {
-        if system.process(Pid::from(p as usize)).is_some() {
-          final_still_running.push(p);
-        }
-      }
-
+      let final_still_running = still_alive(&pids_to_kill);
       if !final_still_running.is_empty() {
         return Err(
           format!(
@@ -728,61 +769,5 @@ pub mod linux {
       pids_to_kill.len()
     );
     Ok(())
-  }
-
-  fn find_processes_by_profile_path(profile_path: &str) -> Vec<u32> {
-    use sysinfo::{ProcessRefreshKind, RefreshKind, System};
-
-    let mut pids = Vec::new();
-    let system = System::new_with_specifics(
-      RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
-    );
-
-    for (pid, process) in system.processes() {
-      let cmd = process.cmd();
-      if cmd.is_empty() {
-        continue;
-      }
-
-      if !is_browser_process_name(process.name()) {
-        continue;
-      }
-
-      if cmd_matches_profile_path(cmd, profile_path) {
-        pids.push(pid.as_u32());
-      }
-    }
-
-    pids
-  }
-
-  fn get_all_descendant_pids(parent_pid: u32) -> Vec<u32> {
-    use sysinfo::{ProcessRefreshKind, RefreshKind, System};
-
-    let system = System::new_with_specifics(
-      RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
-    );
-    let mut descendants = Vec::new();
-    let mut to_check = vec![parent_pid];
-    let mut checked = std::collections::HashSet::new();
-
-    while let Some(current_pid) = to_check.pop() {
-      if checked.contains(&current_pid) {
-        continue;
-      }
-      checked.insert(current_pid);
-
-      for (pid, process) in system.processes() {
-        let pid_u32 = pid.as_u32();
-        if let Some(parent) = process.parent() {
-          if parent.as_u32() == current_pid && !checked.contains(&pid_u32) {
-            descendants.push(pid_u32);
-            to_check.push(pid_u32);
-          }
-        }
-      }
-    }
-
-    descendants
   }
 }

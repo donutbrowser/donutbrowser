@@ -714,6 +714,10 @@ async fn run_proxy_feature_suite(
     &http_response[..http_response.len().min(300)]
   );
 
+  stop_proxy(binary_path, &proxy.id).await?;
+
+  // The worker writes its stats file at most once a minute and again when
+  // it stops, so the totals are read after the stop.
   let stats_file = donutbrowser_lib::app_dirs::cache_dir()
     .join("traffic_stats")
     .join(format!("{}.json", profile_id));
@@ -737,8 +741,6 @@ async fn run_proxy_feature_suite(
     "Traffic stats should include tunnel server IP activity, got: {:?}",
     domains.keys().collect::<Vec<_>>()
   );
-
-  stop_proxy(binary_path, &proxy.id).await?;
 
   let blocklist_file = tempfile::NamedTempFile::new()?;
   std::fs::write(blocklist_file.path(), format!("{server_tunnel_ip}\n"))?;

@@ -8,8 +8,10 @@ use quick_xml::Reader as XmlReader;
 use rand::RngExt;
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 const TERRITORY_INFO_XML: &str = include_str!("territory_info.xml");
 
@@ -261,6 +263,85 @@ fn normalize_locale(locale: &str) -> Locale {
   Locale { language, region }
 }
 
+type Database = Arc<Reader<Vec<u8>>>;
+
+struct OpenDatabase {
+  stamp: crate::file_stamp::FileStamp,
+  reader: Database,
+  last_used: Instant,
+}
+
+/// Open databases by path. The City file is about 50 MB and one proxy check
+/// reads it several times, so it is read once and kept while lookups come.
+static DATABASES: Mutex<Option<HashMap<PathBuf, OpenDatabase>>> = Mutex::new(None);
+
+/// A database nobody looked anything up in for this long is let go.
+const DATABASE_IDLE: Duration = Duration::from_secs(600);
+
+/// The reader for the database at `path`, read again when the file changed
+/// (a download replaced it). `Ok(None)` when there is no file.
+fn open_database(path: &Path) -> Result<Option<Database>, maxminddb::MaxMindDbError> {
+  let Some(stamp) = crate::file_stamp::FileStamp::read(path) else {
+    if let Ok(mut databases) = DATABASES.lock() {
+      if let Some(open) = databases.as_mut() {
+        open.remove(path);
+      }
+    }
+    return Ok(None);
+  };
+  if let Ok(mut databases) = DATABASES.lock() {
+    if let Some(open) = databases
+      .as_mut()
+      .and_then(|open| open.get_mut(path))
+      .filter(|open| open.stamp == stamp)
+    {
+      open.last_used = Instant::now();
+      return Ok(Some(open.reader.clone()));
+    }
+  }
+
+  let reader = Arc::new(Reader::open_readfile(path)?);
+  let start_reaper = match DATABASES.lock() {
+    Ok(mut databases) => {
+      let open = databases.get_or_insert_with(HashMap::new);
+      let start = open.is_empty();
+      open.insert(
+        path.to_path_buf(),
+        OpenDatabase {
+          stamp,
+          reader: reader.clone(),
+          last_used: Instant::now(),
+        },
+      );
+      start
+    }
+    Err(_) => false,
+  };
+  if start_reaper {
+    let _ = std::thread::Builder::new()
+      .name("geoip-idle".into())
+      .spawn(release_idle_databases);
+  }
+  Ok(Some(reader))
+}
+
+/// Drops databases left idle, and stops once none is open.
+fn release_idle_databases() {
+  loop {
+    std::thread::sleep(DATABASE_IDLE / 10);
+    let Ok(mut databases) = DATABASES.lock() else {
+      return;
+    };
+    let Some(open) = databases.as_mut() else {
+      return;
+    };
+    open.retain(|_, database| database.last_used.elapsed() < DATABASE_IDLE);
+    if open.is_empty() {
+      return;
+    }
+  }
+}
+
 /// What the bundled MaxMind data says about an exit address, beyond the
 /// city and country a check already reports.
 ///
@@ -290,7 +371,7 @@ pub fn lookup_exit_insight(ip: &str) -> ExitInsight {
   let mut insight = ExitInsight::default();
 
   if let Ok(path) = GeoIPDownloader::get_mmdb_file_path() {
-    if let Ok(reader) = Reader::open_readfile(&path) {
+    if let Ok(Some(reader)) = open_database(&path) {
       if let Ok(lookup) = reader.lookup(ip_addr) {
         if let Ok(Some(city)) = lookup.decode::<geoip2::City>() {
           insight.timezone = city.location.time_zone.map(|tz| tz.to_string());
@@ -325,13 +406,10 @@ pub fn lookup_place(ip: &str) -> (Option<String>, Option<String>, Option<String>
   let Ok(ip_addr) = IpAddr::from_str(ip) else {
     return (None, None, None);
   };
-  let Some(path) = GeoIPDownloader::get_mmdb_file_path()
+  let Some(reader) = GeoIPDownloader::get_mmdb_file_path()
     .ok()
-    .filter(|path| path.exists())
+    .and_then(|path| open_database(&path).ok().flatten())
   else {
-    return (None, None, None);
-  };
-  let Ok(reader) = Reader::open_readfile(&path) else {
     return (None, None, None);
   };
   let Ok(Some(city)) = reader
@@ -352,10 +430,7 @@ pub fn lookup_place(ip: &str) -> (Option<String>, Option<String>, Option<String>
 /// city database, which is why the caller treats `None` as "unknown".
 fn lookup_asn_organization(ip_addr: IpAddr) -> Option<String> {
   let path = GeoIPDownloader::get_asn_mmdb_file_path().ok()?;
-  if !path.exists() {
-    return None;
-  }
-  let reader = Reader::open_readfile(&path).ok()?;
+  let reader = open_database(&path).ok()??;
   let asn: geoip2::Asn = reader.lookup(ip_addr).ok()?.decode().ok()??;
   first_non_empty([asn.autonomous_system_organization])
 }
@@ -373,12 +448,9 @@ pub fn get_geolocation(ip: &str) -> Result<Geolocation, GeolocationError> {
   let mmdb_path =
     GeoIPDownloader::get_mmdb_file_path().map_err(|_| GeolocationError::DatabaseNotFound)?;
 
-  if !mmdb_path.exists() {
-    return Err(GeolocationError::DatabaseNotFound);
-  }
-
-  let reader =
-    Reader::open_readfile(&mmdb_path).map_err(|e| GeolocationError::DatabaseOpen(e.to_string()))?;
+  let reader = open_database(&mmdb_path)
+    .map_err(|e| GeolocationError::DatabaseOpen(e.to_string()))?
+    .ok_or(GeolocationError::DatabaseNotFound)?;
 
   let ip_addr: IpAddr =
     IpAddr::from_str(ip).map_err(|_| GeolocationError::InvalidIP(ip.to_string()))?;
@@ -431,6 +503,70 @@ mod tests {
   #[test]
   fn an_invalid_address_has_no_place() {
     assert_eq!(lookup_place("not-an-ip"), (None, None, None));
+  }
+
+  /// The smallest MaxMind DB a reader opens: one IPv4 node with no data.
+  fn tiny_database(build_epoch: u8) -> Vec<u8> {
+    let mut db = vec![0, 0, 1, 0, 0, 1];
+    db.extend_from_slice(&[0; 16]);
+    db.extend_from_slice(b"\xAB\xCD\xEFMaxMind.com");
+    let key = |db: &mut Vec<u8>, name: &str| {
+      db.push(0x40 | name.len() as u8);
+      db.extend_from_slice(name.as_bytes());
+    };
+    db.push(0xE9);
+    key(&mut db, "binary_format_major_version");
+    db.extend_from_slice(&[0xA1, 2]);
+    key(&mut db, "binary_format_minor_version");
+    db.push(0xA0);
+    key(&mut db, "build_epoch");
+    db.extend_from_slice(&[0x01, 0x02, build_epoch]);
+    key(&mut db, "database_type");
+    key(&mut db, "Test");
+    key(&mut db, "description");
+    db.push(0xE0);
+    key(&mut db, "ip_version");
+    db.extend_from_slice(&[0xA1, 4]);
+    key(&mut db, "languages");
+    db.extend_from_slice(&[0x00, 0x04]);
+    key(&mut db, "node_count");
+    db.extend_from_slice(&[0xC1, 1]);
+    key(&mut db, "record_size");
+    db.extend_from_slice(&[0xA1, 24]);
+    db
+  }
+
+  #[test]
+  fn a_database_is_read_once_and_again_after_it_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("GeoLite2-City.mmdb");
+    assert!(open_database(&path).unwrap().is_none());
+
+    std::fs::write(&path, tiny_database(1)).unwrap();
+    // A stamp taken in the first seconds after a write never matches.
+    std::fs::File::options()
+      .write(true)
+      .open(&path)
+      .unwrap()
+      .set_modified(std::time::SystemTime::now() - Duration::from_secs(10))
+      .unwrap();
+    let first = open_database(&path).unwrap().unwrap();
+    let again = open_database(&path).unwrap().unwrap();
+    assert!(Arc::ptr_eq(&first, &again));
+
+    // A download replaces the file.
+    std::thread::sleep(Duration::from_millis(50));
+    let staging = dir.path().join("download.tmp");
+    std::fs::write(&staging, tiny_database(2)).unwrap();
+    std::fs::rename(&staging, &path).unwrap();
+    let replaced = open_database(&path).unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&first, &replaced));
+    assert_eq!(replaced.metadata().build_epoch, 2);
+
+    std::fs::remove_file(&path).unwrap();
+    assert!(open_database(&path).unwrap().is_none());
+    let held = DATABASES.lock().unwrap();
+    assert!(!held.as_ref().is_some_and(|open| open.contains_key(&path)));
   }
 
   /// Exit addresses stay on this machine. A lookup service would learn which

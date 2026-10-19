@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 
 use crate::app_dirs;
@@ -594,6 +596,36 @@ impl BlocklistManager {
     Self::cached_file_path(level).filter(|p| p.exists())
   }
 
+  /// Rules in a cached list. A list can hold hundreds of thousands of lines,
+  /// so the count is kept until the file changes.
+  fn entry_count(path: &Path, metadata: &std::fs::Metadata) -> usize {
+    static COUNTS: std::sync::LazyLock<
+      Mutex<HashMap<PathBuf, (crate::file_stamp::FileStamp, usize)>>,
+    > = std::sync::LazyLock::new(Default::default);
+
+    let stamp = crate::file_stamp::FileStamp::of(metadata);
+    if let Some(count) = COUNTS.lock().ok().and_then(|counts| {
+      counts
+        .get(path)
+        .filter(|(s, _)| *s == stamp)
+        .map(|(_, c)| *c)
+    }) {
+      return count;
+    }
+    let count = std::fs::read_to_string(path)
+      .map(|content| {
+        content
+          .lines()
+          .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+          .count()
+      })
+      .unwrap_or(0);
+    if let Ok(mut counts) = COUNTS.lock() {
+      counts.insert(path.to_path_buf(), (stamp, count));
+    }
+    count
+  }
+
   pub fn get_cache_status() -> Vec<BlocklistCacheStatus> {
     BlocklistLevel::all_downloadable()
       .iter()
@@ -602,19 +634,9 @@ impl BlocklistManager {
         let metadata = path.as_ref().and_then(|p| std::fs::metadata(p).ok());
         let is_cached = metadata.is_some();
 
-        let entry_count = if is_cached {
-          path
-            .as_ref()
-            .and_then(|p| std::fs::read_to_string(p).ok())
-            .map(|content| {
-              content
-                .lines()
-                .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
-                .count()
-            })
-            .unwrap_or(0)
-        } else {
-          0
+        let entry_count = match (&path, &metadata) {
+          (Some(path), Some(metadata)) => Self::entry_count(path, metadata),
+          _ => 0,
         };
 
         let file_size_bytes = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
@@ -647,7 +669,9 @@ static REFRESH_STREAK: crate::log_streak::Streak =
 
 #[tauri::command]
 pub async fn get_dns_blocklist_cache_status() -> Result<Vec<BlocklistCacheStatus>, String> {
-  Ok(BlocklistManager::get_cache_status())
+  crate::profile::manager::run_blocking(BlocklistManager::get_cache_status)
+    .await
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))
 }
 
 #[tauri::command]

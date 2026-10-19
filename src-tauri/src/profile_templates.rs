@@ -313,6 +313,32 @@ pub fn delete(template_id: &str) -> Result<(), String> {
   Ok(())
 }
 
+/// Take a template out for the trash, without the side effects of a delete.
+pub fn take_for_trash(template_id: &str) -> Result<ProfileTemplate, String> {
+  STORE.mutate(|templates| {
+    let position = templates
+      .iter()
+      .position(|t| t.id == template_id)
+      .ok_or_else(|| code("TEMPLATE_NOT_FOUND"))?;
+    Ok(templates.remove(position))
+  })
+}
+
+/// Put back a template the trash kept. `false`, with nothing written, when a
+/// template with its id exists.
+pub fn restore_from_trash(template: ProfileTemplate) -> Result<bool, String> {
+  STORE.mutate(|templates| {
+    if templates.iter().any(|t| t.id == template.id) {
+      return Ok(false);
+    }
+    if templates.len() >= MAX_TEMPLATES {
+      return Err(code("TEMPLATE_LIMIT_REACHED"));
+    }
+    templates.push(template);
+    Ok(true)
+  })
+}
+
 pub async fn save_profile_as_template(
   profile_id: &str,
   name: &str,

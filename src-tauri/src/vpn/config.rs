@@ -23,6 +23,11 @@ pub enum VpnError {
   NotFound(String),
   #[error("Tunnel error: {0}")]
   Tunnel(String),
+  /// The key that seals stored configs exists but cannot be read. Shown as
+  /// the error code itself, so a command that passes the text on is
+  /// translated by the frontend.
+  #[error("{{\"code\":\"VPN_KEY_UNREADABLE\"}}")]
+  KeyUnreadable,
 }
 
 /// The type of VPN configuration

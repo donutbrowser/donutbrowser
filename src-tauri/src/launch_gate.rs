@@ -18,9 +18,10 @@
 //! The enforcing half runs inside `browser_runner::launch_browser_internal`,
 //! after the upstream has been normalized (so VLESS and VPN profiles are
 //! reachable at all) and before the local proxy starts or the browser spawns.
-//! `get_profile_pre_launch_checks` is the cheap, local-only half the UI calls
-//! first, so a profile whose exit is already known blocks without starting a
-//! single worker.
+//! `get_profile_pre_launch_checks` is the cheap half the UI calls first, so a
+//! profile whose exit is already known blocks without starting a single
+//! worker. Its one network use is a route check of at most four seconds,
+//! skipped when a recent result exists.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -254,12 +255,62 @@ async fn enforce_direct_exit(
   Err(mismatch_error(&result, &token))
 }
 
-/// The pre-spawn stage: prepare the profile, then gate the launch.
+/// The pre-spawn stage: gate the launch, then say what it will not apply.
 ///
 /// Fails **open** on every degradation — probe failure, timeout, missing geo
 /// database, private exit IP. The gate blocks only on a positively measured
 /// mismatch; a flaky IP-echo endpoint must never make profiles unlaunchable.
 pub async fn enforce_fingerprint_gate(
+  profile: &BrowserProfile,
+  upstream: Option<&crate::browser::ProxySettings>,
+  gate: &FingerprintGate,
+) -> Result<(), String> {
+  gate_exit(profile, upstream, gate).await?;
+  notice_unapplied_fingerprint_edits(profile).await;
+  Ok(())
+}
+
+/// The notice code for a launch whose profile carries its own fingerprint
+/// edits while the plan does not include them, or `None`. Informational:
+/// the launch goes on, and the edits stay stored for when the plan has them.
+fn unapplied_edits_notice(
+  profile: &BrowserProfile,
+  plan_includes_edits: bool,
+) -> Option<&'static str> {
+  (!plan_includes_edits && has_fingerprint_edits(profile))
+    .then_some("FINGERPRINT_EDITS_NOT_APPLIED")
+}
+
+fn has_fingerprint_edits(profile: &BrowserProfile) -> bool {
+  profile.wayfern_config.as_ref().is_some_and(|config| {
+    !crate::wayfern_manager::WayfernManager::stored_object(config.identity_overrides.as_deref())
+      .is_empty()
+  })
+}
+
+/// Tell the app once per launch that the profile starts without its own
+/// fingerprint edits. Never asks the plan for a profile with no edits.
+async fn notice_unapplied_fingerprint_edits(profile: &BrowserProfile) {
+  if !has_fingerprint_edits(profile) {
+    return;
+  }
+  let plan_includes_edits = crate::cloud_auth::CLOUD_AUTH
+    .can_use_cross_os_fingerprints()
+    .await;
+  let Some(code) = unapplied_edits_notice(profile, plan_includes_edits) else {
+    return;
+  };
+  log::info!(
+    "Launching without the profile's fingerprint edits, plan does not include them profile={}",
+    profile.id
+  );
+  let payload = serde_json::json!({ "profile_id": profile.id.to_string(), "code": code });
+  if let Err(e) = crate::events::emit("launch-notice", payload) {
+    log::warn!("Event emit failed event=launch-notice err=\"{e}\"");
+  }
+}
+
+async fn gate_exit(
   profile: &BrowserProfile,
   upstream: Option<&crate::browser::ProxySettings>,
   gate: &FingerprintGate,
@@ -356,8 +407,8 @@ pub async fn enforce_fingerprint_gate(
   Err(mismatch_error(&result, &token))
 }
 
-/// Everything the UI needs to decide whether to stop a launch, answered
-/// without touching the network or starting any worker.
+/// Everything the UI needs to decide whether to stop a launch. Starts no
+/// worker; the only network use is the bounded route check.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreLaunchChecks {
   pub vpn_extensions: Vec<DetectedVpnExtension>,
@@ -380,6 +431,9 @@ pub struct PreLaunchChecks {
   /// Present only when a cached mismatch is already blocking, so "launch
   /// anyway" can proceed without a second round trip.
   pub consent_token: Option<String>,
+  /// The profile's proxy or VPN did not answer a check just now. A warning
+  /// the user can launch past, never a block.
+  pub route_unreachable: Option<crate::proxy_manager::RouteUnreachable>,
 }
 
 fn load_profile(profile_id: &str) -> Result<BrowserProfile, String> {
@@ -449,6 +503,13 @@ pub async fn get_profile_pre_launch_checks(profile_id: String) -> Result<PreLaun
     Vec::new()
   };
 
+  // Bounded and shared per route, so a bulk launch checks each proxy once.
+  let route_unreachable = crate::proxy_manager::check_route_before_launch(
+    profile.proxy_id.as_deref(),
+    profile.vpn_id.as_deref(),
+  )
+  .await;
+
   Ok(PreLaunchChecks {
     vpn_extensions,
     scan_state: scan.scan_state,
@@ -467,6 +528,7 @@ pub async fn get_profile_pre_launch_checks(profile_id: String) -> Result<PreLaun
     exit_unverified,
     exit_measurement_unreliable,
     consent_token,
+    route_unreachable,
   })
 }
 
@@ -673,6 +735,50 @@ mod tests {
     let located = profile_with(r#"{"timezone":"Europe/Berlin","language":"de-DE"}"#);
     assert!(fingerprint_consistency::can_verify_anything(&located));
     assert!(fingerprint_consistency::unverifiable_dimensions(&located).is_empty());
+  }
+
+  #[test]
+  fn a_profile_with_edits_launches_with_a_notice_without_the_plan() {
+    let mut edited = profile_with(r#"{"timezone":"Europe/Berlin"}"#);
+    if let Some(config) = edited.wayfern_config.as_mut() {
+      config.identity_id = Some("identity-1".into());
+      config.identity_overrides = Some(r#"{"hardwareConcurrency":8}"#.into());
+    }
+    assert_eq!(
+      unapplied_edits_notice(&edited, false),
+      Some("FINGERPRINT_EDITS_NOT_APPLIED")
+    );
+    assert_eq!(
+      unapplied_edits_notice(&edited, true),
+      None,
+      "a plan with fingerprint edits never sees the notice"
+    );
+  }
+
+  #[test]
+  fn a_profile_without_edits_never_gets_the_notice() {
+    let mut plain = profile_with(r#"{"timezone":"Europe/Berlin"}"#);
+    if let Some(config) = plain.wayfern_config.as_mut() {
+      config.identity_id = Some("identity-1".into());
+    }
+    assert_eq!(unapplied_edits_notice(&plain, false), None);
+
+    let mut emptied = plain.clone();
+    if let Some(config) = emptied.wayfern_config.as_mut() {
+      config.identity_overrides = Some("{}".into());
+    }
+    assert_eq!(
+      unapplied_edits_notice(&emptied, false),
+      None,
+      "an empty edit set is no edit"
+    );
+
+    let no_config = BrowserProfile {
+      id: uuid::Uuid::new_v4(),
+      browser: "wayfern".into(),
+      ..Default::default()
+    };
+    assert_eq!(unapplied_edits_notice(&no_config, false), None);
   }
 
   #[tokio::test]

@@ -30,6 +30,18 @@ const RECIPE_TARGETED_TYPES: [&str; 4] = ["click", "type", "waitFor", "extract"]
 
 const MAX_RECIPE_STEPS: usize = 200;
 
+const RUN_CODES: FailureCodes = FailureCodes {
+  bad_request: "AGENT_RECIPE_INVALID",
+  forbidden: "RECIPES_NOT_ENTITLED",
+  not_found: "REPLAY_RECIPE_NOT_FOUND",
+  conflict: "AGENT_RUN_LIMIT_REACHED",
+};
+
+const RUN_TARGETS: [&str; 2] = ["desktop", "fleet"];
+
+/// The operating systems the remote fleet leases a machine for.
+const FLEET_PLATFORMS: [&str; 3] = ["windows", "macos", "linux"];
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRecipe {
@@ -119,6 +131,82 @@ fn recipe_deleted(outcome: Option<RecipeDeleted>) -> bool {
   outcome.and_then(|reply| reply.deleted).unwrap_or(true)
 }
 
+/// The replay request for one run, or the code of the field that is wrong.
+fn run_body(
+  recipe_id: &str,
+  profile_id: &str,
+  target: &str,
+  platform: Option<&str>,
+) -> Result<serde_json::Value, String> {
+  let one_segment = |id: &str| !id.is_empty() && id.len() <= 128;
+  let (recipe_id, profile_id) = (recipe_id.trim(), profile_id.trim());
+  if !one_segment(recipe_id) {
+    return Err(crate::backend_error("AGENT_RECIPE_NOT_FOUND"));
+  }
+  if !one_segment(profile_id) {
+    return Err(crate::backend_error("PROFILE_NOT_FOUND"));
+  }
+  if !RUN_TARGETS.contains(&target) {
+    return Err(crate::backend_error("AGENT_TARGET_INVALID"));
+  }
+  let mut body = serde_json::json!({
+    "recipeId": recipe_id,
+    "profileId": profile_id,
+    "target": target,
+  });
+  if target == "fleet" {
+    match platform {
+      Some(platform) if FLEET_PLATFORMS.contains(&platform) => {
+        body["platform"] = serde_json::json!(platform);
+      }
+      _ => return Err(crate::backend_error("AGENT_PLATFORM_INVALID")),
+    }
+  }
+  Ok(body)
+}
+
+/// Replay a saved recipe on one profile now.
+///
+/// The cloud's on-demand replay serves plans with browser automation. A plan
+/// with scheduled automation only is refused there, so a fleet run falls back
+/// to a one-off schedule that is started and removed at once.
+pub async fn run_recipe_now(
+  recipe_id: &str,
+  profile_id: &str,
+  target: &str,
+  platform: Option<&str>,
+  name: &str,
+) -> Result<serde_json::Value, String> {
+  let body = run_body(recipe_id, profile_id, target, platform)?;
+  let url = format!("{}/api/agent/replays", crate::cloud_auth::CLOUD_API_URL);
+  match crate::cloud_api::call::<Option<serde_json::Value>>(
+    reqwest::Method::POST,
+    url,
+    Some(body.clone()),
+    RUN_CODES,
+  )
+  .await
+  {
+    Ok(started) => {
+      log::info!(
+        "Recipe run started recipe={} target={target} via=replay",
+        body["recipeId"].as_str().unwrap_or("?")
+      );
+      Ok(started.unwrap_or(serde_json::Value::Null))
+    }
+    Err(err) if err.code == "RECIPES_NOT_ENTITLED" && target == "fleet" => {
+      crate::agent_schedules::run_once_on_fleet(
+        name,
+        body["recipeId"].as_str().unwrap_or_default(),
+        body["profileId"].as_str().unwrap_or_default(),
+        body["platform"].as_str().unwrap_or_default(),
+      )
+      .await
+    }
+    Err(err) => Err(failure("run", err)),
+  }
+}
+
 fn validate_recipe(name: &str, steps: &[RecipeStep]) -> Result<(String, Vec<RecipeStep>), String> {
   let name = name.trim().to_string();
   if name.is_empty() {
@@ -197,6 +285,19 @@ pub async fn delete_agent_recipe(id: String) -> Result<bool, String> {
   delete_recipe(&id).await
 }
 
+/// Run a saved recipe on one profile, on this desktop or on the remote fleet.
+/// `name` labels the one-off schedule a scheduled-only plan runs through.
+#[tauri::command]
+pub async fn run_agent_recipe_now(
+  recipe_id: String,
+  profile_id: String,
+  target: String,
+  platform: Option<String>,
+  name: String,
+) -> Result<serde_json::Value, String> {
+  run_recipe_now(&recipe_id, &profile_id, &target, platform.as_deref(), &name).await
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -251,6 +352,31 @@ mod tests {
     let (name, steps) = validate_recipe("  nightly  ", &[navigate.clone(), click.clone()]).unwrap();
     assert_eq!(name, "nightly");
     assert_eq!(steps, vec![navigate, click]);
+  }
+
+  #[test]
+  fn a_run_names_a_recipe_a_profile_and_where_it_runs() {
+    let desktop = run_body(" r1 ", "p1", "desktop", Some("linux")).unwrap();
+    assert_eq!(desktop["recipeId"], "r1");
+    assert_eq!(desktop["target"], "desktop");
+    assert!(desktop.get("platform").is_none());
+    let fleet = run_body("r1", "p1", "fleet", Some("macos")).unwrap();
+    assert_eq!(fleet["platform"], "macos");
+
+    assert!(run_body("", "p1", "desktop", None)
+      .unwrap_err()
+      .contains("AGENT_RECIPE_NOT_FOUND"));
+    assert!(run_body("r1", "  ", "desktop", None)
+      .unwrap_err()
+      .contains("PROFILE_NOT_FOUND"));
+    assert!(run_body("r1", "p1", "moon", None)
+      .unwrap_err()
+      .contains("AGENT_TARGET_INVALID"));
+    for platform in [None, Some("android")] {
+      assert!(run_body("r1", "p1", "fleet", platform)
+        .unwrap_err()
+        .contains("AGENT_PLATFORM_INVALID"));
+    }
   }
 
   #[test]

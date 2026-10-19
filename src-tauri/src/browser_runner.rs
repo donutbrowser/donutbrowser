@@ -1178,9 +1178,7 @@ impl BrowserRunner {
                 use tokio::time::{sleep, Duration};
                 sleep(Duration::from_millis(500)).await;
 
-                use sysinfo::{Pid, System};
-                let system = System::new_all();
-                process_actually_stopped = system.process(Pid::from(pid as usize)).is_none();
+                process_actually_stopped = !crate::proxy_storage::is_process_running(pid);
 
                 if !process_actually_stopped {
                   log::warn!(
@@ -1203,8 +1201,7 @@ impl BrowserRunner {
                       );
                     } else {
                       sleep(Duration::from_millis(500)).await;
-                      let system = System::new_all();
-                      process_actually_stopped = system.process(Pid::from(pid as usize)).is_none();
+                      process_actually_stopped = !crate::proxy_storage::is_process_running(pid);
                       if process_actually_stopped {
                         log::info!("Browser force killed profile={} pid={pid}", profile.id);
                       }
@@ -1225,8 +1222,7 @@ impl BrowserRunner {
                       );
                     } else {
                       sleep(Duration::from_millis(500)).await;
-                      let system = System::new_all();
-                      process_actually_stopped = system.process(Pid::from(pid as usize)).is_none();
+                      process_actually_stopped = !crate::proxy_storage::is_process_running(pid);
                       if process_actually_stopped {
                         log::info!("Browser force killed profile={} pid={pid}", profile.id);
                       }
@@ -1243,8 +1239,7 @@ impl BrowserRunner {
                       );
                     } else {
                       sleep(Duration::from_millis(500)).await;
-                      let system = System::new_all();
-                      process_actually_stopped = system.process(Pid::from(pid as usize)).is_none();
+                      process_actually_stopped = !crate::proxy_storage::is_process_running(pid);
                       if process_actually_stopped {
                         log::info!("Browser force killed profile={} pid={pid}", profile.id);
                       }
@@ -1277,9 +1272,7 @@ impl BrowserRunner {
                   } else {
                     use tokio::time::{sleep, Duration};
                     sleep(Duration::from_millis(500)).await;
-                    use sysinfo::{Pid, System};
-                    let system = System::new_all();
-                    process_actually_stopped = system.process(Pid::from(pid as usize)).is_none();
+                    process_actually_stopped = !crate::proxy_storage::is_process_running(pid);
                   }
                 }
                 #[cfg(target_os = "linux")]
@@ -1296,9 +1289,7 @@ impl BrowserRunner {
                   } else {
                     use tokio::time::{sleep, Duration};
                     sleep(Duration::from_millis(500)).await;
-                    use sysinfo::{Pid, System};
-                    let system = System::new_all();
-                    process_actually_stopped = system.process(Pid::from(pid as usize)).is_none();
+                    process_actually_stopped = !crate::proxy_storage::is_process_running(pid);
                   }
                 }
                 #[cfg(target_os = "windows")]
@@ -1314,9 +1305,7 @@ impl BrowserRunner {
                   } else {
                     use tokio::time::{sleep, Duration};
                     sleep(Duration::from_millis(500)).await;
-                    use sysinfo::{Pid, System};
-                    let system = System::new_all();
-                    process_actually_stopped = system.process(Pid::from(pid as usize)).is_none();
+                    process_actually_stopped = !crate::proxy_storage::is_process_running(pid);
                   }
                 }
               }
@@ -2058,6 +2047,53 @@ pub async fn open_url_with_profile(
     .await
 }
 
+/// Where the browser of a profile running here takes DevTools connections.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct DebugEndpoint {
+  pub port: u16,
+  /// `None` when the browser holds the port but did not answer in time.
+  pub ws_url: Option<String>,
+}
+
+/// The DevTools port `POST /v1/profiles/{id}/run` hands over for a browser
+/// already open, and its browser-level socket. `None` when not running here.
+async fn debug_endpoint(profile: &BrowserProfile) -> Option<DebugEndpoint> {
+  let port = crate::browser_tabs::local_port(profile).await?;
+  let ws_url = async {
+    let version: serde_json::Value = reqwest::Client::builder()
+      .no_proxy()
+      .timeout(Duration::from_secs(2))
+      .build()
+      .ok()?
+      .get(format!("http://127.0.0.1:{port}/json/version"))
+      .send()
+      .await
+      .ok()?
+      .json()
+      .await
+      .ok()?;
+    version
+      .get("webSocketDebuggerUrl")?
+      .as_str()
+      .map(str::to_string)
+  }
+  .await;
+  Some(DebugEndpoint { port, ws_url })
+}
+
+#[tauri::command]
+pub async fn get_profile_debug_endpoint(
+  profile_id: String,
+) -> Result<Option<DebugEndpoint>, String> {
+  let profile = ProfileManager::instance()
+    .list_profiles()
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?
+    .into_iter()
+    .find(|p| p.id.to_string() == profile_id)
+    .ok_or_else(|| crate::backend_error("PROFILE_NOT_FOUND"))?;
+  Ok(debug_endpoint(&profile).await)
+}
+
 // Global singleton instance
 static BROWSER_RUNNER: std::sync::LazyLock<BrowserRunner> =
   std::sync::LazyLock::new(BrowserRunner::new);
@@ -2065,6 +2101,18 @@ static BROWSER_RUNNER: std::sync::LazyLock<BrowserRunner> =
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[tokio::test]
+  async fn a_stopped_profile_has_no_debug_endpoint() {
+    let dir = tempfile::tempdir().unwrap();
+    let _data = crate::app_dirs::set_test_data_dir(dir.path().to_path_buf());
+    let profile = BrowserProfile {
+      id: uuid::Uuid::new_v4(),
+      process_id: None,
+      ..Default::default()
+    };
+    assert_eq!(debug_endpoint(&profile).await, None);
+  }
 
   #[test]
   fn a_refusal_names_the_override_to_drop() {

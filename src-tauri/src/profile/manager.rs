@@ -2,12 +2,13 @@ use crate::browser::{create_browser, BrowserType};
 use crate::cloud_auth::CLOUD_AUTH;
 use crate::downloaded_browsers_registry::DownloadedBrowsersRegistry;
 use crate::events;
+use crate::file_stamp::FileStamp;
 use crate::profile::types::{get_host_os, is_host_os, BrowserProfile, SyncMode};
 use crate::proxy_manager::PROXY_MANAGER;
 use crate::wayfern_manager::WayfernConfig;
 use std::fs::{self, create_dir_all};
 use std::path::{Path, PathBuf};
-use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
+use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System, UpdateKind};
 use url::Url;
 
 static METADATA_WRITES: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -28,7 +29,10 @@ fn atomic_write_locked(path: &Path, data: &[u8]) -> std::io::Result<()> {
     f.write_all(data)?;
     f.sync_all()?;
   }
-  fs::rename(&tmp, path)
+  let renamed = fs::rename(&tmp, path);
+  // File times can be too coarse to show two quick writes apart.
+  forget_metadata(path);
+  renamed
 }
 
 /// Whether a metadata.json still holds `expected`, compared as this version
@@ -62,6 +66,110 @@ fn warn_skipped_profile(dir: &Path, why: &str, err: &dyn std::fmt::Display) {
     level,
     "Profile skipped: {why} metadata.json profile={profile} err=\"{err}\""
   );
+}
+
+struct CachedMetadata {
+  stamp: FileStamp,
+  /// `None` when the file did not parse.
+  profile: Option<BrowserProfile>,
+}
+
+/// Parsed metadata.json files, keyed by path. A stat per call decides whether
+/// the parsed copy is still current, so writes by any code are picked up.
+static METADATA_CACHE: std::sync::LazyLock<
+  std::sync::Mutex<std::collections::HashMap<PathBuf, CachedMetadata>>,
+> = std::sync::LazyLock::new(Default::default);
+
+fn cached_metadata(path: &Path, stamp: &FileStamp) -> Option<Option<BrowserProfile>> {
+  let cache = METADATA_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+  cache
+    .get(path)
+    .filter(|entry| entry.stamp == *stamp)
+    .map(|entry| entry.profile.clone())
+}
+
+fn cache_metadata(path: &Path, stamp: FileStamp, profile: Option<BrowserProfile>) {
+  METADATA_CACHE
+    .lock()
+    .unwrap_or_else(|e| e.into_inner())
+    .insert(path.to_path_buf(), CachedMetadata { stamp, profile });
+}
+
+fn forget_metadata(path: &Path) {
+  METADATA_CACHE
+    .lock()
+    .unwrap_or_else(|e| e.into_inner())
+    .remove(path);
+}
+
+/// Read one profile's metadata.json, parsing it only when it changed since
+/// the last read. `None` when it is missing, unreadable or invalid.
+fn load_metadata(metadata_file: &Path) -> Option<BrowserProfile> {
+  // Stat before reading: a write between the two leaves an older stamp on the
+  // cached copy, which the next call sees as changed.
+  let Some(stamp) = FileStamp::read(metadata_file) else {
+    forget_metadata(metadata_file);
+    return None;
+  };
+  if let Some(profile) = cached_metadata(metadata_file, &stamp) {
+    return profile;
+  }
+
+  let dir = metadata_file.parent().unwrap_or(metadata_file);
+  let content = match fs::read_to_string(metadata_file) {
+    Ok(c) => c,
+    Err(e) => {
+      warn_skipped_profile(dir, "unreadable", &e);
+      return None;
+    }
+  };
+  let mut profile: BrowserProfile = match serde_json::from_str(&content) {
+    Ok(p) => p,
+    Err(e) => {
+      warn_skipped_profile(dir, "invalid", &e);
+      cache_metadata(metadata_file, stamp, None);
+      return None;
+    }
+  };
+
+  let mut stamp = stamp;
+  if backfill_host_os(&mut profile) {
+    if let Ok(json) = serde_json::to_string_pretty(&profile) {
+      if atomic_write(metadata_file, json.as_bytes()).is_ok() {
+        match FileStamp::read(metadata_file) {
+          Some(written) => stamp = written,
+          None => return Some(profile),
+        }
+      }
+    }
+  }
+  cache_metadata(metadata_file, stamp, Some(profile.clone()));
+  Some(profile)
+}
+
+/// Backfill host_os from browser config for profiles created before the field
+/// existed (or synced without it), and repair any profile already stamped
+/// with a fingerprint-only OS. Returns whether the profile changed.
+///
+/// Only a real host OS may be stored here. The fallback in `resolved_os` reads
+/// `wayfern_config.os`, which is a fingerprint OS and may be "android"/"ios".
+/// Persisting that records a creating machine that cannot exist, with no way
+/// to undo it from the UI. Leaving `host_os` as None means "unknown", which is
+/// what it was before the field.
+fn backfill_host_os(profile: &mut BrowserProfile) -> bool {
+  let needs_repair = profile.host_os.as_deref().is_some_and(|os| !is_host_os(os));
+  if profile.host_os.is_some() && !needs_repair {
+    return false;
+  }
+  let inferred_os = profile
+    .resolved_os()
+    .filter(|os| is_host_os(os))
+    .map(str::to_string);
+  if inferred_os == profile.host_os {
+    return false;
+  }
+  profile.host_os = inferred_os;
+  true
 }
 
 /// Collapse an empty proxy/VPN id to `None`.
@@ -570,13 +678,23 @@ impl ProfileManager {
     }
     atomic_write_locked(&profile_file, json.as_bytes())?;
     drop(_serialized);
-    let _ = crate::tag_manager::TAG_MANAGER.lock().map(|tm| {
-      let _ = tm.rebuild_from_profiles(&self.list_profiles().unwrap_or_default());
-    });
+    if expected.tags != profile.tags {
+      self.rebuild_tags();
+    }
     Ok(true)
   }
 
+  /// Write a profile and update tag suggestions when its tags changed.
   pub fn save_profile(&self, profile: &BrowserProfile) -> Result<(), Box<dyn std::error::Error>> {
+    if self.write_profile(profile)? {
+      self.rebuild_tags();
+    }
+    Ok(())
+  }
+
+  /// Write a profile's metadata.json. Returns whether its tags differ from
+  /// the stored ones, so a batch can rebuild tag suggestions once at the end.
+  fn write_profile(&self, profile: &BrowserProfile) -> Result<bool, Box<dyn std::error::Error>> {
     let profiles_dir = self.get_profiles_dir();
     let profile_uuid_dir = profiles_dir.join(profile.id.to_string());
     let profile_file = profile_uuid_dir.join("metadata.json");
@@ -584,15 +702,19 @@ impl ProfileManager {
     // Ensure the UUID directory exists
     create_dir_all(&profile_uuid_dir)?;
 
+    let previous_tags = load_metadata(&profile_file).map(|p| p.tags);
     let json = serde_json::to_string_pretty(profile)?;
     atomic_write(&profile_file, json.as_bytes())?;
 
-    // Update tag suggestions after any save
-    let _ = crate::tag_manager::TAG_MANAGER.lock().map(|tm| {
-      let _ = tm.rebuild_from_profiles(&self.list_profiles().unwrap_or_default());
-    });
+    Ok(previous_tags.unwrap_or_default() != profile.tags)
+  }
 
-    Ok(())
+  /// Rebuild tag suggestions from every profile.
+  fn rebuild_tags(&self) {
+    let profiles = self.list_profiles().unwrap_or_default();
+    let _ = crate::tag_manager::TAG_MANAGER.lock().map(|tm| {
+      let _ = tm.rebuild_from_profiles(&profiles);
+    });
   }
 
   pub fn list_profiles(&self) -> Result<Vec<BrowserProfile>, Box<dyn std::error::Error>> {
@@ -602,59 +724,59 @@ impl ProfileManager {
     }
 
     let mut profiles = Vec::new();
-    for entry in fs::read_dir(profiles_dir)? {
+    let mut seen = std::collections::HashSet::new();
+    for entry in fs::read_dir(&profiles_dir)? {
       let entry = entry?;
-      let path = entry.path();
-
-      // Look for UUID directories containing metadata.json
-      if path.is_dir() {
-        let metadata_file = path.join("metadata.json");
-        if metadata_file.exists() {
-          let content = match fs::read_to_string(&metadata_file) {
-            Ok(c) => c,
-            Err(e) => {
-              warn_skipped_profile(&path, "unreadable", &e);
-              continue;
-            }
-          };
-          let mut profile: BrowserProfile = match serde_json::from_str(&content) {
-            Ok(p) => p,
-            Err(e) => {
-              warn_skipped_profile(&path, "invalid", &e);
-              continue;
-            }
-          };
-
-          // Backfill host_os from browser config for profiles created before
-          // the field existed (or synced without it), and repair any profile
-          // already stamped with a fingerprint-only OS.
-          //
-          // Only a real host OS may be stored here. The fallback in
-          // `resolved_os` reads `wayfern_config.os`, which is a fingerprint OS
-          // and may be "android"/"ios". Persisting that records a creating
-          // machine that cannot exist, with no way to undo it from the UI.
-          // Leaving `host_os` as None means "unknown", which is what it was
-          // before the field.
-          let needs_repair = profile.host_os.as_deref().is_some_and(|os| !is_host_os(os));
-          if profile.host_os.is_none() || needs_repair {
-            let inferred_os = profile
-              .resolved_os()
-              .filter(|os| is_host_os(os))
-              .map(str::to_string);
-            if inferred_os != profile.host_os {
-              profile.host_os = inferred_os;
-              if let Ok(json) = serde_json::to_string_pretty(&profile) {
-                let _ = atomic_write(&metadata_file, json.as_bytes());
-              }
-            }
-          }
-
-          profiles.push(profile);
-        }
+      // UUID directories containing metadata.json. A stat of the file inside
+      // also settles whether the entry is a directory.
+      let metadata_file = entry.path().join("metadata.json");
+      if let Some(profile) = load_metadata(&metadata_file) {
+        profiles.push(profile);
       }
+      seen.insert(metadata_file);
     }
 
+    METADATA_CACHE
+      .lock()
+      .unwrap_or_else(|e| e.into_inner())
+      .retain(|path, _| {
+        path.parent().and_then(Path::parent) != Some(profiles_dir.as_path()) || seen.contains(path)
+      });
+
     Ok(profiles)
+  }
+
+  /// One profile by id, read from its own metadata.json.
+  pub fn find_profile(
+    &self,
+    profile_id: &str,
+  ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
+    let profile_uuid =
+      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
+    self
+      .lookup_profile(&profile_uuid)?
+      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found").into())
+  }
+
+  /// One profile by id, read from its own metadata.json. Only a miss lists
+  /// every profile, for a folder whose name is not the id it holds.
+  pub fn lookup_profile(
+    &self,
+    profile_uuid: &uuid::Uuid,
+  ) -> Result<Option<BrowserProfile>, Box<dyn std::error::Error>> {
+    let metadata_file = self
+      .get_profiles_dir()
+      .join(profile_uuid.to_string())
+      .join("metadata.json");
+    if let Some(profile) = load_metadata(&metadata_file).filter(|p| p.id == *profile_uuid) {
+      return Ok(Some(profile));
+    }
+    Ok(
+      self
+        .list_profiles()?
+        .into_iter()
+        .find(|p| p.id == *profile_uuid),
+    )
   }
 
   pub fn rename_profile(
@@ -704,11 +826,6 @@ impl ProfileManager {
 
     crate::sync::queue_profile_sync_if_eligible(&profile);
     report_team_edit(&profile, "profile.rename", &["name"]);
-
-    // Keep tag suggestions up to date after name change (rebuild from all profiles)
-    let _ = crate::tag_manager::TAG_MANAGER.lock().map(|tm| {
-      let _ = tm.rebuild_from_profiles(&self.list_profiles().unwrap_or_default());
-    });
 
     // Emit profile rename event
     if let Err(e) = events::emit_empty("profiles-changed") {
@@ -795,16 +912,6 @@ impl ProfileManager {
     profile_id: &str,
   ) -> Result<(), Box<dyn std::error::Error>> {
     self.remove_profile(app_handle, profile_id, true, true)
-  }
-
-  fn find_profile(&self, profile_id: &str) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    self
-      .list_profiles()?
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found").into())
   }
 
   /// The one removal path. `permanent` destroys the directory; otherwise it
@@ -950,9 +1057,7 @@ impl ProfileManager {
 
   /// Bookkeeping after one or more profiles left the live list.
   fn after_profiles_removed(&self, trashed: bool) {
-    let _ = crate::tag_manager::TAG_MANAGER.lock().map(|tm| {
-      let _ = tm.rebuild_from_profiles(&self.list_profiles().unwrap_or_default());
-    });
+    self.rebuild_tags();
 
     if let Err(e) = DownloadedBrowsersRegistry::instance().cleanup_unused_binaries() {
       log::warn!("Unused binary cleanup after profile delete failed err=\"{e}\"");
@@ -1094,14 +1199,7 @@ impl ProfileManager {
     profile_id: &str,
     version: &str,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    // Find the profile by ID
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let mut profile = self.find_profile(profile_id)?;
 
     // Check if the browser is currently running
     if profile.process_id.is_some() {
@@ -1214,11 +1312,6 @@ impl ProfileManager {
       }
     }
 
-    // Rebuild tag suggestions after group changes just in case
-    let _ = crate::tag_manager::TAG_MANAGER.lock().map(|tm| {
-      let _ = tm.rebuild_from_profiles(&self.list_profiles().unwrap_or_default());
-    });
-
     // Emit profile group assignment event
     if let Err(e) = events::emit_empty("profiles-changed") {
       log::warn!("Event emit failed event=profiles-changed err=\"{e}\"");
@@ -1233,14 +1326,7 @@ impl ProfileManager {
     profile_id: &str,
     tags: Vec<String>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    // Find the profile by ID
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let mut profile = self.find_profile(profile_id)?;
 
     let mut seen = std::collections::HashSet::new();
     let mut deduped: Vec<String> = Vec::new();
@@ -1258,11 +1344,6 @@ impl ProfileManager {
     crate::sync::queue_profile_sync_if_eligible(&profile);
     report_team_edit(&profile, "profile.update", &["tags"]);
 
-    // Update global tag suggestions from all profiles
-    let _ = crate::tag_manager::TAG_MANAGER.lock().map(|tm| {
-      let _ = tm.rebuild_from_profiles(&self.list_profiles().unwrap_or_default());
-    });
-
     // Emit profile tags update event
     if let Err(e) = events::emit_empty("profiles-changed") {
       log::warn!("Event emit failed event=profiles-changed err=\"{e}\"");
@@ -1277,14 +1358,7 @@ impl ProfileManager {
     profile_id: &str,
     note: Option<String>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    // Find the profile by ID
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let mut profile = self.find_profile(profile_id)?;
 
     // Update note (trim whitespace, set to None if empty)
     profile.note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
@@ -1310,13 +1384,7 @@ impl ProfileManager {
     profile_id: &str,
     clear_on_close: bool,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let mut profile = self.find_profile(profile_id)?;
 
     // Ephemeral profiles are already wiped on close; password-protected ones
     // re-encrypt and never persist plaintext — the flag is meaningless there.
@@ -1349,13 +1417,7 @@ impl ProfileManager {
     profile_id: &str,
     window_color: Option<String>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let mut profile = self.find_profile(profile_id)?;
 
     // Normalize to lowercase #RRGGBB, or clear (None) for an invalid/empty value
     // so it reverts to the auto id-derived color at next launch.
@@ -1382,13 +1444,7 @@ impl ProfileManager {
     profile_id: &str,
     launch_hook: Option<String>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let mut profile = self.find_profile(profile_id)?;
 
     profile.launch_hook = Self::normalize_launch_hook(launch_hook)?;
     profile.updated_at = Some(crate::proxy_manager::now_secs());
@@ -1415,13 +1471,7 @@ impl ProfileManager {
     profile_id: &str,
     rules: Vec<String>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let mut profile = self.find_profile(profile_id)?;
 
     profile.proxy_bypass_rules = rules;
     profile.updated_at = Some(crate::proxy_manager::now_secs());
@@ -1443,13 +1493,7 @@ impl ProfileManager {
     profile_id: &str,
     dns_blocklist: Option<String>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let mut profile = self.find_profile(profile_id)?;
 
     profile.dns_blocklist = dns_blocklist;
     profile.updated_at = Some(crate::proxy_manager::now_secs());
@@ -1537,18 +1581,30 @@ impl ProfileManager {
 
     let mut changed = 0;
     let mut any_synced = false;
+    let mut tags_changed = false;
     for mut profile in profiles {
       if !patch.apply_to(&mut profile) {
         continue;
       }
       profile.updated_at = Some(crate::proxy_manager::now_secs());
-      self.save_profile(&profile)?;
+      match self.write_profile(&profile) {
+        Ok(tags) => tags_changed |= tags,
+        Err(e) => {
+          if tags_changed {
+            self.rebuild_tags();
+          }
+          return Err(e);
+        }
+      }
       crate::sync::queue_profile_sync_if_eligible(&profile);
       report_team_edit(&profile, "profile.bulk_update", &[]);
       any_synced |= profile.is_sync_enabled();
       changed += 1;
     }
 
+    if tags_changed {
+      self.rebuild_tags();
+    }
     if any_synced {
       Self::sync_patched_groups(&patch);
     }
@@ -1695,13 +1751,7 @@ impl ProfileManager {
     profile_id: &str,
     custom_name: Option<String>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let source = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let source = self.find_profile(profile_id)?;
 
     if source.process_id.is_some() {
       return Err(
@@ -1816,15 +1866,11 @@ impl ProfileManager {
         crate::backend_error("INVALID_PROFILE_ID").into()
       },
     )?;
-    let profiles =
-      self
-        .list_profiles()
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-          crate::backend_error_with_detail("INTERNAL_ERROR", e).into()
-        })?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
+    let mut profile = self
+      .lookup_profile(&profile_uuid)
+      .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+        crate::backend_error_with_detail("INTERNAL_ERROR", e).into()
+      })?
       .ok_or_else(|| -> Box<dyn std::error::Error + Send + Sync> {
         crate::backend_error("PROFILE_NOT_FOUND").into()
       })?;
@@ -1906,16 +1952,11 @@ impl ProfileManager {
         format!("Invalid profile ID: {profile_id}").into()
       },
     )?;
-    let profiles =
-      self
-        .list_profiles()
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-          format!("Failed to list profiles: {e}").into()
-        })?;
-
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
+    let mut profile = self
+      .lookup_profile(&profile_uuid)
+      .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+        format!("Failed to list profiles: {e}").into()
+      })?
       .ok_or_else(|| -> Box<dyn std::error::Error + Send + Sync> {
         format!("Profile with ID '{profile_id}' not found").into()
       })?;
@@ -1979,16 +2020,11 @@ impl ProfileManager {
         format!("Invalid profile ID: {profile_id}").into()
       },
     )?;
-    let profiles =
-      self
-        .list_profiles()
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-          format!("Failed to list profiles: {e}").into()
-        })?;
-
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
+    let mut profile = self
+      .lookup_profile(&profile_uuid)
+      .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+        format!("Failed to list profiles: {e}").into()
+      })?
       .ok_or_else(|| -> Box<dyn std::error::Error + Send + Sync> {
         format!("Profile with ID '{profile_id}' not found").into()
       })?;
@@ -2037,13 +2073,7 @@ impl ProfileManager {
     profile_id: &str,
     extension_group_id: Option<String>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
-    let profile_uuid =
-      uuid::Uuid::parse_str(profile_id).map_err(|_| format!("Invalid profile ID: {profile_id}"))?;
-    let profiles = self.list_profiles()?;
-    let mut profile = profiles
-      .into_iter()
-      .find(|p| p.id == profile_uuid)
-      .ok_or_else(|| format!("Profile with ID '{profile_id}' not found"))?;
+    let mut profile = self.find_profile(profile_id)?;
 
     profile.extension_group_id = extension_group_id.clone();
     profile.updated_at = Some(crate::proxy_manager::now_secs());
@@ -2088,8 +2118,13 @@ impl ProfileManager {
 
     // For non-wayfern browsers, use the existing PID-based logic
     let inner_profile = profile.clone();
+    // Only command lines are read below.
     let system = System::new_with_specifics(
-      RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
+      RefreshKind::nothing().with_processes(
+        ProcessRefreshKind::nothing()
+          .with_cmd(UpdateKind::OnlyIfNotSet)
+          .without_tasks(),
+      ),
     );
     let mut is_running = false;
     let mut found_pid: Option<u32> = None;
@@ -2165,10 +2200,7 @@ impl ProfileManager {
 
     if metadata_exists {
       // Load the latest profile from disk to avoid overwriting fields like proxy_id
-      let latest_profile: BrowserProfile = match std::fs::read_to_string(&metadata_file)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-      {
+      let latest_profile: BrowserProfile = match load_metadata(&metadata_file) {
         Some(p) => p,
         None => inner_profile.clone(),
       };
@@ -2251,10 +2283,7 @@ impl ProfileManager {
 
         if metadata_exists {
           // Load latest to avoid overwriting other fields
-          let mut latest: BrowserProfile = match std::fs::read_to_string(&metadata_file)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-          {
+          let mut latest: BrowserProfile = match load_metadata(&metadata_file) {
             Some(p) => p,
             None => profile.clone(),
           };
@@ -2311,10 +2340,7 @@ impl ProfileManager {
         let metadata_exists = metadata_file.exists();
 
         if metadata_exists {
-          let mut latest: BrowserProfile = match std::fs::read_to_string(&metadata_file)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-          {
+          let mut latest: BrowserProfile = match load_metadata(&metadata_file) {
             Some(p) => p,
             None => profile.clone(),
           };
@@ -2533,6 +2559,104 @@ mod tests {
     let swept = ProfileManager::temporary_profiles_to_sweep(&profiles, |_| false);
     assert_eq!(swept.len(), 3);
     assert!(!swept.contains(&ordinary.id.to_string()));
+  }
+
+  fn listed_names(manager: &ProfileManager) -> Vec<String> {
+    let mut names: Vec<String> = manager
+      .list_profiles()
+      .unwrap()
+      .into_iter()
+      .map(|p| p.name)
+      .collect();
+    names.sort();
+    names
+  }
+
+  #[test]
+  fn the_profile_list_follows_the_files_on_disk() {
+    let dir = TempDir::new().unwrap();
+    let _guard = crate::app_dirs::set_test_data_dir(dir.path().to_path_buf());
+    let manager = ProfileManager::instance();
+    assert!(manager.list_profiles().unwrap().is_empty());
+
+    let first = BrowserProfile {
+      id: uuid::Uuid::new_v4(),
+      name: "First".to_string(),
+      host_os: Some(get_host_os()),
+      ..BrowserProfile::default()
+    };
+    manager.save_profile(&first).unwrap();
+    assert_eq!(listed_names(manager), ["First"]);
+
+    // Other code edits the file in place, keeping its length.
+    let metadata = manager
+      .get_profiles_dir()
+      .join(first.id.to_string())
+      .join("metadata.json");
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let edited = fs::read_to_string(&metadata)
+      .unwrap()
+      .replace("\"First\"", "\"Fir5t\"");
+    fs::write(&metadata, edited).unwrap();
+    assert_eq!(listed_names(manager), ["Fir5t"]);
+    assert_eq!(
+      manager.find_profile(&first.id.to_string()).unwrap().name,
+      "Fir5t"
+    );
+
+    // A profile another writer adds is listed.
+    let second = BrowserProfile {
+      id: uuid::Uuid::new_v4(),
+      name: "Second".to_string(),
+      host_os: Some(get_host_os()),
+      ..BrowserProfile::default()
+    };
+    let second_dir = manager.get_profiles_dir().join(second.id.to_string());
+    fs::create_dir_all(&second_dir).unwrap();
+    fs::write(
+      second_dir.join("metadata.json"),
+      serde_json::to_string_pretty(&second).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(listed_names(manager), ["Fir5t", "Second"]);
+
+    // A deleted one is gone, from the list and from the cache.
+    fs::remove_dir_all(metadata.parent().unwrap()).unwrap();
+    assert_eq!(listed_names(manager), ["Second"]);
+    assert!(manager.find_profile(&first.id.to_string()).is_err());
+    assert!(!METADATA_CACHE.lock().unwrap().contains_key(&metadata));
+  }
+
+  #[test]
+  fn tag_suggestions_follow_saves_that_change_tags() {
+    let dir = TempDir::new().unwrap();
+    let _guard = crate::app_dirs::set_test_data_dir(dir.path().to_path_buf());
+    let manager = ProfileManager::instance();
+    let tags = || {
+      crate::tag_manager::TAG_MANAGER
+        .lock()
+        .unwrap()
+        .get_all_tags()
+        .unwrap()
+    };
+
+    let mut profile = BrowserProfile {
+      id: uuid::Uuid::new_v4(),
+      name: "Tagged".to_string(),
+      host_os: Some(get_host_os()),
+      tags: vec!["work".to_string()],
+      ..BrowserProfile::default()
+    };
+    manager.save_profile(&profile).unwrap();
+    assert_eq!(tags(), ["work"]);
+
+    profile.tags = vec!["home".to_string()];
+    manager.save_profile(&profile).unwrap();
+    assert_eq!(tags(), ["home"]);
+
+    profile.note = Some("no tag change".to_string());
+    manager.save_profile(&profile).unwrap();
+    assert_eq!(tags(), ["home"]);
   }
 
   #[test]
@@ -2760,12 +2884,56 @@ pub async fn create_browser_profile_with_group(
     .map_err(|e| crate::wrap_backend_error(e, "Failed to create profile"))
 }
 
+/// Run blocking work on the blocking pool. A test's data folder is set per
+/// thread, so it goes along to the pool thread.
+pub(crate) async fn run_blocking<T: Send + 'static>(
+  work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, tokio::task::JoinError> {
+  #[cfg(test)]
+  let work = {
+    let data = crate::app_dirs::data_dir();
+    let cache = crate::app_dirs::cache_dir();
+    move || {
+      let _data = crate::app_dirs::set_test_data_dir(data);
+      let _cache = crate::app_dirs::set_test_cache_dir(cache);
+      work()
+    }
+  };
+  tokio::task::spawn_blocking(work).await
+}
+
+/// Run a command's disk work on the blocking pool: a sync command runs on the
+/// main thread and freezes the window while it reads or fsyncs.
+async fn off_main_thread<T: Send + 'static>(
+  work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+  run_blocking(work)
+    .await
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?
+}
+
+/// Edits from the window ran one at a time on the main thread. Off it, they
+/// still do, so two quick edits of one profile never overwrite each other.
+static COMMAND_EDITS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+async fn edit_off_main_thread<T: Send + 'static>(
+  work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+  off_main_thread(move || {
+    let _serial = COMMAND_EDITS.lock().unwrap_or_else(|e| e.into_inner());
+    work()
+  })
+  .await
+}
+
 #[tauri::command]
-pub fn list_browser_profiles() -> Result<Vec<BrowserProfile>, String> {
-  let profile_manager = ProfileManager::instance();
-  profile_manager
-    .list_profiles()
-    .map_err(|e| format!("Failed to list profiles: {e}"))
+pub async fn list_browser_profiles() -> Result<Vec<BrowserProfile>, String> {
+  off_main_thread(|| {
+    ProfileManager::instance()
+      .list_profiles()
+      .map_err(|e| format!("Failed to list profiles: {e}"))
+  })
+  .await
 }
 
 #[tauri::command]
@@ -2795,49 +2963,59 @@ pub async fn update_profile_vpn(
 }
 
 #[tauri::command]
-pub fn update_profile_tags(
+pub async fn update_profile_tags(
   app_handle: tauri::AppHandle,
   profile_id: String,
   tags: Vec<String>,
 ) -> Result<BrowserProfile, String> {
-  let profile_manager = ProfileManager::instance();
-  profile_manager
-    .update_profile_tags(&app_handle, &profile_id, tags)
-    .map_err(|e| format!("Failed to update profile tags: {e}"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .update_profile_tags(&app_handle, &profile_id, tags)
+      .map_err(|e| format!("Failed to update profile tags: {e}"))
+  })
+  .await
 }
 
 #[tauri::command]
-pub fn update_profile_note(
+pub async fn update_profile_note(
   app_handle: tauri::AppHandle,
   profile_id: String,
   note: Option<String>,
 ) -> Result<BrowserProfile, String> {
-  let profile_manager = ProfileManager::instance();
-  profile_manager
-    .update_profile_note(&app_handle, &profile_id, note)
-    .map_err(|e| format!("Failed to update profile note: {e}"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .update_profile_note(&app_handle, &profile_id, note)
+      .map_err(|e| format!("Failed to update profile note: {e}"))
+  })
+  .await
 }
 
 #[tauri::command]
-pub fn update_profile_window_color(
+pub async fn update_profile_window_color(
   app_handle: tauri::AppHandle,
   profile_id: String,
   window_color: Option<String>,
 ) -> Result<BrowserProfile, String> {
-  ProfileManager::instance()
-    .update_profile_window_color(&app_handle, &profile_id, window_color)
-    .map_err(|e| format!("Failed to update profile window color: {e}"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .update_profile_window_color(&app_handle, &profile_id, window_color)
+      .map_err(|e| format!("Failed to update profile window color: {e}"))
+  })
+  .await
 }
 
 #[tauri::command]
-pub fn update_profile_clear_on_close(
+pub async fn update_profile_clear_on_close(
   app_handle: tauri::AppHandle,
   profile_id: String,
   clear_on_close: bool,
 ) -> Result<BrowserProfile, String> {
-  ProfileManager::instance()
-    .update_profile_clear_on_close(&app_handle, &profile_id, clear_on_close)
-    .map_err(crate::profile_importer::error_to_code_string)
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .update_profile_clear_on_close(&app_handle, &profile_id, clear_on_close)
+      .map_err(crate::profile_importer::error_to_code_string)
+  })
+  .await
 }
 
 /// Validate a launch hook value. Returns `Ok(None)` for "clear the hook"
@@ -2862,69 +3040,84 @@ pub(crate) fn validate_launch_hook(launch_hook: Option<&str>) -> Result<Option<S
 }
 
 #[tauri::command]
-pub fn update_profile_launch_hook(
+pub async fn update_profile_launch_hook(
   app_handle: tauri::AppHandle,
   profile_id: String,
   launch_hook: Option<String>,
 ) -> Result<BrowserProfile, String> {
   validate_launch_hook(launch_hook.as_deref())?;
-  let profile_manager = ProfileManager::instance();
-  profile_manager
-    .update_profile_launch_hook(&app_handle, &profile_id, launch_hook)
-    .map_err(|e| format!("Failed to update profile launch hook: {e}"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .update_profile_launch_hook(&app_handle, &profile_id, launch_hook)
+      .map_err(|e| format!("Failed to update profile launch hook: {e}"))
+  })
+  .await
 }
 
 #[tauri::command]
-pub fn update_profile_proxy_bypass_rules(
+pub async fn update_profile_proxy_bypass_rules(
   app_handle: tauri::AppHandle,
   profile_id: String,
   rules: Vec<String>,
 ) -> Result<BrowserProfile, String> {
-  let profile_manager = ProfileManager::instance();
-  profile_manager
-    .update_profile_proxy_bypass_rules(&app_handle, &profile_id, rules)
-    .map_err(|e| format!("Failed to update proxy bypass rules: {e}"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .update_profile_proxy_bypass_rules(&app_handle, &profile_id, rules)
+      .map_err(|e| format!("Failed to update proxy bypass rules: {e}"))
+  })
+  .await
 }
 
 #[tauri::command]
-pub fn update_profile_dns_blocklist(
+pub async fn update_profile_dns_blocklist(
   profile_id: String,
   dns_blocklist: Option<String>,
 ) -> Result<BrowserProfile, String> {
-  let profile_manager = ProfileManager::instance();
-  profile_manager
-    .update_profile_dns_blocklist(&profile_id, dns_blocklist)
-    .map_err(|e| format!("Failed to update DNS blocklist: {e}"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .update_profile_dns_blocklist(&profile_id, dns_blocklist)
+      .map_err(|e| format!("Failed to update DNS blocklist: {e}"))
+  })
+  .await
 }
 
 #[tauri::command]
-pub fn bulk_update_profiles(
+pub async fn bulk_update_profiles(
   profile_ids: Vec<String>,
   patch: super::patch::ProfilePatch,
 ) -> Result<usize, String> {
-  ProfileManager::instance()
-    .apply_patch(&profile_ids, patch)
-    .map_err(|e| crate::wrap_backend_error(e, "Failed to edit profiles"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .apply_patch(&profile_ids, patch)
+      .map_err(|e| crate::wrap_backend_error(e, "Failed to edit profiles"))
+  })
+  .await
 }
 
 #[tauri::command]
-pub fn update_profile_start_urls(
+pub async fn update_profile_start_urls(
   profile_id: String,
   start_urls: Vec<String>,
 ) -> Result<BrowserProfile, String> {
-  ProfileManager::instance()
-    .update_profile_start_urls(&profile_id, start_urls)
-    .map_err(|e| crate::wrap_backend_error(e, "Failed to update start pages"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .update_profile_start_urls(&profile_id, start_urls)
+      .map_err(|e| crate::wrap_backend_error(e, "Failed to update start pages"))
+  })
+  .await
 }
 
 #[tauri::command]
-pub fn update_profile_dns_server(
+pub async fn update_profile_dns_server(
   profile_id: String,
   dns_server: Option<String>,
 ) -> Result<BrowserProfile, String> {
-  ProfileManager::instance()
-    .update_profile_dns_server(&profile_id, dns_server)
-    .map_err(|e| crate::wrap_backend_error(e, "Failed to update DNS server"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .update_profile_dns_server(&profile_id, dns_server)
+      .map_err(|e| crate::wrap_backend_error(e, "Failed to update DNS server"))
+  })
+  .await
 }
 
 #[tauri::command]
@@ -2940,15 +3133,17 @@ pub async fn check_browser_status(
 }
 
 #[tauri::command]
-pub fn rename_profile(
+pub async fn rename_profile(
   app_handle: tauri::AppHandle,
   profile_id: String,
   new_name: String,
 ) -> Result<BrowserProfile, String> {
-  let profile_manager = ProfileManager::instance();
-  profile_manager
-    .rename_profile(&app_handle, &profile_id, &new_name)
-    .map_err(|e| crate::wrap_backend_error(e, "Failed to rename profile"))
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .rename_profile(&app_handle, &profile_id, &new_name)
+      .map_err(|e| crate::wrap_backend_error(e, "Failed to rename profile"))
+  })
+  .await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3023,11 +3218,18 @@ pub async fn update_wayfern_config(
     .map_err(|e| crate::wrap_backend_error(e, "Failed to update Wayfern config"))
 }
 
+/// Async: the clone copies the whole profile folder.
 #[tauri::command]
-pub fn clone_profile(profile_id: String, name: Option<String>) -> Result<BrowserProfile, String> {
-  ProfileManager::instance()
-    .clone_profile(&profile_id, name)
-    .map_err(|e| format!("Failed to clone profile: {e}"))
+pub async fn clone_profile(
+  profile_id: String,
+  name: Option<String>,
+) -> Result<BrowserProfile, String> {
+  edit_off_main_thread(move || {
+    ProfileManager::instance()
+      .clone_profile(&profile_id, name)
+      .map_err(|e| format!("Failed to clone profile: {e}"))
+  })
+  .await
 }
 
 /// Move a profile to the trash. `permanent: true` destroys it instead.

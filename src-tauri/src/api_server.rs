@@ -667,9 +667,43 @@ struct BatchRunRequest {
   url: Option<String>,
   /// Launch headless. Defaults to false.
   headless: Option<bool>,
+  /// Pause between the starts of two launches, in milliseconds (0 to 60000).
+  /// Defaults to the app's bulk launch delay.
+  #[schema(minimum = 0, maximum = 60000)]
+  delay_ms: Option<u32>,
+  /// How many profiles may be starting at the same time (1 to 20). Defaults
+  /// to the app's bulk launch concurrency.
+  #[schema(minimum = 1, maximum = 20)]
+  concurrency: Option<u32>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+/// The pacing of one batch run: the request's values, else the app's bulk
+/// launch settings, clamped to the same bounds the settings use.
+fn batch_run_pacing(
+  request: &BatchRunRequest,
+  settings: Option<&crate::settings_manager::AppSettings>,
+) -> (std::time::Duration, usize) {
+  use crate::settings_manager::{
+    DEFAULT_BULK_LAUNCH_CONCURRENCY, DEFAULT_BULK_LAUNCH_DELAY_MS, MAX_BULK_LAUNCH_CONCURRENCY,
+    MAX_BULK_LAUNCH_DELAY_MS,
+  };
+  let delay_ms = request
+    .delay_ms
+    .or(settings.map(|s| s.bulk_launch_delay_ms))
+    .unwrap_or(DEFAULT_BULK_LAUNCH_DELAY_MS)
+    .min(MAX_BULK_LAUNCH_DELAY_MS);
+  let concurrency = request
+    .concurrency
+    .or(settings.map(|s| s.bulk_launch_concurrency))
+    .unwrap_or(DEFAULT_BULK_LAUNCH_CONCURRENCY)
+    .clamp(1, MAX_BULK_LAUNCH_CONCURRENCY);
+  (
+    std::time::Duration::from_millis(u64::from(delay_ms)),
+    concurrency as usize,
+  )
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
 struct BatchRunResult {
   profile_id: String,
   /// Whether this profile launched successfully.
@@ -4797,7 +4831,9 @@ async fn kill_profile(
 
 // API Handler - Batch run profiles (paid: browser automation). Mirrors the
 // single `/run` gate; never breaks the batch on a single profile's failure —
-// each profile gets its own result entry.
+// each profile gets its own result entry, in request order. Launches start
+// `delay_ms` apart with at most `concurrency` starting at once, like a bulk
+// launch in the app.
 #[utoipa::path(
   post,
   path = "/v1/profiles/batch/run",
@@ -4838,69 +4874,122 @@ async fn batch_run_profiles(
   }
 
   let headless = request.headless.unwrap_or(false);
+  let settings = crate::settings_manager::SettingsManager::instance()
+    .load_settings()
+    .ok();
+  let (delay, concurrency) = batch_run_pacing(&request, settings.as_ref());
   let profile_manager = ProfileManager::instance();
   let profiles = profile_manager
     .list_profiles()
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-  let mut results = Vec::new();
-  for profile_id in &request.profile_ids {
-    let fail = |error: &str| BatchRunResult {
-      profile_id: profile_id.clone(),
-      ok: false,
-      remote_debugging_port: None,
-      error: Some(error.to_string()),
-    };
+  let fail = |profile_id: &str, error: &str| BatchRunResult {
+    profile_id: profile_id.to_string(),
+    ok: false,
+    remote_debugging_port: None,
+    error: Some(error.to_string()),
+  };
 
+  // One slot per input, filled in whatever order the launches finish.
+  let mut results: Vec<Option<BatchRunResult>> = vec![None; request.profile_ids.len()];
+  let slots = Arc::new(tokio::sync::Semaphore::new(concurrency));
+  let mut launches = tokio::task::JoinSet::new();
+  let mut last_start: Option<tokio::time::Instant> = None;
+
+  for (index, profile_id) in request.profile_ids.iter().enumerate() {
     let Some(profile) = profiles.iter().find(|p| p.id.to_string() == *profile_id) else {
-      results.push(fail("profile not found"));
+      results[index] = Some(fail(profile_id, "profile not found"));
       continue;
     };
     if profile.is_cross_os() {
-      results.push(fail("cross-OS profiles cannot be launched"));
-      continue;
-    }
-    if crate::team_lock::acquire_team_lock_if_needed(profile)
-      .await
-      .is_err()
-    {
-      results.push(fail("profile is locked by another team member"));
+      results[index] = Some(fail(profile_id, "cross-OS profiles cannot be launched"));
       continue;
     }
 
-    let port = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
-      Ok(listener) => match listener.local_addr() {
-        Ok(addr) => addr.port(),
-        Err(_) => {
-          results.push(fail("failed to allocate debugging port"));
-          continue;
-        }
-      },
-      Err(_) => {
-        results.push(fail("failed to allocate debugging port"));
-        continue;
-      }
+    let Ok(slot) = slots.clone().acquire_owned().await else {
+      results[index] = Some(fail(profile_id, "launch failed: batch stopped"));
+      continue;
     };
+    if let Some(previous) = last_start {
+      tokio::time::sleep_until(previous + delay).await;
+    }
+    last_start = Some(tokio::time::Instant::now());
 
-    match crate::browser_runner::launch_browser_profile_impl(
-      state.app_handle.clone(),
-      profile.clone(),
-      request.url.clone(),
-      crate::browser_runner::LaunchOptions::automation(Some(port), headless),
-    )
-    .await
-    {
-      Ok(_) => results.push(BatchRunResult {
-        profile_id: profile_id.clone(),
-        ok: true,
-        remote_debugging_port: Some(port),
-        error: None,
-      }),
-      Err(e) => results.push(fail(&format!("launch failed: {e}"))),
+    let app_handle = state.app_handle.clone();
+    let profile = profile.clone();
+    let profile_id = profile_id.clone();
+    let url = request.url.clone();
+    launches.spawn(async move {
+      let _slot = slot;
+      (
+        index,
+        launch_batch_profile(app_handle, profile, profile_id, url, headless).await,
+      )
+    });
+  }
+
+  while let Some(joined) = launches.join_next().await {
+    match joined {
+      Ok((index, result)) => results[index] = Some(result),
+      Err(e) => log::error!("Batch launch task panicked err=\"{e}\""),
     }
   }
 
+  let results = results
+    .into_iter()
+    .zip(&request.profile_ids)
+    .map(|(result, profile_id)| {
+      result.unwrap_or_else(|| fail(profile_id, "launch failed: internal error"))
+    })
+    .collect();
   Ok(Json(BatchRunResponse { results }))
+}
+
+/// One profile of a batch run, from its team lock to its launch.
+async fn launch_batch_profile(
+  app_handle: tauri::AppHandle,
+  profile: crate::profile::types::BrowserProfile,
+  profile_id: String,
+  url: Option<String>,
+  headless: bool,
+) -> BatchRunResult {
+  let fail = |error: &str| BatchRunResult {
+    profile_id: profile_id.clone(),
+    ok: false,
+    remote_debugging_port: None,
+    error: Some(error.to_string()),
+  };
+  if crate::team_lock::acquire_team_lock_if_needed(&profile)
+    .await
+    .is_err()
+  {
+    return fail("profile is locked by another team member");
+  }
+
+  let port = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
+    Ok(listener) => match listener.local_addr() {
+      Ok(addr) => addr.port(),
+      Err(_) => return fail("failed to allocate debugging port"),
+    },
+    Err(_) => return fail("failed to allocate debugging port"),
+  };
+
+  match crate::browser_runner::launch_browser_profile_impl(
+    app_handle,
+    profile,
+    url,
+    crate::browser_runner::LaunchOptions::automation(Some(port), headless),
+  )
+  .await
+  {
+    Ok(_) => BatchRunResult {
+      profile_id: profile_id.clone(),
+      ok: true,
+      remote_debugging_port: Some(port),
+      error: None,
+    },
+    Err(e) => fail(&format!("launch failed: {e}")),
+  }
 }
 
 // API Handler - Distribute proxies one to one across profiles.
@@ -6329,6 +6418,54 @@ mod tests {
         "{always} is always reported and must stay required"
       );
     }
+  }
+
+  #[test]
+  fn openapi_documents_batch_run_pacing() {
+    let spec = serde_json::to_value(ApiDoc::openapi()).expect("spec serializes");
+    let required = schema_required(&spec, "BatchRunRequest");
+    for field in ["delay_ms", "concurrency"] {
+      assert!(
+        !required.iter().any(|f| f == field),
+        "BatchRunRequest.{field} must be optional, required list: {required:?}"
+      );
+    }
+    let properties = &spec["components"]["schemas"]["BatchRunRequest"]["properties"];
+    assert_eq!(properties["delay_ms"]["maximum"], 60000);
+    assert_eq!(properties["concurrency"]["minimum"], 1);
+    assert_eq!(properties["concurrency"]["maximum"], 20);
+  }
+
+  #[test]
+  fn batch_run_pacing_takes_the_request_then_the_settings() {
+    let request = |delay_ms, concurrency| BatchRunRequest {
+      profile_ids: Vec::new(),
+      url: None,
+      headless: None,
+      delay_ms,
+      concurrency,
+    };
+    let settings = crate::settings_manager::AppSettings {
+      bulk_launch_delay_ms: 1500,
+      bulk_launch_concurrency: 5,
+      ..Default::default()
+    };
+
+    let (delay, concurrency) = batch_run_pacing(&request(None, None), Some(&settings));
+    assert_eq!(delay, std::time::Duration::from_millis(1500));
+    assert_eq!(concurrency, 5);
+
+    let (delay, concurrency) = batch_run_pacing(&request(Some(0), Some(1)), Some(&settings));
+    assert_eq!(delay, std::time::Duration::ZERO);
+    assert_eq!(concurrency, 1);
+
+    let (delay, concurrency) = batch_run_pacing(&request(Some(999_999), Some(0)), None);
+    assert_eq!(delay, std::time::Duration::from_millis(60_000));
+    assert_eq!(concurrency, 1, "zero would never start a launch");
+
+    let (delay, concurrency) = batch_run_pacing(&request(None, Some(500)), None);
+    assert_eq!(delay, std::time::Duration::from_millis(800));
+    assert_eq!(concurrency, 20);
   }
 
   #[test]

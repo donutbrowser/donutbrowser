@@ -1,5 +1,7 @@
 use crate::proxy_storage::ProxyConfig;
-use crate::traffic_stats::{get_traffic_tracker, init_traffic_tracker, LiveTrafficTracker};
+use crate::traffic_stats::{
+  get_traffic_tracker, init_traffic_tracker, LiveTrafficTracker, UpstreamOutcome,
+};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use hyper::header::{HeaderName, HeaderValue};
@@ -8,7 +10,7 @@ use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use regex_lite::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::io;
 use std::net::SocketAddr;
@@ -59,9 +61,92 @@ impl BypassMatcher {
   }
 }
 
+/// Domain names sorted and deduplicated in one byte buffer, found by binary
+/// search. Every worker loads its own copy of a list of up to ~700k names; a
+/// `HashSet<String>` of that many costs several times the bytes of the names.
+#[derive(Default)]
+struct DomainSet {
+  bytes: Vec<u8>,
+  /// Where each name starts in `bytes`; it ends where the next one starts.
+  starts: Vec<u32>,
+}
+
+impl DomainSet {
+  /// One name per line, lowercased and trimmed; blank lines and lines that
+  /// start with `#` are skipped.
+  fn from_lines(content: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    let mut buf: Vec<u8> = Vec::with_capacity(content.len());
+    let mut spans: Vec<(u32, u32)> = Vec::new();
+    for line in content.lines() {
+      if line.starts_with('#') {
+        continue;
+      }
+      let name = line.trim();
+      if name.is_empty() {
+        continue;
+      }
+      let start = buf.len();
+      if name.is_ascii() {
+        buf.extend(name.bytes().map(|b| b.to_ascii_lowercase()));
+      } else {
+        buf.extend_from_slice(name.to_lowercase().as_bytes());
+      }
+      let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(buf.len())) else {
+        return Err("blocklist is larger than 4 GB".into());
+      };
+      spans.push((start, end));
+    }
+    let name = |&(start, end): &(u32, u32)| &buf[start as usize..end as usize];
+    spans.sort_unstable_by(|a, b| name(a).cmp(name(b)));
+    spans.dedup_by(|a, b| name(&*a) == name(&*b));
+
+    let mut set = DomainSet {
+      bytes: Vec::with_capacity(spans.iter().map(|s| (s.1 - s.0) as usize).sum()),
+      starts: Vec::with_capacity(spans.len()),
+    };
+    for span in &spans {
+      // Fits: the result is never longer than `buf`, checked above.
+      set.starts.push(set.bytes.len() as u32);
+      set.bytes.extend_from_slice(name(span));
+    }
+    Ok(set)
+  }
+
+  fn len(&self) -> usize {
+    self.starts.len()
+  }
+
+  fn is_empty(&self) -> bool {
+    self.starts.is_empty()
+  }
+
+  fn name(&self, index: usize) -> &[u8] {
+    let start = self.starts[index] as usize;
+    let end = self
+      .starts
+      .get(index + 1)
+      .map_or(self.bytes.len(), |&end| end as usize);
+    &self.bytes[start..end]
+  }
+
+  fn contains(&self, name: &str) -> bool {
+    let needle = name.as_bytes();
+    let (mut low, mut high) = (0, self.starts.len());
+    while low < high {
+      let mid = low + (high - low) / 2;
+      match self.name(mid).cmp(needle) {
+        std::cmp::Ordering::Less => low = mid + 1,
+        std::cmp::Ordering::Greater => high = mid,
+        std::cmp::Ordering::Equal => return true,
+      }
+    }
+    false
+  }
+}
+
 #[derive(Clone)]
 pub struct BlocklistMatcher {
-  domains: Arc<HashSet<String>>,
+  domains: Arc<DomainSet>,
   /// When true the `domains` set is an ALLOW list: a host is blocked unless it
   /// (or a parent domain) is present. When false it's a block list (default).
   allowlist_mode: bool,
@@ -76,7 +161,7 @@ impl Default for BlocklistMatcher {
 impl BlocklistMatcher {
   pub fn new() -> Self {
     Self {
-      domains: Arc::new(HashSet::new()),
+      domains: Arc::new(DomainSet::default()),
       allowlist_mode: false,
     }
   }
@@ -94,11 +179,8 @@ impl BlocklistMatcher {
     allowlist_mode: bool,
   ) -> Result<Self, Box<dyn std::error::Error>> {
     let content = std::fs::read_to_string(path)?;
-    let domains: HashSet<String> = content
-      .lines()
-      .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
-      .map(|line| line.trim().to_lowercase())
-      .collect();
+    let domains = DomainSet::from_lines(&content)?;
+    drop(content);
     log::debug!(
       "Blocklist loaded domains={} mode={} path=\"{path}\"",
       domains.len(),
@@ -115,7 +197,7 @@ impl BlocklistMatcher {
     if self.domains.contains(host_lower) {
       return true;
     }
-    // Suffix matching: check parent domains (like uBlock)
+    // Suffix matching: check parent domains
     let mut start = 0;
     while let Some(dot_pos) = host_lower[start..].find('.') {
       start += dot_pos + 1;
@@ -1680,6 +1762,39 @@ pub fn redacted_upstream(upstream: &str) -> String {
   }
 }
 
+/// Set by the SIGTERM handler. A plain thread acts on it, so a busy async
+/// runtime cannot keep a stopped worker alive.
+#[cfg(unix)]
+static TERMINATE_REQUESTED: std::sync::atomic::AtomicBool =
+  std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(unix)]
+extern "C" fn on_terminate(_signal: libc::c_int) {
+  TERMINATE_REQUESTED.store(true, Ordering::SeqCst);
+}
+
+/// The app stops a worker with SIGTERM: write the last minute of traffic,
+/// then exit. A write that hangs still exits after 3 s.
+#[cfg(unix)]
+fn exit_cleanly_on_terminate() {
+  let handler = on_terminate as extern "C" fn(libc::c_int) as libc::sighandler_t;
+  // SAFETY: the handler only stores to an atomic, which is async-signal-safe.
+  if unsafe { libc::signal(libc::SIGTERM, handler) } == libc::SIG_ERR {
+    return;
+  }
+  std::thread::spawn(|| loop {
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    if TERMINATE_REQUESTED.load(Ordering::SeqCst) {
+      std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        std::process::exit(0);
+      });
+      crate::traffic_stats::flush_traffic_before_exit();
+      std::process::exit(0);
+    }
+  });
+}
+
 pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::error::Error>> {
   let started = std::time::Instant::now();
   let connection_limit = worker_connection_limit();
@@ -1766,95 +1881,29 @@ pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::er
     Some(updated_config.upstream_url.clone())
   };
 
-  // Start a background task to write lightweight session snapshots for real-time updates
-  // These are much smaller than full stats and can be written frequently (~100 bytes every 2 seconds)
-  if let Some(tracker) = get_traffic_tracker() {
-    let tracker_clone = tracker.clone();
-    tokio::spawn(async move {
-      let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
-      interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-      // The snapshot content is derived entirely from these counters, so an
-      // unchanged tuple means the on-disk session file is already current —
-      // skip the write instead of rewriting identical bytes every 2s.
-      let mut last_written: Option<(u64, u64, u64)> = None;
-
-      loop {
-        interval.tick().await;
-        let snapshot = tracker_clone.get_snapshot();
-        if last_written == Some(snapshot) {
-          continue;
-        }
-        // Write lightweight session snapshot (only current counters, ~100 bytes)
-        match tracker_clone.write_session_snapshot() {
-          Ok(()) => last_written = Some(snapshot),
-          Err(e) => log::debug!("Session snapshot write failed err=\"{e}\""),
-        }
-      }
-    });
-  }
-
-  // Start a background task to periodically flush traffic stats to disk
-  // Use adaptive flush frequency: every 5 seconds when active, every 30 seconds when idle
+  // The worker's traffic loop. Every 2 s it collects the counters and, when
+  // they changed, rewrites the small session snapshot the GUI reads. The
+  // whole stats file is written at most once a minute with new traffic, and
+  // when the worker exits. File work runs off the async workers, and a panic
+  // in it ends one step, not the loop.
   tokio::spawn(async move {
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let mut last_activity_time = std::time::Instant::now();
-    let mut last_flush_time = std::time::Instant::now();
-    let mut current_interval_secs = 5u64;
-
     loop {
       interval.tick().await;
-      // Catch panics so a poisoned lock or unexpected error inside
-      // flush_to_disk doesn't abort the flush task and leave stats
-      // unwritten for the lifetime of the worker. The captured state
-      // is all Copy or atomic-assignment, so AssertUnwindSafe is sound.
-      let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        if let Some(tracker) = get_traffic_tracker() {
-          let (sent, recv, requests) = tracker.get_snapshot();
-          let current_bytes = sent + recv;
-          let time_since_activity = last_activity_time.elapsed();
-          let time_since_flush = last_flush_time.elapsed();
-          let has_traffic = current_bytes > 0 || requests > 0;
-
-          let desired_interval_secs =
-            if has_traffic || time_since_activity < std::time::Duration::from_secs(30) {
-              5u64
-            } else {
-              30u64
-            };
-
-          if desired_interval_secs != current_interval_secs {
-            current_interval_secs = desired_interval_secs;
-            interval =
-              tokio::time::interval(tokio::time::Duration::from_secs(desired_interval_secs));
-          }
-
-          let flush_interval = std::time::Duration::from_secs(desired_interval_secs);
-          let should_flush = time_since_flush >= flush_interval;
-
-          if should_flush {
-            match tracker.flush_to_disk() {
-              Ok(Some((sent, recv))) => {
-                last_flush_time = std::time::Instant::now();
-                if sent > 0 || recv > 0 {
-                  last_activity_time = std::time::Instant::now();
-                }
-              }
-              Ok(None) => {
-                last_flush_time = std::time::Instant::now();
-              }
-              Err(e) => {
-                warn_throttled(&format!("Traffic stats flush failed err=\"{e}\""));
-              }
-            }
-          }
-        }
-      }));
-      if let Err(panic) = result {
-        log::error!("Traffic flush task panicked; continuing err={panic:?}");
+      let Some(tracker) = get_traffic_tracker() else {
+        continue;
+      };
+      match tokio::task::spawn_blocking(move || tracker.persist_tick()).await {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => warn_throttled(&format!("Traffic stats write failed err=\"{e}\"")),
+        Err(panic) => log::error!("Traffic stats step panicked; continuing err={panic:?}"),
       }
     }
   });
+
+  #[cfg(unix)]
+  exit_cleanly_on_terminate();
 
   // Self-reaping supervisor. The worker is a detached process that outlives the
   // GUI, so it cannot rely on the GUI's in-memory death-monitor (which is lost
@@ -1877,6 +1926,7 @@ pub async fn run_proxy_server(config: ProxyConfig) -> Result<(), Box<dyn std::er
     let watch_id = config.id.clone();
     let poll_interval = watchdog_poll_interval();
     let exit_line = move |reason: &str, detail: String| {
+      crate::traffic_stats::flush_traffic_before_exit();
       log::info!(
         "Worker exiting kind=proxy id={watch_id} pid={} reason={reason}{detail} uptime_s={}",
         std::process::id(),
@@ -2522,148 +2572,212 @@ pub(crate) async fn dial_route(
     None | Some("DIRECT") => Box::new(dial_direct(target_host, target_port).await?),
     _ if should_bypass => Box::new(dial_direct(target_host, target_port).await?),
     Some(upstream_url_str) => {
-      let upstream = Url::parse(upstream_url_str)?;
-      let scheme = upstream.scheme();
+      let dialed: Result<BoxedAsyncStream, Box<dyn std::error::Error>> = async {
+        let upstream = Url::parse(upstream_url_str)?;
+        let scheme = upstream.scheme();
 
-      match scheme {
-        // `https` here is NOT TLS to the proxy: it is a label many providers
-        // put on a plaintext CONNECT endpoint, and Donut has always treated it
-        // byte-for-byte like `http`. Changing that would silently break every
-        // stored `https` proxy, so the encrypted hop is the separate
-        // `httpstls` scheme below.
-        "http" | "https" => {
-          let proxy_host = upstream.host_str().unwrap_or("127.0.0.1");
-          let proxy_port = upstream.port().unwrap_or(8080);
-          let proxy_stream = tokio::time::timeout(
-            UPSTREAM_DIAL_TIMEOUT,
-            TcpStream::connect((proxy_host, proxy_port)),
-          )
-          .await
-          .map_err(|_| {
-            format!("upstream proxy connect to {proxy_host}:{proxy_port} timed out")
-          })??;
-          configure_tcp(&proxy_stream);
+        Ok(match scheme {
+          // `https` here is NOT TLS to the proxy: it is a label many providers
+          // put on a plaintext CONNECT endpoint, and Donut has always treated it
+          // byte-for-byte like `http`. Changing that would silently break every
+          // stored `https` proxy, so the encrypted hop is the separate
+          // `httpstls` scheme below.
+          "http" | "https" => {
+            let proxy_host = upstream.host_str().unwrap_or("127.0.0.1");
+            let proxy_port = upstream.port().unwrap_or(8080);
+            let proxy_stream = tokio::time::timeout(
+              UPSTREAM_DIAL_TIMEOUT,
+              TcpStream::connect((proxy_host, proxy_port)),
+            )
+            .await
+            .map_err(|_| {
+              format!("upstream proxy connect to {proxy_host}:{proxy_port} timed out")
+            })??;
+            configure_tcp(&proxy_stream);
 
-          connect_via_http_proxy(
-            proxy_stream,
-            proxy_host,
-            proxy_port,
-            target_host,
-            target_port,
-            &upstream,
-          )
-          .await?
-        }
-        // TLS to the proxy first, CONNECT second. The target hostname and the
-        // `Proxy-Authorization` credentials are written only after the
-        // handshake, so neither reaches the wire in the clear.
-        "httpstls" => {
-          let proxy_host = upstream.host_str().unwrap_or("127.0.0.1");
-          let proxy_port = upstream.port().unwrap_or(443);
-          let tcp = tokio::time::timeout(
-            UPSTREAM_DIAL_TIMEOUT,
-            TcpStream::connect((proxy_host, proxy_port)),
-          )
-          .await
-          .map_err(|_| {
-            format!("upstream proxy connect to {proxy_host}:{proxy_port} timed out")
-          })??;
-          configure_tcp(&tcp);
-
-          let tls = tls_wrap_upstream_hop(tcp, proxy_host).await?;
-
-          connect_via_http_proxy(
-            tls,
-            proxy_host,
-            proxy_port,
-            target_host,
-            target_port,
-            &upstream,
-          )
-          .await?
-        }
-        "socks4" | "socks5" => {
-          let socks_host = upstream.host_str().unwrap_or("127.0.0.1");
-          let socks_port = upstream.port().unwrap_or(1080);
-          let socks_addr = format!("{}:{}", socks_host, socks_port);
-
-          let (username, password) = upstream_userpass(&upstream);
-          let auth = (!username.is_empty()).then_some((username.as_str(), password.as_str()));
-
-          let stream = connect_via_socks(
-            &socks_addr,
-            target_host,
-            target_port,
-            scheme == "socks5",
-            auth,
-          )
-          .await?;
-          Box::new(stream)
-        }
-        "ss" | "shadowsocks" => {
-          // Shadowsocks: URL format is ss://method:password@host:port
-          // where "method" is the cipher (e.g. aes-256-gcm, chacha20-ietf-poly1305)
-          // and "password" is the SS server password.
-          let ss_host = upstream.host_str().unwrap_or("127.0.0.1");
-          let ss_port = upstream.port().unwrap_or(8388);
-
-          // The "username" field carries the cipher method
-          let method_str = urlencoding::decode(upstream.username())
-            .unwrap_or_default()
-            .to_string();
-          let password = urlencoding::decode(upstream.password().unwrap_or(""))
-            .unwrap_or_default()
-            .to_string();
-
-          if method_str.is_empty() || password.is_empty() {
-            return Err(
-              "Shadowsocks requires method and password (URL: ss://method:password@host:port)"
-                .into(),
-            );
+            connect_via_http_proxy(
+              proxy_stream,
+              proxy_host,
+              proxy_port,
+              target_host,
+              target_port,
+              &upstream,
+            )
+            .await?
           }
+          // TLS to the proxy first, CONNECT second. The target hostname and the
+          // `Proxy-Authorization` credentials are written only after the
+          // handshake, so neither reaches the wire in the clear.
+          "httpstls" => {
+            let proxy_host = upstream.host_str().unwrap_or("127.0.0.1");
+            let proxy_port = upstream.port().unwrap_or(443);
+            let tcp = tokio::time::timeout(
+              UPSTREAM_DIAL_TIMEOUT,
+              TcpStream::connect((proxy_host, proxy_port)),
+            )
+            .await
+            .map_err(|_| {
+              format!("upstream proxy connect to {proxy_host}:{proxy_port} timed out")
+            })??;
+            configure_tcp(&tcp);
 
-          let cipher = method_str.parse::<shadowsocks::crypto::CipherKind>().map_err(|_| {
-            format!("Unsupported Shadowsocks cipher: {method_str}. Use e.g. aes-256-gcm, chacha20-ietf-poly1305, aes-128-gcm")
-          })?;
+            let tls = tls_wrap_upstream_hop(tcp, proxy_host).await?;
 
-          let context =
-            shadowsocks::context::Context::new_shared(shadowsocks::config::ServerType::Local);
-          let svr_cfg = shadowsocks::config::ServerConfig::new(
-            shadowsocks::config::ServerAddr::from((ss_host.to_string(), ss_port)),
-            &password,
-            cipher,
-          )
-          .map_err(|e| format!("Invalid Shadowsocks config: {e}"))?;
+            connect_via_http_proxy(
+              tls,
+              proxy_host,
+              proxy_port,
+              target_host,
+              target_port,
+              &upstream,
+            )
+            .await?
+          }
+          "socks4" | "socks5" => {
+            let socks_host = upstream.host_str().unwrap_or("127.0.0.1");
+            let socks_port = upstream.port().unwrap_or(1080);
+            let socks_addr = format!("{}:{}", socks_host, socks_port);
 
-          let target_addr = match target_host.parse::<std::net::IpAddr>() {
-            Ok(ip) => shadowsocks::relay::Address::SocketAddress(SocketAddr::new(ip, target_port)),
-            Err(_) => {
-              shadowsocks::relay::Address::DomainNameAddress(target_host.to_string(), target_port)
+            let (username, password) = upstream_userpass(&upstream);
+            let auth = (!username.is_empty()).then_some((username.as_str(), password.as_str()));
+
+            let stream = connect_via_socks(
+              &socks_addr,
+              target_host,
+              target_port,
+              scheme == "socks5",
+              auth,
+            )
+            .await?;
+            Box::new(stream)
+          }
+          "ss" | "shadowsocks" => {
+            // Shadowsocks: URL format is ss://method:password@host:port
+            // where "method" is the cipher (e.g. aes-256-gcm, chacha20-ietf-poly1305)
+            // and "password" is the SS server password.
+            let ss_host = upstream.host_str().unwrap_or("127.0.0.1");
+            let ss_port = upstream.port().unwrap_or(8388);
+
+            // The "username" field carries the cipher method
+            let method_str = urlencoding::decode(upstream.username())
+              .unwrap_or_default()
+              .to_string();
+            let password = urlencoding::decode(upstream.password().unwrap_or(""))
+              .unwrap_or_default()
+              .to_string();
+
+            if method_str.is_empty() || password.is_empty() {
+              return Err(
+                "Shadowsocks requires method and password (URL: ss://method:password@host:port)"
+                  .into(),
+              );
             }
-          };
 
-          let stream = tokio::time::timeout(
-            UPSTREAM_DIAL_TIMEOUT,
-            shadowsocks::relay::tcprelay::proxy_stream::ProxyClientStream::connect(
-              context,
-              &svr_cfg,
-              target_addr,
-            ),
-          )
-          .await
-          .map_err(|_| "Shadowsocks connection timed out".to_string())?
-          .map_err(|e| format!("Shadowsocks connection failed: {e}"))?;
+            let cipher = method_str.parse::<shadowsocks::crypto::CipherKind>().map_err(|_| {
+              format!("Unsupported Shadowsocks cipher: {method_str}. Use e.g. aes-256-gcm, chacha20-ietf-poly1305, aes-128-gcm")
+            })?;
 
-          Box::new(stream)
-        }
-        _ => {
-          return Err(format!("Unsupported upstream proxy scheme: {}", scheme).into());
-        }
+            let context =
+              shadowsocks::context::Context::new_shared(shadowsocks::config::ServerType::Local);
+            let svr_cfg = shadowsocks::config::ServerConfig::new(
+              shadowsocks::config::ServerAddr::from((ss_host.to_string(), ss_port)),
+              &password,
+              cipher,
+            )
+            .map_err(|e| format!("Invalid Shadowsocks config: {e}"))?;
+
+            let target_addr = match target_host.parse::<std::net::IpAddr>() {
+              Ok(ip) => shadowsocks::relay::Address::SocketAddress(SocketAddr::new(ip, target_port)),
+              Err(_) => {
+                shadowsocks::relay::Address::DomainNameAddress(target_host.to_string(), target_port)
+              }
+            };
+
+            let stream = tokio::time::timeout(
+              UPSTREAM_DIAL_TIMEOUT,
+              shadowsocks::relay::tcprelay::proxy_stream::ProxyClientStream::connect(
+                context,
+                &svr_cfg,
+                target_addr,
+              ),
+            )
+            .await
+            .map_err(|_| "Shadowsocks connection timed out".to_string())?
+            .map_err(|e| format!("Shadowsocks connection failed: {e}"))?;
+
+            Box::new(stream)
+          }
+          _ => {
+            return Err(format!("Unsupported upstream proxy scheme: {}", scheme).into());
+          }
+        })
       }
+      .await;
+      if let Some(tracker) = get_traffic_tracker() {
+        tracker.record_upstream(upstream_outcome(&dialed));
+      }
+      dialed?
     }
   };
 
   Ok(target_stream)
+}
+
+/// How a dial through the upstream proxy ended, for the route health the app
+/// shows. A refusal about the destination still proves the proxy answered.
+fn upstream_outcome(
+  result: &Result<BoxedAsyncStream, Box<dyn std::error::Error>>,
+) -> UpstreamOutcome {
+  let error = match result {
+    Ok(_) => return UpstreamOutcome::Reached,
+    Err(error) => error,
+  };
+  if let Some(socks) = error.downcast_ref::<async_socks5::Error>() {
+    return match socks {
+      async_socks5::Error::Io(io) => io_outcome(io),
+      async_socks5::Error::Response(_) => UpstreamOutcome::Reached,
+      async_socks5::Error::InvalidAuthStatus(_)
+      | async_socks5::Error::InvalidAuthSubnegotiation(_)
+      | async_socks5::Error::InvalidAuthMethod(_)
+      | async_socks5::Error::NoAcceptableMethods => UpstreamOutcome::AuthRefused,
+      _ => UpstreamOutcome::ConnectFailed,
+    };
+  }
+  if let Some(io) = error.downcast_ref::<std::io::Error>() {
+    return io_outcome(io);
+  }
+  upstream_outcome_from_text(&error.to_string())
+}
+
+fn io_outcome(error: &std::io::Error) -> UpstreamOutcome {
+  if error.kind() == std::io::ErrorKind::TimedOut {
+    UpstreamOutcome::TimedOut
+  } else {
+    UpstreamOutcome::ConnectFailed
+  }
+}
+
+/// The same, for the errors this file writes as text.
+fn upstream_outcome_from_text(text: &str) -> UpstreamOutcome {
+  if let Some(status) = text.strip_prefix("Upstream proxy CONNECT failed: ") {
+    return if status.contains(" 407") {
+      UpstreamOutcome::AuthRefused
+    } else if status.contains(" 402") {
+      UpstreamOutcome::PaymentRequired
+    } else {
+      UpstreamOutcome::Reached
+    };
+  }
+  if text.contains("timed out") {
+    return UpstreamOutcome::TimedOut;
+  }
+  if text.starts_with("SOCKS4 connection failed")
+    || text.starts_with("SOCKS4 does not support")
+    || text.starts_with("SOCKS4 target host")
+  {
+    return UpstreamOutcome::Reached;
+  }
+  UpstreamOutcome::ConnectFailed
 }
 
 /// Bidirectionally relay `client_stream` <-> `target_stream` until either side
@@ -2711,6 +2825,102 @@ pub(crate) async fn tunnel_streams(
 mod tests {
   use super::*;
   use std::io::Write;
+
+  fn matcher_of(names: &[&str]) -> BlocklistMatcher {
+    BlocklistMatcher {
+      domains: Arc::new(DomainSet::from_lines(&names.join("\n")).unwrap()),
+      allowlist_mode: false,
+    }
+  }
+
+  #[test]
+  fn the_domain_set_is_sorted_deduplicated_and_lowercase() {
+    let set = DomainSet::from_lines(
+      "b.example\n# comment\n  A.Example  \nb.example\n\n \n # kept as a name\nÉCOLE.fr\n",
+    )
+    .unwrap();
+    let names: Vec<&str> = (0..set.len())
+      .map(|i| std::str::from_utf8(set.name(i)).unwrap())
+      .collect();
+    assert_eq!(
+      names,
+      ["# kept as a name", "a.example", "b.example", "école.fr"]
+    );
+    assert!(set.contains("a.example"));
+    assert!(set.contains("école.fr"));
+    assert!(!set.contains("A.Example"), "lookups take lowercase names");
+    assert!(!set.contains("example"));
+    assert!(!set.contains(""));
+    assert!(!DomainSet::default().contains("a.example"));
+  }
+
+  #[test]
+  fn the_domain_set_finds_every_name_and_nothing_between_them() {
+    let names: Vec<String> = (0..2000).map(|i| format!("host{i:05}.example")).collect();
+    let set = DomainSet::from_lines(&names.join("\n")).unwrap();
+    assert_eq!(set.len(), names.len());
+    for name in &names {
+      assert!(set.contains(name), "{name}");
+      assert!(!set.contains(&format!("{name}x")));
+      assert!(!set.contains(&name[1..]));
+    }
+  }
+
+  #[test]
+  fn parent_domains_match_and_lookalikes_do_not() {
+    let matcher = matcher_of(&["example.com", "co.uk"]);
+    assert!(matcher.is_blocked("deep.sub.example.com"));
+    assert!(matcher.is_blocked("shop.co.uk"));
+    assert!(!matcher.is_blocked("example.com.evil.net"));
+    assert!(!matcher.is_blocked("com"));
+    assert!(!matcher.is_blocked("xexample.com"));
+  }
+
+  #[test]
+  fn only_a_proxy_that_does_not_answer_counts_against_the_route() {
+    assert_eq!(
+      upstream_outcome_from_text("upstream proxy connect to gw:8080 timed out"),
+      UpstreamOutcome::TimedOut
+    );
+    assert_eq!(
+      upstream_outcome_from_text("upstream proxy closed the connection during CONNECT"),
+      UpstreamOutcome::ConnectFailed
+    );
+    assert_eq!(
+      upstream_outcome_from_text(
+        "Upstream proxy CONNECT failed: HTTP/1.1 407 Proxy Authentication Required"
+      ),
+      UpstreamOutcome::AuthRefused
+    );
+    assert_eq!(
+      upstream_outcome_from_text("Upstream proxy CONNECT failed: HTTP/1.1 402 user reached limit"),
+      UpstreamOutcome::PaymentRequired
+    );
+    // The proxy answered; the site behind it is the one that failed.
+    assert_eq!(
+      upstream_outcome_from_text("Upstream proxy CONNECT failed: HTTP/1.1 502 Bad Gateway"),
+      UpstreamOutcome::Reached
+    );
+    assert_eq!(
+      upstream_outcome_from_text("SOCKS4 connection failed"),
+      UpstreamOutcome::Reached
+    );
+  }
+
+  #[test]
+  fn dial_errors_are_classified_by_their_type() {
+    let refused: Result<BoxedAsyncStream, Box<dyn std::error::Error>> = Err(Box::new(
+      std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "refused"),
+    ));
+    assert_eq!(upstream_outcome(&refused), UpstreamOutcome::ConnectFailed);
+    let target: Result<BoxedAsyncStream, Box<dyn std::error::Error>> = Err(Box::new(
+      async_socks5::Error::Response(async_socks5::UnsuccessfulReply::HostUnreachable),
+    ));
+    assert_eq!(upstream_outcome(&target), UpstreamOutcome::Reached);
+    let auth: Result<BoxedAsyncStream, Box<dyn std::error::Error>> =
+      Err(Box::new(async_socks5::Error::InvalidAuthStatus(1)));
+    assert_eq!(upstream_outcome(&auth), UpstreamOutcome::AuthRefused);
+  }
 
   #[test]
   #[cfg(unix)]
@@ -2795,11 +3005,7 @@ mod tests {
 
   #[test]
   fn test_blocklist_exact_match() {
-    let mut matcher = BlocklistMatcher::new();
-    let mut domains = HashSet::new();
-    domains.insert("example.com".to_string());
-    domains.insert("tracker.net".to_string());
-    matcher.domains = Arc::new(domains);
+    let matcher = matcher_of(&["example.com", "tracker.net"]);
 
     assert!(matcher.is_blocked("example.com"));
     assert!(matcher.is_blocked("tracker.net"));
@@ -2808,10 +3014,7 @@ mod tests {
 
   #[test]
   fn test_blocklist_subdomain_match() {
-    let mut matcher = BlocklistMatcher::new();
-    let mut domains = HashSet::new();
-    domains.insert("example.com".to_string());
-    matcher.domains = Arc::new(domains);
+    let matcher = matcher_of(&["example.com"]);
 
     assert!(matcher.is_blocked("foo.example.com"));
     assert!(matcher.is_blocked("bar.baz.example.com"));
@@ -2852,10 +3055,7 @@ mod tests {
 
   #[test]
   fn a_fully_qualified_name_with_a_trailing_dot_is_still_blocked() {
-    let mut matcher = BlocklistMatcher::new();
-    let mut domains = HashSet::new();
-    domains.insert("tracker.com".to_string());
-    matcher.domains = Arc::new(domains);
+    let matcher = matcher_of(&["tracker.com"]);
 
     assert!(matcher.is_blocked("tracker.com."));
     assert!(matcher.is_blocked("ads.TRACKER.com."));
@@ -2864,10 +3064,7 @@ mod tests {
 
   #[test]
   fn test_blocklist_no_false_positives() {
-    let mut matcher = BlocklistMatcher::new();
-    let mut domains = HashSet::new();
-    domains.insert("example.com".to_string());
-    matcher.domains = Arc::new(domains);
+    let matcher = matcher_of(&["example.com"]);
 
     // "notexample.com" should NOT match "example.com"
     assert!(!matcher.is_blocked("notexample.com"));
@@ -2885,11 +3082,7 @@ mod tests {
 
   #[test]
   fn test_allowlist_mode_blocks_everything_not_listed() {
-    let mut matcher = BlocklistMatcher::new();
-    let mut domains = HashSet::new();
-    domains.insert("example.com".to_string());
-    domains.insert("api.trusted.io".to_string());
-    matcher.domains = Arc::new(domains);
+    let mut matcher = matcher_of(&["example.com", "api.trusted.io"]);
     matcher.allowlist_mode = true;
 
     // Listed domains (and their subdomains) are allowed.
@@ -2912,10 +3105,7 @@ mod tests {
 
   #[test]
   fn test_blocklist_case_insensitive() {
-    let mut matcher = BlocklistMatcher::new();
-    let mut domains = HashSet::new();
-    domains.insert("example.com".to_string());
-    matcher.domains = Arc::new(domains);
+    let matcher = matcher_of(&["example.com"]);
 
     assert!(matcher.is_blocked("EXAMPLE.COM"));
     assert!(matcher.is_blocked("Example.Com"));

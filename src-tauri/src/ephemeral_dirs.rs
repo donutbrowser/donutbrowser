@@ -32,6 +32,21 @@ struct EphemeralEntry {
 static EPHEMERAL_DIRS: std::sync::LazyLock<Mutex<HashMap<String, EphemeralEntry>>> =
   std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Recoveries still running. Recovery can mount a RAM disk and erase residue,
+/// so it runs off the startup thread; lookups wait for it, because a profile
+/// launched before its unsealed copy is mapped would start from the sealed one.
+static RECOVERIES_PENDING: (Mutex<usize>, std::sync::Condvar) =
+  (Mutex::new(0), std::sync::Condvar::new());
+
+const RECOVERY_WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+
+fn wait_for_recovery() {
+  let (pending, done) = &RECOVERIES_PENDING;
+  if let Ok(guard) = pending.lock() {
+    let _ = done.wait_timeout_while(guard, RECOVERY_WAIT_LIMIT, |count| *count > 0);
+  }
+}
+
 /// Test-only redirect for the ephemeral base.
 ///
 /// Without this the unit tests call the real resolver, which on macOS runs
@@ -229,6 +244,7 @@ fn get_or_create_windows_ramdisk() -> Result<PathBuf, String> {
 }
 
 pub fn create_ephemeral_dir(profile_id: &str) -> Result<PathBuf, String> {
+  wait_for_recovery();
   let (base, backing) = get_ephemeral_base_dir()?;
   let dir_path = base.join(profile_id);
 
@@ -260,6 +276,7 @@ pub fn create_ephemeral_dir(profile_id: &str) -> Result<PathBuf, String> {
 }
 
 pub fn get_ephemeral_dir(profile_id: &str) -> Option<PathBuf> {
+  wait_for_recovery();
   Some(EPHEMERAL_DIRS.lock().ok()?.get(profile_id)?.path.clone())
 }
 
@@ -272,6 +289,7 @@ pub fn get_ephemeral_dir(profile_id: &str) -> Option<PathBuf> {
 /// browser, discarded the only handle to the directory and guaranteed nothing
 /// would ever retry it.
 pub fn remove_ephemeral_dir(profile_id: &str) -> bool {
+  wait_for_recovery();
   let entry = match EPHEMERAL_DIRS.lock() {
     Ok(map) => map.get(profile_id).map(|e| (e.path.clone(), e.backing)),
     Err(e) => {
@@ -321,7 +339,44 @@ pub fn remove_ephemeral_dir(profile_id: &str) -> bool {
 /// Recover ephemeral dir mappings on startup by scanning the RAM-backed base dir.
 /// Dir names are profile UUIDs, so we re-populate the in-memory HashMap.
 /// Also cleans up old disk-based dirs from previous versions.
+///
+/// Returns at once: the work runs on its own thread, and every lookup in this
+/// module waits until it is done.
 pub fn recover_ephemeral_dirs() {
+  /// Ends the wait even when recovery panics.
+  struct Pending;
+  impl Drop for Pending {
+    fn drop(&mut self) {
+      let (pending, done) = &RECOVERIES_PENDING;
+      if let Ok(mut count) = pending.lock() {
+        *count = count.saturating_sub(1);
+      }
+      done.notify_all();
+    }
+  }
+
+  if let Ok(mut count) = RECOVERIES_PENDING.0.lock() {
+    *count += 1;
+  }
+  let guard = Pending;
+  let spawned = std::thread::Builder::new()
+    .name("ephemeral-recovery".into())
+    .spawn(move || {
+      let _guard = guard;
+      let started = std::time::Instant::now();
+      recover_ephemeral_dirs_now();
+      log::debug!(
+        "Ephemeral dir recovery done elapsed_ms={}",
+        started.elapsed().as_millis()
+      );
+    });
+  if let Err(e) = spawned {
+    log::warn!("Ephemeral dir recovery thread failed to start err=\"{e}\"");
+    recover_ephemeral_dirs_now();
+  }
+}
+
+fn recover_ephemeral_dirs_now() {
   cleanup_legacy_dirs();
 
   // Resolving the base creates it, and on macOS that mounts a RAM disk that
@@ -438,9 +493,13 @@ pub fn ram_disk_mounted() -> Option<bool> {
 
 /// Detach the macOS RAM disk when no profile directory is on it. Nothing else
 /// detaches it, so it would stay mounted until the Mac restarts.
+///
+/// Runs at exit, where `hdiutil detach` takes seconds, so the detach is
+/// started and not waited for: it finishes after Donut is gone.
 pub fn detach_unused_ram_disk() {
   #[cfg(target_os = "macos")]
   {
+    use std::process::Stdio;
     // Every Donut build mounts the same volume, so what is on it decides, not
     // only what this run created.
     if ephemeral_base_override().is_some() || !holds_no_profile_dirs(Path::new(MACOS_RAM_DISK)) {
@@ -448,14 +507,14 @@ pub fn detach_unused_ram_disk() {
     }
     match std::process::Command::new("hdiutil")
       .args(["detach", "-force", MACOS_RAM_DISK])
-      .output()
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
     {
-      Ok(output) if output.status.success() => {
-        log::info!("RAM disk detached path={MACOS_RAM_DISK} reason=unused_at_exit");
-      }
-      Ok(output) => log::warn!(
-        "RAM disk detach failed path={MACOS_RAM_DISK} err=\"{}\"",
-        String::from_utf8_lossy(&output.stderr).trim()
+      Ok(child) => log::info!(
+        "RAM disk detach started path={MACOS_RAM_DISK} pid={} reason=unused_at_exit",
+        child.id()
       ),
       Err(e) => log::warn!("RAM disk detach failed path={MACOS_RAM_DISK} err=\"{e}\""),
     }
@@ -634,6 +693,7 @@ mod tests {
     std::env::set_var("DONUTBROWSER_EPHEMERAL_ROOT", &missing);
 
     recover_ephemeral_dirs();
+    wait_for_recovery();
 
     assert!(!missing.exists());
   }

@@ -630,6 +630,13 @@ async fn stop_proxy_process_inner(
     } else {
       "terminated"
     };
+    if how != "still_running" {
+      let key = config
+        .as_ref()
+        .and_then(|config| config.profile_id.clone())
+        .unwrap_or_else(|| id.to_string());
+      crate::traffic_stats::absorb_stopped_worker(&key);
+    }
     let profile = config
       .as_ref()
       .and_then(|config| config.profile_id.as_deref())

@@ -41,6 +41,8 @@ const MANIFEST_FILE: &str = "manifest.json";
 const DATA_DIR: &str = "profile";
 const METADATA_FILE: &str = "metadata.json";
 const RESTORED_SUFFIX: &str = "(restored)";
+/// Where proxies, VPNs, groups, extensions and templates wait (`entity_trash`).
+pub const ENTITIES_DIR: &str = "entities";
 
 /// Chromium directories that only ever hold caches, relative to the profile
 /// data directory. Every one of them is recreated by the browser on demand.
@@ -292,7 +294,7 @@ pub fn list_entries(trash_root: &Path) -> Vec<(BrowserProfile, TrashManifest)> {
   };
   let mut listed: Vec<(BrowserProfile, TrashManifest)> = entries
     .flatten()
-    .filter(|entry| entry.path().is_dir())
+    .filter(|entry| entry.path().is_dir() && entry.file_name() != ENTITIES_DIR)
     .filter_map(|entry| {
       let name = entry.file_name();
       let id = name.to_string_lossy();
@@ -327,7 +329,7 @@ pub fn summaries(trash_root: &Path, retention_days: u32) -> Vec<TrashedProfileSu
     .collect()
 }
 
-fn normalized_name(name: &str) -> String {
+pub(crate) fn normalized_name(name: &str) -> String {
   name.trim().to_lowercase()
 }
 
@@ -356,8 +358,9 @@ pub fn unique_restored_name(name: &str, taken: &HashSet<String>) -> String {
 
 /// Move a trashed profile back under `profiles_dir` and return the profile as
 /// it must be saved, next to the sync mode it had: same id, identity, proxy
-/// and tags; the group only when it still exists; a fresh `updated_at`; and
-/// sync off, so no tombstone can erase it before the caller clears one.
+/// and tags; the group only when it still exists or waits in the trash too; a
+/// fresh `updated_at`; and sync off, so no tombstone can erase it before the
+/// caller clears one.
 ///
 /// `TRASH_RESTORE_CONFLICT` when a live profile already carries the id.
 pub fn restore_profile(
@@ -388,7 +391,12 @@ pub fn restore_profile(
     .collect();
   profile.name = unique_restored_name(&profile.name, &taken);
   if let Some(group_id) = profile.group_id.clone() {
-    if !group_exists(&group_id) {
+    let group_trashed = crate::entity_trash::holds(
+      &crate::entity_trash::entities_root(trash_root),
+      crate::entity_trash::EntityKind::Group,
+      &group_id,
+    );
+    if !group_exists(&group_id) && !group_trashed {
       profile.group_id = None;
     }
   }
@@ -463,16 +471,22 @@ fn command_error(e: Box<dyn std::error::Error>, context: &str) -> String {
   }
 }
 
+/// Erase every expired entry, profiles and other entities alike. Returns how
+/// many were removed.
+pub fn purge_expired_everywhere() -> usize {
+  ProfileManager::instance().purge_expired_trash()
+    + crate::entity_trash::purge_expired(crate::proxy_manager::now_secs(), retention_days())
+}
+
 /// Sweep expired entries now and again every `PURGE_INTERVAL_SECS`.
 pub fn start_expiry_sweeper() {
   tauri::async_runtime::spawn(async move {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(PURGE_INTERVAL_SECS));
     loop {
       interval.tick().await;
-      let purged =
-        tauri::async_runtime::spawn_blocking(|| ProfileManager::instance().purge_expired_trash())
-          .await
-          .unwrap_or(0);
+      let purged = tauri::async_runtime::spawn_blocking(purge_expired_everywhere)
+        .await
+        .unwrap_or(0);
       if purged > 0 {
         log::info!("Expired trash purged entries={purged}");
       }
@@ -538,12 +552,15 @@ pub async fn purge_trashed_profile(profile_id: String) -> Result<(), String> {
   .map_err(err_internal)?
 }
 
+/// Erase every entry: profiles, then proxies, VPNs, groups, extensions and
+/// templates. Returns how many were removed.
 #[tauri::command]
 pub async fn empty_trash() -> Result<usize, String> {
   tauri::async_runtime::spawn_blocking(|| {
-    ProfileManager::instance()
+    let profiles = ProfileManager::instance()
       .empty_trash()
-      .map_err(|e| command_error(e, "Failed to empty trash"))
+      .map_err(|e| command_error(e, "Failed to empty trash"))?;
+    Ok(profiles + crate::entity_trash::purge_all()?)
   })
   .await
   .map_err(err_internal)?
@@ -855,6 +872,34 @@ mod tests {
     .unwrap();
     assert_eq!(restored.group_id, None);
     assert_eq!(restored.proxy_id.as_deref(), Some("proxy-1"));
+  }
+
+  #[test]
+  fn restore_keeps_a_group_that_waits_in_the_trash() {
+    let root = TempDir::new().unwrap();
+    let profile = sample_profile("Grouped");
+    let profiles_dir = seed_profile(root.path(), &profile, false);
+    let trash_root = root.path().join("trash");
+    trash_profile(&profiles_dir, &trash_root, &profile, NOW, DAYS).unwrap();
+    let group_entry = trash_root.join(ENTITIES_DIR).join("group").join("group-1");
+    fs::create_dir_all(&group_entry).unwrap();
+    fs::write(group_entry.join("entry.json"), b"{}").unwrap();
+
+    assert_eq!(
+      summaries(&trash_root, DAYS).len(),
+      1,
+      "entities are not profiles"
+    );
+    let (restored, _) = restore_profile(
+      &profiles_dir,
+      &trash_root,
+      &profile.id.to_string(),
+      &[],
+      &|_| false,
+      NOW,
+    )
+    .unwrap();
+    assert_eq!(restored.group_id.as_deref(), Some("group-1"));
   }
 
   #[test]

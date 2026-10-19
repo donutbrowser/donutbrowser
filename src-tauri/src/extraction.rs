@@ -171,6 +171,14 @@ fn progress_file_reader(
   }))
 }
 
+/// The permission bits a file extracted from an archive gets. Only the read,
+/// write and execute bits are kept: an archive must not hand out setuid,
+/// setgid or sticky files.
+#[cfg_attr(not(unix), allow(dead_code))]
+fn extracted_file_mode(stored: u32) -> u32 {
+  stored & 0o777
+}
+
 pub struct Extractor;
 
 impl Extractor {
@@ -750,9 +758,12 @@ impl Extractor {
         .map_err(|e| format!("Failed to read ZIP entry at index {i}: {e}"))?;
 
       // Use enclosed_name to prevent path traversal; do not modify names otherwise
-      let enclosed = entry
-        .enclosed_name()
-        .ok_or_else(|| format!("ZIP contains an invalid entry path: {}", entry.name()))?;
+      let enclosed = entry.enclosed_name().ok_or_else(|| {
+        format!(
+          "ZIP contains an invalid entry path: {}",
+          String::from_utf8_lossy(entry.name_raw())
+        )
+      })?;
 
       let outpath = dest_dir.join(enclosed);
 
@@ -789,7 +800,7 @@ impl Extractor {
         {
           use std::os::unix::fs::PermissionsExt;
           if let Some(mode) = entry.unix_mode() {
-            let permissions = std::fs::Permissions::from_mode(mode);
+            let permissions = std::fs::Permissions::from_mode(extracted_file_mode(mode));
             std::fs::set_permissions(&outpath, permissions)
               .map_err(|e| format!("Failed to set permissions for {}: {}", outpath.display(), e))?;
           }
@@ -1648,7 +1659,7 @@ mod tests {
       let file = std::fs::File::create(&zip_path).expect("Failed to create test zip file");
       let mut zip = zip::ZipWriter::new(file);
       let options =
-        zip::write::FileOptions::<()>::default().compression_method(zip::CompressionMethod::Stored);
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
       zip
         .start_file("data.bin", options)
         .expect("Failed to start zip file");
@@ -1707,7 +1718,7 @@ mod tests {
       let mut zip = zip::ZipWriter::new(file);
 
       let options =
-        zip::write::FileOptions::<()>::default().compression_method(zip::CompressionMethod::Stored);
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
       zip
         .start_file("test.txt", options)
@@ -1740,6 +1751,42 @@ mod tests {
         "Error should be about missing executable, not extraction failure: {error_msg}"
       );
     }
+  }
+
+  #[test]
+  fn an_extracted_file_keeps_only_its_permission_bits() {
+    assert_eq!(extracted_file_mode(0o100755), 0o755);
+    assert_eq!(extracted_file_mode(0o4755), 0o755);
+    assert_eq!(extracted_file_mode(0o2711), 0o711);
+    assert_eq!(extracted_file_mode(0o1777), 0o777);
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn a_zip_cannot_hand_out_setuid_setgid_or_sticky_files() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp_dir = TempDir::new().unwrap();
+    let dest_dir = temp_dir.path().join("extracted");
+    let zip_path = temp_dir.path().join("modes.zip");
+    {
+      let mut zip = zip::ZipWriter::new(std::fs::File::create(&zip_path).unwrap());
+      let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored)
+        .external_attributes((0o100000 | 0o7755) << 16);
+      zip.start_file("helper.sh", options).unwrap();
+      zip.write_all(b"#!/bin/sh\n").unwrap();
+      zip.finish().unwrap();
+    }
+
+    let _ = Extractor::instance()
+      .extract_zip(&zip_path, &dest_dir, None)
+      .await;
+    let mode = std::fs::metadata(dest_dir.join("helper.sh"))
+      .unwrap()
+      .permissions()
+      .mode();
+    assert_eq!(mode & 0o7777, 0o755);
   }
 
   #[tokio::test]
