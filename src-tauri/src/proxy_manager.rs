@@ -234,18 +234,22 @@ static NEXT_LAUNCH_PLACEHOLDER_PID: std::sync::atomic::AtomicU32 =
 /// What a donut-proxy command printed and how it ended.
 struct SidecarOutput {
   code: Option<i32>,
+  /// Seen gone before its exit status arrived; see `collect_sidecar`.
+  exit_unreported: bool,
   stdout: Vec<u8>,
   stderr: Vec<u8>,
 }
 
 impl SidecarOutput {
   fn success(&self) -> bool {
-    self.code == Some(0)
+    self.code == Some(0) || self.exit_unreported
   }
 }
 
 /// How long output that is still on its way is read after the command exits.
 const SIDECAR_DRAIN: std::time::Duration = std::time::Duration::from_secs(1);
+/// How often a running command is checked for having exited.
+const SIDECAR_POLL: std::time::Duration = std::time::Duration::from_millis(200);
 
 /// Run a short donut-proxy command. A command that does not exit in time is
 /// killed, and the launch reports it instead of waiting forever.
@@ -256,12 +260,14 @@ async fn run_sidecar(
   let (events, child) = command
     .spawn()
     .map_err(|e| format!("Failed to execute donut-proxy: {e}"))?;
-  match collect_sidecar(events, crate::proxy_runner::SIDECAR_RESPONSE_LIMIT).await {
+  let pid = child.pid();
+  let running = move || crate::proxy_storage::is_process_running(pid);
+  match collect_sidecar(events, running, crate::proxy_runner::SIDECAR_RESPONSE_LIMIT).await {
     Some(output) => Ok(output),
     None => {
       let _ = child.kill();
       log::error!(
-        "donut-proxy command timed out elapsed_ms={}",
+        "donut-proxy command timed out pid={pid} elapsed_ms={}",
         started.elapsed().as_millis()
       );
       Err(crate::proxy_runner::sidecar_not_responding_error())
@@ -270,23 +276,27 @@ async fn run_sidecar(
 }
 
 /// What a command printed until it exited, or `None` when it did not exit
-/// within `limit`. Its exit ends the wait, not the end of its output: on
-/// Windows the worker it starts can keep the output pipe open, so a wait for
-/// that would last as long as the worker.
+/// within `limit`. The exit ends the wait, not the end of its output: the
+/// exit status is reported only once the output pipes close, and on Windows
+/// the worker a command starts can keep them open for as long as it runs. So
+/// the process itself is also checked.
 async fn collect_sidecar(
   mut events: tauri::async_runtime::Receiver<tauri_plugin_shell::process::CommandEvent>,
+  running: impl Fn() -> bool,
   limit: std::time::Duration,
 ) -> Option<SidecarOutput> {
   use tauri_plugin_shell::process::CommandEvent;
   let mut output = SidecarOutput {
     code: None,
+    exit_unreported: false,
     stdout: Vec::new(),
     stderr: Vec::new(),
   };
   let mut deadline = tokio::time::Instant::now() + limit;
   let mut exited = false;
   loop {
-    match tokio::time::timeout_at(deadline, events.recv()).await {
+    let wake = deadline.min(tokio::time::Instant::now() + SIDECAR_POLL);
+    match tokio::time::timeout_at(wake, events.recv()).await {
       Ok(Some(CommandEvent::Stdout(line))) => {
         output.stdout.extend(line);
         output.stdout.push(b'\n');
@@ -297,12 +307,19 @@ async fn collect_sidecar(
       }
       Ok(Some(CommandEvent::Terminated(payload))) => {
         output.code = payload.code;
-        exited = true;
-        deadline = deadline.min(tokio::time::Instant::now() + SIDECAR_DRAIN);
+        output.exit_unreported = false;
+        return Some(output);
       }
       Ok(Some(_)) => {}
       Ok(None) => return exited.then_some(output),
-      Err(_) => return exited.then_some(output),
+      Err(_) if tokio::time::Instant::now() >= deadline => return exited.then_some(output),
+      Err(_) => {
+        if !exited && !running() {
+          exited = true;
+          output.exit_unreported = true;
+          deadline = deadline.min(tokio::time::Instant::now() + SIDECAR_DRAIN);
+        }
+      }
     }
   }
 }
@@ -3477,7 +3494,7 @@ mod tests {
     // `tx` stays alive, as the pipe does while a worker keeps it.
     let output = tokio::time::timeout(
       std::time::Duration::from_secs(5),
-      collect_sidecar(rx, std::time::Duration::from_secs(30)),
+      collect_sidecar(rx, || true, std::time::Duration::from_secs(30)),
     )
     .await
     .expect("the exit ends the wait")
@@ -3494,8 +3511,28 @@ mod tests {
     tx.send(CommandEvent::Stdout(b"starting".to_vec()))
       .await
       .unwrap();
-    let output = collect_sidecar(rx, std::time::Duration::from_millis(200)).await;
+    let output = collect_sidecar(rx, || true, std::time::Duration::from_millis(300)).await;
     assert!(output.is_none());
+    drop(tx);
+  }
+
+  #[tokio::test]
+  async fn a_sidecar_gone_without_a_reported_exit_is_read() {
+    use tauri_plugin_shell::process::CommandEvent;
+    let (tx, rx) = tauri::async_runtime::channel(8);
+    tx.send(CommandEvent::Stdout(b"{\"id\":\"p\"}".to_vec()))
+      .await
+      .unwrap();
+    // No exit status: a worker keeps the pipes open, but the command is gone.
+    let output = tokio::time::timeout(
+      std::time::Duration::from_secs(5),
+      collect_sidecar(rx, || false, std::time::Duration::from_secs(30)),
+    )
+    .await
+    .expect("the process check ends the wait")
+    .expect("a command that is gone has output");
+    assert!(output.success());
+    assert_eq!(output.stdout, b"{\"id\":\"p\"}\n");
     drop(tx);
   }
   use std::env;
