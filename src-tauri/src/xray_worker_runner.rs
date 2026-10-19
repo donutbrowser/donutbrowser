@@ -15,7 +15,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
+// A first start on Windows can wait for antivirus to scan xray.exe.
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 const READY_CHECK_TIMEOUT: Duration = Duration::from_millis(750);
 static XRAY_BINARY_VERIFIED: AtomicBool = AtomicBool::new(false);
@@ -146,7 +147,10 @@ async fn wait_until_ready(
           "Xray worker exited during startup id={id} pid={supervisor_pid} log=\"{}\"",
           crate::log_redaction::Plain(&crate::log_redaction::text(&tail))
         );
-        return Err(structured_error("XRAY_START_FAILED"));
+        return Err(structured_error_with_detail(
+          "XRAY_START_FAILED",
+          "the worker exited during startup",
+        ));
       }
       if config.pid == Some(supervisor_pid)
         && config.pid_start_time == Some(supervisor_start_time)
@@ -158,7 +162,13 @@ async fn wait_until_ready(
     }
 
     if tokio::time::Instant::now() >= deadline {
-      return Err(structured_error("XRAY_START_FAILED"));
+      return Err(structured_error_with_detail(
+        "XRAY_START_FAILED",
+        format!(
+          "the worker was not ready after {} s",
+          STARTUP_TIMEOUT.as_secs()
+        ),
+      ));
     }
     tokio::time::sleep(POLL_INTERVAL).await;
   }
