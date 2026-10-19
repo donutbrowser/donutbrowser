@@ -174,10 +174,10 @@ const CASES: Case[] = [
   },
   {
     method: "batchRunProfiles",
-    args: [["p1", "p2"], { headless: false }],
+    args: [["p1", "p2"], { headless: false, delayMs: 500, concurrency: 2 }],
     verb: "POST",
     path: "/v1/profiles/batch/run",
-    body: { profile_ids: ["p1", "p2"], headless: false },
+    body: { profile_ids: ["p1", "p2"], headless: false, delay_ms: 500, concurrency: 2 },
     operation: "POST /v1/profiles/batch/run",
   },
   {

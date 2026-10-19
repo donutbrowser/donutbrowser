@@ -7,6 +7,12 @@ import { useTranslation } from "react-i18next";
 import { LuLoaderCircle } from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AnimatedTabs,
+  AnimatedTabsContent,
+  AnimatedTabsList,
+  AnimatedTabsTrigger,
+} from "@/components/ui/animated-tabs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -29,7 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { translateBackendError } from "@/lib/backend-errors";
@@ -1699,21 +1704,29 @@ export function WayfernConfigForm({
         {forceAdvanced ? (
           renderAdvancedForm()
         ) : (
-          <Tabs
+          <AnimatedTabs
             value={activeTab}
             onValueChange={readOnly ? undefined : setActiveTab}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="automatic" disabled={readOnly}>
+            <AnimatedTabsList className="flex w-full">
+              <AnimatedTabsTrigger
+                value="automatic"
+                className="flex-1"
+                disabled={readOnly}
+              >
                 {t("fingerprint.automatic")}
-              </TabsTrigger>
-              <TabsTrigger value="manual" disabled={readOnly}>
+              </AnimatedTabsTrigger>
+              <AnimatedTabsTrigger
+                value="manual"
+                className="flex-1"
+                disabled={readOnly}
+              >
                 {t("fingerprint.manual")}
-              </TabsTrigger>
-            </TabsList>
+              </AnimatedTabsTrigger>
+            </AnimatedTabsList>
 
-            <TabsContent value="automatic" className="space-y-6">
+            <AnimatedTabsContent value="automatic" className="mt-2 space-y-6">
               {/* Operating System Selection */}
               <div className="mt-4 space-y-3">
                 <Label>{t("fingerprint.osLabel")}</Label>
@@ -1927,12 +1940,12 @@ export function WayfernConfigForm({
                   </>
                 )}
               </div>
-            </TabsContent>
+            </AnimatedTabsContent>
 
-            <TabsContent value="manual" className="space-y-6">
+            <AnimatedTabsContent value="manual" className="mt-2 space-y-6">
               {renderAdvancedForm()}
-            </TabsContent>
-          </Tabs>
+            </AnimatedTabsContent>
+          </AnimatedTabs>
         )}
       </div>
     </SoftFields>

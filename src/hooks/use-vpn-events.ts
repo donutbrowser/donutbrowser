@@ -1,87 +1,102 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import i18n from "@/i18n";
-import type { VpnConfig } from "@/types";
+import { translateBackendError } from "@/lib/backend-errors";
+import { countBy, profileList, vpnConfigList } from "@/lib/profile-list-store";
+import type { BrowserProfile, VpnConfig } from "@/types";
+
+const NO_VPNS: VpnConfig[] = [];
+const NO_USAGE: Record<string, number> = {};
+
+const vpnOf = (profile: BrowserProfile) => profile.vpn_id;
+
+function vpnsError(err: unknown) {
+  return i18n.t("errors.loadVpnConfigsFailed", {
+    error: translateBackendError(i18n.t, err),
+  });
+}
 
 /**
- * Custom hook to manage VPN-related state and listen for backend events.
- * This hook eliminates the need for manual UI refreshes by automatically
- * updating state when the backend emits VPN change events.
+ * VPN configs and how many profiles use each, kept current by backend
+ * events. Both lists come from the shared store, so every reader shares one
+ * load per change. With `enabled: false` (a closed dialog) it loads nothing
+ * and listens to nothing.
  */
-export function useVpnEvents() {
-  const [vpnConfigs, setVpnConfigs] = useState<VpnConfig[]>([]);
-  const [vpnUsage, setVpnUsage] = useState<Record<string, number>>({});
+export function useVpnEvents({ enabled = true }: { enabled?: boolean } = {}) {
+  const [vpnConfigs, setVpnConfigs] = useState<VpnConfig[]>(
+    () => vpnConfigList.peek() ?? NO_VPNS,
+  );
+  const [vpnUsage, setVpnUsage] = useState<Record<string, number>>(() => {
+    const profiles = profileList.peek();
+    return profiles ? countBy(profiles, vpnOf) : NO_USAGE;
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadVpnUsage = useCallback(async () => {
-    try {
-      const profiles = await invoke<{ vpn_id?: string }[]>(
-        "list_browser_profiles",
-      );
-      const counts: Record<string, number> = {};
-      for (const p of profiles) {
-        if (p.vpn_id) counts[p.vpn_id] = (counts[p.vpn_id] ?? 0) + 1;
-      }
-      setVpnUsage(counts);
-    } catch (err) {
-      console.error("Failed to load VPN usage:", err);
-    }
+  const applyProfiles = useCallback((profiles: BrowserProfile[]) => {
+    setVpnUsage((previous) => countBy(profiles, vpnOf, previous));
   }, []);
 
   const loadVpnConfigs = useCallback(async () => {
     try {
-      const configs = await invoke<VpnConfig[]>("list_vpn_configs");
-      setVpnConfigs(configs);
-      await loadVpnUsage();
+      setVpnConfigs(await vpnConfigList.refresh());
       setError(null);
     } catch (err: unknown) {
       console.error("Failed to load VPN configs:", err);
-      setError(
-        i18n.t("errors.loadVpnConfigsFailed", { error: JSON.stringify(err) }),
-      );
+      setError(vpnsError(err));
     }
-  }, [loadVpnUsage]);
+  }, []);
 
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
   useEffect(() => {
-    let vpnConfigsUnlisten: (() => void) | undefined;
-    let profilesUnlisten: (() => void) | undefined;
+    if (!enabled) return;
+    let disposed = false;
+    const stopVpns = vpnConfigList.subscribe({
+      value: (list) => {
+        setVpnConfigs(list);
+        setError(null);
+      },
+      error: (err) => {
+        console.error("Failed to load VPN configs:", err);
+        setError(vpnsError(err));
+      },
+    });
+    const stopProfiles = profileList.subscribe({
+      value: applyProfiles,
+      error: () => undefined,
+    });
 
-    const setupListeners = async () => {
+    void (async () => {
       try {
-        await loadVpnConfigs();
-
-        vpnConfigsUnlisten = await listen("vpn-configs-changed", () => {
-          void loadVpnConfigs();
-        });
-
-        profilesUnlisten = await listen("profiles-changed", () => {
-          void loadVpnUsage();
-        });
+        const list = await vpnConfigList.load();
+        if (disposed) return;
+        setVpnConfigs(list);
+        setError(null);
       } catch (err) {
-        console.error("Failed to setup VPN event listeners:", err);
-        setError(
-          i18n.t("errors.setupVpnListenersFailed", {
-            error: JSON.stringify(err),
-          }),
-        );
+        if (disposed) return;
+        console.error("Failed to load VPN configs:", err);
+        setError(vpnsError(err));
       } finally {
-        setIsLoading(false);
+        if (!disposed) setIsLoading(false);
       }
-    };
-
-    void setupListeners();
+    })();
+    profileList.load().then(
+      (profiles) => {
+        if (!disposed) applyProfiles(profiles);
+      },
+      (err: unknown) => {
+        console.error("Failed to load VPN usage:", err);
+      },
+    );
 
     return () => {
-      if (vpnConfigsUnlisten) vpnConfigsUnlisten();
-      if (profilesUnlisten) profilesUnlisten();
+      disposed = true;
+      stopVpns();
+      stopProfiles();
     };
-  }, [loadVpnConfigs, loadVpnUsage]);
+  }, [enabled, applyProfiles]);
 
   return {
     vpnConfigs,

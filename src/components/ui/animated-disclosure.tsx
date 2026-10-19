@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import type { ComponentProps, ReactNode } from "react";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { MOTION_EASE_OUT, MOTION_SPRING_POSITION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -63,17 +63,16 @@ export function AnimatedDisclosureContent({
   children: ReactNode;
   className?: string;
 }) {
-  const reduceMotion = useReducedMotion();
-  const inputModality = useInputModality();
+  const motionAllowed = useMotionAllowed();
 
   if (!open) return null;
 
   return (
     <motion.div
-      initial={reduceMotion || inputModality === "keyboard" ? false : { y: -4 }}
+      initial={motionAllowed ? { y: -4 } : false}
       animate={{ y: 0 }}
       transition={{
-        duration: reduceMotion || inputModality === "keyboard" ? 0 : 0.16,
+        duration: motionAllowed ? 0.16 : 0,
         ease: MOTION_EASE_OUT,
       }}
       className={cn(className)}

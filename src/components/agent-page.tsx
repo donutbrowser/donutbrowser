@@ -518,19 +518,16 @@ export function AgentPage({
         <SoftFields>
           <div
             data-testid="agent-page"
-            className="@container flex min-h-0 w-full flex-1 flex-col gap-3"
+            className={cn(
+              "@container flex min-h-0 w-full flex-1 flex-col gap-3",
+              subPage && "mx-auto max-w-4xl",
+            )}
           >
             <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
               <div className="flex min-w-0 flex-col gap-1">
                 {subPage ? (
-                  <>
-                    <h2 className="text-base leading-none font-semibold">
-                      {title}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                      {description}
-                    </p>
-                  </>
+                  // The shell's header already names the page.
+                  <p className="text-xs text-muted-foreground">{description}</p>
                 ) : (
                   <>
                     <DialogTitle>{title}</DialogTitle>
@@ -637,7 +634,11 @@ export function AgentPage({
               >
                 {blockerPanel ??
                   (automation || scheduled ? (
-                    <AgentRecipes profiles={profiles} />
+                    <AgentRecipes
+                      profiles={profiles}
+                      canRunOnDesktop={automation}
+                      desktopConnected={remote?.connected ?? false}
+                    />
                   ) : (
                     <SetupPanel
                       testId="agent-recipes-plan"

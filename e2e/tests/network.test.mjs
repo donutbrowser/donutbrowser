@@ -210,12 +210,12 @@ async function createExtensionsThroughUi(app) {
   );
   assert.ok(editButton, "Extension group edit control was not visible");
   await app.session.click(editButton);
-  await app.waitForText("Edit Group");
+  await app.waitForText("Edit group");
   const memberToggle = await app.execute(
     `
       const dialogs = [...document.querySelectorAll('[role="dialog"]')];
       const dialog = dialogs.reverse().find(
-        (candidate) => (candidate.innerText || "").includes("Edit Group")
+        (candidate) => (candidate.innerText || "").includes("Edit group")
       );
       const member = [
         ...(dialog?.querySelectorAll('[data-slot="extension-group-members"] label') ?? []),
@@ -253,7 +253,7 @@ async function createProfileThroughUi(app, groupName, proxy) {
   await app.clickSelector('[aria-label="Profiles"]');
   await app.clickText(groupName, { exact: false, roles: ["button"] });
   await app.clickText("New", { roles: ["button"] });
-  await app.waitForText("Create New Profile");
+  await app.waitForText("Create new profile");
   await app.fillSelector("#profile-name", "Visible Network Profile");
   await app.clickSelector("#profile-proxy");
   await app.clickText(proxy.name, { roles: ["option"] });
@@ -264,7 +264,7 @@ async function createProfileThroughUi(app, groupName, proxy) {
       !(await app.execute(`
         return [...document.querySelectorAll('[role="dialog"]')].some(
           (dialog) =>
-            (dialog.innerText || "").includes("Create New Profile")
+            (dialog.innerText || "").includes("Create new profile")
         );
       `)),
     { description: "profile creation dialog to unmount" },
@@ -341,7 +341,7 @@ const assignNetworkThroughUi = (app, profileName, newName) =>
   assignThroughUi(app, profileName, "Proxy / VPN", newName, "Network");
 
 const assignExtensionGroupThroughUi = (app, profileName, newName) =>
-  assignThroughUi(app, profileName, "EXT", newName, "Extension");
+  assignThroughUi(app, profileName, "Extensions", newName, "Extension");
 
 async function runProfile(_app, base, token, profileId, url) {
   const launched = await request(`${base}/v1/profiles/${profileId}/run`, {

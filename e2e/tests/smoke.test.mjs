@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { appFromEnvironment, withApp } from "../lib/app.mjs";
 
 test("table views persist separately, migrate the old sort, and reject invalid settings", async () => {
   await withApp("smoke-table-views", async (app) => {
-    await app.invoke("save_table_sorting_settings", {
-      sorting: { column: "created_at", direction: "desc" },
-    });
+    // The sort an older version kept, before table views existed.
+    const settingsDir = path.join(app.dataRoot, "data", "settings");
+    await mkdir(settingsDir, { recursive: true });
+    await writeFile(
+      path.join(settingsDir, "table_sorting.json"),
+      JSON.stringify({ column: "created_at", direction: "desc" }),
+    );
     assert.deepEqual(
       (await app.invoke("get_table_preferences", { tableId: "profiles" }))
         .sorting,
@@ -130,17 +134,23 @@ test("fresh app renders, completes onboarding, persists settings, and never touc
       assert.equal(saved.theme, "dark");
       assert.equal(saved.language, "en");
 
-      await app.invoke("save_table_sorting_settings", {
-        sorting: { column: "browser", direction: "desc" },
-      });
-      assert.deepEqual(await app.invoke("get_table_sorting_settings"), {
-        column: "browser",
-        direction: "desc",
-      });
       assert.ok((await app.invoke("get_system_language")).length >= 2);
       const system = await app.invoke("get_system_info");
       assert.ok(system && typeof system === "object");
       assert.equal(typeof (await app.invoke("read_log_files")), "string");
+      const logTail = await app.invoke("read_app_log", { limit: 5 });
+      assert.ok(Array.isArray(logTail) && logTail.length <= 5);
+      for (const line of logTail) {
+        assert.equal(typeof line.key, "string");
+        assert.match(line.level, /^(trace|debug|info|warn|error)$/);
+      }
+      const errorsOnly = await app.invoke("read_app_log", {
+        level: "error",
+        profileId: "00000000-0000-0000-0000-0000000000ff",
+      });
+      assert.deepEqual(errorsOnly, []);
+      // Reopen is off by default, so there is nothing to launch again.
+      assert.deepEqual(await app.invoke("take_reopen_profiles"), []);
 
       // Feature tips: what was read, the tip on the Profiles page, the day
       // the next one may come, and the decision behind the paid-plan welcome

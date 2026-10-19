@@ -17,7 +17,6 @@ export function useProfileTableFilters(
   profiles: BrowserProfile[],
   query: string,
   context: ProfileSearchContext,
-  clearSelection: () => void,
 ) {
   const { t } = useTranslation();
   const searched = useMemo(() => {
@@ -86,5 +85,5 @@ export function useProfileTableFilters(
     ],
     [profiles, context, t],
   );
-  return useTableFilters(searched, noTextSearch, definitions, clearSelection);
+  return useTableFilters(searched, noTextSearch, definitions, "profiles");
 }

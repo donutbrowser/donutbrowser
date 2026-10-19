@@ -42,7 +42,9 @@ interface AutoUpdateEvent {
 export function useVersionUpdater() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<number | null>(null);
-  const [timeUntilNextUpdate, setTimeUntilNextUpdate] = useState<number>(0);
+  // When the next check runs, in unix seconds. A countdown kept in state
+  // would change on every poll and re-render the page each minute.
+  const [nextUpdateAt, setNextUpdateAt] = useState<number | null>(null);
   const [updateProgress, setUpdateProgress] =
     useState<VersionUpdateProgress | null>(null);
 
@@ -55,7 +57,12 @@ export function useVersionUpdater() {
         "get_version_update_status",
       );
       setLastUpdateTime(lastUpdate);
-      setTimeUntilNextUpdate(timeUntilNext);
+      const at = Math.round(Date.now() / 1000) + timeUntilNext;
+      // The backend counts in whole seconds: a second either way is the same
+      // moment.
+      setNextUpdateAt((prev) =>
+        prev !== null && Math.abs(prev - at) <= 2 ? prev : at,
+      );
     } catch (error) {
       console.error("Failed to load version update status:", error);
     }
@@ -289,19 +296,27 @@ export function useVersionUpdater() {
     };
   }, []);
 
-  // Load update status on mount and periodically
+  // Load update status on mount, every minute while the window shows, and at
+  // once when it comes back.
   useEffect(() => {
     void loadUpdateStatus();
 
-    // Update status every minute
-    const interval = setInterval(() => {
-      void loadUpdateStatus();
-    }, 60000);
+    const loadIfVisible = () => {
+      if (document.visibilityState === "visible") void loadUpdateStatus();
+    };
+    const interval = setInterval(loadIfVisible, 60000);
+    document.addEventListener("visibilitychange", loadIfVisible);
 
     return () => {
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", loadIfVisible);
     };
   }, [loadUpdateStatus]);
+
+  const timeUntilNextUpdate =
+    nextUpdateAt === null
+      ? 0
+      : Math.max(0, nextUpdateAt - Math.round(Date.now() / 1000));
 
   const triggerManualUpdate = useCallback(async () => {
     try {

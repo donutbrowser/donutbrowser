@@ -34,7 +34,8 @@
       "saving": "저장 중…",
       "saved": "저장됨",
       "copied": "복사됨",
-      "learnMore": "자세히 알아보기"
+      "learnMore": "자세히 알아보기",
+      "undo": "실행 취소"
     },
     "status": {
       "active": "활성",
@@ -299,7 +300,25 @@
           "label": "이벤트",
           "description": "프로필 실행과 중지, 동기화, 다운로드, 확인이 필요한 요청."
         }
-      }
+      },
+      "previewAria": "{{name}} 소리 미리 듣기"
+    },
+    "system": {
+      "title": "시스템",
+      "launchAtLogin": "로그인할 때 Donut 열기",
+      "launchAtLoginDescription": "컴퓨터에 로그인하면 Donut이 시작됩니다.",
+      "reopenRunning": "시작할 때 실행 중이던 프로필 다시 열기",
+      "reopenRunningDescription": "Donut을 닫을 때 실행 중이던 프로필이 다시 열 때 다시 시작됩니다.",
+      "notifications": "시스템 알림",
+      "notificationsDescription": "Donut이 백그라운드에 있는 동안 실행 실패나 에이전트의 질문 같은 이벤트를 운영 체제가 알려 줍니다."
+    },
+    "launches": {
+      "title": "일괄 실행",
+      "delay": "실행 사이 대기 시간",
+      "delayDescription": "여러 프로필을 실행할 때 다음 프로필을 시작하기 전에 Donut이 기다리는 시간입니다.",
+      "concurrency": "동시에 시작하는 프로필 수",
+      "concurrencyDescription": "동시에 시작할 수 있는 프로필 수입니다. 수가 적을수록 컴퓨터 부담이 줄어듭니다.",
+      "seconds": "{{value}}초"
     }
   },
   "header": {
@@ -319,7 +338,8 @@
     "newProfile": "새로 만들기",
     "donutLogo": "Donut Browser 로고",
     "scrollGroupsLeft": "그룹 왼쪽으로 스크롤",
-    "scrollGroupsRight": "그룹 오른쪽으로 스크롤"
+    "scrollGroupsRight": "그룹 오른쪽으로 스크롤",
+    "allGroups": "모든 그룹"
   },
   "search": {
     "helpLabel": "검색 구문",
@@ -409,7 +429,7 @@
       "proxy": "프록시 / VPN",
       "lastLaunch": "마지막 실행",
       "empty": "프로필을 찾을 수 없습니다.",
-      "ext": "확장",
+      "ext": "확장 프로그램",
       "dns": "DNS",
       "dnsLevel": "DNS 차단 목록: {{level}}",
       "extSearch": "그룹 검색…",
@@ -507,7 +527,10 @@
       "runSelected": "선택 실행",
       "stopSelected": "선택 중지",
       "proRequired": "대량 실행/중지하려면 Pro 플랜이 필요합니다",
-      "distributeProxies": "프록시 배분"
+      "distributeProxies": "프록시 배분",
+      "runCount": "{{count}}개 실행",
+      "stopCount": "{{count}}개 중지",
+      "enableSync": "동기화 사용"
     },
     "passwordProtectedBadge": "비밀번호 보호됨",
     "launchHook": {
@@ -517,7 +540,13 @@
       "confirmTitle": "{{count}}개의 프로필을 실행할까요?",
       "confirmDescription": "{{count}}개의 프로필을 한 번에 실행하면 시스템 리소스를 많이 사용할 수 있습니다. 계속할까요?",
       "confirmButton": "{{count}}개 실행",
-      "noneToRun": "실행할 선택된 프로필이 없습니다."
+      "noneToRun": "실행할 선택된 프로필이 없습니다.",
+      "progress": "실행 중 {{done}} / {{total}}",
+      "failedSummary": "{{total}}개 중 {{failed}}개 실행 실패",
+      "showFailed": "보기",
+      "notStarted": "{{total}}개 중 {{count}}개는 시작되지 않았습니다",
+      "finishedTitle": "일괄 실행 완료",
+      "finishedBody": "프로필 {{total}}개 중 {{launched}}개 실행됨"
     },
     "bulkStop": {
       "confirmTitle": "{{count}}개의 프로필을 중지할까요?",
@@ -533,8 +562,18 @@
     },
     "remote": {
       "runningTooltip": "원격 머신에서 실행 중입니다. 중지하면 프로필이 여기로 돌아옵니다.",
-      "pendingSyncTooltip": "원격 세션이 변경한 내용을 내려받는 중입니다. 완료되면 다시 사용할 수 있습니다."
-    }
+      "pendingSyncTooltip": "원격 세션이 변경한 내용을 내려받는 중입니다. 완료되면 다시 사용할 수 있습니다.",
+      "starting": "클라우드에서 {{name}} 시작 중"
+    },
+    "trash": {
+      "moved": "\"{{name}}\"을(를) 휴지통으로 옮겼습니다",
+      "movedMany": "프로필 {{count}}개를 휴지통으로 옮겼습니다"
+    },
+    "stopAll": {
+      "none": "실행 중인 프로필이 없습니다."
+    },
+    "duplicated": "복사본 생성됨: {{name}}",
+    "lockedToast": "\"{{name}}\"이(가) 잠겼습니다"
   },
   "createProfile": {
     "title": "새 프로필 생성",
@@ -590,6 +629,9 @@
       "reached": "현재 요금제는 시간당 새 프로필 {{limit}}개까지 허용합니다. 약 {{minutes}}분 후에 다음 프로필을 만들 수 있습니다.",
       "warningTitle": "프로필을 너무 빠르게 만들고 있습니다",
       "warning": "잠시 기다려 주세요. 1시간 안에 너무 많은 프로필을 만들면 24시간 이상 일시적으로 차단되며, 그동안 새 아이덴티티를 생성할 수 없습니다. 더 높은 시간당 한도가 필요하다면 유료 요금제로 Donut을 후원해 주세요."
+    },
+    "group": {
+      "notFound": "그룹을 찾을 수 없습니다."
     }
   },
   "deleteDialog": {
@@ -926,7 +968,9 @@
     "enabledToast": "동기화 사용",
     "disabledToast": "동기화 사용 안 함",
     "enabledDescription": "프로필 동기화가 활성화되었습니다",
-    "disabledDescription": "프로필 동기화가 비활성화되었습니다"
+    "disabledDescription": "프로필 동기화가 비활성화되었습니다",
+    "bulkEnabledToast": "프로필 {{count}}개의 동기화를 켰습니다",
+    "bulkEnableNone": "선택한 프로필의 동기화가 이미 켜져 있습니다."
   },
   "integrations": {
     "title": "통합",
@@ -1075,7 +1119,13 @@
           "title": "클라이언트 구성",
           "description": "목록에 없는 클라이언트의 MCP 구성에 이 항목을 추가하세요."
         }
-      }
+      },
+      "tryIt": "실행해 보기",
+      "tryItDescription": "이 요청을 토큰과 함께 로컬 API로 보내고 응답을 표시합니다.",
+      "tryItNeedsApi": "이 요청을 보내려면 로컬 API를 켜세요.",
+      "tryItFailed": "요청이 로컬 API에 도달하지 못했습니다. 실행 중인지 확인하세요.",
+      "liveResponse": "실제 응답",
+      "tryItStatus": "HTTP {{status}} · {{ms}} ms"
     },
     "tabRemote": "원격 MCP",
     "remote": {
@@ -1103,7 +1153,12 @@
       "credentialRotateFailed": "자격 증명을 교체하지 못했습니다",
       "credentialClientsFailed": "자격 증명은 저장되었지만 다음 클라이언트를 업데이트하지 못했습니다: {{clients}}. 다시 시도하려면 자격 증명을 다시 교체하세요.",
       "fxHint": "fx는 DONUT_MCP_TOKEN에서 자격 증명을 읽습니다. fx를 시작하는 셸에서 내보내세요.",
-      "fxExportCopied": "내보내기 줄을 복사했습니다"
+      "fxExportCopied": "내보내기 줄을 복사했습니다",
+      "credentialForget": "삭제",
+      "credentialForgetTitle": "자격 증명을 삭제할까요?",
+      "credentialForgetDescription": "Donut이 자격 증명을 폐기하고 이 컴퓨터에서 제거합니다. 이를 사용하는 클라이언트는 새로 만들 때까지 작동하지 않습니다.",
+      "credentialForgotten": "자격 증명을 삭제했습니다",
+      "credentialForgetFailed": "자격 증명을 삭제할 수 없습니다"
     }
   },
   "import": {
@@ -1386,7 +1441,7 @@
     "unknownError": "알 수 없는 오류가 발생했습니다. 다시 시도하세요.",
     "noProfilesForUrl": "사용할 수 있는 프로필이 없습니다. URL을 열기 전에 먼저 프로필을 생성하세요.",
     "createProfileFailed": "프로필 생성 실패: {{error}}",
-    "launchBrowserFailed": "브라우저 실행 실패: {{error}}",
+    "launchBrowserFailed": "{{name}} 실행 실패: {{error}}",
     "cannotDeleteRunningProfile": "브라우저가 실행 중인 동안 프로필을 삭제할 수 없습니다. 먼저 브라우저를 중지하세요.",
     "deleteProfileFailed": "프로필 삭제 실패: {{error}}",
     "renameProfileFailed": "프로필 이름 변경 실패: {{error}}",
@@ -1563,7 +1618,8 @@
   "crossOs": {
     "viewOnly": "이 프로필은 {{os}}에서 생성되었으며 이 시스템에서는 지원되지 않습니다",
     "cannotLaunch": "이 프로필은 {{os}}에서 생성되었으며 이 시스템에서는 지원되지 않습니다",
-    "cannotModify": "교차 OS 프로필의 동기화 설정을 수정할 수 없습니다"
+    "cannotModify": "교차 OS 프로필의 동기화 설정을 수정할 수 없습니다",
+    "cannotLaunchUnknown": "이 프로필은 다른 운영 체제에서 생성되어 여기에서 실행할 수 없습니다"
   },
   "profileInfo": {
     "title": "프로필 세부 정보",
@@ -1614,7 +1670,8 @@
       "noRules": "구성된 우회 규칙이 없습니다.",
       "ruleTypes": "호스트 이름, IP 주소 및 정규식 패턴을 지원합니다.",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}"
+      "proxyLabel": "Proxy: {{name}}",
+      "removeRule": "{{rule}} 제거"
     },
     "launchHook": {
       "title": "실행 후크 URL",
@@ -1650,7 +1707,9 @@
       "launchHook": "실행 후크",
       "transfer": "전송",
       "startPages": "시작 페이지",
-      "twoFactor": "2FA 코드"
+      "twoFactor": "2FA 코드",
+      "requests": "요청",
+      "logs": "로그"
     },
     "sectionDesc": {
       "fingerprint": "이 프로필이 핑거프린팅 스크립트에 어떻게 표시되는지 구성합니다.",
@@ -1660,7 +1719,9 @@
       "sync": "이 프로필이 다른 기기에 어떻게 미러링되는지 구성합니다.",
       "automation": "이 프로필이 실행될 때마다 명령 또는 스크립트를 실행합니다.",
       "security": "비밀번호로 프로필 데이터를 암호화합니다.",
-      "launchHook": "프로필이 실행될 때마다 이 URL로 GET 요청을 보냅니다."
+      "launchHook": "프로필이 실행될 때마다 이 URL로 GET 요청을 보냅니다.",
+      "requests": "브라우저가 실행 중에 보내는 요청입니다. 자격 증명은 숨겨집니다.",
+      "logs": "이 프로필에 관한 Donut 로그 줄입니다."
     },
     "badges": {
       "locked": "잠김",
@@ -1673,12 +1734,15 @@
     "security": {
       "protected": "이 프로필은 비밀번호로 암호화되어 있습니다.",
       "unprotected": "이 프로필은 암호화되지 않았습니다. 데이터를 저장 시 암호화하려면 비밀번호를 설정하세요.",
-      "cannotWhileRunning": "비밀번호를 변경하기 전에 프로필을 중지하세요."
+      "cannotWhileRunning": "비밀번호를 변경하기 전에 프로필을 중지하세요.",
+      "unlockedTitle": "이 기기에서 잠금 해제됨",
+      "unlockedDescription": "잠글 때까지 데이터가 복호화된 상태로 유지됩니다."
     },
     "fingerprint": {
       "notSupported": "핑거프린트 편집은 Wayfern 프로필에서만 사용할 수 있습니다.",
       "lockedTitle": "핑거프린트 보기 및 편집은 Pro 기능입니다",
-      "lockedDescription": "기기 정보는 모든 프로필에서 보호됩니다. 프로필의 핑거프린트를 보고 편집하려면 활성 유료 요금제가 필요합니다."
+      "lockedDescription": "기기 정보는 모든 프로필에서 보호됩니다. 프로필의 핑거프린트를 보고 편집하려면 활성 유료 요금제가 필요합니다.",
+      "customValuesKept": "사용자 지정 지문 값은 보관됩니다. 계정에 활성 Pro 요금제가 있으면 적용됩니다."
     },
     "syncStatusValue": {
       "waiting": "대기 중",
@@ -1701,6 +1765,28 @@
       "includeIndexedDb": "IndexedDB 포함",
       "indexedDbHint": "내보내기는 프로필을 잠시 백그라운드에서 엽니다. 페이지는 불러오지 않습니다.",
       "importedWithIndexedDb": "가져왔습니다. Local Storage 항목: {{items}} · 사이트: {{origins}} · 쿠키: {{cookies}} · IndexedDB 레코드: {{records}}"
+    },
+    "drafts": {
+      "unsaved": "저장되지 않은 변경 사항"
+    },
+    "aria": {
+      "runRemote": "{{name}}을(를) 클라우드에서 실행",
+      "moreActions": "{{name}}의 추가 작업",
+      "close": "{{name}} 세부 정보 닫기",
+      "copyId": "{{name}}의 ID 복사"
+    },
+    "runningBanner": "편집하려면 프로필을 중지하세요.",
+    "debug": {
+      "title": "디버깅 엔드포인트",
+      "description": "실행 중인 이 브라우저에 Playwright, Puppeteer 또는 다른 CDP 클라이언트를 연결합니다.",
+      "notRunning": "디버깅 엔드포인트를 받으려면 프로필을 실행하세요.",
+      "unavailable": "브라우저가 디버깅 포트에서 응답하지 않습니다.",
+      "port": "포트",
+      "wsUrl": "WebSocket URL",
+      "wsPending": "브라우저가 응답하면 WebSocket URL이 표시됩니다.",
+      "copyPort": "포트 복사",
+      "copyWsUrl": "WebSocket URL 복사",
+      "copyCode": "{{tool}} 코드 복사"
     }
   },
   "profileTransfer": {
@@ -1958,7 +2044,8 @@
     "created_other": "프로필 {{count}}개를 만들었습니다",
     "stoppedEarly": "프로필 {{total}}개 중 {{created}}개를 만들었습니다. {{error}}",
     "passwordOneOnly": "비밀번호는 프로필을 하나만 만들 때만 설정할 수 있습니다.",
-    "saveFromProfileDescription": "이 템플릿으로 만든 새 프로필은 템플릿의 설정과 각자의 새 기기를 받습니다. 이름, 메모, 기기는 이 프로필에 남습니다."
+    "saveFromProfileDescription": "이 템플릿으로 만든 새 프로필은 템플릿의 설정과 각자의 새 기기를 받습니다. 이름, 메모, 기기는 이 프로필에 남습니다.",
+    "notifyTitle": "일괄 생성 완료"
   },
   "vpns": {
     "form": {
@@ -2104,7 +2191,14 @@
       "securePreferencesReset": "홈페이지와 검색 엔진 같은 보호된 설정이 기본값으로 초기화되었습니다.",
       "extensionsPartial": "일부 확장 프로그램은 원본 브라우저의 것이어서 이전되지 않았습니다.",
       "storeUnreadable": "읽을 수 없는 데이터베이스가 있어 손상된 채로 복사하지 않고 건너뛰었습니다."
-    }
+    },
+    "cancelImport": "가져오기 취소",
+    "cancelling": "취소하는 중…",
+    "cancelHint": "취소하면 현재 프로필 다음에 멈춥니다. 이미 가져온 프로필은 유지됩니다.",
+    "cancelledSummary": "가져오기를 취소했습니다. {{total}}개 중 {{imported}}개를 가져왔습니다.",
+    "statusCancelled": "가져오지 않음",
+    "importRemaining": "나머지 가져오기",
+    "notifyTitle": "프로필 가져오기 완료"
   },
   "syncTooltips": {
     "syncing": "동기화 중...",
@@ -2193,7 +2287,13 @@
     "badgeProxy": "프록시",
     "badgeRunning": "실행 중",
     "badgeUnavailable": "사용 불가",
-    "openButton": "열기"
+    "openButton": "열기",
+    "busy": {
+      "launching": "이 프로필을 실행하는 중입니다. 잠시 기다려 주세요.",
+      "stopping": "이 프로필을 중지하는 중입니다. 잠시 기다려 주세요.",
+      "singleInstance": "{{browser}}이(가) 이미 실행 중입니다({{names}}). 한 번에 하나만 실행할 수 있습니다.",
+      "unavailable": "이 프로필은 지금 링크를 열 수 없습니다."
+    }
   },
   "wayfernTerms": {
     "title": "Wayfern 이용 약관",
@@ -2331,11 +2431,52 @@
     "tagsHeader": "태그",
     "noteHeader": "메모",
     "vpnsHeading": "VPN",
-    "createByCountryHeading": "국가별 생성"
+    "createByCountryHeading": "국가별 생성",
+    "aria": {
+      "details": "{{name}} 세부 정보",
+      "launch": "{{name}} 실행",
+      "stop": "{{name}} 중지",
+      "proxy": "{{name}}의 프록시: {{value}}",
+      "tags": "{{name}}의 태그",
+      "note": "{{name}}의 메모",
+      "extensionGroup": "{{name}}의 확장 프로그램 그룹",
+      "dns": "{{name}}의 DNS 차단 목록",
+      "status": "{{name}}의 상태",
+      "rename": "{{name}} 이름 변경",
+      "sync": "{{name}} 동기화: {{status}}",
+      "launchError": "마지막 실행 실패: {{error}}",
+      "health": "{{name}}의 연결: {{status}}",
+      "traffic": "{{name}} 트래픽 세부 정보"
+    },
+    "menu": {
+      "openDetails": "세부 정보 열기",
+      "rename": "이름 변경",
+      "moveToGroup": "그룹으로 이동",
+      "copyId": "ID 복사",
+      "runRemote": "클라우드에서 실행",
+      "lockNow": "지금 잠그기",
+      "moveToTrash": "휴지통으로 이동"
+    },
+    "emptyGroupTitle": "이 그룹은 비어 있습니다",
+    "emptyGroupHint": "이 그룹에 프로필을 만들거나 기존 프로필을 이 그룹으로 옮기세요.",
+    "emptyGroupCreate": "여기에 새 프로필",
+    "emptyGroupMove": "프로필을 여기로 이동",
+    "health": {
+      "degraded": "연결이 느리거나 불안정합니다",
+      "down": "연결이 끊겼습니다"
+    },
+    "route": "프록시 / VPN: {{name}}",
+    "routeNone": "프록시 또는 VPN 없음",
+    "launchTooltip": {
+      "launching": "실행 중…",
+      "stopping": "중지 중…",
+      "singleInstance": "이 브라우저는 한 번에 하나만 실행할 수 있습니다. 먼저 실행 중인 브라우저를 중지하세요."
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}}개 선택됨",
-    "clearSelection": "선택 지우기"
+    "clearSelection": "선택 지우기",
+    "selectedHidden": "{{selected}}개 선택됨 · {{hidden}}개는 필터로 숨겨짐"
   },
   "appUpdate": {
     "toast": {
@@ -2632,8 +2773,8 @@
     "remoteSessionNotDrivable": "이 원격 세션은 아직 제어할 준비가 되지 않았습니다. 활성 상태가 될 때까지 기다리세요.",
     "remotePlatformUnsupported": "원격 세션은 macOS, Windows 또는 Linux 호스트에서만 실행됩니다. 이 프로필의 플랫폼은 {{platform}}입니다.",
     "remoteProfileNotSynced": "이 프로필은 아직 클라우드 동기화 업로드가 완료되지 않았습니다. 첫 동기화가 끝난 후 다시 시도하세요.",
-    "trashEntryNotFound": "이 프로필은 더 이상 휴지통에 없습니다.",
-    "trashRestoreConflict": "같은 ID의 프로필이 이미 있어 복원할 수 없습니다.",
+    "trashEntryNotFound": "이 항목은 더 이상 휴지통에 없습니다.",
+    "trashRestoreConflict": "같은 ID의 항목이 이미 있어 복원할 수 없습니다.",
     "recipesNotEntitled": "레시피는 Pro 요금제 이상이 필요합니다.",
     "agentRecipeInvalid": "레시피에는 이름과 최소 한 개의 단계가 필요합니다.",
     "agentRecipeNotFound": "해당 레시피가 더 이상 없습니다.",
@@ -2752,7 +2893,40 @@
     "syncServerAddressMismatch": "서버 주소는 {{address}}입니다. 그 주소를 입력하세요.",
     "remoteNeedsDonutSync": "원격 세션과 Cookie Bot은 Donut 클라우드 동기화에서 프로필을 가져옵니다. 이 컴퓨터는 자체 서버와 동기화합니다.",
     "accountSyncUnavailable": "Donut이 아직 자체 서버에 로그인할 수 없습니다. 나중에 다시 시도하세요.",
-    "selfHostedTeamSeat": "팀 계정은 동기화 토큰을 사용하는 서버와 동기화할 수 없습니다."
+    "selfHostedTeamSeat": "팀 계정은 동기화 토큰을 사용하는 서버와 동기화할 수 없습니다.",
+    "agentTargetInvalid": "레시피를 실행할 위치를 선택하세요: 이 컴퓨터 또는 원격 플릿.",
+    "agentTargetOffline": "이 컴퓨터가 Donut 클라우드에 연결되어 있지 않습니다. 통합에서 원격 제어를 켠 다음 다시 시도하세요.",
+    "agentPlatformInvalid": "원격 플릿은 이 프로필의 운영 체제를 실행할 수 없습니다.",
+    "agentRunLimitReached": "진행 중인 실행이 너무 많습니다. 하나가 끝날 때까지 기다린 다음 다시 시도하세요.",
+    "remoteRequiresCloudSync": "먼저 이 프로필의 클라우드 동기화를 켜세요. 원격 호스트는 다른 방법으로 프로필을 받을 수 없습니다.",
+    "remoteEncryptedSyncUnsupported": "이 프로필은 원격 호스트가 복호화할 수 없는 종단 간 암호화 동기화를 사용합니다. 원격으로 실행하려면 일반 동기화로 전환하세요.",
+    "remoteUnknownPlatform": "이 프로필에는 기록된 운영 체제가 없어 일치하는 원격 호스트가 없습니다.",
+    "networkCaptureFailed": "브라우저가 네트워크 캡처를 거부했습니다: {{detail}}",
+    "networkCaptureNotRunning": "이 프로필에서 실행 중인 네트워크 캡처가 없습니다.",
+    "vpnKeyUnreadable": "저장된 VPN을 여는 키를 읽을 수 없어 아무것도 변경하지 않았습니다. 앱 데이터 폴더에 있는 vpn 폴더의 권한을 확인하세요.",
+    "entityInUse_one": "프로필 {{count}}개에서 사용 중입니다. 먼저 다른 프록시나 VPN으로 바꾸세요.",
+    "entityInUse_other": "프로필 {{count}}개에서 사용 중입니다. 먼저 다른 프록시나 VPN으로 바꾸세요.",
+    "syncCancelled": "동기화가 취소되었습니다.",
+    "syncServerError": "동기화 서버에 오류가 발생했습니다(상태 {{status}}). 나중에 다시 시도합니다.",
+    "syncStorageRejected": "동기화 저장소가 전송을 거부했습니다(상태 {{status}}).",
+    "syncTransferIncomplete": "일부 파일이 전송되지 않았습니다. 나중에 다시 시도합니다.",
+    "syncAuthFailed": "동기화 로그인이 더 이상 유효하지 않습니다. 다시 로그인하거나 동기화 토큰을 확인하세요.",
+    "syncForbidden": "동기화 서버가 이 변경을 허용하지 않습니다.",
+    "syncTooLarge": "이 항목은 동기화 서버에 비해 너무 큽니다.",
+    "syncRateLimited": "동기화 서버가 사용 중입니다. 나중에 다시 시도합니다.",
+    "syncServerRejected": "동기화 서버가 요청을 거부했습니다(상태 {{status}}).",
+    "syncLocalFilesFailed": "이 컴퓨터의 파일을 읽거나 쓸 수 없습니다.",
+    "syncDataInvalid": "동기화된 사본을 읽을 수 없습니다.",
+    "syncDecryptFailed": "동기화된 데이터를 복호화할 수 없습니다. 암호화 비밀번호를 확인하세요.",
+    "syncCrossOsProfile": "다른 운영 체제의 프로필은 설정만 동기화합니다.",
+    "syncEphemeralProfile": "임시 프로필은 동기화할 수 없습니다.",
+    "syncTombstoneNotCleared": "동기화 서버에 연결할 수 없어 이 프로필의 동기화는 꺼진 상태로 유지됩니다.",
+    "syncNotEnabled": "이 프로필의 동기화가 꺼져 있습니다.",
+    "proxyUpstreamUnreachable": "프록시에 연결할 수 없습니다.",
+    "proxyUpstreamTimeout": "프록시가 응답하지 않습니다.",
+    "proxyAuthFailed": "프록시가 사용자 이름 또는 비밀번호를 거부했습니다.",
+    "vpnUnreachable": "VPN 서버가 응답하지 않습니다.",
+    "entityInUse": "프로필 {{count}}개에서 사용 중입니다. 먼저 다른 프록시나 VPN으로 바꾸세요."
   },
   "rail": {
     "profiles": "프로필",
@@ -2958,7 +3132,11 @@
       "launch": "실행 시작 열기 브라우저",
       "stop": "중지 종료 닫기",
       "info": "세부 정보 편집 프로필",
-      "group": "그룹 필터 전환 폴더"
+      "group": "그룹 필터 전환 폴더",
+      "newProfile": "새 추가 만들기 프로필 브라우저",
+      "stopAllRunning": "중지 모두 실행 종료 닫기",
+      "focusSearch": "검색 찾기 필터",
+      "goBack": "뒤로 이스케이프 홈"
     }
   },
   "shortcuts": {
@@ -2977,7 +3155,11 @@
     "goAgent": "에이전트로 이동",
     "openTips": "팁 열기",
     "sendFeedback": "피드백 보내기",
-    "openTotp": "키로 2FA 코드 보기"
+    "openTotp": "키로 2FA 코드 보기",
+    "newProfile": "새 프로필",
+    "stopAllRunning": "실행 중인 프로필 모두 중지",
+    "focusSearch": "프로필 검색",
+    "goBack": "프로필로 돌아가기"
   },
   "closeConfirm": {
     "title": "Donut Browser를 닫으시겠습니까?",
@@ -3474,7 +3656,10 @@
     "vpnExtensionEntryNoVersion": " — {{capability}}, {{source}}",
     "scanIncompleteMissing": "이 프로필은 아직 실행된 적이 없어 Donut이 관리하는 확장 프로그램만 확인할 수 있었습니다.",
     "exitUnverifiedTimezone": "이 프로필의 핑거프린트에 시간대가 없어 출구 검사로 확인할 수 없습니다. 실행은 차단되지 않지만 비교된 것도 없습니다.",
-    "exitUnverifiedLanguage": "이 프로필의 핑거프린트 언어는 출구 국가와 비교할 수 없으므로, 이 검사는 통과가 아니라 미확인 상태입니다."
+    "exitUnverifiedLanguage": "이 프로필의 핑거프린트 언어는 출구 국가와 비교할 수 없으므로, 이 검사는 통과가 아니라 미확인 상태입니다.",
+    "routeProxyHeading": "프록시가 응답하지 않음",
+    "routeVpnHeading": "VPN이 응답하지 않음",
+    "routeExplainer": "페이지가 로드되지 않을 수 있습니다. 프록시나 VPN을 확인하거나 그대로 실행하세요."
   },
   "profileMotion": {
     "inspectorSections": "프로필 섹션",
@@ -3599,15 +3784,17 @@
   },
   "trash": {
     "title": "휴지통",
-    "description": "삭제한 프로필은 만료될 때까지 여기에 보관됩니다. 복원하면 ID, 프록시, 태그와 함께 되돌아옵니다.",
+    "description": "삭제한 프로필, 프록시, VPN, 그룹, 확장 프로그램, 템플릿은 만료될 때까지 여기에 보관됩니다. 복원하면 그대로 되돌아옵니다.",
     "empty": "휴지통이 비어 있습니다",
-    "emptyHint": "삭제한 프로필이 여기에 표시되며 만료 전까지 복원할 수 있습니다.",
+    "emptyHint": "삭제한 항목이 여기에 표시되며 만료 전까지 복원할 수 있습니다.",
     "columns": {
-      "name": "프로필",
+      "name": "이름",
       "browser": "브라우저",
       "deleted": "삭제 시각",
       "expires": "만료",
-      "size": "크기"
+      "size": "크기",
+      "kind": "유형",
+      "detail": "세부 정보"
     },
     "expiresIn_one": "{{count}}일 후",
     "expiresIn_other": "{{count}}일 후",
@@ -3619,17 +3806,48 @@
     "confirmDeleteForeverTitle": "영구 삭제할까요?",
     "confirmDeleteForeverDescription": "\"{{name}}\"과(와) 모든 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
     "confirmEmptyTitle": "휴지통을 비울까요?",
-    "confirmEmptyDescription_one": "프로필 {{count}}개와 모든 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
-    "confirmEmptyDescription_other": "프로필 {{count}}개와 모든 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+    "confirmEmptyDescription_one": "항목 {{count}}개와 모든 데이터가 영구 삭제됩니다. 되돌릴 수 없습니다.",
+    "confirmEmptyDescription_other": "항목 {{count}}개와 모든 데이터가 영구 삭제됩니다. 되돌릴 수 없습니다.",
     "restored": "\"{{name}}\"을(를) 복원했습니다",
     "restoredSyncOff": "동기화를 다시 켜지 못해 이 프로필은 이 기기에만 있습니다. 다른 기기와 공유하려면 동기화 모드를 다시 설정하세요.",
-    "restoreFailed": "프로필을 복원하지 못했습니다: {{error}}",
+    "restoreFailed": "복원하지 못했습니다: {{error}}",
     "deletedForever": "\"{{name}}\"을(를) 영구 삭제했습니다",
-    "deleteForeverFailed": "프로필을 삭제하지 못했습니다: {{error}}",
-    "emptied_one": "휴지통에서 프로필 {{count}}개를 삭제했습니다",
-    "emptied_other": "휴지통에서 프로필 {{count}}개를 삭제했습니다",
+    "deleteForeverFailed": "영구 삭제하지 못했습니다: {{error}}",
+    "emptied_one": "휴지통에서 항목 {{count}}개를 삭제했습니다",
+    "emptied_other": "휴지통에서 항목 {{count}}개를 삭제했습니다",
     "emptyFailed": "휴지통을 비우지 못했습니다: {{error}}",
-    "loadFailed": "휴지통을 불러오지 못했습니다: {{error}}"
+    "loadFailed": "휴지통을 불러오지 못했습니다: {{error}}",
+    "kinds": {
+      "all": "전체",
+      "profile": "프로필",
+      "proxy": "프록시",
+      "vpn": "VPN",
+      "group": "그룹",
+      "extension": "확장 프로그램",
+      "extension_group": "확장 프로그램 그룹",
+      "template": "템플릿"
+    },
+    "kind": {
+      "profile": "프로필",
+      "proxy": "프록시",
+      "vpn": "VPN",
+      "group": "그룹",
+      "extension": "확장 프로그램",
+      "extension_group": "확장 프로그램 그룹",
+      "template": "템플릿"
+    },
+    "restoredSyncOffEntity": "동기화를 다시 켜지 못해 이 항목은 이 기기에만 있습니다. 다른 기기와 공유하려면 동기화를 다시 켜세요.",
+    "moved": "\"{{name}}\"을(를) 휴지통으로 옮겼습니다",
+    "deleted": "\"{{name}}\"을(를) 삭제했습니다",
+    "deleteFailed": "\"{{name}}\"을(를) 삭제하지 못했습니다: {{error}}",
+    "restoredMany_one": "항목 {{count}}개를 복원했습니다",
+    "restoredMany_other": "항목 {{count}}개를 복원했습니다",
+    "deletedForeverMany_one": "항목 {{count}}개를 영구 삭제했습니다",
+    "deletedForeverMany_other": "항목 {{count}}개를 영구 삭제했습니다",
+    "movedMany_one": "항목 {{count}}개를 휴지통으로 옮겼습니다",
+    "movedMany_other": "항목 {{count}}개를 휴지통으로 옮겼습니다",
+    "deletedMany_one": "항목 {{count}}개를 삭제했습니다",
+    "deletedMany_other": "항목 {{count}}개를 삭제했습니다"
   },
   "agent": {
     "description": "AI 에이전트가 Donut에서 무엇을 하는지 보고, 질문에 답하고, 페이지에 사람이 필요할 때 직접 개입하세요.",
@@ -3836,7 +4054,19 @@
       "deleted": "레시피를 삭제했습니다",
       "deleteTitle": "{{name}}을(를) 삭제할까요?",
       "deleteDescription": "레시피는 모든 기기에서 삭제됩니다.",
-      "needsAutomation": "레시피는 브라우저를 열고 조작하므로 Pro 요금제 이상이 필요합니다. 에이전트는 계속해서 프로필, 프록시, 그룹을 관리할 수 있습니다."
+      "needsAutomation": "레시피는 브라우저를 열고 조작하므로 Pro 요금제 이상이 필요합니다. 에이전트는 계속해서 프로필, 프록시, 그룹을 관리할 수 있습니다.",
+      "runAria": "{{name}} 지금 실행",
+      "runTitle": "{{name}} 실행",
+      "runDescription": "Donut 클라우드가 선택한 프로필에서 단계를 한 번 재생합니다.",
+      "runProfile": "프로필",
+      "runProfilePlaceholder": "프로필 선택",
+      "runNoProfiles": "먼저 프로필을 만드세요",
+      "runPlatformUnsupported": "원격 플릿은 이 프로필의 운영 체제를 실행할 수 없습니다.",
+      "runDesktopOffline": "이 컴퓨터에서 실행하려면 통합에서 원격 제어를 켜세요.",
+      "runStartedOn": "Donut 클라우드가 {{profile}}에서 {{name}}을(를) 재생하고 있습니다.",
+      "oneOffName": "지금 실행: {{name}}",
+      "editAria": "{{name}} 편집",
+      "deleteAria": "{{name}} 삭제"
     },
     "schedules": {
       "hint": "레시피를 일정에 따라 원격 플릿이나 이 컴퓨터에서 실행합니다.",
@@ -4182,7 +4412,26 @@
     "stopped": "중지됨",
     "noTags": "태그 없음",
     "noProxy": "프록시 없음",
-    "encrypted": "암호화됨"
+    "encrypted": "암호화됨",
+    "views": {
+      "label": "보기",
+      "title": "저장된 보기",
+      "empty": "저장된 보기가 아직 없습니다. 현재 검색, 필터, 정렬, 열에 이름을 붙이면 나중에 돌아올 수 있습니다.",
+      "nameLabel": "보기 이름",
+      "namePlaceholder": "이 보기의 이름",
+      "replace": "바꾸기",
+      "useAtStart": "시작할 때 {{name}} 열기",
+      "defaultBadge": "시작 시",
+      "rename": "{{name}} 이름 바꾸기",
+      "delete": "{{name}} 삭제",
+      "deleted": "{{name}} 보기를 삭제했습니다",
+      "full": "보기는 최대 {{limit}}개까지 저장할 수 있습니다. 새로 저장하려면 하나를 삭제하세요.",
+      "nameTaken": "같은 이름의 보기가 이미 있습니다."
+    },
+    "moveColumnLeft": "{{column}} 왼쪽으로 이동",
+    "moveColumnRight": "{{column}} 오른쪽으로 이동",
+    "selectRowNamed": "{{name}} 선택",
+    "rowAction": "{{action}}: {{name}}"
   },
   "feedback": {
     "title": "피드백 보내기",
@@ -4390,5 +4639,87 @@
       "valid": "유효",
       "invalid": "유효하지 않음"
     }
+  },
+  "leavePrompt": {
+    "title": "저장되지 않은 변경 사항",
+    "description": "저장되지 않은 변경 사항이 있습니다.",
+    "descriptionOne": "{{label}}의 변경 사항이 저장되지 않았습니다.",
+    "save": "저장",
+    "discard": "버리기",
+    "stay": "머무르기"
+  },
+  "moveProfiles": {
+    "title": "프로필을 {{group}}(으)로 이동",
+    "description": "이 그룹으로 옮길 프로필을 선택하세요. 실행 중인 프로필은 옮길 수 없습니다.",
+    "empty": "모든 프로필이 이미 이 그룹에 있습니다.",
+    "confirm": "{{count}}개 이동"
+  },
+  "logViewer": {
+    "title": "앱 로그",
+    "levelFilter": "수준별 필터",
+    "levels": {
+      "all": "전체",
+      "warn": "경고",
+      "error": "오류"
+    },
+    "searchPlaceholder": "로그 검색",
+    "copyAria": "로그 {{count}}줄 복사",
+    "copied": "로그를 복사했습니다",
+    "copiedDescription": "클립보드의 줄 수: {{count}}",
+    "copyFailed": "로그를 복사할 수 없습니다",
+    "empty": "로그에 아직 줄이 없습니다.",
+    "emptyProfile": "이 프로필의 로그가 아직 없습니다.",
+    "noMatches": "필터와 일치하는 줄이 없습니다.",
+    "capped": "최신 {{count}}줄을 표시합니다."
+  },
+  "networkPanel": {
+    "start": "캡처 시작",
+    "stop": "캡처 중지",
+    "capturing": "요청: {{count}}",
+    "emptyStopped": "캡처를 시작하면 이 프로필의 페이지가 보내는 요청을 볼 수 있습니다.",
+    "emptyNotRunning": "네트워크 요청을 캡처하려면 프로필을 실행하세요.",
+    "privacyNote": "캡처가 멈추거나 브라우저가 닫힐 때까지 메모리에만 보관됩니다. 쿠키와 인증 값은 숨겨집니다.",
+    "waiting": "요청을 기다리는 중…",
+    "columns": {
+      "method": "메서드",
+      "status": "상태",
+      "host": "호스트",
+      "path": "경로",
+      "type": "유형",
+      "size": "크기",
+      "time": "시간"
+    },
+    "states": {
+      "pending": "대기 중",
+      "done": "완료",
+      "failed": "실패",
+      "redirected": "리디렉션됨",
+      "incomplete": "불완전"
+    },
+    "openRequest": "{{method}} {{url}} 열기",
+    "backToList": "요청 목록으로 돌아가기",
+    "requestHeaders": "요청 헤더",
+    "responseHeaders": "응답 헤더",
+    "requestBody": "요청 본문",
+    "noHeaders": "헤더 없음",
+    "fromCache": "캐시에서",
+    "redactedNote": "쿠키와 인증 값은 [redacted]로 바뀝니다.",
+    "startFailed": "캡처를 시작할 수 없습니다",
+    "stopFailed": "캡처를 중지할 수 없습니다",
+    "withheld": "프로필을 직접 제어하는 동안 기록하지 않은 요청: {{count}}"
+  },
+  "syncHealth": {
+    "idle": "동기화가 최신 상태입니다",
+    "syncing": "동기화 중",
+    "offline": "동기화가 오프라인입니다. 연결이 돌아오면 변경 사항이 동기화됩니다.",
+    "error": "동기화 실패",
+    "errorWith": "동기화 실패: {{error}}",
+    "notifyTitle": "동기화 실패",
+    "conflictToast": "{{name}}에 대한 변경 사항이 다른 기기의 최신 사본으로 대체되었습니다",
+    "conflictToastUnnamed": "변경 사항이 다른 기기의 최신 사본으로 대체되었습니다"
+  },
+  "launchNotice": {
+    "fingerprintEditsNotApplied": "{{name}}은(는) 사용자 지정 지문 변경 없이 실행됩니다",
+    "fingerprintEditsNeedPro": "변경 사항은 보관되며 활성 Pro 플랜에서 다시 적용됩니다."
   }
 }

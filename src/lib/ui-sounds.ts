@@ -581,6 +581,38 @@ interface Engine {
 }
 let engine: Engine | null = null;
 
+/** Length of the room's impulse: its tail rings after the last voice. */
+const ROOM_TAIL_S = 0.4;
+/**
+ * A running AudioContext keeps the audio render thread busy even in silence,
+ * so it is suspended this long after the last sound has died away. The next
+ * play resumes it.
+ */
+const SUSPEND_AFTER_MS = 1500;
+let suspendTimer: ReturnType<typeof setTimeout> | null = null;
+let suspending = false;
+let soundsEndAt = 0;
+
+function suspendWhenQuiet(context: AudioContext, endsInSeconds: number) {
+  const now = performance.now();
+  soundsEndAt = Math.max(soundsEndAt, now + endsInSeconds * 1000);
+  if (suspendTimer !== null) clearTimeout(suspendTimer);
+  suspendTimer = setTimeout(
+    () => {
+      suspendTimer = null;
+      if (context.state !== "running") return;
+      suspending = true;
+      context
+        .suspend()
+        .catch(() => undefined)
+        .finally(() => {
+          suspending = false;
+        });
+    },
+    soundsEndAt - now + SUSPEND_AFTER_MS,
+  );
+}
+
 /** Use the sound fields of the app settings from now on. */
 export function applySoundSettings(settings: SoundSettings) {
   active = resolveSoundSettings(settings);
@@ -588,7 +620,7 @@ export function applySoundSettings(settings: SoundSettings) {
 
 /** A short, dark room: decaying noise, different in each ear so it is wide. */
 function roomImpulse(context: AudioContext) {
-  const length = Math.ceil(context.sampleRate * 0.4);
+  const length = Math.ceil(context.sampleRate * ROOM_TAIL_S);
   const buffer = context.createBuffer(2, length, context.sampleRate);
   for (let channel = 0; channel < 2; channel++) {
     const samples = buffer.getChannelData(channel);
@@ -693,7 +725,10 @@ function render(compiled: CompiledSound, gain: number) {
   const sound = audio();
   if (!sound) return;
   const { context } = sound;
-  if (context.state === "suspended") void context.resume();
+  // A suspend still in progress would silence this sound: resume after it.
+  if (context.state !== "running" || suspending) {
+    void context.resume().catch(() => undefined);
+  }
   const pitch = 1 + (Math.random() - 0.5) * 2 * compiled.jitter;
   const at = context.currentTime + 0.004;
   const bus = context.createGain();
@@ -713,10 +748,9 @@ function render(compiled: CompiledSound, gain: number) {
   for (const voice of compiled.voices) {
     schedule(sound, voice, at, pitch, bus);
   }
-  window.setTimeout(
-    () => tone.disconnect(),
-    (soundLength(compiled) + 0.5) * 1000,
-  );
+  const length = soundLength(compiled);
+  window.setTimeout(() => tone.disconnect(), (length + 0.5) * 1000);
+  suspendWhenQuiet(context, length + (compiled.room > 0 ? ROOM_TAIL_S : 0));
 }
 
 function inFront(causedAt: number | undefined) {

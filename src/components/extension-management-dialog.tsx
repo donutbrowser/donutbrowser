@@ -20,10 +20,9 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { FaChrome } from "react-icons/fa";
-import { GoPlus } from "react-icons/go";
 import {
   LuArchive,
+  LuChrome,
   LuExternalLink,
   LuFolder,
   LuFolderOpen,
@@ -31,6 +30,7 @@ import {
   LuInfo,
   LuLink,
   LuPencil,
+  LuPlus,
   LuPuzzle,
   LuRefreshCw,
   LuSearch,
@@ -54,7 +54,6 @@ import {
   SyncCell,
   type SyncStatus,
   TickingCount,
-  useEntityMotion,
 } from "@/components/entity-page";
 import {
   configureEntityColumns,
@@ -89,9 +88,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { useProfileReferences } from "@/hooks/use-profile-references";
+import { useEntityTrash } from "@/hooks/use-trash-events";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
-import { MOTION_EASE_OUT } from "@/lib/motion";
+import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import type { Extension, ExtensionGroup, FetchedExtension } from "@/types";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
@@ -112,20 +113,25 @@ function pathBaseName(path: string): string {
   return segments[segments.length - 1] ?? path;
 }
 
-/** A form that opens above the list; it slides in and out with its content. */
+/**
+ * A form that opens above the list; it slides in and out with its content.
+ * It is readable from the first frame: it enters half visible, never hidden.
+ */
 function StagePanel({ slot, children }: { slot: string; children: ReactNode }) {
-  const animate = useEntityMotion();
+  const animate = useMotionAllowed();
   return (
     <motion.div
       data-slot={slot}
-      initial={animate ? { opacity: 0, transform: "translateY(-4px)" } : false}
+      initial={
+        animate ? { opacity: 0.5, transform: "translateY(-4px)" } : false
+      }
       animate={{ opacity: 1, transform: "translateY(0px)" }}
       exit={{
         opacity: 0,
         transform: animate ? "translateY(-4px)" : "translateY(0px)",
-        transition: { duration: animate ? 0.12 : 0 },
+        transition: { duration: animate ? MOTION_DURATION.fast : 0 },
       }}
-      transition={{ duration: 0.18, ease: MOTION_EASE_OUT }}
+      transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE_OUT }}
       className="shrink-0 space-y-3 rounded-xl bg-foreground/3 p-3"
     >
       {children}
@@ -290,6 +296,23 @@ export function ExtensionManagementDialog({
       void loadIcons(extensions);
     }
   }, [extensions, loadIcons]);
+
+  // A delete, the trash sweep and an Undo from a toast all change the lists.
+  useEffect(() => {
+    if (!isOpen) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    void listen("extensions-changed", () => {
+      void loadData();
+    }).then((stop) => {
+      if (cancelled) stop();
+      else unlisten = stop;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isOpen, loadData]);
 
   // Listen for extension sync status events
   useEffect(() => {
@@ -593,20 +616,59 @@ export function ExtensionManagementDialog({
     t,
   ]);
 
+  const { request: requestExtensionTrash, remove: removeExtensions } =
+    useEntityTrash("extension");
+  const { request: requestGroupTrash, remove: removeGroups } =
+    useEntityTrash("extension_group");
+
+  /** Rows that left a list leave its selection too. */
+  const dropExtSelection = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    setExtRowSelection((prev) => {
+      const next = { ...prev };
+      for (const id of ids) delete next[id];
+      return next;
+    });
+  }, []);
+  const dropGroupSelection = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    setGroupRowSelection((prev) => {
+      const next = { ...prev };
+      for (const id of ids) delete next[id];
+      return next;
+    });
+  }, []);
+
+  // A delete goes to the trash at once and the toast offers Undo. Only
+  // "Delete at once" asks first, through the confirmations below.
+  const trashExtension = useCallback(
+    async (ext: Extension) => {
+      dropExtSelection(
+        await requestExtensionTrash([ext], () => setExtensionToDelete(ext)),
+      );
+    },
+    [requestExtensionTrash, dropExtSelection],
+  );
+
+  const trashGroup = useCallback(
+    async (group: ExtensionGroup) => {
+      dropGroupSelection(
+        await requestGroupTrash([group], () => setGroupToDelete(group)),
+      );
+    },
+    [requestGroupTrash, dropGroupSelection],
+  );
+
   const handleDeleteExtension = useCallback(async () => {
     if (!extensionToDelete) return;
     setIsDeleting(true);
     try {
-      await invoke("delete_extension", { extensionId: extensionToDelete.id });
-      showSuccessToast(t("extensions.deleteSuccess"));
+      dropExtSelection(await removeExtensions([extensionToDelete]));
       setExtensionToDelete(null);
-      void loadData();
-    } catch (err) {
-      showActionError(err, t("extensions.deleteFailed"));
     } finally {
       setIsDeleting(false);
     }
-  }, [extensionToDelete, loadData, showActionError, t]);
+  }, [extensionToDelete, removeExtensions, dropExtSelection]);
 
   const handleCreateGroup = useCallback(async () => {
     if (!newGroupName.trim() || creatingGroupRef.current) return;
@@ -680,16 +742,12 @@ export function ExtensionManagementDialog({
     if (!groupToDelete) return;
     setIsDeleting(true);
     try {
-      await invoke("delete_extension_group", { groupId: groupToDelete.id });
-      showSuccessToast(t("extensions.groupDeleteSuccess"));
+      dropGroupSelection(await removeGroups([groupToDelete]));
       setGroupToDelete(null);
-      void loadData();
-    } catch (err) {
-      showActionError(err, t("extensions.groupDeleteFailed"));
     } finally {
       setIsDeleting(false);
     }
-  }, [groupToDelete, loadData, showActionError, t]);
+  }, [groupToDelete, removeGroups, dropGroupSelection]);
 
   const selectedExtensions = useMemo(
     () => extensions.filter((ext) => extRowSelection[ext.id]),
@@ -701,45 +759,43 @@ export function ExtensionManagementDialog({
     [extensionGroups, groupRowSelection],
   );
 
+  const handleTrashSelectedExtensions = useCallback(async () => {
+    dropExtSelection(
+      await requestExtensionTrash(selectedExtensions, () =>
+        setBulkExtDeleteOpen(true),
+      ),
+    );
+  }, [selectedExtensions, requestExtensionTrash, dropExtSelection]);
+
+  const handleTrashSelectedGroups = useCallback(async () => {
+    dropGroupSelection(
+      await requestGroupTrash(selectedGroups, () =>
+        setBulkGroupDeleteOpen(true),
+      ),
+    );
+  }, [selectedGroups, requestGroupTrash, dropGroupSelection]);
+
   const handleBulkDeleteExtensions = useCallback(async () => {
     if (selectedExtensions.length === 0) return;
     setIsDeleting(true);
     try {
-      await Promise.allSettled(
-        selectedExtensions.map((ext) =>
-          invoke("delete_extension", { extensionId: ext.id }),
-        ),
-      );
-      showSuccessToast(t("extensions.deleteSuccess"));
+      dropExtSelection(await removeExtensions(selectedExtensions));
       setBulkExtDeleteOpen(false);
-      setExtRowSelection({});
-      void loadData();
-    } catch (err) {
-      showActionError(err, t("extensions.deleteFailed"));
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedExtensions, loadData, showActionError, t]);
+  }, [selectedExtensions, removeExtensions, dropExtSelection]);
 
   const handleBulkDeleteGroups = useCallback(async () => {
     if (selectedGroups.length === 0) return;
     setIsDeleting(true);
     try {
-      await Promise.allSettled(
-        selectedGroups.map((group) =>
-          invoke("delete_extension_group", { groupId: group.id }),
-        ),
-      );
-      showSuccessToast(t("extensions.groupDeleteSuccess"));
+      dropGroupSelection(await removeGroups(selectedGroups));
       setBulkGroupDeleteOpen(false);
-      setGroupRowSelection({});
-      void loadData();
-    } catch (err) {
-      showActionError(err, t("extensions.groupDeleteFailed"));
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedGroups, loadData, showActionError, t]);
+  }, [selectedGroups, removeGroups, dropGroupSelection]);
 
   const handleBulkToggleExtSync = useCallback(async () => {
     if (selectedExtensions.length === 0) return;
@@ -819,7 +875,11 @@ export function ExtensionManagementDialog({
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-flex">
-                <FaChrome className="size-3.5 text-muted-foreground" />
+                <LuChrome
+                  role="img"
+                  aria-label={t("extensions.compatibility.chromium")}
+                  className="size-3.5 text-muted-foreground"
+                />
               </span>
             </TooltipTrigger>
             <TooltipContent>
@@ -1044,7 +1104,7 @@ export function ExtensionManagementDialog({
                 icon={<LuTrash2 />}
                 tone="destructive"
                 onClick={() => {
-                  setExtensionToDelete(ext);
+                  void trashExtension(ext);
                 }}
               />
             </RowActions>
@@ -1061,6 +1121,7 @@ export function ExtensionManagementDialog({
       isTogglingExtSync,
       handleToggleExtSync,
       openExtensionEditor,
+      trashExtension,
       renderExtensionIcon,
       renderCompatIcons,
       renderSource,
@@ -1232,7 +1293,7 @@ export function ExtensionManagementDialog({
                 icon={<LuTrash2 />}
                 tone="destructive"
                 onClick={() => {
-                  setGroupToDelete(group);
+                  void trashGroup(group);
                 }}
               />
             </RowActions>
@@ -1249,6 +1310,7 @@ export function ExtensionManagementDialog({
       isTogglingGroupSync,
       handleToggleGroupSync,
       openGroupEditor,
+      trashGroup,
       renderExtensionIcon,
     ],
   );
@@ -1372,7 +1434,7 @@ export function ExtensionManagementDialog({
                   ) : (
                     <PageAction
                       primary
-                      icon={<GoPlus className="size-4" />}
+                      icon={<LuPlus className="size-4" />}
                       label={t("extensions.newGroup")}
                       disabled={limitedMode}
                       onClick={() => setShowCreateGroup(true)}
@@ -1686,7 +1748,7 @@ export function ExtensionManagementDialog({
                             disabled={limitedMode}
                             onClick={() => setShowCreateGroup(true)}
                           >
-                            <GoPlus className="size-4" />
+                            <LuPlus className="size-4" />
                             {t("extensions.newGroup")}
                           </RippleButton>
                         </EntityEmptyState>
@@ -2185,7 +2247,7 @@ export function ExtensionManagementDialog({
             variant="destructive"
             className="bg-destructive/12 text-destructive-text hover:bg-destructive/20"
             onClick={() => {
-              setBulkExtDeleteOpen(true);
+              void handleTrashSelectedExtensions();
             }}
           >
             <LuTrash2 />
@@ -2209,7 +2271,7 @@ export function ExtensionManagementDialog({
             variant="destructive"
             className="bg-destructive/12 text-destructive-text hover:bg-destructive/20"
             onClick={() => {
-              setBulkGroupDeleteOpen(true);
+              void handleTrashSelectedGroups();
             }}
           >
             <LuTrash2 />

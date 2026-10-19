@@ -19,6 +19,7 @@ import type {
   ConsistencyResult,
   DetectedVpnExtension,
   ExtensionScanState,
+  RouteUnreachable,
 } from "@/types";
 import { RippleButton } from "./ui/ripple";
 
@@ -37,6 +38,9 @@ export interface GateFindings {
   /// of its own. Reported so a launch that verified nothing does not read as a
   /// launch that verified everything. Never a block.
   unverified: string[];
+  /// The proxy or VPN did not answer a check just now. A warning: the user
+  /// may launch anyway.
+  routeUnreachable?: RouteUnreachable | null;
 }
 
 export interface GateDecision {
@@ -180,6 +184,7 @@ export function PreLaunchGateDialog({
 
   const fingerprint = findings?.fingerprint ?? null;
   const extensions = findings?.vpnExtensions ?? [];
+  const route = findings?.routeUnreachable ?? null;
   // Two different claims, kept visually apart. The first names extensions as
   // VPN/proxy tools; the second says only that an extension holds Chromium's
   // proxy permission, which a download manager needs to route its own
@@ -324,6 +329,25 @@ export function PreLaunchGateDialog({
             </div>
           )}
 
+          {route && (
+            <div
+              data-slot="gate-route-unreachable"
+              className="space-y-2 rounded-md border border-warning/50 bg-warning/10 p-3"
+            >
+              <p className="font-medium">
+                {route.kind === "vpn"
+                  ? t("prelaunchGate.routeVpnHeading")
+                  : t("prelaunchGate.routeProxyHeading")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {translateBackendError(t, JSON.stringify({ code: route.code }))}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("prelaunchGate.routeExplainer")}
+              </p>
+            </div>
+          )}
+
           {vpnExtensions.length > 0 && (
             <div className="space-y-2 rounded-md border border-warning/50 bg-warning/10 p-3">
               <p className="font-medium">
@@ -344,7 +368,7 @@ export function PreLaunchGateDialog({
           )}
 
           {proxyCapableExtensions.length > 0 && (
-            <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3">
+            <div className="space-y-2 rounded-md border border-border bg-foreground/5 p-3">
               <p className="font-medium">
                 {t("prelaunchGate.proxyCapableHeading")}
               </p>

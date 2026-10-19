@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { Logo } from "@/components/icons/logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 
 const spring = { type: "spring", stiffness: 240, damping: 22 } as const;
 
@@ -22,7 +22,7 @@ export function ThankYouDialog({
 }) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
-  const inputModality = useInputModality();
+  const motionAllowed = useMotionAllowed();
 
   useEffect(() => {
     if (!isOpen || reduceMotion || document.hidden) return;
@@ -59,17 +59,9 @@ export function ThankYouDialog({
       <DialogContent className="p-4 sm:max-w-md sm:p-6">
         <div className="flex flex-col items-center gap-6 text-center">
           <motion.div
-            initial={
-              reduceMotion || inputModality === "keyboard"
-                ? false
-                : { scale: 0.92, rotate: -6 }
-            }
+            initial={motionAllowed ? { scale: 0.92, rotate: -6 } : false}
             animate={{ scale: 1, rotate: 0 }}
-            transition={
-              reduceMotion || inputModality === "keyboard"
-                ? { duration: 0 }
-                : spring
-            }
+            transition={motionAllowed ? spring : { duration: 0 }}
             className="text-foreground"
           >
             <Logo className="size-14" />

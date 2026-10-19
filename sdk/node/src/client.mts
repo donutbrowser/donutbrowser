@@ -96,6 +96,13 @@ export interface RunProfileOptions {
   headless?: boolean;
 }
 
+export interface BatchRunOptions extends RunProfileOptions {
+  /** Pause between the starts of two launches (0 to 60000). Defaults to the app's setting. */
+  delayMs?: number;
+  /** How many profiles may be starting at once (1 to 20). Defaults to the app's setting. */
+  concurrency?: number;
+}
+
 /** Drop every property the caller left `undefined`. */
 function body(fields: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
@@ -413,12 +420,18 @@ export class DonutClient {
    */
   batchRunProfiles(
     profileIds: string[],
-    options: RunProfileOptions = {},
+    options: BatchRunOptions = {},
   ): Promise<BatchRunResponse> {
     return this.#request(
       "POST",
       "/v1/profiles/batch/run",
-      body({ profile_ids: profileIds, url: options.url, headless: options.headless }),
+      body({
+        profile_ids: profileIds,
+        url: options.url,
+        headless: options.headless,
+        delay_ms: options.delayMs,
+        concurrency: options.concurrency,
+      }),
     );
   }
 

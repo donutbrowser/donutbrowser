@@ -1598,7 +1598,7 @@ function CuratedPanel({
               <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                 {keys ? t(keys.name) : (template.name ?? template.id)}
               </span>
-              <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+              <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
                 {t("cookieBot.enrol.listSites", {
                   count: template.site_count,
                 })}
@@ -1801,7 +1801,7 @@ function SavedPanel({
               <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                 {template.name}
               </span>
-              <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+              <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
                 {t("cookieBot.enrol.listSites", {
                   count: template.sites.length,
                 })}

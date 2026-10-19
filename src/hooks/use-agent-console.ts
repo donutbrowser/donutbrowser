@@ -29,6 +29,7 @@ import {
   upsertThreadItem,
 } from "@/lib/agent-console";
 import { translateBackendError } from "@/lib/backend-errors";
+import { notifySystem } from "@/lib/system-notify";
 import { showErrorToast, showToast } from "@/lib/toast-utils";
 import { playUiSound } from "@/lib/ui-sounds";
 
@@ -125,30 +126,34 @@ export function useAgentConsole({
     } = optionsRef.current;
     const focused = typeof document !== "undefined" && document.hasFocus();
     playUiSound("attention");
+    const session = sessionsRef.current.find(
+      (entry) => entry.session_id === item.session_id,
+    );
+    const agent = sessionLabel(
+      session,
+      translate("agent.sessions.fallback"),
+      translate("agent.sessions.website"),
+    );
+    const title = translate(
+      item.kind === "help"
+        ? "agent.notify.helpTitle"
+        : "agent.notify.questionTitle",
+      { agent },
+    );
     if (!visible || !focused) {
-      const session = sessionsRef.current.find(
-        (entry) => entry.session_id === item.session_id,
-      );
-      const agent = sessionLabel(
-        session,
-        translate("agent.sessions.fallback"),
-        translate("agent.sessions.website"),
-      );
       showToast({
         id: `agent-request-${item.id}`,
         type: "info",
-        title: translate(
-          item.kind === "help"
-            ? "agent.notify.helpTitle"
-            : "agent.notify.questionTitle",
-          { agent },
-        ),
+        title,
         description:
           item.text.length > 160 ? `${item.text.slice(0, 159)}…` : item.text,
         duration: 12000,
         action: { label: translate("agent.notify.open"), onClick: open },
       });
     }
+    // The window may be hidden behind the tray, where neither the toast nor
+    // the attention request reaches anyone.
+    void notifySystem({ title, body: item.text });
     if (!focused) {
       void getCurrentWindow()
         .requestUserAttention(UserAttentionType.Informational)

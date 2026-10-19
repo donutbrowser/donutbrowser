@@ -6,8 +6,8 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { KbdGroup } from "@/components/ui/kbd";
 import { MatchText } from "@/components/ui/match-text";
-import { useInputModality } from "@/hooks/use-input-modality";
-import { MOTION_EASE_OUT } from "@/lib/motion";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { paletteScore } from "@/lib/palette-search";
 import {
   groupShortcutKeys,
@@ -73,7 +73,7 @@ export function ShortcutsPage({
 }: ShortcutsPageProps) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
-  const inputModality = useInputModality();
+  const motionAllowed = useMotionAllowed();
   const [search, setSearch] = useState("");
   const [held, setHeld] = useState<HeldModifiers>(NONE);
   // The row whose chord was just pressed, and when, so each press replays.
@@ -91,9 +91,7 @@ export function ShortcutsPage({
 
   // The sections come in one after another when the page is opened by
   // pointer; by keyboard, and on every later filter, they are just there.
-  const [entrance] = useState(
-    () => !reduceMotion && inputModality === "pointer",
-  );
+  const [entrance] = useState(() => motionAllowed);
   const entered = useRef(false);
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -194,6 +192,11 @@ export function ShortcutsPage({
       id: "navigation",
       title: t("commandPalette.groups.navigation"),
       rows: SHORTCUTS.filter((s) => s.group === "navigation").map(shortcutRow),
+    },
+    {
+      id: "profiles",
+      title: t("commandPalette.groups.profiles"),
+      rows: SHORTCUTS.filter((s) => s.group === "profiles").map(shortcutRow),
     },
     {
       id: "actions",
@@ -319,15 +322,15 @@ export function ShortcutsPage({
             data-slot="shortcuts-section"
             data-section={section.id}
             className="flex flex-col gap-2"
-            initial={showEntrance ? { opacity: 0, y: 6 } : false}
+            initial={showEntrance ? { opacity: 0.5, y: 6 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{
-              duration: 0.22,
+              duration: MOTION_DURATION.base,
               delay: showEntrance ? index * 0.05 : 0,
               ease: MOTION_EASE_OUT,
             }}
           >
-            <h2 className="text-[10px] tracking-wide text-muted-foreground uppercase">
+            <h2 className="text-[11px] tracking-wide text-muted-foreground uppercase">
               {section.title}
             </h2>
             <div className="divide-y divide-border overflow-hidden rounded-md border bg-card">

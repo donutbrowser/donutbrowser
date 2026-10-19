@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import i18n from "@/i18n";
 import {
   getBrowserDisplayName,
   getOSDisplayName,
@@ -154,15 +155,16 @@ export function useBrowserState(
    */
   const getLaunchTooltipContent = useCallback(
     (profile: BrowserProfile): string => {
-      if (!isClient) return "Loading...";
+      if (!isClient) return i18n.t("common.buttons.loading");
 
       if (isCrossOsProfile(profile)) {
         const profileOs = profile.host_os || profile.wayfern_config?.os;
         if (profileOs) {
-          const osName = getOSDisplayName(profileOs);
-          return `This profile was created on ${osName} and cannot be launched on a different operating system.`;
+          return i18n.t("crossOs.cannotLaunch", {
+            os: getOSDisplayName(profileOs),
+          });
         }
-        return "This profile was created on a different operating system and cannot be launched here.";
+        return i18n.t("crossOs.cannotLaunchUnknown");
       }
 
       const isRunning = runningProfiles.has(profile.id);
@@ -170,11 +172,11 @@ export function useBrowserState(
       const isStopping = stoppingProfiles.has(profile.id);
 
       if (isLaunching) {
-        return "Launching browser...";
+        return i18n.t("profileTable.launchTooltip.launching");
       }
 
       if (isStopping) {
-        return "Stopping browser...";
+        return i18n.t("profileTable.launchTooltip.stopping");
       }
 
       if (isRunning) {
@@ -185,7 +187,7 @@ export function useBrowserState(
         isSingleInstanceBrowser(profile.browser) &&
         !canLaunchProfile(profile)
       ) {
-        return `Only one instance of this browser can run at a time. Stop the running browser first.`;
+        return i18n.t("profileTable.launchTooltip.singleInstance");
       }
 
       return "";
@@ -215,11 +217,11 @@ export function useBrowserState(
       const isStopping = stoppingProfiles.has(profile.id);
 
       if (isLaunching) {
-        return "Profile is currently launching. Please wait.";
+        return i18n.t("profileSelector.busy.launching");
       }
 
       if (isStopping) {
-        return "Profile is currently stopping. Please wait.";
+        return i18n.t("profileSelector.busy.stopping");
       }
 
       if (isSingleInstanceBrowser(profile.browser)) {
@@ -231,11 +233,14 @@ export function useBrowserState(
           const runningProfileNames = runningInstancesOfType
             .map((p) => p.name)
             .join(", ");
-          return `${getBrowserDisplayName(profile.browser)} browser is already running (${runningProfileNames}). Only one instance can run at a time.`;
+          return i18n.t("profileSelector.busy.singleInstance", {
+            browser: getBrowserDisplayName(profile.browser),
+            names: runningProfileNames,
+          });
         }
       }
 
-      return "This profile cannot be used for opening links right now.";
+      return i18n.t("profileSelector.busy.unavailable");
     },
     [
       profiles,
@@ -248,14 +253,28 @@ export function useBrowserState(
     ],
   );
 
-  return {
-    isClient,
-    isSingleInstanceBrowser,
-    isAnyInstanceRunning,
-    canLaunchProfile,
-    canUseProfileForLinks,
-    canSelectProfile,
-    getLaunchTooltipContent,
-    getProfileTooltipContent,
-  };
+  // One object while its parts stay the same: a reader that puts it in its
+  // dependencies (the profile table's meta) does not change on every render.
+  return useMemo(
+    () => ({
+      isClient,
+      isSingleInstanceBrowser,
+      isAnyInstanceRunning,
+      canLaunchProfile,
+      canUseProfileForLinks,
+      canSelectProfile,
+      getLaunchTooltipContent,
+      getProfileTooltipContent,
+    }),
+    [
+      isClient,
+      isSingleInstanceBrowser,
+      isAnyInstanceRunning,
+      canLaunchProfile,
+      canUseProfileForLinks,
+      canSelectProfile,
+      getLaunchTooltipContent,
+      getProfileTooltipContent,
+    ],
+  );
 }

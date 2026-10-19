@@ -1,8 +1,8 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useId } from "react";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { MOTION_SPRING_POSITION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -24,9 +24,7 @@ export function StepDots({
   className?: string;
 }) {
   const id = useId();
-  const reduceMotion = useReducedMotion();
-  const modality = useInputModality();
-  const glide = !reduceMotion && modality === "pointer";
+  const glide = useMotionAllowed();
   return (
     <div
       role="progressbar"
@@ -40,11 +38,16 @@ export function StepDots({
       {Array.from({ length: count }, (_, index) => {
         const active = index === current;
         return (
-          <span
+          <motion.span
             key={index}
             data-active={active}
+            // The dot stretches and shrinks as a transform, and its neighbors
+            // slide along; the radius is a style so Motion keeps it round.
+            layout={glide}
+            transition={glide ? MOTION_SPRING_POSITION : { duration: 0 }}
+            style={{ borderRadius: 3 }}
             className={cn(
-              "relative h-1.5 rounded-full transition-[background-color] duration-300",
+              "relative h-1.5 transition-[background-color] duration-300",
               active ? "w-4" : "w-1.5",
               index < current ? "bg-foreground/35" : "bg-foreground/12",
             )}
@@ -55,10 +58,11 @@ export function StepDots({
                 layoutId={glide ? `${id}-current` : undefined}
                 initial={false}
                 transition={glide ? MOTION_SPRING_POSITION : { duration: 0 }}
-                className="absolute inset-0 rounded-full bg-primary"
+                style={{ borderRadius: 3 }}
+                className="absolute inset-0 bg-primary"
               />
             )}
-          </span>
+          </motion.span>
         );
       })}
     </div>

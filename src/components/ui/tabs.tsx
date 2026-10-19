@@ -1,66 +1,16 @@
 "use client";
 
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { type HTMLMotionProps, motion, type Transition } from "motion/react";
+import { type HTMLMotionProps, motion } from "motion/react";
 import * as React from "react";
 
-import { AutoHeight } from "@/components/ui/auto-height";
-import {
-  Highlight,
-  HighlightItem,
-  type HighlightItemProps,
-  type HighlightProps,
-} from "@/components/ui/highlight";
-import { useControlledState } from "@/hooks/use-controlled-state";
-import { getStrictContext } from "@/lib/get-strict-context";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { cn } from "@/lib/utils";
-
-interface TabsContextType {
-  value: string | undefined;
-  setValue: TabsProps["onValueChange"];
-}
-
-const [TabsProvider, useTabs] =
-  getStrictContext<TabsContextType>("TabsContext");
 
 type TabsProps = React.ComponentProps<typeof TabsPrimitive.Root>;
 
 function Tabs(props: TabsProps) {
-  const [value, setValue] = useControlledState({
-    value: props.value,
-    defaultValue: props.defaultValue,
-    onChange: props.onValueChange,
-  });
-
-  return (
-    <TabsProvider value={{ value, setValue }}>
-      <TabsPrimitive.Root
-        data-slot="tabs"
-        {...props}
-        onValueChange={setValue}
-      />
-    </TabsProvider>
-  );
-}
-
-type TabsHighlightProps = Omit<HighlightProps, "controlledItems" | "value">;
-
-function TabsHighlight({
-  transition = { type: "spring", stiffness: 200, damping: 25 },
-  ...props
-}: TabsHighlightProps) {
-  const { value } = useTabs();
-
-  return (
-    <Highlight
-      data-slot="tabs-highlight"
-      controlledItems
-      value={value}
-      transition={transition}
-      click={false}
-      {...props}
-    />
-  );
+  return <TabsPrimitive.Root data-slot="tabs" {...props} />;
 }
 
 type TabsListProps = React.ComponentProps<typeof TabsPrimitive.List>;
@@ -81,14 +31,6 @@ const TabsList = React.forwardRef<
 ));
 TabsList.displayName = TabsPrimitive.List.displayName;
 
-type TabsHighlightItemProps = HighlightItemProps & {
-  value: string;
-};
-
-function TabsHighlightItem(props: TabsHighlightItemProps) {
-  return <HighlightItem data-slot="tabs-highlight-item" {...props} />;
-}
-
 type TabsTriggerProps = React.ComponentProps<typeof TabsPrimitive.Trigger>;
 
 const TabsTrigger = React.forwardRef<
@@ -99,7 +41,8 @@ const TabsTrigger = React.forwardRef<
     ref={ref}
     data-slot="tabs-trigger"
     className={cn(
-      "inline-flex cursor-pointer items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium whitespace-nowrap ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+      "inline-flex cursor-pointer items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-[color,background-color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+      FOCUS_RING,
       className,
     )}
     {...props}
@@ -121,71 +64,10 @@ function TabsContent({
       <motion.div
         data-slot="tabs-content"
         initial={false}
-        className={cn(
-          "mt-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
-          className,
-        )}
+        className={cn("mt-2", FOCUS_RING, className)}
         {...props}
       />
     </TabsPrimitive.Content>
-  );
-}
-
-type TabsContentsAutoProps = React.ComponentProps<typeof AutoHeight> & {
-  mode?: "auto-height";
-  children: React.ReactNode;
-  transition?: Transition;
-};
-
-type TabsContentsLayoutProps = Omit<HTMLMotionProps<"div">, "transition"> & {
-  mode: "layout";
-  children: React.ReactNode;
-  transition?: Transition;
-};
-
-type TabsContentsProps = TabsContentsAutoProps | TabsContentsLayoutProps;
-
-const defaultTransition: Transition = {
-  type: "spring",
-  stiffness: 200,
-  damping: 30,
-};
-
-function isAutoMode(props: TabsContentsProps): props is TabsContentsAutoProps {
-  return !("mode" in props) || props.mode === "auto-height";
-}
-
-// Auto-height mode animates to a measured pixel height; in a
-// height-constrained parent (e.g. a dialog capped at the viewport) the pane
-// itself must carry "overflow-y-auto min-h-0" so overflow scrolls instead of
-// clipping.
-function TabsContents(props: TabsContentsProps) {
-  const { value } = useTabs();
-
-  if (isAutoMode(props)) {
-    const { transition = defaultTransition, ...autoProps } = props;
-
-    return (
-      <AutoHeight
-        data-slot="tabs-contents"
-        deps={[value]}
-        transition={transition}
-        {...autoProps}
-      />
-    );
-  }
-
-  const { transition = defaultTransition, style, ...layoutProps } = props;
-
-  return (
-    <motion.div
-      data-slot="tabs-contents"
-      layout="size"
-      layoutDependency={value}
-      style={{ overflow: "hidden", ...style }}
-      transition={{ layout: transition }}
-      {...layoutProps}
-    />
   );
 }
 
@@ -193,12 +75,6 @@ export {
   Tabs,
   TabsContent,
   type TabsContentProps,
-  TabsContents,
-  type TabsContentsProps,
-  TabsHighlight,
-  TabsHighlightItem,
-  type TabsHighlightItemProps,
-  type TabsHighlightProps,
   TabsList,
   type TabsListProps,
   type TabsProps,

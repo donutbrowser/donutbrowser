@@ -17,6 +17,7 @@ import {
   ColorPickerOutput,
   ColorPickerSelection,
 } from "@/components/ui/color-picker";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import {
   Popover,
   PopoverContent,
@@ -241,7 +242,10 @@ export function ThemeColorEditor({
               <button
                 type="button"
                 aria-label={label}
-                className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg bg-foreground/4 p-1.5 pr-2 text-left transition-colors duration-150 outline-none hover:bg-foreground/7 focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-foreground/8"
+                className={cn(
+                  "flex min-w-0 cursor-pointer items-center gap-2 rounded-lg bg-foreground/4 p-1.5 pr-2 text-left transition-colors duration-150 hover:bg-foreground/7 aria-expanded:bg-foreground/8",
+                  FOCUS_RING,
+                )}
               >
                 <span
                   className="size-6 shrink-0 rounded-md shadow-sm ring-1 ring-foreground/15"
@@ -249,7 +253,7 @@ export function ThemeColorEditor({
                 />
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate text-xs font-medium">{label}</span>
-                  <span className="truncate font-mono text-[10px] text-muted-foreground uppercase">
+                  <span className="truncate font-mono text-[11px] text-muted-foreground uppercase">
                     {value}
                   </span>
                 </span>

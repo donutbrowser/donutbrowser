@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MOTION_SPRING_POSITION } from "@/lib/motion";
+import { MOTION_DURATION, MOTION_SPRING_POSITION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 function Command({
@@ -207,6 +207,9 @@ function CommandGlide({ className }: { className?: string }) {
 
   // The first placement jumps; only a move between items glides.
   const instant = reduceMotion || !shown.current;
+  // A fading highlight keeps the size it had.
+  const size = React.useRef<{ width: number; height: number } | null>(null);
+  if (box) size.current = { width: box.width, height: box.height };
   React.useEffect(() => {
     shown.current = box !== null;
   }, [box]);
@@ -220,22 +223,18 @@ function CommandGlide({ className }: { className?: string }) {
         "pointer-events-none absolute top-0 left-0 rounded-md bg-primary/10",
         className,
       )}
+      // Only the position glides; the size follows at once, so nothing but
+      // transform and opacity animates.
+      style={size.current ?? undefined}
       initial={false}
-      animate={
-        box
-          ? {
-              x: box.x,
-              y: box.y,
-              width: box.width,
-              height: box.height,
-              opacity: 1,
-            }
-          : { opacity: 0 }
-      }
+      animate={box ? { x: box.x, y: box.y, opacity: 1 } : { opacity: 0 }}
       transition={
         instant
           ? { duration: 0 }
-          : { ...MOTION_SPRING_POSITION, opacity: { duration: 0.12 } }
+          : {
+              ...MOTION_SPRING_POSITION,
+              opacity: { duration: MOTION_DURATION.fast },
+            }
       }
     >
       <span className="absolute top-1/2 left-0 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />

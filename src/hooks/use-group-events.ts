@@ -1,88 +1,78 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import i18n from "@/i18n";
+import { translateBackendError } from "@/lib/backend-errors";
+import { groupList } from "@/lib/profile-list-store";
 import type { GroupWithCount } from "@/types";
 
+const NO_GROUPS: GroupWithCount[] = [];
+
+function groupsError(err: unknown) {
+  return i18n.t("errors.loadGroupsFailed", {
+    error: translateBackendError(i18n.t, err),
+  });
+}
+
 /**
- * Custom hook to manage group-related state and listen for backend events.
- * This hook eliminates the need for manual UI refreshes by automatically
- * updating state when the backend emits group change events.
+ * Groups with their profile counts, kept current by `groups-changed` and
+ * `profiles-changed`. The list comes from the shared store, so every reader
+ * shares one load per change. With `enabled: false` (a closed dialog) it
+ * loads nothing and listens to nothing.
  */
-export function useGroupEvents() {
-  const [groups, setGroups] = useState<GroupWithCount[]>([]);
+export function useGroupEvents({ enabled = true }: { enabled?: boolean } = {}) {
+  const [groups, setGroups] = useState<GroupWithCount[]>(
+    () => groupList.peek() ?? NO_GROUPS,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load groups from backend
   const loadGroups = useCallback(async () => {
     try {
-      const groupsWithCounts = await invoke<GroupWithCount[]>(
-        "get_groups_with_profile_counts",
-      );
-      setGroups(groupsWithCounts);
+      setGroups(await groupList.refresh());
       setError(null);
     } catch (err: unknown) {
       console.error("Failed to load groups:", err);
-      setError(
-        i18n.t("errors.loadGroupsFailed", { error: JSON.stringify(err) }),
-      );
+      setError(groupsError(err));
     }
   }, []);
 
-  // Clear error state
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
-  // Initial load and event listeners setup
   useEffect(() => {
-    let groupsUnlisten: (() => void) | undefined;
-    let profilesUnlisten: (() => void) | undefined;
+    if (!enabled) return;
+    let disposed = false;
+    const stop = groupList.subscribe({
+      value: (list) => {
+        setGroups(list);
+        setError(null);
+      },
+      error: (err) => {
+        console.error("Failed to load groups:", err);
+        setError(groupsError(err));
+      },
+    });
 
-    const setupListeners = async () => {
+    void (async () => {
       try {
-        // Initial load
-        await loadGroups();
-
-        // Listen for group changes (create, delete, rename, update, etc.)
-        groupsUnlisten = await listen("groups-changed", () => {
-          console.log("Received groups-changed event, reloading groups");
-          void loadGroups();
-        });
-
-        // Also listen for profile changes since groups show profile counts
-        profilesUnlisten = await listen("profiles-changed", () => {
-          console.log(
-            "Received profiles-changed event, reloading groups for updated counts",
-          );
-          void loadGroups();
-        });
-
-        console.log("Group event listeners set up successfully");
+        const list = await groupList.load();
+        if (disposed) return;
+        setGroups(list);
+        setError(null);
       } catch (err) {
-        console.error("Failed to setup group event listeners:", err);
-        setError(
-          i18n.t("errors.setupGroupListenersFailed", {
-            error: JSON.stringify(err),
-          }),
-        );
+        if (disposed) return;
+        console.error("Failed to load groups:", err);
+        setError(groupsError(err));
       } finally {
-        setIsLoading(false);
+        if (!disposed) setIsLoading(false);
       }
-    };
+    })();
 
-    void setupListeners();
-
-    // Cleanup listeners on unmount. The two unlisten fns stay in separate
-    // locals: merging them into one wrapper that reassigns the local it then
-    // calls makes that wrapper call itself, and the stack overflow aborts the
-    // teardown mid-commit, leaving stale overlay nodes that swallow clicks.
     return () => {
-      if (groupsUnlisten) groupsUnlisten();
-      if (profilesUnlisten) profilesUnlisten();
+      disposed = true;
+      stop();
     };
-  }, [loadGroups]);
+  }, [enabled]);
 
   return {
     groups,

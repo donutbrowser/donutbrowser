@@ -1,7 +1,14 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { type ReactNode, useEffect, useId, useRef } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatedSwitch } from "@/components/ui/animated-switch";
 import { Button, type ButtonProps } from "@/components/ui/button";
@@ -11,20 +18,31 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useInputModality } from "@/hooks/use-input-modality";
-import { MOTION_EASE_OUT } from "@/lib/motion";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /** Movement runs only for pointer users who allow motion. */
-export function useEntityMotion() {
-  const reduceMotion = useReducedMotion();
-  const inputModality = useInputModality();
-  return !reduceMotion && inputModality === "pointer";
+export const useEntityMotion = useMotionAllowed;
+
+const RowNameContext = createContext<string | undefined>(undefined);
+
+/** Names the row its actions belong to, so each action's label can say which. */
+export function RowNameProvider({
+  name,
+  children,
+}: {
+  name: string;
+  children: ReactNode;
+}) {
+  return (
+    <RowNameContext.Provider value={name}>{children}</RowNameContext.Provider>
+  );
 }
 
 const TICK = {
   enter: (direction: number) => ({
-    opacity: 0,
+    opacity: 0.5,
     transform: `translateY(${direction * 70}%)`,
   }),
   center: { opacity: 1, transform: "translateY(0%)" },
@@ -66,7 +84,10 @@ export function TickingCount({
           initial={animate ? "enter" : false}
           animate="center"
           exit="exit"
-          transition={{ duration: animate ? 0.18 : 0, ease: MOTION_EASE_OUT }}
+          transition={{
+            duration: animate ? MOTION_DURATION.base : 0,
+            ease: MOTION_EASE_OUT,
+          }}
         >
           {value}
         </motion.span>
@@ -206,6 +227,7 @@ export function RowActions({ children }: { children: ReactNode }) {
 
 export function RowAction({
   label,
+  name,
   tooltip,
   icon,
   tone = "default",
@@ -214,16 +236,25 @@ export function RowAction({
   ...props
 }: Omit<ButtonProps, "children"> & {
   label: string;
+  /** The row's entity; defaults to the name its table row provides. */
+  name?: string;
   tooltip?: ReactNode;
   icon: ReactNode;
   tone?: "default" | "destructive";
 }) {
+  const { t } = useTranslation();
+  const rowName = useContext(RowNameContext);
+  const subject = name ?? rowName;
   const button = (
     <Button
       type="button"
       variant="subtle"
       size="icon"
-      aria-label={label}
+      aria-label={
+        subject
+          ? t("tables.rowAction", { action: label, name: subject })
+          : label
+      }
       disabled={disabled}
       className={cn(
         "row-reveal size-7 rounded-md [&_svg]:size-3.5",
@@ -350,14 +381,14 @@ export function CheckPill({
         <motion.span
           key={`${state}:${resultKey ?? ""}`}
           className="inline-flex min-w-0 items-center gap-1.5"
-          initial={roll ? { opacity: 0, transform: "scale(0.9)" } : false}
+          initial={roll ? { opacity: 0.5, transform: "scale(0.9)" } : false}
           animate={{ opacity: 1, transform: "scale(1)" }}
           exit={
             roll
               ? { opacity: 0, transform: "scale(0.9)" }
               : { opacity: 0, transition: { duration: 0 } }
           }
-          transition={{ duration: 0.18, ease: MOTION_EASE_OUT }}
+          transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE_OUT }}
         >
           {icon}
           {!compact && <span className="truncate">{children}</span>}

@@ -3,8 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiWifi } from "react-icons/fi";
-import { LuLayers, LuPuzzle, LuShield, LuUsers } from "react-icons/lu";
+import { LuLayers, LuPuzzle, LuShield, LuUsers, LuWifi } from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 
 interface UnsyncedEntityCounts {
@@ -66,7 +66,7 @@ export function SyncAllDialog({ isOpen, onClose }: SyncAllDialogProps) {
       onClose();
     } catch (error) {
       console.error("Failed to enable sync for all entities:", error);
-      showErrorToast(String(error));
+      showErrorToast(translateBackendError(t, error));
     } finally {
       setIsEnabling(false);
     }
@@ -79,7 +79,7 @@ export function SyncAllDialog({ isOpen, onClose }: SyncAllDialogProps) {
         key: "proxies",
         count: counts.proxies,
         label: t("syncAll.labels.proxies"),
-        Icon: FiWifi,
+        Icon: LuWifi,
       },
       {
         key: "vpns",
@@ -140,7 +140,7 @@ export function SyncAllDialog({ isOpen, onClose }: SyncAllDialogProps) {
             {items.map(({ key, count, label, Icon }) => (
               <div
                 key={key}
-                className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:bg-card"
+                className="flex items-center gap-3 rounded-lg bg-foreground/4 p-3 transition-colors hover:bg-foreground/6"
               >
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary-text">
                   <Icon className="size-4" />
@@ -148,10 +148,7 @@ export function SyncAllDialog({ isOpen, onClose }: SyncAllDialogProps) {
                 <div className="min-w-0 flex-1 truncate text-sm font-medium">
                   {label}
                 </div>
-                <Badge
-                  variant="secondary"
-                  className="shrink-0 px-2 tabular-nums"
-                >
+                <Badge variant="soft" className="shrink-0 px-2 tabular-nums">
                   {count}
                 </Badge>
               </div>

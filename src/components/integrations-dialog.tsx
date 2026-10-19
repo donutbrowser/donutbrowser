@@ -9,6 +9,7 @@ import {
   LuCloud,
   LuEye,
   LuEyeOff,
+  LuKeyRound,
   LuPlug,
   LuRefreshCw,
   LuSlidersHorizontal,
@@ -17,7 +18,9 @@ import {
 import {
   type CodeExample,
   CodeExamplesDialog,
+  type LiveRequest,
 } from "@/components/code-examples-dialog";
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { IntegrationDiagnostics } from "@/components/integration-diagnostics";
 import { LoadingButton } from "@/components/loading-button";
 import { AgentIcon } from "@/components/mcp-agent-icon";
@@ -40,6 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OperationFlow } from "@/components/ui/operation-flow";
@@ -149,6 +153,8 @@ export function IntegrationsDialog({
     null,
   );
   const [isRotatingCredential, setIsRotatingCredential] = useState(false);
+  const [forgetCredentialOpen, setForgetCredentialOpen] = useState(false);
+  const [isForgettingCredential, setIsForgettingCredential] = useState(false);
   const [apiExamplesOpen, setApiExamplesOpen] = useState(false);
   const [remoteExamplesOpen, setRemoteExamplesOpen] = useState(false);
   const apiSwitchId = useId();
@@ -390,6 +396,26 @@ export function IntegrationsDialog({
     }
   };
 
+  /** Revoke the stored credential and remove it from this computer. */
+  const handleForgetCredential = async () => {
+    setIsForgettingCredential(true);
+    try {
+      await invoke("forget_mcp_remote_credential");
+      setCredential({ present: false, tokenPrefix: null });
+      setForgetCredentialOpen(false);
+      showSuccessToast(t("integrations.remote.credentialForgotten"));
+    } catch (e) {
+      console.error("Failed to forget MCP remote credential:", e);
+      showErrorToast(t("integrations.remote.credentialForgetFailed"), {
+        description: translateBackendError(t, e),
+      });
+    } finally {
+      setIsForgettingCredential(false);
+      void loadCredential();
+      void loadSettings();
+    }
+  };
+
   const markAgentBusy = (id: string, busy: boolean) => {
     setBusyAgentIds((prev) => {
       const next = new Set(prev);
@@ -585,6 +611,28 @@ export function IntegrationsDialog({
   const apiCopyTarget = { baseUrl: apiBaseUrl, token: apiToken || "TOKEN" };
   const apiQuickStart = LOCAL_API_EXAMPLES[0].request;
 
+  // Only the read-only listing is sent for real: it changes nothing, and it
+  // proves the server, the port and the token in one answer.
+  const liveListProfiles: LiveRequest = {
+    unavailable:
+      apiServerPort === null || !apiToken
+        ? t("integrations.examples.tryItNeedsApi")
+        : undefined,
+    run: async () => {
+      const started = performance.now();
+      const response = await fetch(`${apiBaseUrl}${apiQuickStart.path}`, {
+        headers: { Authorization: `Bearer ${apiToken}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const body = await response.text();
+      return {
+        status: response.status,
+        body,
+        ms: Math.round(performance.now() - started),
+      };
+    },
+  };
+
   const apiExamples: CodeExample[] = LOCAL_API_EXAMPLES.map((example) => ({
     id: example.id,
     title: t(`integrations.examples.items.${example.id}.title`),
@@ -592,6 +640,7 @@ export function IntegrationsDialog({
     method: example.request.method,
     paid: example.paid,
     response: example.response,
+    live: example.id === "listProfiles" ? liveListProfiles : undefined,
     snippets: Object.fromEntries(
       REQUEST_LANGUAGES.map((language) => [
         language,
@@ -652,7 +701,7 @@ export function IntegrationsDialog({
           <AgentIcon id={agent.id} category={agent.category} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{agent.display_name}</p>
-            <p className="text-[10px] tracking-wide text-muted-foreground uppercase">
+            <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
               {categoryLabel(t, agent.category)}
             </p>
           </div>
@@ -691,7 +740,12 @@ export function IntegrationsDialog({
         </div>
         {agent.connected && (
           <details data-slot="client-route" className="text-xs">
-            <summary className="w-fit cursor-pointer rounded-sm py-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+            <summary
+              className={cn(
+                "w-fit cursor-pointer rounded-sm py-1 text-muted-foreground transition-colors hover:text-foreground",
+                FOCUS_RING,
+              )}
+            >
               {t("appFeedback.routeDetails")}
             </summary>
             <OperationFlow
@@ -1171,6 +1225,24 @@ export function IntegrationsDialog({
                               ? t("integrations.remote.credentialRotate")
                               : t("integrations.remote.credentialCreate")}
                           </LoadingButton>
+                          {credentialPresent && (
+                            <Button
+                              size="sm"
+                              variant="subtle"
+                              data-slot="mcp-credential-forget"
+                              className="h-8 shrink-0 gap-1.5 rounded-lg text-xs hover:bg-destructive/10 hover:text-destructive-text"
+                              disabled={
+                                isRotatingCredential || isForgettingCredential
+                              }
+                              onClick={() => setForgetCredentialOpen(true)}
+                            >
+                              <LuKeyRound
+                                className="size-3.5"
+                                aria-hidden="true"
+                              />
+                              {t("integrations.remote.credentialForget")}
+                            </Button>
+                          )}
                         </SettingsRow>
                         <SettingsRow
                           label={t("integrations.remote.endpointLabel")}
@@ -1215,6 +1287,20 @@ export function IntegrationsDialog({
                     key={`${credentialPrefixOf(credential)}:${remote?.enabled}`}
                     target="remote"
                     className="mt-4"
+                  />
+
+                  <DeleteConfirmationDialog
+                    isOpen={forgetCredentialOpen}
+                    onClose={() => setForgetCredentialOpen(false)}
+                    onConfirm={handleForgetCredential}
+                    title={t("integrations.remote.credentialForgetTitle")}
+                    description={t(
+                      "integrations.remote.credentialForgetDescription",
+                    )}
+                    confirmButtonText={t(
+                      "integrations.remote.credentialForget",
+                    )}
+                    isLoading={isForgettingCredential}
                   />
 
                   <CodeExamplesDialog

@@ -1,6 +1,7 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { Slider as SliderPrimitive } from "radix-ui";
 import {
   createContext,
   type KeyboardEvent,
@@ -9,17 +10,16 @@ import {
   useId,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { Label } from "@/components/ui/label";
-import { useInputModality } from "@/hooks/use-input-modality";
-import { MOTION_EASE_OUT, MOTION_SPRING_POSITION } from "@/lib/motion";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import {
+  MOTION_DURATION,
+  MOTION_EASE_OUT,
+  MOTION_SPRING,
+  MOTION_SPRING_POSITION,
+} from "@/lib/motion";
 import { cn } from "@/lib/utils";
-
-/** Layout springs run only for pointer users who allow motion. */
-export function useSettingsMotion() {
-  const reduceMotion = useReducedMotion();
-  const inputModality = useInputModality();
-  return !reduceMotion && inputModality === "pointer";
-}
 
 /** A nav target: an icon that lights up while the reader is in it, and a title. */
 export function SettingsSection({
@@ -96,7 +96,7 @@ export function SettingsCard({
 /** Marks a setting whose draft differs from what is saved. */
 export function ChangedDot({ show }: { show: boolean }) {
   const { t } = useTranslation();
-  const animate = useSettingsMotion();
+  const animate = useMotionAllowed();
   return (
     <AnimatePresence initial={false}>
       {show && (
@@ -108,11 +108,7 @@ export function ChangedDot({ show }: { show: boolean }) {
           initial={animate ? { scale: 0, opacity: 0 } : false}
           animate={{ scale: 1, opacity: 1 }}
           exit={animate ? { scale: 0, opacity: 0 } : { opacity: 0 }}
-          transition={
-            animate
-              ? { type: "spring", stiffness: 600, damping: 28 }
-              : { duration: 0 }
-          }
+          transition={animate ? MOTION_SPRING.snappy : { duration: 0 }}
           className="inline-block size-1.5 shrink-0 rounded-full bg-primary"
         />
       )}
@@ -292,7 +288,7 @@ export function ChoiceGroup({
   slot?: string;
 }) {
   const indicatorId = useId();
-  const animate = useSettingsMotion();
+  const animate = useMotionAllowed();
   return (
     <ChoiceContext.Provider
       value={{ value, select: onValueChange, indicatorId, animate }}
@@ -341,7 +337,7 @@ export function ChoiceCard({
       className={cn(
         "group/choice relative isolate cursor-pointer rounded-xl text-left outline-none",
         "transition-[background-color,translate] duration-150 ease-[var(--ease-out)]",
-        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        FOCUS_RING,
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
@@ -381,7 +377,7 @@ export function SegmentedControl<T extends string | number>({
   slot?: string;
 }) {
   const indicatorId = useId();
-  const animate = useSettingsMotion();
+  const animate = useMotionAllowed();
   return (
     <div
       id={id}
@@ -431,7 +427,7 @@ export function SegmentedControl<T extends string | number>({
 
 /** A check that draws itself in when `done` turns true. */
 export function RuleCheck({ done, label }: { done: boolean; label: string }) {
-  const animate = useSettingsMotion();
+  const animate = useMotionAllowed();
   return (
     <li
       data-done={done}
@@ -463,7 +459,7 @@ export function RuleCheck({ done, label }: { done: boolean; label: string }) {
             animate={{ pathLength: done ? 1 : 0, opacity: done ? 1 : 0 }}
             transition={
               animate
-                ? { duration: 0.24, ease: MOTION_EASE_OUT }
+                ? { duration: MOTION_DURATION.base, ease: MOTION_EASE_OUT }
                 : { duration: 0 }
             }
           />
@@ -471,5 +467,72 @@ export function RuleCheck({ done, label }: { done: boolean; label: string }) {
       </span>
       {label}
     </li>
+  );
+}
+
+/** The stop nearest to `value`, so a value saved elsewhere still has a place. */
+function nearestStop(stops: readonly number[], value: number): number {
+  let best = 0;
+  for (let index = 1; index < stops.length; index++) {
+    if (Math.abs(stops[index] - value) < Math.abs(stops[best] - value)) {
+      best = index;
+    }
+  }
+  return best;
+}
+
+/**
+ * A slider over a fixed list of values, so a wide range can be fine where it
+ * matters. The readout shows the value itself, which may lie between stops.
+ */
+export function SettingSlider({
+  value,
+  stops,
+  label,
+  format,
+  onChange,
+  onCommit,
+  slot,
+  className,
+}: {
+  value: number;
+  stops: readonly number[];
+  label: string;
+  format: (value: number) => string;
+  onChange: (value: number) => void;
+  onCommit?: (value: number) => void;
+  slot?: string;
+  className?: string;
+}) {
+  const index = nearestStop(stops, value);
+  return (
+    <div className={cn("flex w-56 items-center gap-3", className)}>
+      <SliderPrimitive.Root
+        data-slot={slot}
+        aria-label={label}
+        className="relative flex h-5 flex-1 cursor-pointer touch-none items-center select-none"
+        min={0}
+        max={stops.length - 1}
+        step={1}
+        value={[index]}
+        onValueChange={([next]) => onChange(stops[next])}
+        onValueCommit={([next]) => onCommit?.(stops[next])}
+      >
+        <SliderPrimitive.Track className="relative h-1.5 grow overflow-hidden rounded-full bg-foreground/10">
+          <SliderPrimitive.Range className="absolute h-full rounded-full bg-primary" />
+        </SliderPrimitive.Track>
+        <SliderPrimitive.Thumb
+          aria-label={label}
+          aria-valuetext={format(value)}
+          className={cn(
+            "block size-4 rounded-full bg-background shadow-md ring-1 ring-foreground/15 transition-transform duration-100 hover:scale-110 active:scale-95 motion-reduce:transition-none",
+            FOCUS_RING,
+          )}
+        />
+      </SliderPrimitive.Root>
+      <span className="min-w-12 text-right text-xs text-muted-foreground tabular-nums">
+        {format(value)}
+      </span>
+    </div>
   );
 }

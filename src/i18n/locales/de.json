@@ -34,7 +34,8 @@
       "saving": "Wird gespeichert…",
       "saved": "Gespeichert",
       "copied": "Kopiert",
-      "learnMore": "Mehr erfahren"
+      "learnMore": "Mehr erfahren",
+      "undo": "Rückgängig"
     },
     "status": {
       "active": "Aktiv",
@@ -299,7 +300,25 @@
           "label": "Ereignisse",
           "description": "Start und Stopp von Profilen, Synchronisierung, Downloads und Anfragen, die Ihre Aufmerksamkeit brauchen."
         }
-      }
+      },
+      "previewAria": "Töne für {{name}} anhören"
+    },
+    "system": {
+      "title": "System",
+      "launchAtLogin": "Donut bei der Anmeldung öffnen",
+      "launchAtLoginDescription": "Donut startet, wenn du dich an deinem Computer anmeldest.",
+      "reopenRunning": "Laufende Profile beim Start wieder öffnen",
+      "reopenRunningDescription": "Profile, die beim Schließen von Donut liefen, starten beim nächsten Öffnen erneut.",
+      "notifications": "Systembenachrichtigungen",
+      "notificationsDescription": "Während Donut im Hintergrund ist, meldet dein Betriebssystem Ereignisse wie einen fehlgeschlagenen Start oder eine Frage eines Agenten."
+    },
+    "launches": {
+      "title": "Massenstarts",
+      "delay": "Pause zwischen Starts",
+      "delayDescription": "Wie lange Donut wartet, bevor es das nächste Profil startet, wenn du mehrere startest.",
+      "concurrency": "Gleichzeitig startende Profile",
+      "concurrencyDescription": "Wie viele Profile gleichzeitig starten können. Eine kleinere Zahl belastet deinen Computer weniger.",
+      "seconds": "{{value}} s"
     }
   },
   "header": {
@@ -319,7 +338,8 @@
     "newProfile": "Neu",
     "donutLogo": "Logo von Donut Browser",
     "scrollGroupsLeft": "Gruppen nach links scrollen",
-    "scrollGroupsRight": "Gruppen nach rechts scrollen"
+    "scrollGroupsRight": "Gruppen nach rechts scrollen",
+    "allGroups": "Alle Gruppen"
   },
   "search": {
     "helpLabel": "Suchsyntax",
@@ -409,7 +429,7 @@
       "proxy": "Proxy / VPN",
       "lastLaunch": "Letzter Start",
       "empty": "Keine Profile gefunden.",
-      "ext": "EXT",
+      "ext": "Erweiterungen",
       "dns": "DNS",
       "dnsLevel": "DNS-Sperrliste: {{level}}",
       "extSearch": "Gruppen suchen…",
@@ -507,7 +527,10 @@
       "runSelected": "Ausgewählte starten",
       "stopSelected": "Ausgewählte stoppen",
       "proRequired": "Pro-Tarif für Massenstart/-stopp erforderlich",
-      "distributeProxies": "Proxys verteilen"
+      "distributeProxies": "Proxys verteilen",
+      "runCount": "{{count}} starten",
+      "stopCount": "{{count}} stoppen",
+      "enableSync": "Synchronisierung aktivieren"
     },
     "passwordProtectedBadge": "Passwortgeschützt",
     "launchHook": {
@@ -517,7 +540,13 @@
       "confirmTitle": "{{count}} Profile starten?",
       "confirmDescription": "Wenn Sie {{count}} Profile gleichzeitig starten, kann das viele Systemressourcen beanspruchen. Fortfahren?",
       "confirmButton": "{{count}} starten",
-      "noneToRun": "Keine ausgewählten Profile zum Starten."
+      "noneToRun": "Keine ausgewählten Profile zum Starten.",
+      "progress": "Starte {{done}} von {{total}}",
+      "failedSummary": "{{failed}} von {{total}} Starts fehlgeschlagen",
+      "showFailed": "Anzeigen",
+      "notStarted": "{{count}} von {{total}} Starts nicht begonnen",
+      "finishedTitle": "Massenstart abgeschlossen",
+      "finishedBody": "{{launched}} von {{total}} Profilen gestartet"
     },
     "bulkStop": {
       "confirmTitle": "{{count}} Profile stoppen?",
@@ -533,8 +562,18 @@
     },
     "remote": {
       "runningTooltip": "Läuft auf einem entfernten Rechner. Stoppen Sie es, um das Profil hierher zurückzuholen.",
-      "pendingSyncTooltip": "Die Änderungen der entfernten Sitzung werden heruntergeladen. Danach ist das Profil wieder verfügbar."
-    }
+      "pendingSyncTooltip": "Die Änderungen der entfernten Sitzung werden heruntergeladen. Danach ist das Profil wieder verfügbar.",
+      "starting": "{{name}} wird in der Cloud gestartet"
+    },
+    "trash": {
+      "moved": "„{{name}}“ in den Papierkorb verschoben",
+      "movedMany": "{{count}} Profile in den Papierkorb verschoben"
+    },
+    "stopAll": {
+      "none": "Es laufen keine Profile."
+    },
+    "duplicated": "Kopie erstellt: {{name}}",
+    "lockedToast": "„{{name}}“ ist gesperrt"
   },
   "createProfile": {
     "title": "Neues Profil erstellen",
@@ -590,6 +629,9 @@
       "reached": "Ihr Tarif erlaubt {{limit}} neue Profile pro Stunde. Das nächste können Sie in etwa {{minutes}} Min. erstellen.",
       "warningTitle": "Sie erstellen Profile zu schnell",
       "warning": "Bitte warten Sie einen Moment. Zu viele neue Profile in einer Stunde führen zu einer vorübergehenden Sperre von 24 Stunden oder mehr, in der Sie keine neuen Identitäten erzeugen können. Wenn Sie ein höheres Stundenlimit brauchen, unterstützen Sie Donut mit einem kostenpflichtigen Tarif."
+    },
+    "group": {
+      "notFound": "Keine Gruppen gefunden."
     }
   },
   "deleteDialog": {
@@ -926,7 +968,9 @@
     "enabledToast": "Sync aktiviert",
     "disabledToast": "Sync deaktiviert",
     "enabledDescription": "Die Profilsynchronisierung wurde aktiviert",
-    "disabledDescription": "Die Profilsynchronisierung wurde deaktiviert"
+    "disabledDescription": "Die Profilsynchronisierung wurde deaktiviert",
+    "bulkEnabledToast": "Synchronisierung für {{count}} Profile aktiv",
+    "bulkEnableNone": "Die Synchronisierung ist für die ausgewählten Profile bereits aktiv."
   },
   "integrations": {
     "title": "Integrationen",
@@ -1075,7 +1119,13 @@
           "title": "Client-Konfiguration",
           "description": "Füge diesen Eintrag der MCP-Konfiguration eines Clients hinzu, der nicht in der Liste steht."
         }
-      }
+      },
+      "tryIt": "Ausprobieren",
+      "tryItDescription": "Sendet diese Anfrage mit deinem Token an die lokale API und zeigt die Antwort.",
+      "tryItNeedsApi": "Schalte die lokale API ein, um diese Anfrage zu senden.",
+      "tryItFailed": "Die Anfrage hat die lokale API nicht erreicht. Prüfe, ob sie läuft.",
+      "liveResponse": "Live-Antwort",
+      "tryItStatus": "HTTP {{status}} · {{ms}} ms"
     },
     "tabRemote": "Remote-MCP",
     "remote": {
@@ -1103,7 +1153,12 @@
       "credentialRotateFailed": "Die Zugangsdaten konnten nicht rotiert werden",
       "credentialClientsFailed": "Die Zugangsdaten sind gespeichert, aber diese Clients konnten nicht aktualisiert werden: {{clients}}. Rotieren Sie erneut, um es noch einmal zu versuchen.",
       "fxHint": "fx liest die Zugangsdaten aus DONUT_MCP_TOKEN. Exportieren Sie die Variable in der Shell, die fx startet.",
-      "fxExportCopied": "Export-Zeile kopiert"
+      "fxExportCopied": "Export-Zeile kopiert",
+      "credentialForget": "Vergessen",
+      "credentialForgetTitle": "Zugangsschlüssel vergessen?",
+      "credentialForgetDescription": "Donut widerruft den Zugangsschlüssel und entfernt ihn von diesem Computer. Clients, die ihn nutzen, funktionieren erst wieder, wenn du einen neuen erstellst.",
+      "credentialForgotten": "Zugangsschlüssel vergessen",
+      "credentialForgetFailed": "Der Zugangsschlüssel konnte nicht vergessen werden"
     }
   },
   "import": {
@@ -1386,7 +1441,7 @@
     "unknownError": "Ein unbekannter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
     "noProfilesForUrl": "Keine Profile verfügbar. Bitte erstellen Sie zuerst ein Profil, bevor Sie URLs öffnen.",
     "createProfileFailed": "Das Profil konnte nicht erstellt werden: {{error}}",
-    "launchBrowserFailed": "Der Browser konnte nicht gestartet werden: {{error}}",
+    "launchBrowserFailed": "{{name}} konnte nicht gestartet werden: {{error}}",
     "cannotDeleteRunningProfile": "Das Profil kann nicht gelöscht werden, solange der Browser läuft. Bitte stoppen Sie zuerst den Browser.",
     "deleteProfileFailed": "Das Profil konnte nicht gelöscht werden: {{error}}",
     "renameProfileFailed": "Das Profil konnte nicht umbenannt werden: {{error}}",
@@ -1563,7 +1618,8 @@
   "crossOs": {
     "viewOnly": "Dieses Profil wurde unter {{os}} erstellt und wird auf diesem System nicht unterstützt",
     "cannotLaunch": "Dieses Profil wurde unter {{os}} erstellt und wird auf diesem System nicht unterstützt",
-    "cannotModify": "Die Sync-Einstellungen eines Profils von einem anderen Betriebssystem können nicht geändert werden"
+    "cannotModify": "Die Sync-Einstellungen eines Profils von einem anderen Betriebssystem können nicht geändert werden",
+    "cannotLaunchUnknown": "Dieses Profil wurde auf einem anderen Betriebssystem erstellt und kann hier nicht gestartet werden"
   },
   "profileInfo": {
     "title": "Profildetails",
@@ -1614,7 +1670,8 @@
       "noRules": "Keine Umgehungsregeln konfiguriert.",
       "ruleTypes": "Unterstützt Hostnamen, IP-Adressen und reguläre Ausdrücke.",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}"
+      "proxyLabel": "Proxy: {{name}}",
+      "removeRule": "{{rule}} entfernen"
     },
     "launchHook": {
       "title": "Start-Hook-URL",
@@ -1650,7 +1707,9 @@
       "launchHook": "Start-Hook",
       "transfer": "Übertragung",
       "startPages": "Startseiten",
-      "twoFactor": "2FA-Codes"
+      "twoFactor": "2FA-Codes",
+      "requests": "Anfragen",
+      "logs": "Protokolle"
     },
     "sectionDesc": {
       "fingerprint": "Legen Sie fest, wie dieses Profil für Fingerprinting-Skripte erscheint.",
@@ -1660,11 +1719,13 @@
       "sync": "Legen Sie fest, wie dieses Profil auf Ihre anderen Geräte gespiegelt wird.",
       "automation": "Bei jedem Start dieses Profils einen Befehl oder ein Skript ausführen.",
       "security": "Die Profildaten mit einem Passwort verschlüsseln.",
-      "launchHook": "Bei jedem Start des Profils eine GET-Anfrage an diese URL senden."
+      "launchHook": "Bei jedem Start des Profils eine GET-Anfrage an diese URL senden.",
+      "requests": "Anfragen des Browsers, während er läuft. Zugangsdaten sind verborgen.",
+      "logs": "Donuts Protokollzeilen zu diesem Profil."
     },
     "badges": {
-      "locked": "GESPERRT",
-      "active": "AKTIV"
+      "locked": "Gesperrt",
+      "active": "Aktiv"
     },
     "cookies": {
       "runningNotice": "Cookies können nicht gelesen werden, solange der Browser läuft. Schließen Sie zuerst dieses Profil.",
@@ -1673,12 +1734,15 @@
     "security": {
       "protected": "Dieses Profil ist mit einem Passwort verschlüsselt.",
       "unprotected": "Dieses Profil ist nicht verschlüsselt. Legen Sie ein Passwort fest, um die gespeicherten Daten zu verschlüsseln.",
-      "cannotWhileRunning": "Stoppen Sie das Profil, bevor Sie sein Passwort ändern."
+      "cannotWhileRunning": "Stoppen Sie das Profil, bevor Sie sein Passwort ändern.",
+      "unlockedTitle": "Auf diesem Gerät entsperrt",
+      "unlockedDescription": "Seine Daten bleiben entschlüsselt, bis Sie es sperren."
     },
     "fingerprint": {
       "notSupported": "Die Bearbeitung des Fingerprints ist nur für Wayfern-Profile verfügbar.",
       "lockedTitle": "Das Anzeigen und Bearbeiten des Fingerprints ist eine Pro-Funktion",
-      "lockedDescription": "Ihre Geräteinformationen sind in jedem Profil geschützt. Zum Anzeigen und Bearbeiten des Fingerprints eines Profils ist ein aktiver kostenpflichtiger Tarif erforderlich."
+      "lockedDescription": "Ihre Geräteinformationen sind in jedem Profil geschützt. Zum Anzeigen und Bearbeiten des Fingerprints eines Profils ist ein aktiver kostenpflichtiger Tarif erforderlich.",
+      "customValuesKept": "Ihre eigenen Fingerprint-Werte bleiben gespeichert. Sie gelten, sobald das Konto einen aktiven Pro-Plan hat."
     },
     "syncStatusValue": {
       "waiting": "Wartet",
@@ -1701,6 +1765,28 @@
       "includeIndexedDb": "IndexedDB einschließen",
       "indexedDbHint": "Der Export öffnet das Profil kurz im Hintergrund; es wird keine Seite geladen.",
       "importedWithIndexedDb": "Importiert. Local-Storage-Einträge: {{items}} · Websites: {{origins}} · Cookies: {{cookies}} · IndexedDB-Datensätze: {{records}}"
+    },
+    "drafts": {
+      "unsaved": "Nicht gespeicherte Änderungen"
+    },
+    "aria": {
+      "runRemote": "{{name}} in der Cloud ausführen",
+      "moreActions": "Weitere Aktionen für {{name}}",
+      "close": "Details von {{name}} schließen",
+      "copyId": "ID von {{name}} kopieren"
+    },
+    "runningBanner": "Stoppen Sie das Profil, um es zu bearbeiten.",
+    "debug": {
+      "title": "Debugging-Endpunkt",
+      "description": "Verbinden Sie Playwright, Puppeteer oder einen anderen CDP-Client mit diesem laufenden Browser.",
+      "notRunning": "Starten Sie das Profil, um seinen Debugging-Endpunkt zu erhalten.",
+      "unavailable": "Der Browser antwortet nicht auf seinem Debugging-Port.",
+      "port": "Port",
+      "wsUrl": "WebSocket-URL",
+      "wsPending": "Die WebSocket-URL erscheint, sobald der Browser antwortet.",
+      "copyPort": "Port kopieren",
+      "copyWsUrl": "WebSocket-URL kopieren",
+      "copyCode": "{{tool}}-Code kopieren"
     }
   },
   "profileTransfer": {
@@ -1958,7 +2044,8 @@
     "created_other": "{{count}} Profile erstellt",
     "stoppedEarly": "{{created}} von {{total}} Profilen erstellt. {{error}}",
     "passwordOneOnly": "Ein Passwort können Sie nur festlegen, wenn Sie ein einzelnes Profil erstellen.",
-    "saveFromProfileDescription": "Neue Profile aus dieser Vorlage erhalten ihre Einstellungen und jeweils ein eigenes neues Gerät. Name, Notiz und Gerät bleiben bei diesem Profil."
+    "saveFromProfileDescription": "Neue Profile aus dieser Vorlage erhalten ihre Einstellungen und jeweils ein eigenes neues Gerät. Name, Notiz und Gerät bleiben bei diesem Profil.",
+    "notifyTitle": "Massenerstellung abgeschlossen"
   },
   "vpns": {
     "form": {
@@ -2104,7 +2191,14 @@
       "securePreferencesReset": "Geschützte Einstellungen wie Startseite und Suchmaschine wurden auf die Standardwerte zurückgesetzt.",
       "extensionsPartial": "Einige Erweiterungen gehörten zum Quellbrowser und wurden nicht übernommen.",
       "storeUnreadable": "Eine Datenbank konnte nicht gelesen werden und wurde übersprungen, statt beschädigt kopiert zu werden."
-    }
+    },
+    "cancelImport": "Import abbrechen",
+    "cancelling": "Wird abgebrochen…",
+    "cancelHint": "Abbrechen stoppt nach dem aktuellen Profil. Bereits importierte Profile bleiben erhalten.",
+    "cancelledSummary": "Import abgebrochen. {{imported}} von {{total}} importiert.",
+    "statusCancelled": "Nicht importiert",
+    "importRemaining": "Rest importieren",
+    "notifyTitle": "Profilimport abgeschlossen"
   },
   "syncTooltips": {
     "syncing": "Wird synchronisiert...",
@@ -2193,7 +2287,13 @@
     "badgeProxy": "Proxy",
     "badgeRunning": "Läuft",
     "badgeUnavailable": "Nicht verfügbar",
-    "openButton": "Öffnen"
+    "openButton": "Öffnen",
+    "busy": {
+      "launching": "Dieses Profil wird gestartet. Einen Moment bitte.",
+      "stopping": "Dieses Profil wird beendet. Einen Moment bitte.",
+      "singleInstance": "{{browser}} läuft bereits ({{names}}). Es kann nur eine Instanz gleichzeitig laufen.",
+      "unavailable": "Dieses Profil kann gerade keine Links öffnen."
+    }
   },
   "wayfernTerms": {
     "title": "Nutzungsbedingungen von Wayfern",
@@ -2331,11 +2431,52 @@
     "tagsHeader": "Tags",
     "noteHeader": "Notiz",
     "vpnsHeading": "VPNs",
-    "createByCountryHeading": "Nach Land erstellen"
+    "createByCountryHeading": "Nach Land erstellen",
+    "aria": {
+      "details": "Details zu {{name}}",
+      "launch": "{{name}} starten",
+      "stop": "{{name}} stoppen",
+      "proxy": "Proxy für {{name}}: {{value}}",
+      "tags": "Tags für {{name}}",
+      "note": "Notiz zu {{name}}",
+      "extensionGroup": "Erweiterungsgruppe für {{name}}",
+      "dns": "DNS-Sperrliste für {{name}}",
+      "status": "Status von {{name}}",
+      "rename": "{{name}} umbenennen",
+      "sync": "Synchronisierung von {{name}}: {{status}}",
+      "launchError": "Letzter Start fehlgeschlagen: {{error}}",
+      "health": "Verbindung von {{name}}: {{status}}",
+      "traffic": "Datenverkehr von {{name}}"
+    },
+    "menu": {
+      "openDetails": "Details öffnen",
+      "rename": "Umbenennen",
+      "moveToGroup": "In Gruppe verschieben",
+      "copyId": "ID kopieren",
+      "runRemote": "In der Cloud ausführen",
+      "lockNow": "Jetzt sperren",
+      "moveToTrash": "In den Papierkorb"
+    },
+    "emptyGroupTitle": "Diese Gruppe ist leer",
+    "emptyGroupHint": "Erstellen Sie ein Profil in dieser Gruppe oder verschieben Sie vorhandene Profile hierher.",
+    "emptyGroupCreate": "Neues Profil hier",
+    "emptyGroupMove": "Profile hierher verschieben",
+    "health": {
+      "degraded": "Verbindung ist langsam oder instabil",
+      "down": "Verbindung ist unterbrochen"
+    },
+    "route": "Proxy / VPN: {{name}}",
+    "routeNone": "Kein Proxy und kein VPN",
+    "launchTooltip": {
+      "launching": "Wird gestartet…",
+      "stopping": "Wird beendet…",
+      "singleInstance": "Von diesem Browser kann nur eine Instanz gleichzeitig laufen. Beende zuerst die laufende."
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}} ausgewählt",
-    "clearSelection": "Auswahl aufheben"
+    "clearSelection": "Auswahl aufheben",
+    "selectedHidden": "{{selected}} ausgewählt · {{hidden}} durch Filter ausgeblendet"
   },
   "appUpdate": {
     "toast": {
@@ -2632,8 +2773,8 @@
     "remoteSessionNotDrivable": "Diese Remote-Sitzung kann noch nicht gesteuert werden. Warten Sie, bis sie als aktiv gemeldet wird.",
     "remotePlatformUnsupported": "Remote-Sitzungen laufen nur auf macOS-, Windows- oder Linux-Hosts. Die Plattform dieses Profils ist {{platform}}.",
     "remoteProfileNotSynced": "Dieses Profil wurde noch nicht vollständig in die Cloud-Synchronisierung hochgeladen. Warten Sie, bis die erste Synchronisierung abgeschlossen ist, und versuchen Sie es dann erneut.",
-    "trashEntryNotFound": "Dieses Profil befindet sich nicht mehr im Papierkorb.",
-    "trashRestoreConflict": "Es existiert bereits ein Profil mit derselben ID, daher kann dieses nicht wiederhergestellt werden.",
+    "trashEntryNotFound": "Dieser Eintrag ist nicht mehr im Papierkorb.",
+    "trashRestoreConflict": "Es existiert bereits ein Eintrag mit derselben ID, daher kann dieser nicht wiederhergestellt werden.",
     "recipesNotEntitled": "Rezepte erfordern den Pro-Tarif oder höher.",
     "agentRecipeInvalid": "Ein Rezept benötigt einen Namen und mindestens einen Schritt.",
     "agentRecipeNotFound": "Dieses Rezept existiert nicht mehr.",
@@ -2752,7 +2893,40 @@
     "syncServerAddressMismatch": "Die Adresse des Servers ist {{address}}. Geben Sie diese Adresse ein.",
     "remoteNeedsDonutSync": "Remote-Sitzungen und Cookie Bot erhalten Profile aus der Donut-Cloud-Synchronisierung. Dieser Computer synchronisiert mit Ihrem eigenen Server.",
     "accountSyncUnavailable": "Donut kann sich noch nicht bei Ihrem eigenen Server anmelden. Versuchen Sie es später erneut.",
-    "selfHostedTeamSeat": "Team-Konten können nicht mit einem Server synchronisieren, der ein Sync-Token nutzt."
+    "selfHostedTeamSeat": "Team-Konten können nicht mit einem Server synchronisieren, der ein Sync-Token nutzt.",
+    "agentTargetInvalid": "Wähle, wo das Rezept läuft: auf diesem Computer oder in der Remote-Flotte.",
+    "agentTargetOffline": "Dieser Computer ist nicht mit der Donut Cloud verbunden. Schalte die Fernsteuerung unter Integrationen ein und versuche es erneut.",
+    "agentPlatformInvalid": "Die Remote-Flotte kann das Betriebssystem dieses Profils nicht ausführen.",
+    "agentRunLimitReached": "Zu viele Ausführungen laufen gerade. Warte, bis eine fertig ist, und versuche es erneut.",
+    "remoteRequiresCloudSync": "Aktiviere zuerst die Cloud-Synchronisierung für dieses Profil. Ein Remote-Host kann es nur so erhalten.",
+    "remoteEncryptedSyncUnsupported": "Dieses Profil nutzt Ende-zu-Ende-verschlüsselte Synchronisierung, die ein Remote-Host nicht entschlüsseln kann. Stelle auf normale Synchronisierung um, um es remote auszuführen.",
+    "remoteUnknownPlatform": "Für dieses Profil ist kein Betriebssystem gespeichert, daher passt kein Remote-Host dazu.",
+    "networkCaptureFailed": "Der Browser hat die Netzwerkaufzeichnung abgelehnt: {{detail}}",
+    "networkCaptureNotRunning": "Für dieses Profil läuft keine Netzwerkaufzeichnung.",
+    "vpnKeyUnreadable": "Der Schlüssel zu Ihren gespeicherten VPNs kann nicht gelesen werden, daher wurde nichts geändert. Prüfen Sie die Berechtigungen des Ordners „vpn“ im Datenordner der App.",
+    "entityInUse_one": "Wird von {{count}} Profil verwendet. Weisen Sie ihm zuerst einen anderen Proxy oder ein anderes VPN zu.",
+    "entityInUse_other": "Wird von {{count}} Profilen verwendet. Weisen Sie ihnen zuerst einen anderen Proxy oder ein anderes VPN zu.",
+    "syncCancelled": "Die Synchronisierung wurde abgebrochen.",
+    "syncServerError": "Der Synchronisierungsserver hat einen Fehler gemeldet (Status {{status}}). Die Synchronisierung versucht es später erneut.",
+    "syncStorageRejected": "Der Synchronisierungsspeicher hat die Übertragung abgelehnt (Status {{status}}).",
+    "syncTransferIncomplete": "Einige Dateien wurden nicht übertragen. Die Synchronisierung versucht es später erneut.",
+    "syncAuthFailed": "Die Anmeldung für die Synchronisierung ist nicht mehr gültig. Melde dich erneut an oder prüfe das Synchronisierungstoken.",
+    "syncForbidden": "Der Synchronisierungsserver erlaubt diese Änderung nicht.",
+    "syncTooLarge": "Dieses Element ist zu groß für den Synchronisierungsserver.",
+    "syncRateLimited": "Der Synchronisierungsserver ist ausgelastet. Die Synchronisierung versucht es später erneut.",
+    "syncServerRejected": "Der Synchronisierungsserver hat die Anfrage abgelehnt (Status {{status}}).",
+    "syncLocalFilesFailed": "Die Dateien auf diesem Computer konnten nicht gelesen oder geschrieben werden.",
+    "syncDataInvalid": "Die synchronisierte Kopie kann nicht gelesen werden.",
+    "syncDecryptFailed": "Die synchronisierten Daten konnten nicht entschlüsselt werden. Prüfe das Verschlüsselungspasswort.",
+    "syncCrossOsProfile": "Ein Profil von einem anderen Betriebssystem synchronisiert nur seine Einstellungen.",
+    "syncEphemeralProfile": "Ein flüchtiges Profil kann nicht synchronisiert werden.",
+    "syncTombstoneNotCleared": "Der Synchronisierungsserver war nicht erreichbar, daher bleibt die Synchronisierung für dieses Profil aus.",
+    "syncNotEnabled": "Die Synchronisierung ist für dieses Profil ausgeschaltet.",
+    "proxyUpstreamUnreachable": "Keine Verbindung zum Proxy möglich.",
+    "proxyUpstreamTimeout": "Der Proxy antwortet nicht.",
+    "proxyAuthFailed": "Der Proxy hat Benutzername oder Passwort abgelehnt.",
+    "vpnUnreachable": "Der VPN-Server antwortet nicht.",
+    "entityInUse": "Wird von {{count}} Profilen verwendet. Weisen Sie ihnen zuerst einen anderen Proxy oder ein anderes VPN zu."
   },
   "rail": {
     "profiles": "Profile",
@@ -2958,7 +3132,11 @@
       "launch": "starten öffnen ausführen browser",
       "stop": "stoppen beenden schließen",
       "info": "details info bearbeiten profil",
-      "group": "gruppe filter wechseln ordner"
+      "group": "gruppe filter wechseln ordner",
+      "newProfile": "neu hinzufügen erstellen profil browser",
+      "stopAllRunning": "stoppen alle laufend beenden schließen",
+      "focusSearch": "suchen finden filtern",
+      "goBack": "zurück escape start"
     }
   },
   "shortcuts": {
@@ -2977,7 +3155,11 @@
     "goAgent": "Zu „Agent“ wechseln",
     "openTips": "Tipps öffnen",
     "sendFeedback": "Feedback senden",
-    "openTotp": "2FA-Code aus einem Schlüssel"
+    "openTotp": "2FA-Code aus einem Schlüssel",
+    "newProfile": "Neues Profil",
+    "stopAllRunning": "Alle laufenden Profile stoppen",
+    "focusSearch": "Profile suchen",
+    "goBack": "Zurück zu „Profile“"
   },
   "closeConfirm": {
     "title": "Donut Browser schließen?",
@@ -3474,7 +3656,10 @@
     "vpnExtensionEntryNoVersion": " · {{capability}}, {{source}}",
     "scanIncompleteMissing": "Dieses Profil wurde noch nie gestartet, daher konnten nur von Donut verwaltete Erweiterungen geprüft werden.",
     "exitUnverifiedTimezone": "Der Fingerprint dieses Profils gibt keine Zeitzone an, daher kann die Exit-Prüfung keine verifizieren. Der Start wird nicht blockiert, es wurde aber auch nichts verglichen.",
-    "exitUnverifiedLanguage": "Die Sprache des Fingerprints dieses Profils lässt sich nicht mit dem Exit-Land vergleichen, daher ist diese Prüfung nicht verifiziert statt bestanden."
+    "exitUnverifiedLanguage": "Die Sprache des Fingerprints dieses Profils lässt sich nicht mit dem Exit-Land vergleichen, daher ist diese Prüfung nicht verifiziert statt bestanden.",
+    "routeProxyHeading": "Proxy antwortet nicht",
+    "routeVpnHeading": "VPN antwortet nicht",
+    "routeExplainer": "Seiten laden möglicherweise nicht. Prüfe den Proxy oder das VPN oder starte trotzdem."
   },
   "profileMotion": {
     "inspectorSections": "Profilbereiche",
@@ -3599,15 +3784,17 @@
   },
   "trash": {
     "title": "Papierkorb",
-    "description": "Gelöschte Profile warten hier, bis sie ablaufen. Stellen Sie eines wieder her, um es mit seiner Identität, seinem Proxy und seinen Tags zurückzubekommen.",
+    "description": "Gelöschte Profile, Proxys, VPNs, Gruppen, Erweiterungen und Vorlagen warten hier, bis sie ablaufen. Stellen Sie einen Eintrag wieder her, um ihn unverändert zurückzubekommen.",
     "empty": "Der Papierkorb ist leer",
-    "emptyHint": "Profile, die Sie löschen, erscheinen hier und können wiederhergestellt werden, bis sie ablaufen.",
+    "emptyHint": "Was Sie löschen, erscheint hier und kann bis zum Ablauf wiederhergestellt werden.",
     "columns": {
-      "name": "Profil",
+      "name": "Name",
       "browser": "Browser",
       "deleted": "Gelöscht",
       "expires": "Läuft ab",
-      "size": "Größe"
+      "size": "Größe",
+      "kind": "Typ",
+      "detail": "Details"
     },
     "expiresIn_one": "in {{count}} Tag",
     "expiresIn_other": "in {{count}} Tagen",
@@ -3619,17 +3806,48 @@
     "confirmDeleteForeverTitle": "Endgültig löschen?",
     "confirmDeleteForeverDescription": "„{{name}}“ und alle zugehörigen Daten werden vernichtet. Dies kann nicht rückgängig gemacht werden.",
     "confirmEmptyTitle": "Papierkorb leeren?",
-    "confirmEmptyDescription_one": "{{count}} Profil und alle zugehörigen Daten werden vernichtet. Dies kann nicht rückgängig gemacht werden.",
-    "confirmEmptyDescription_other": "{{count}} Profile und alle zugehörigen Daten werden vernichtet. Dies kann nicht rückgängig gemacht werden.",
+    "confirmEmptyDescription_one": "{{count}} Eintrag wird mit allen Daten vernichtet. Das lässt sich nicht rückgängig machen.",
+    "confirmEmptyDescription_other": "{{count}} Einträge werden mit allen Daten vernichtet. Das lässt sich nicht rückgängig machen.",
     "restored": "„{{name}}“ wurde wiederhergestellt",
     "restoredSyncOff": "Die Synchronisierung konnte nicht wieder aktiviert werden, daher ist das Profil nur auf diesem Gerät. Legen Sie den Synchronisierungsmodus erneut fest, um es mit Ihren anderen Geräten zu teilen.",
-    "restoreFailed": "Das Profil konnte nicht wiederhergestellt werden: {{error}}",
+    "restoreFailed": "Wiederherstellen fehlgeschlagen: {{error}}",
     "deletedForever": "„{{name}}“ wurde endgültig gelöscht",
-    "deleteForeverFailed": "Das Profil konnte nicht gelöscht werden: {{error}}",
-    "emptied_one": "{{count}} Profil aus dem Papierkorb entfernt",
-    "emptied_other": "{{count}} Profile aus dem Papierkorb entfernt",
+    "deleteForeverFailed": "Endgültiges Löschen fehlgeschlagen: {{error}}",
+    "emptied_one": "{{count}} Eintrag aus dem Papierkorb entfernt",
+    "emptied_other": "{{count}} Einträge aus dem Papierkorb entfernt",
     "emptyFailed": "Der Papierkorb konnte nicht geleert werden: {{error}}",
-    "loadFailed": "Der Papierkorb konnte nicht geladen werden: {{error}}"
+    "loadFailed": "Der Papierkorb konnte nicht geladen werden: {{error}}",
+    "kinds": {
+      "all": "Alle",
+      "profile": "Profile",
+      "proxy": "Proxys",
+      "vpn": "VPNs",
+      "group": "Gruppen",
+      "extension": "Erweiterungen",
+      "extension_group": "Erweiterungsgruppen",
+      "template": "Vorlagen"
+    },
+    "kind": {
+      "profile": "Profil",
+      "proxy": "Proxy",
+      "vpn": "VPN",
+      "group": "Gruppe",
+      "extension": "Erweiterung",
+      "extension_group": "Erweiterungsgruppe",
+      "template": "Vorlage"
+    },
+    "restoredSyncOffEntity": "Die Synchronisierung konnte nicht wieder aktiviert werden, daher ist der Eintrag nur auf diesem Gerät. Aktivieren Sie die Synchronisierung erneut, um ihn mit Ihren anderen Geräten zu teilen.",
+    "moved": "„{{name}}“ in den Papierkorb verschoben",
+    "deleted": "„{{name}}“ gelöscht",
+    "deleteFailed": "„{{name}}“ konnte nicht gelöscht werden: {{error}}",
+    "restoredMany_one": "{{count}} Eintrag wiederhergestellt",
+    "restoredMany_other": "{{count}} Einträge wiederhergestellt",
+    "deletedForeverMany_one": "{{count}} Eintrag endgültig gelöscht",
+    "deletedForeverMany_other": "{{count}} Einträge endgültig gelöscht",
+    "movedMany_one": "{{count}} Eintrag in den Papierkorb verschoben",
+    "movedMany_other": "{{count}} Einträge in den Papierkorb verschoben",
+    "deletedMany_one": "{{count}} Eintrag gelöscht",
+    "deletedMany_other": "{{count}} Einträge gelöscht"
   },
   "agent": {
     "description": "Sehen Sie, was Ihr KI-Agent in Donut tut, beantworten Sie seine Fragen und greifen Sie ein, wenn eine Seite Sie braucht.",
@@ -3836,7 +4054,19 @@
       "deleted": "Rezept gelöscht",
       "deleteTitle": "{{name}} löschen?",
       "deleteDescription": "Das Rezept wird von allen Geräten entfernt.",
-      "needsAutomation": "Rezepte öffnen und steuern Browser und erfordern daher den Pro-Tarif oder höher. Ihr Agent kann weiterhin Profile, Proxys und Gruppen verwalten."
+      "needsAutomation": "Rezepte öffnen und steuern Browser und erfordern daher den Pro-Tarif oder höher. Ihr Agent kann weiterhin Profile, Proxys und Gruppen verwalten.",
+      "runAria": "{{name}} jetzt ausführen",
+      "runTitle": "{{name}} ausführen",
+      "runDescription": "Die Donut Cloud spielt die Schritte einmal auf dem gewählten Profil ab.",
+      "runProfile": "Profil",
+      "runProfilePlaceholder": "Profil wählen",
+      "runNoProfiles": "Erstelle zuerst ein Profil",
+      "runPlatformUnsupported": "Die Remote-Flotte kann das Betriebssystem dieses Profils nicht ausführen.",
+      "runDesktopOffline": "Schalte die Fernsteuerung unter Integrationen ein, um auf diesem Computer auszuführen.",
+      "runStartedOn": "Die Donut Cloud spielt {{name}} auf {{profile}} ab.",
+      "oneOffName": "Jetzt ausführen: {{name}}",
+      "editAria": "{{name}} bearbeiten",
+      "deleteAria": "{{name}} löschen"
     },
     "schedules": {
       "hint": "Führen Sie ein Rezept nach Zeitplan aus, auf der Remote-Flotte oder auf diesem Computer.",
@@ -4182,7 +4412,26 @@
     "stopped": "Gestoppt",
     "noTags": "Keine Tags",
     "noProxy": "Kein Proxy",
-    "encrypted": "Verschlüsselt"
+    "encrypted": "Verschlüsselt",
+    "views": {
+      "label": "Ansichten",
+      "title": "Gespeicherte Ansichten",
+      "empty": "Noch keine gespeicherten Ansichten. Benennen Sie die aktuelle Suche, Filter, Sortierung und Spalten, um später dorthin zurückzukehren.",
+      "nameLabel": "Name der Ansicht",
+      "namePlaceholder": "Ansicht benennen",
+      "replace": "Ersetzen",
+      "useAtStart": "{{name}} beim Start öffnen",
+      "defaultBadge": "Beim Start",
+      "rename": "{{name}} umbenennen",
+      "delete": "{{name}} löschen",
+      "deleted": "Ansicht {{name}} gelöscht",
+      "full": "Sie können bis zu {{limit}} Ansichten speichern. Löschen Sie eine, um eine weitere zu speichern.",
+      "nameTaken": "Eine andere Ansicht hat diesen Namen."
+    },
+    "moveColumnLeft": "{{column}} nach links verschieben",
+    "moveColumnRight": "{{column}} nach rechts verschieben",
+    "selectRowNamed": "{{name}} auswählen",
+    "rowAction": "{{action}}: {{name}}"
   },
   "feedback": {
     "title": "Feedback senden",
@@ -4390,5 +4639,87 @@
       "valid": "Gültig",
       "invalid": "Ungültig"
     }
+  },
+  "leavePrompt": {
+    "title": "Nicht gespeicherte Änderungen",
+    "description": "Einige Änderungen sind nicht gespeichert.",
+    "descriptionOne": "Änderungen in {{label}} sind nicht gespeichert.",
+    "save": "Speichern",
+    "discard": "Verwerfen",
+    "stay": "Bleiben"
+  },
+  "moveProfiles": {
+    "title": "Profile nach {{group}} verschieben",
+    "description": "Wähle die Profile, die in diese Gruppe kommen. Ein laufendes Profil lässt sich nicht verschieben.",
+    "empty": "Alle Profile sind bereits in dieser Gruppe.",
+    "confirm": "{{count}} verschieben"
+  },
+  "logViewer": {
+    "title": "App-Protokoll",
+    "levelFilter": "Nach Stufe filtern",
+    "levels": {
+      "all": "Alle",
+      "warn": "Warnungen",
+      "error": "Fehler"
+    },
+    "searchPlaceholder": "Protokoll durchsuchen",
+    "copyAria": "{{count}} Protokollzeilen kopieren",
+    "copied": "Protokollzeilen kopiert",
+    "copiedDescription": "Zeilen in der Zwischenablage: {{count}}",
+    "copyFailed": "Protokoll konnte nicht kopiert werden",
+    "empty": "Das Protokoll hat noch keine Zeilen.",
+    "emptyProfile": "Noch keine Protokollzeilen für dieses Profil.",
+    "noMatches": "Keine Zeilen passen zum Filter.",
+    "capped": "Zeigt die neuesten {{count}} Zeilen."
+  },
+  "networkPanel": {
+    "start": "Aufzeichnung starten",
+    "stop": "Aufzeichnung stoppen",
+    "capturing": "Anfragen: {{count}}",
+    "emptyStopped": "Starte eine Aufzeichnung, um zu sehen, was die Seiten dieses Profils anfragen.",
+    "emptyNotRunning": "Starte das Profil, um seine Netzwerkanfragen aufzuzeichnen.",
+    "privacyNote": "Bleibt im Arbeitsspeicher, bis die Aufzeichnung stoppt oder der Browser schließt. Cookie- und Autorisierungswerte werden ausgeblendet.",
+    "waiting": "Warte auf Anfragen…",
+    "columns": {
+      "method": "Methode",
+      "status": "Status",
+      "host": "Host",
+      "path": "Pfad",
+      "type": "Typ",
+      "size": "Größe",
+      "time": "Zeit"
+    },
+    "states": {
+      "pending": "Ausstehend",
+      "done": "Fertig",
+      "failed": "Fehlgeschlagen",
+      "redirected": "Umgeleitet",
+      "incomplete": "Unvollständig"
+    },
+    "openRequest": "{{method}} {{url}} öffnen",
+    "backToList": "Zurück zu den Anfragen",
+    "requestHeaders": "Anfrage-Header",
+    "responseHeaders": "Antwort-Header",
+    "requestBody": "Anfrageinhalt",
+    "noHeaders": "Keine Header",
+    "fromCache": "aus dem Cache",
+    "redactedNote": "Cookie- und Autorisierungswerte werden durch [redacted] ersetzt.",
+    "startFailed": "Aufzeichnung konnte nicht gestartet werden",
+    "stopFailed": "Aufzeichnung konnte nicht gestoppt werden",
+    "withheld": "Nicht aufgezeichnet, während du das Profil gesteuert hast: {{count}}"
+  },
+  "syncHealth": {
+    "idle": "Synchronisierung ist aktuell",
+    "syncing": "Wird synchronisiert",
+    "offline": "Synchronisierung ist offline. Änderungen werden synchronisiert, sobald die Verbindung zurück ist.",
+    "error": "Synchronisierung fehlgeschlagen",
+    "errorWith": "Synchronisierung fehlgeschlagen: {{error}}",
+    "notifyTitle": "Synchronisierung fehlgeschlagen",
+    "conflictToast": "Deine Änderung an {{name}} wurde durch eine neuere Kopie von einem anderen Gerät ersetzt",
+    "conflictToastUnnamed": "Deine Änderung wurde durch eine neuere Kopie von einem anderen Gerät ersetzt"
+  },
+  "launchNotice": {
+    "fingerprintEditsNotApplied": "{{name}} startet ohne die eigenen Fingerprint-Änderungen",
+    "fingerprintEditsNeedPro": "Deine Änderungen bleiben gespeichert und gelten wieder mit einem aktiven Pro-Abo."
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { LuPencil, LuTrash2, LuTriangleAlert } from "react-icons/lu";
@@ -31,9 +31,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import type { CookieBotSchedule } from "@/lib/cookie-bot";
-import { MOTION_EASE_OUT } from "@/lib/motion";
+import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import {
   DAY_MINUTES,
   daySegments,
@@ -143,7 +143,7 @@ export function CookieBotScheduleTab({
                     <TableHead className={DATA_TABLE_CLASSES.head}>
                       <div
                         aria-hidden="true"
-                        className="relative h-4 text-[10px] font-normal tabular-nums"
+                        className="relative h-4 text-[11px] font-normal tabular-nums"
                       >
                         {HOUR_MARKS.map((hour) => (
                           <span
@@ -223,19 +223,17 @@ function ScheduleRow({
   onRemove: (schedule: CookieBotSchedule) => void;
 }) {
   const { t } = useTranslation();
-  const reduced = useReducedMotion();
-  const modality = useInputModality();
+  const instant = !useMotionAllowed();
   const { schedule, lanes } = row;
   const blocked = scheduleBlockedReason(t, schedule);
   const overlaps = lanes.reduce((sum, lane) => sum + lane.overlaps, 0);
   const days = lanes.reduce((mask, lane) => mask | lane.days, 0);
-  const instant = Boolean(reduced) || modality === "keyboard";
 
   return (
     <motion.tr
       data-table-row={row.key}
       data-profile-id={schedule.profile_id}
-      initial={instant ? false : { opacity: 0, y: 4 }}
+      initial={instant ? false : { opacity: 0.5, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={
         instant
@@ -341,11 +339,20 @@ function ScheduleRow({
                       disabled={!editable}
                       onClick={() => onEdit(schedule)}
                       aria-label={`${t("cookieBot.enrolled.edit")}: ${schedule.profile_name}, ${minutesToClock(lane.minute)}, ${timezone}`}
-                      initial={false}
-                      animate={{ left: percent(segment.start), width }}
+                      // A moved or resized slot glides there through a
+                      // transform; the box itself is placed by style.
+                      layout={!instant}
+                      layoutDependency={`${segment.start}-${width}`}
                       transition={{
-                        duration: instant ? 0 : 0.22,
-                        ease: MOTION_EASE_OUT,
+                        layout: {
+                          duration: MOTION_DURATION.base,
+                          ease: MOTION_EASE_OUT,
+                        },
+                      }}
+                      style={{
+                        left: percent(segment.start),
+                        width,
+                        borderRadius: 4,
                       }}
                       className={cn(
                         tone,
@@ -377,6 +384,7 @@ function ScheduleRow({
         <div className="flex items-center justify-end gap-0.5">
           <RowAction
             label={t("cookieBot.enrolled.edit")}
+            name={schedule.profile_name}
             forbidden={!editable}
             forbiddenReason={t("cookieBot.conflict.replaceForbidden")}
             onClick={() => onEdit(schedule)}
@@ -385,6 +393,7 @@ function ScheduleRow({
           </RowAction>
           <RowAction
             label={t("cookieBot.schedule.unenrol")}
+            name={schedule.profile_name}
             forbidden={!editable}
             forbiddenReason={t("cookieBot.conflict.replaceForbidden")}
             destructive

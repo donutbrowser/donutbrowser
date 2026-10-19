@@ -3,6 +3,7 @@
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import type * as React from "react";
 
+import { usePopupMotion } from "@/components/ui/popup-motion";
 import { cn } from "@/lib/utils";
 
 function TooltipProvider({
@@ -40,10 +41,12 @@ function TooltipContent({
   alignOffset,
   arrowOffset = 0,
   children,
+  ref,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content> & {
   arrowOffset?: number;
 }) {
+  const popupMotion = usePopupMotion(ref);
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
@@ -51,10 +54,11 @@ function TooltipContent({
         sideOffset={sideOffset}
         alignOffset={alignOffset}
         className={cn(
-          "z-50000 w-fit max-w-[min(24rem,calc(100vw-2rem))] rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground data-[state=closed]:pointer-events-none data-[state=closed]:hidden",
+          "popup-motion popup-motion-fade z-50000 w-fit max-w-[min(24rem,calc(100vw-2rem))] origin-(--radix-tooltip-content-transform-origin) rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground",
           className,
         )}
         {...props}
+        {...popupMotion}
       >
         {children}
         <TooltipPrimitive.Arrow

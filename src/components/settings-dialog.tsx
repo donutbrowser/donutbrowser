@@ -14,6 +14,7 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   LuArrowUpRight,
+  LuBell,
   LuBriefcaseBusiness,
   LuCamera,
   LuCopy,
@@ -21,10 +22,14 @@ import {
   LuGlobe,
   LuLanguages,
   LuLockKeyhole,
+  LuLogIn,
   LuMic,
   LuMonitor,
+  LuMonitorCog,
   LuPalette,
   LuPlug,
+  LuRocket,
+  LuRotateCcw,
   LuSearch,
   LuShieldBan,
   LuShieldCheck,
@@ -35,6 +40,7 @@ import {
 } from "react-icons/lu";
 import { DnsBlocklistDialog } from "@/components/dns-blocklist-dialog";
 import { LoadingButton } from "@/components/loading-button";
+import { LogViewer } from "@/components/log-viewer";
 import { EncryptionSettings } from "@/components/settings/encryption-settings";
 import {
   ChoiceCard,
@@ -43,9 +49,9 @@ import {
   SegmentedControl,
   SettingBlock,
   SettingRow,
+  SettingSlider,
   SettingsCard,
   SettingsSection,
-  useSettingsMotion,
 } from "@/components/settings/settings-primitives";
 import {
   type PendingChange,
@@ -71,18 +77,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { Input } from "@/components/ui/input";
 import { ScrollStrip } from "@/components/ui/scroll-strip";
 import { StatusLight } from "@/components/ui/settings-panel";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { useCommercialTrial } from "@/hooks/use-commercial-trial";
 import { useLanguage } from "@/hooks/use-language";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import type { PermissionType } from "@/hooks/use-permissions";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import type { SupportedLanguage } from "@/i18n";
 import { translateBackendError } from "@/lib/backend-errors";
 import { effectivePlanOf } from "@/lib/entitlements";
-import { MOTION_EASE_OUT, MOTION_SPRING_POSITION } from "@/lib/motion";
+import {
+  MOTION_DURATION,
+  MOTION_EASE_OUT,
+  MOTION_SPRING,
+  MOTION_SPRING_POSITION,
+} from "@/lib/motion";
 import {
   applyThemeColors,
   clearThemeColors,
@@ -113,6 +127,11 @@ interface AppSettings extends SoundFields {
   require_route_for_launch?: boolean;
   trash_retention_days?: number;
   record_traffic_domains?: boolean;
+  bulk_launch_delay_ms?: number;
+  bulk_launch_concurrency?: number;
+  system_notifications?: boolean;
+  launch_at_login?: boolean;
+  reopen_running_profiles?: boolean;
 }
 
 /** The retention choices offered, in days. 0 turns the trash off. */
@@ -120,6 +139,18 @@ const TRASH_RETENTION_DAYS = [0, 1, 7, 14, 30, 90] as const;
 const DEFAULT_TRASH_RETENTION_DAYS = 30;
 /** The commercial trial length, to draw how much of it is left. */
 const TRIAL_DAYS = 14;
+/** Saved defaults of the bulk launch pacing; the backend clamps the same way. */
+const DEFAULT_BULK_LAUNCH_DELAY_MS = 800;
+const DEFAULT_BULK_LAUNCH_CONCURRENCY = 3;
+/** Pause choices in ms: fine under two seconds, coarse up to a minute. */
+const BULK_LAUNCH_DELAY_STOPS = [
+  0, 200, 400, 600, 800, 1000, 1500, 2000, 3000, 4000, 5000, 7500, 10000, 15000,
+  20000, 30000, 45000, 60000,
+] as const;
+const BULK_LAUNCH_CONCURRENCY_STOPS = Array.from(
+  { length: 20 },
+  (_, index) => index + 1,
+);
 
 interface CustomThemeState {
   selectedThemeId: string | null;
@@ -158,6 +189,18 @@ const SECTIONS: Array<{
     title: "settings.defaultBrowser.title",
     icon: <LuGlobe />,
     search: ["settings.defaultBrowser"],
+  },
+  {
+    id: "system",
+    title: "settings.system.title",
+    icon: <LuMonitorCog />,
+    search: ["settings.system"],
+  },
+  {
+    id: "launches",
+    title: "settings.launches.title",
+    icon: <LuRocket />,
+    search: ["settings.launches"],
   },
   {
     id: "permissions",
@@ -213,6 +256,7 @@ const SECTIONS: Array<{
       "settings.disableAutoUpdatesDescription",
       "settings.keepDecryptedProfilesInRam",
       "settings.keepDecryptedProfilesInRamDescription",
+      "logViewer.title",
     ],
   },
 ];
@@ -270,7 +314,7 @@ export function SettingsDialog({
   const pinnedSectionRef = useRef<{ id: string; scrollTop: number } | null>(
     null,
   );
-  const animateNav = useSettingsMotion();
+  const animateNav = useMotionAllowed();
   const [isSettingDefault, setIsSettingDefault] = useState(false);
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [isClearingTraffic, setIsClearingTraffic] = useState(false);
@@ -291,7 +335,7 @@ export function SettingsDialog({
     portable: boolean;
   } | null>(null);
 
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { setTheme } = useTheme();
   const {
     requestPermission,
@@ -472,12 +516,7 @@ export function SettingsDialog({
       }
     } catch (error) {
       showErrorToast(t("settings.defaultBrowser.setFailed"), {
-        description:
-          error instanceof Error
-            ? error.message
-            : typeof error === "string"
-              ? error
-              : t("common.errors.unknown"),
+        description: translateBackendError(t, error),
         duration: 8000,
       });
     } finally {
@@ -491,9 +530,7 @@ export function SettingsDialog({
       await invoke("clear_all_traffic_stats");
       showSuccessToast(t("settings.privacy.clearTrafficSuccess"));
     } catch (error) {
-      showErrorToast(
-        error instanceof Error ? error.message : t("common.errors.unknown"),
-      );
+      showErrorToast(translateBackendError(t, error));
     } finally {
       setIsClearingTraffic(false);
     }
@@ -509,8 +546,7 @@ export function SettingsDialog({
     } catch (error) {
       console.error("Failed to clear cache:", error);
       showErrorToast(t("settings.advanced.clearCacheFailed"), {
-        description:
-          error instanceof Error ? error.message : t("common.errors.unknown"),
+        description: translateBackendError(t, error),
         duration: 4000,
       });
     } finally {
@@ -554,7 +590,7 @@ export function SettingsDialog({
     [requestPermission, t],
   );
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (): Promise<boolean> => {
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -619,11 +655,13 @@ export function SettingsDialog({
       originalSettingsRef.current = settingsToSave;
       setSaved(true);
       if (!subPage) onClose();
+      return true;
     } catch (error) {
       console.error("Failed to save settings:", error);
       const message = translateBackendError(t, error);
       setSaveError(message);
       showErrorToast(t("appFeedback.saveFailed"), { description: message });
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -680,10 +718,19 @@ export function SettingsDialog({
     settings.theme,
   ]);
 
+  // Edits the leave prompt already saved or discarded. The state catches up
+  // on the next render, and a second prompt before it must not ask again.
+  const settledRef = useRef(false);
+
+  // A modal Settings is a form with Cancel: closing it drops the edits. As a
+  // page, the shell's Save, Discard or Stay prompt asks before it closes.
   const handleClose = useCallback(() => {
-    discardChanges();
+    if (!subPage) {
+      settledRef.current = true;
+      discardChanges();
+    }
     onClose();
-  }, [discardChanges, onClose]);
+  }, [discardChanges, onClose, subPage]);
 
   // Only clear custom theme when switching away from custom, don't apply live
   // changes. Gated on the async settings load: before it resolves the state
@@ -812,6 +859,42 @@ export function SettingsDialog({
       section: "integrations",
     },
     {
+      key: "launch_at_login",
+      changed: flagChanged("launch_at_login"),
+      label: t("settings.system.launchAtLogin"),
+      section: "system",
+    },
+    {
+      key: "reopen_running_profiles",
+      changed: flagChanged("reopen_running_profiles"),
+      label: t("settings.system.reopenRunning"),
+      section: "system",
+    },
+    {
+      key: "system_notifications",
+      changed: flagChanged("system_notifications", true),
+      label: t("settings.system.notifications"),
+      section: "system",
+    },
+    {
+      key: "bulk_launch_delay_ms",
+      changed:
+        (settings.bulk_launch_delay_ms ?? DEFAULT_BULK_LAUNCH_DELAY_MS) !==
+        (originalSettings.bulk_launch_delay_ms ?? DEFAULT_BULK_LAUNCH_DELAY_MS),
+      label: t("settings.launches.delay"),
+      section: "launches",
+    },
+    {
+      key: "bulk_launch_concurrency",
+      changed:
+        (settings.bulk_launch_concurrency ??
+          DEFAULT_BULK_LAUNCH_CONCURRENCY) !==
+        (originalSettings.bulk_launch_concurrency ??
+          DEFAULT_BULK_LAUNCH_CONCURRENCY),
+      label: t("settings.launches.concurrency"),
+      section: "launches",
+    },
+    {
       key: "require_route_for_launch",
       changed: flagChanged("require_route_for_launch"),
       label: t("settings.privacy.requireRoute"),
@@ -859,6 +942,27 @@ export function SettingsDialog({
   const changedKeys = new Set(changes.map((change) => change.key));
   const changedSections = new Set(changes.map((change) => change.section));
   const isChanged = (key: string) => changedKeys.has(key);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: any new draft makes the edits count again
+  useEffect(() => {
+    settledRef.current = false;
+  }, [settings, selectedLanguage, customThemeState]);
+  const hasPendingChanges = changes.length > 0;
+  useUnsavedChanges("settings", {
+    get dirty() {
+      return hasPendingChanges && !settledRef.current;
+    },
+    save: async () => {
+      const ok = await handleSave();
+      if (ok) settledRef.current = true;
+      return ok;
+    },
+    discard: () => {
+      settledRef.current = true;
+      discardChanges();
+    },
+    label: t("settings.title"),
+  });
 
   const sections = SECTIONS.filter(
     ({ id }) =>
@@ -971,7 +1075,7 @@ export function SettingsDialog({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleClose} subPage={subPage}>
-        <DialogContent className="flex max-h-[calc(100vh-5rem)] max-w-xl flex-col">
+        <DialogContent className="flex max-h-[calc(100vh-5rem)] max-w-3xl flex-col">
           {!subPage && (
             <DialogHeader className="shrink-0">
               <DialogTitle>{t("settings.title")}</DialogTitle>
@@ -1010,7 +1114,10 @@ export function SettingsDialog({
                     setSearch("");
                     searchRef.current?.focus();
                   }}
-                  className="absolute top-1/2 right-1.5 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-md text-muted-foreground outline-none hover:bg-foreground/8 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className={cn(
+                    "absolute top-1/2 right-1.5 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground",
+                    FOCUS_RING,
+                  )}
                 >
                   <LuX className="size-3" />
                 </button>
@@ -1036,10 +1143,10 @@ export function SettingsDialog({
                       aria-current={active ? "location" : undefined}
                       onClick={() => jump(id)}
                       className={cn(
-                        "relative isolate shrink-0 rounded-md px-2 py-1 text-xs whitespace-nowrap transition-[color,opacity] duration-150 focus-visible:outline-2 focus-visible:outline-ring",
+                        "relative isolate shrink-0 rounded-md px-2 py-1 text-xs whitespace-nowrap transition-[color,background-color,opacity] duration-150 focus-visible:outline-2 focus-visible:outline-ring",
                         active
-                          ? "text-accent-foreground"
-                          : "text-muted-foreground hover:text-foreground",
+                          ? "text-foreground"
+                          : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
                         dimmed && "opacity-40",
                       )}
                     >
@@ -1056,7 +1163,7 @@ export function SettingsDialog({
                               ? MOTION_SPRING_POSITION
                               : { duration: 0 }
                           }
-                          className="absolute inset-0 -z-10 rounded-md bg-accent"
+                          className="absolute inset-0 -z-10 rounded-md bg-foreground/8"
                         />
                       )}
                       {t(title)}
@@ -1066,11 +1173,9 @@ export function SettingsDialog({
                           data-slot="settings-nav-changed"
                           initial={animateNav ? { scale: 0 } : false}
                           animate={{ scale: 1 }}
-                          transition={{
-                            type: "spring",
-                            stiffness: 600,
-                            damping: 26,
-                          }}
+                          transition={
+                            animateNav ? MOTION_SPRING.snappy : { duration: 0 }
+                          }
                           className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
                         />
                       )}
@@ -1096,10 +1201,7 @@ export function SettingsDialog({
             <fieldset
               ref={sectionsRef}
               disabled={isSaving || isLoading}
-              className={cn(
-                "grid min-w-0 gap-8 pb-6",
-                subPage && "mx-auto w-full max-w-4xl",
-              )}
+              className="mx-auto grid w-full max-w-4xl min-w-0 gap-8 pb-6"
             >
               <SettingsSection {...sectionProps("appearance")}>
                 <SettingsCard>
@@ -1255,6 +1357,115 @@ export function SettingsDialog({
                   </SettingsCard>
                 </SettingsSection>
               )}
+
+              <SettingsSection {...sectionProps("system")}>
+                <SettingsCard>
+                  <SwitchRow
+                    id="settings-launch-at-login"
+                    label={t("settings.system.launchAtLogin")}
+                    description={t("settings.system.launchAtLoginDescription")}
+                    changed={isChanged("launch_at_login")}
+                    checked={settings.launch_at_login ?? false}
+                    onCheckedChange={(v) => updateSetting("launch_at_login", v)}
+                    icon={
+                      <RowIcon
+                        tone={settings.launch_at_login ? "primary" : "muted"}
+                      >
+                        <LuLogIn />
+                      </RowIcon>
+                    }
+                  />
+                  <SwitchRow
+                    id="settings-reopen-running"
+                    label={t("settings.system.reopenRunning")}
+                    description={t("settings.system.reopenRunningDescription")}
+                    changed={isChanged("reopen_running_profiles")}
+                    checked={settings.reopen_running_profiles ?? false}
+                    onCheckedChange={(v) =>
+                      updateSetting("reopen_running_profiles", v)
+                    }
+                    icon={
+                      <RowIcon
+                        tone={
+                          settings.reopen_running_profiles ? "primary" : "muted"
+                        }
+                      >
+                        <LuRotateCcw />
+                      </RowIcon>
+                    }
+                  />
+                  <SwitchRow
+                    id="settings-system-notifications"
+                    label={t("settings.system.notifications")}
+                    description={t("settings.system.notificationsDescription")}
+                    changed={isChanged("system_notifications")}
+                    checked={settings.system_notifications ?? true}
+                    onCheckedChange={(v) =>
+                      updateSetting("system_notifications", v)
+                    }
+                    icon={
+                      <RowIcon
+                        tone={
+                          (settings.system_notifications ?? true)
+                            ? "primary"
+                            : "muted"
+                        }
+                      >
+                        <LuBell />
+                      </RowIcon>
+                    }
+                  />
+                </SettingsCard>
+              </SettingsSection>
+
+              <SettingsSection {...sectionProps("launches")}>
+                <SettingsCard>
+                  <SettingRow
+                    label={t("settings.launches.delay")}
+                    description={t("settings.launches.delayDescription")}
+                    changed={isChanged("bulk_launch_delay_ms")}
+                  >
+                    <SettingSlider
+                      slot="settings-bulk-launch-delay"
+                      value={
+                        settings.bulk_launch_delay_ms ??
+                        DEFAULT_BULK_LAUNCH_DELAY_MS
+                      }
+                      stops={BULK_LAUNCH_DELAY_STOPS}
+                      label={t("settings.launches.delay")}
+                      format={(ms) =>
+                        t("settings.launches.seconds", {
+                          value: (ms / 1000).toLocaleString(i18n.language, {
+                            maximumFractionDigits: 1,
+                          }),
+                        })
+                      }
+                      onChange={(ms) =>
+                        updateSetting("bulk_launch_delay_ms", ms)
+                      }
+                    />
+                  </SettingRow>
+                  <SettingRow
+                    label={t("settings.launches.concurrency")}
+                    description={t("settings.launches.concurrencyDescription")}
+                    changed={isChanged("bulk_launch_concurrency")}
+                  >
+                    <SettingSlider
+                      slot="settings-bulk-launch-concurrency"
+                      value={
+                        settings.bulk_launch_concurrency ??
+                        DEFAULT_BULK_LAUNCH_CONCURRENCY
+                      }
+                      stops={BULK_LAUNCH_CONCURRENCY_STOPS}
+                      label={t("settings.launches.concurrency")}
+                      format={(count) => String(count)}
+                      onChange={(count) =>
+                        updateSetting("bulk_launch_concurrency", count)
+                      }
+                    />
+                  </SettingRow>
+                </SettingsCard>
+              </SettingsSection>
 
               {isMacOS && (
                 <SettingsSection
@@ -1560,7 +1771,7 @@ export function SettingsDialog({
                             t("settings.advanced.copyLogsSuccess"),
                           );
                         } catch (err) {
-                          showErrorToast(String(err));
+                          showErrorToast(translateBackendError(t, err));
                         }
                       }}
                     >
@@ -1574,13 +1785,16 @@ export function SettingsDialog({
                         try {
                           await invoke("open_log_directory");
                         } catch (err) {
-                          showErrorToast(String(err));
+                          showErrorToast(translateBackendError(t, err));
                         }
                       }}
                     >
                       {t("settings.advanced.openLogDir")}
                     </Button>
                   </SettingRow>
+                  <SettingBlock label={t("logViewer.title")}>
+                    <LogViewer />
+                  </SettingBlock>
                 </SettingsCard>
               </SettingsSection>
 
@@ -1641,6 +1855,7 @@ function SwitchRow({
   changed,
   checked,
   onCheckedChange,
+  icon,
 }: {
   id: string;
   label: string;
@@ -1648,6 +1863,7 @@ function SwitchRow({
   changed: boolean;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  icon?: ReactNode;
 }) {
   return (
     <SettingRow
@@ -1655,6 +1871,7 @@ function SwitchRow({
       label={label}
       description={description}
       changed={changed}
+      icon={icon}
     >
       <AnimatedSwitch
         id={id}
@@ -1691,7 +1908,7 @@ function SectionNote({ children }: { children: ReactNode }) {
 
 /** How much of the commercial trial is left, as a bar that fills in. */
 function TrialMeter({ remainingSeconds }: { remainingSeconds: number }) {
-  const animate = useSettingsMotion();
+  const animate = useMotionAllowed();
   const share = Math.min(
     1,
     Math.max(0, remainingSeconds / (TRIAL_DAYS * 24 * 60 * 60)),
@@ -1705,7 +1922,11 @@ function TrialMeter({ remainingSeconds }: { remainingSeconds: number }) {
         className="absolute inset-0 origin-left rounded-full bg-primary"
         initial={animate ? { scaleX: 0 } : false}
         animate={{ scaleX: share }}
-        transition={{ duration: 0.6, ease: MOTION_EASE_OUT }}
+        transition={
+          animate
+            ? { duration: MOTION_DURATION.draw, ease: MOTION_EASE_OUT }
+            : { duration: 0 }
+        }
       />
     </span>
   );

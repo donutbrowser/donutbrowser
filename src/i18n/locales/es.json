@@ -27,14 +27,15 @@
       "export": "Exportar",
       "refresh": "Actualizar",
       "loading": "Cargando...",
-      "saveSettings": "Guardar Configuración",
+      "saveSettings": "Guardar configuración",
       "moreInfo": "Más información",
       "downloading": "Descargando...",
       "minimize": "Minimizar",
       "saving": "Guardando…",
       "saved": "Guardado",
       "copied": "Copiado",
-      "learnMore": "Más información"
+      "learnMore": "Más información",
+      "undo": "Deshacer"
     },
     "status": {
       "active": "Activo",
@@ -122,9 +123,9 @@
       "title": "Apariencia",
       "theme": "Tema",
       "themeDescription": "Elige tu tema preferido o sigue la configuración del sistema. Los cambios de tema personalizado se aplican solo al guardar.",
-      "themePreset": "Tema Predefinido",
-      "customColors": "Colores Personalizados",
-      "yourOwn": "Tu Propio",
+      "themePreset": "Tema predefinido",
+      "customColors": "Colores personalizados",
+      "yourOwn": "Tu propio",
       "light": "Claro",
       "dark": "Oscuro",
       "system": "Sistema"
@@ -132,12 +133,12 @@
     "language": {
       "title": "Idioma",
       "description": "Elige tu idioma preferido para la interfaz de la aplicación.",
-      "systemDefault": "Predeterminado del Sistema",
+      "systemDefault": "Predeterminado del sistema",
       "interface": "Idioma de la interfaz"
     },
     "defaultBrowser": {
       "title": "Navegador Predeterminado",
-      "setAsDefault": "Establecer como Navegador Predeterminado",
+      "setAsDefault": "Establecer como navegador predeterminado",
       "description": "Cuando se establece como predeterminado, Donut Browser manejará los enlaces web y te permitirá elegir qué perfil usar.",
       "setSuccess": "Donut Browser ya es tu navegador predeterminado",
       "setFailed": "No se pudo establecer el navegador predeterminado",
@@ -147,7 +148,7 @@
       "notDefault": "Donut Browser no es tu navegador predeterminado"
     },
     "permissions": {
-      "title": "Permisos del Sistema",
+      "title": "Permisos del sistema",
       "description": "Estos permisos permiten que los navegadores iniciados desde Donut Browser accedan a los recursos del sistema. Cada sitio web seguirá pidiendo tu permiso individualmente.",
       "microphone": "Micrófono",
       "microphoneDescription": "Acceso al micrófono para aplicaciones del navegador",
@@ -188,7 +189,7 @@
       "ruleMatch": "Las contraseñas coinciden"
     },
     "commercial": {
-      "title": "Licencia Comercial",
+      "title": "Licencia comercial",
       "trialActive": "Prueba: {{days}} días, {{hours}} horas restantes",
       "trialActiveDescription": "El uso comercial es gratuito durante la prueba. Al finalizar, todas las funciones siguen funcionando — el uso personal sigue siendo gratuito, solo el uso comercial requerirá una licencia.",
       "trialExpired": "Prueba expirada",
@@ -198,7 +199,7 @@
     },
     "advanced": {
       "title": "Avanzado",
-      "clearCache": "Limpiar Toda la Caché de Versiones",
+      "clearCache": "Limpiar toda la caché de versiones",
       "clearCacheDescription": "Limpia todos los datos de versiones de navegadores en caché y actualiza todas las versiones desde sus fuentes. Esto forzará una descarga nueva de información de versiones para todos los navegadores.",
       "clearCacheFailed": "Error al limpiar la caché",
       "copyLogs": "Copiar registros",
@@ -207,9 +208,9 @@
       "copyLogsDescription": "Copia un paquete censurado de los registros recientes (hasta 5 MB). Revísalo antes de compartirlo, ya que la censura no puede identificar todos los tipos de datos personales.",
       "logs": "Registros"
     },
-    "disableAutoUpdates": "Desactivar Actualizaciones Automáticas de la App",
+    "disableAutoUpdates": "Desactivar actualizaciones automáticas de la app",
     "disableAutoUpdatesDescription": "Evita que la aplicación busque e instale actualizaciones de Donut Browser automáticamente. Las actualizaciones de navegadores no se ven afectadas.",
-    "keepDecryptedProfilesInRam": "Mantener Perfiles Descifrados en RAM",
+    "keepDecryptedProfilesInRam": "Mantener perfiles descifrados en RAM",
     "keepDecryptedProfilesInRamDescription": "Conservar la copia descifrada en RAM de los perfiles protegidos por contraseña entre lanzamientos para un inicio más rápido. La copia en disco permanece cifrada en cualquier caso.",
     "privacy": {
       "consistencyWarning": "Bloquear si la huella digital no coincide",
@@ -300,7 +301,25 @@
           "label": "Eventos",
           "description": "Inicio y parada de perfiles, sincronización, descargas y solicitudes que requieren tu atención."
         }
-      }
+      },
+      "previewAria": "Escuchar sonidos de {{name}}"
+    },
+    "system": {
+      "title": "Sistema",
+      "launchAtLogin": "Abrir Donut al iniciar sesión",
+      "launchAtLoginDescription": "Donut se inicia cuando inicias sesión en tu ordenador.",
+      "reopenRunning": "Reabrir los perfiles en ejecución al iniciar",
+      "reopenRunningDescription": "Los perfiles que estaban en ejecución cuando se cerró Donut se vuelven a iniciar cuando se abre.",
+      "notifications": "Notificaciones del sistema",
+      "notificationsDescription": "Mientras Donut está en segundo plano, tu sistema operativo te avisa de eventos como un inicio fallido o una pregunta de un agente."
+    },
+    "launches": {
+      "title": "Inicios en lote",
+      "delay": "Pausa entre inicios",
+      "delayDescription": "Cuánto espera Donut antes de iniciar el siguiente perfil cuando inicias varios.",
+      "concurrency": "Perfiles que se inician a la vez",
+      "concurrencyDescription": "Cuántos perfiles pueden iniciarse al mismo tiempo. Un número menor carga menos tu ordenador.",
+      "seconds": "{{value}} s"
     }
   },
   "header": {
@@ -320,7 +339,8 @@
     "newProfile": "Nuevo",
     "donutLogo": "Logotipo de Donut Browser",
     "scrollGroupsLeft": "Desplazar grupos a la izquierda",
-    "scrollGroupsRight": "Desplazar grupos a la derecha"
+    "scrollGroupsRight": "Desplazar grupos a la derecha",
+    "allGroups": "Todos los grupos"
   },
   "search": {
     "helpLabel": "Sintaxis de búsqueda",
@@ -410,7 +430,7 @@
       "proxy": "Proxy / VPN",
       "lastLaunch": "Último Inicio",
       "empty": "No se encontraron perfiles.",
-      "ext": "EXT",
+      "ext": "Extensiones",
       "dns": "DNS",
       "dnsLevel": "Lista DNS: {{level}}",
       "extSearch": "Buscar grupos…",
@@ -508,7 +528,10 @@
       "runSelected": "Ejecutar seleccionados",
       "stopSelected": "Detener seleccionados",
       "proRequired": "Se requiere el plan Pro para ejecución/parada masiva",
-      "distributeProxies": "Distribuir proxies"
+      "distributeProxies": "Distribuir proxies",
+      "runCount": "Ejecutar {{count}}",
+      "stopCount": "Detener {{count}}",
+      "enableSync": "Activar sincronización"
     },
     "passwordProtectedBadge": "Protegido por Contraseña",
     "launchHook": {
@@ -518,7 +541,13 @@
       "confirmTitle": "¿Ejecutar {{count}} perfiles?",
       "confirmDescription": "Iniciar {{count}} perfiles a la vez puede consumir muchos recursos del sistema. ¿Continuar?",
       "confirmButton": "Ejecutar {{count}}",
-      "noneToRun": "No hay perfiles seleccionados para ejecutar."
+      "noneToRun": "No hay perfiles seleccionados para ejecutar.",
+      "progress": "Iniciando {{done}} de {{total}}",
+      "failedSummary": "Fallaron {{failed}} de {{total}} inicios",
+      "showFailed": "Mostrar",
+      "notStarted": "{{count}} de {{total}} inicios no comenzaron",
+      "finishedTitle": "Inicio masivo terminado",
+      "finishedBody": "{{launched}} de {{total}} perfiles iniciados"
     },
     "bulkStop": {
       "confirmTitle": "¿Detener {{count}} perfiles?",
@@ -534,11 +563,21 @@
     },
     "remote": {
       "runningTooltip": "Ejecutándose en una máquina remota. Deténlo para recuperar el perfil aquí.",
-      "pendingSyncTooltip": "Descargando lo que cambió la sesión remota. Disponible de nuevo cuando termine."
-    }
+      "pendingSyncTooltip": "Descargando lo que cambió la sesión remota. Disponible de nuevo cuando termine.",
+      "starting": "Iniciando {{name}} en la nube"
+    },
+    "trash": {
+      "moved": "«{{name}}» se movió a la papelera",
+      "movedMany": "{{count}} perfiles se movieron a la papelera"
+    },
+    "stopAll": {
+      "none": "No hay perfiles en ejecución."
+    },
+    "duplicated": "Copia creada: {{name}}",
+    "lockedToast": "«{{name}}» está bloqueado"
   },
   "createProfile": {
-    "title": "Crear Nuevo Perfil",
+    "title": "Crear nuevo perfil",
     "configureTitle": "Crear Nuevo Perfil de {{browser}}",
     "antiDetect": {
       "title": "Navegador Anti-Detección",
@@ -551,7 +590,7 @@
       "description": "Elige entre navegadores regulares soportados",
       "badge": "Navegador Regular"
     },
-    "profileName": "Nombre del Perfil",
+    "profileName": "Nombre del perfil",
     "profileNamePlaceholder": "Ingresa el nombre del perfil",
     "proxy": {
       "title": "Proxy / VPN",
@@ -591,6 +630,9 @@
       "reached": "Tu plan permite {{limit}} perfiles nuevos por hora. Podrás crear el siguiente en unos {{minutes}} min.",
       "warningTitle": "Estás creando perfiles demasiado rápido",
       "warning": "Espera un poco. Crear demasiados perfiles en una hora provoca un bloqueo temporal de 24 horas o más, durante el cual no podrás generar nuevas identidades. Si necesitas un límite por hora más alto, considera apoyar a Donut con un plan de pago."
+    },
+    "group": {
+      "notFound": "No se encontraron grupos."
     }
   },
   "deleteDialog": {
@@ -877,13 +919,13 @@
     },
     "serverUrl": "URL del Servidor",
     "serverUrlPlaceholder": "https://sync.ejemplo.com",
-    "token": "Token de Sincronización",
+    "token": "Token de sincronización",
     "tokenPlaceholder": "Ingresa tu token de sincronización",
     "status": {
       "connected": "Conectado",
       "disconnected": "Desconectado",
       "syncing": "Sincronizando...",
-      "error": "Error de Sincronización"
+      "error": "Error de sincronización"
     },
     "description": "Conéctate a un servidor de sincronización para sincronizar tus perfiles, proxies y grupos entre dispositivos.",
     "cloud": {
@@ -895,14 +937,14 @@
       "linkCodeLabel": "Código de inicio de sesión",
       "linkCodePlaceholder": "Pega el código del sitio web",
       "signInTitle": "Iniciar Sesión",
-      "verifyAndLogin": "Verificar e Iniciar Sesión",
+      "verifyAndLogin": "Verificar e iniciar sesión",
       "loggingIn": "Iniciando sesión...",
       "connected": "Conectado",
       "plan": "Plan",
       "profiles": "Perfiles",
       "profileUsage": "{{used}} / {{limit}}",
-      "manageAccount": "Administrar Cuenta",
-      "logout": "Cerrar Sesión",
+      "manageAccount": "Administrar cuenta",
+      "logout": "Cerrar sesión",
       "logoutConfirm": "¿Estás seguro de que deseas cerrar sesión? La sincronización en la nube se detendrá.",
       "loginSuccess": "¡Sesión iniciada exitosamente!",
       "logoutSuccess": "Sesión cerrada exitosamente.",
@@ -910,7 +952,7 @@
     },
     "team": {
       "title": "Equipo",
-      "name": "Nombre del Equipo",
+      "name": "Nombre del equipo",
       "role": "Rol",
       "roleOwner": "Propietario",
       "roleAdmin": "Administrador",
@@ -931,7 +973,9 @@
     "enabledToast": "Sincronización activada",
     "disabledToast": "Sincronización desactivada",
     "enabledDescription": "Se ha activado la sincronización del perfil",
-    "disabledDescription": "Se ha desactivado la sincronización del perfil"
+    "disabledDescription": "Se ha desactivado la sincronización del perfil",
+    "bulkEnabledToast": "Sincronización activada para {{count}} perfiles",
+    "bulkEnableNone": "La sincronización ya está activada para los perfiles seleccionados."
   },
   "integrations": {
     "title": "Integraciones",
@@ -1084,7 +1128,13 @@
           "title": "Configuración del cliente",
           "description": "Añade esta entrada a la configuración MCP de un cliente que no está en la lista."
         }
-      }
+      },
+      "tryIt": "Probar",
+      "tryItDescription": "Envía esta solicitud a la API local con tu token y muestra la respuesta.",
+      "tryItNeedsApi": "Activa la API local para enviar esta solicitud.",
+      "tryItFailed": "La solicitud no llegó a la API local. Comprueba que está en ejecución.",
+      "liveResponse": "Respuesta en vivo",
+      "tryItStatus": "HTTP {{status}} · {{ms}} ms"
     },
     "tabRemote": "MCP remoto",
     "remote": {
@@ -1112,7 +1162,12 @@
       "credentialRotateFailed": "No se pudo rotar la credencial",
       "credentialClientsFailed": "La credencial se guardó, pero no se pudieron actualizar estos clientes: {{clients}}. Vuelve a rotar para reintentar.",
       "fxHint": "fx lee la credencial de DONUT_MCP_TOKEN. Expórtala en la shell que inicia fx.",
-      "fxExportCopied": "Línea de exportación copiada"
+      "fxExportCopied": "Línea de exportación copiada",
+      "credentialForget": "Olvidar",
+      "credentialForgetTitle": "¿Olvidar la credencial?",
+      "credentialForgetDescription": "Donut revoca la credencial y la elimina de este ordenador. Los clientes que la usan dejan de funcionar hasta que crees una nueva.",
+      "credentialForgotten": "Credencial olvidada",
+      "credentialForgetFailed": "No se pudo olvidar la credencial"
     }
   },
   "import": {
@@ -1397,7 +1452,7 @@
     "unknownError": "Ocurrió un error desconocido. Por favor intenta de nuevo.",
     "noProfilesForUrl": "No hay perfiles disponibles. Crea un perfil antes de abrir URLs.",
     "createProfileFailed": "Error al crear el perfil: {{error}}",
-    "launchBrowserFailed": "Error al iniciar el navegador: {{error}}",
+    "launchBrowserFailed": "No se pudo iniciar {{name}}: {{error}}",
     "cannotDeleteRunningProfile": "No se puede eliminar el perfil mientras el navegador esté en ejecución. Detén el navegador primero.",
     "deleteProfileFailed": "Error al eliminar el perfil: {{error}}",
     "renameProfileFailed": "Error al renombrar el perfil: {{error}}",
@@ -1574,10 +1629,11 @@
   "crossOs": {
     "viewOnly": "Este perfil fue creado en {{os}} y no es compatible con este sistema",
     "cannotLaunch": "Este perfil fue creado en {{os}} y no es compatible con este sistema",
-    "cannotModify": "No se pueden modificar los ajustes de sincronización de un perfil de otro sistema operativo"
+    "cannotModify": "No se pueden modificar los ajustes de sincronización de un perfil de otro sistema operativo",
+    "cannotLaunchUnknown": "Este perfil fue creado en otro sistema operativo y no se puede abrir aquí"
   },
   "profileInfo": {
-    "title": "Detalles del Perfil",
+    "title": "Detalles del perfil",
     "tabs": {
       "info": "Info",
       "settings": "Configuración"
@@ -1618,14 +1674,15 @@
     },
     "network": {
       "bypassRules": "Reglas de Omisión de Proxy",
-      "bypassRulesTitle": "Reglas de Omisión de Proxy",
+      "bypassRulesTitle": "Reglas de omisión de proxy",
       "bypassRulesDescription": "Las solicitudes que coincidan con estas reglas se conectarán directamente, omitiendo el proxy.",
-      "addRule": "Agregar Regla",
+      "addRule": "Agregar regla",
       "rulePlaceholder": "ej. example.com, 192.168.1.*, .*\\.local",
       "noRules": "No hay reglas de omisión configuradas.",
       "ruleTypes": "Soporta nombres de host, direcciones IP y patrones regex.",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}"
+      "proxyLabel": "Proxy: {{name}}",
+      "removeRule": "Quitar {{rule}}"
     },
     "launchHook": {
       "title": "URL del hook de inicio",
@@ -1635,8 +1692,8 @@
       "invalidUrlHint": "Introduce una URL válida http:// o https://."
     },
     "actions": {
-      "manageCookies": "Administrar Cookies",
-      "assignExtensionGroup": "Asignar Grupo de Extensiones"
+      "manageCookies": "Administrar cookies",
+      "assignExtensionGroup": "Asignar grupo de extensiones"
     },
     "clone": {
       "title": "Clonar Perfil",
@@ -1661,7 +1718,9 @@
       "launchHook": "Hook de inicio",
       "transfer": "Transferir",
       "startPages": "Páginas de inicio",
-      "twoFactor": "Códigos 2FA"
+      "twoFactor": "Códigos 2FA",
+      "requests": "Solicitudes",
+      "logs": "Registros"
     },
     "sectionDesc": {
       "fingerprint": "Configura cómo aparece este perfil para los scripts de fingerprinting.",
@@ -1671,11 +1730,13 @@
       "sync": "Configura cómo se replica este perfil entre tus dispositivos.",
       "automation": "Ejecuta un comando o script al iniciar este perfil.",
       "security": "Cifra los datos del perfil con una contraseña.",
-      "launchHook": "Envía una solicitud GET a esta URL cada vez que se inicie el perfil."
+      "launchHook": "Envía una solicitud GET a esta URL cada vez que se inicie el perfil.",
+      "requests": "Solicitudes que hace el navegador mientras se ejecuta. Las credenciales están ocultas.",
+      "logs": "Líneas del registro de Donut sobre este perfil."
     },
     "badges": {
-      "locked": "BLOQUEADO",
-      "active": "ACTIVO"
+      "locked": "Bloqueado",
+      "active": "Activo"
     },
     "cookies": {
       "runningNotice": "No se pueden leer las cookies mientras el navegador está en ejecución. Cierra este perfil primero.",
@@ -1684,12 +1745,15 @@
     "security": {
       "protected": "Este perfil está cifrado con una contraseña.",
       "unprotected": "Este perfil no está cifrado. Establece una contraseña para cifrar sus datos.",
-      "cannotWhileRunning": "Detén el perfil antes de cambiar su contraseña."
+      "cannotWhileRunning": "Detén el perfil antes de cambiar su contraseña.",
+      "unlockedTitle": "Desbloqueado en este dispositivo",
+      "unlockedDescription": "Sus datos siguen descifrados hasta que lo bloquees."
     },
     "fingerprint": {
       "notSupported": "La edición de huellas digitales solo está disponible para perfiles Wayfern.",
       "lockedTitle": "Ver y editar la huella digital es una función Pro",
-      "lockedDescription": "La información de tu dispositivo está protegida en cada perfil. Ver y editar la huella digital de un perfil requiere un plan de pago activo."
+      "lockedDescription": "La información de tu dispositivo está protegida en cada perfil. Ver y editar la huella digital de un perfil requiere un plan de pago activo.",
+      "customValuesKept": "Tus valores de huella personalizados se conservan. Se aplican cuando la cuenta tiene un plan Pro activo."
     },
     "syncStatusValue": {
       "waiting": "Esperando",
@@ -1712,6 +1776,28 @@
       "includeIndexedDb": "Incluir IndexedDB",
       "indexedDbHint": "La exportación abre el perfil en segundo plano un momento; no se carga ninguna página.",
       "importedWithIndexedDb": "Importado. Elementos de Local Storage: {{items}} · Sitios: {{origins}} · Cookies: {{cookies}} · Registros de IndexedDB: {{records}}"
+    },
+    "drafts": {
+      "unsaved": "Cambios sin guardar"
+    },
+    "aria": {
+      "runRemote": "Ejecutar {{name}} en la nube",
+      "moreActions": "Más acciones para {{name}}",
+      "close": "Cerrar los detalles de {{name}}",
+      "copyId": "Copiar el ID de {{name}}"
+    },
+    "runningBanner": "Detén el perfil para editarlo.",
+    "debug": {
+      "title": "Endpoint de depuración",
+      "description": "Conecta Playwright, Puppeteer u otro cliente CDP a este navegador en ejecución.",
+      "notRunning": "Inicia el perfil para obtener su endpoint de depuración.",
+      "unavailable": "El navegador no responde en su puerto de depuración.",
+      "port": "Puerto",
+      "wsUrl": "URL de WebSocket",
+      "wsPending": "La URL de WebSocket aparece cuando el navegador responde.",
+      "copyPort": "Copiar puerto",
+      "copyWsUrl": "Copiar URL de WebSocket",
+      "copyCode": "Copiar código de {{tool}}"
     }
   },
   "profileTransfer": {
@@ -1973,7 +2059,8 @@
     "created_other": "{{count}} perfiles creados",
     "stoppedEarly": "Se crearon {{created}} de {{total}} perfiles. {{error}}",
     "passwordOneOnly": "Solo puedes poner una contraseña cuando creas un único perfil.",
-    "saveFromProfileDescription": "Los perfiles nuevos creados con esta plantilla reciben sus ajustes y su propio dispositivo nuevo. El nombre, la nota y el dispositivo se quedan con este perfil."
+    "saveFromProfileDescription": "Los perfiles nuevos creados con esta plantilla reciben sus ajustes y su propio dispositivo nuevo. El nombre, la nota y el dispositivo se quedan con este perfil.",
+    "notifyTitle": "Creación en lote terminada"
   },
   "vpns": {
     "form": {
@@ -2120,7 +2207,14 @@
       "securePreferencesReset": "Los ajustes protegidos, como la página de inicio y el buscador, volvieron a sus valores predeterminados.",
       "extensionsPartial": "Algunas extensiones pertenecían al navegador de origen y no se transfirieron.",
       "storeUnreadable": "No se pudo leer una base de datos y se omitió en lugar de copiarla dañada."
-    }
+    },
+    "cancelImport": "Cancelar importación",
+    "cancelling": "Cancelando…",
+    "cancelHint": "Cancelar se detiene tras el perfil actual. Los perfiles ya importados se conservan.",
+    "cancelledSummary": "Importación cancelada. {{imported}} de {{total}} importados.",
+    "statusCancelled": "No importado",
+    "importRemaining": "Importar el resto",
+    "notifyTitle": "Importación de perfiles terminada"
   },
   "syncTooltips": {
     "syncing": "Sincronizando...",
@@ -2212,7 +2306,13 @@
     "badgeProxy": "Proxy",
     "badgeRunning": "En ejecución",
     "badgeUnavailable": "No disponible",
-    "openButton": "Abrir"
+    "openButton": "Abrir",
+    "busy": {
+      "launching": "Este perfil se está abriendo. Espera un momento.",
+      "stopping": "Este perfil se está deteniendo. Espera un momento.",
+      "singleInstance": "{{browser}} ya está en ejecución ({{names}}). Solo puede ejecutarse una instancia a la vez.",
+      "unavailable": "Este perfil no puede abrir enlaces ahora mismo."
+    }
   },
   "wayfernTerms": {
     "title": "Términos y condiciones de Wayfern",
@@ -2350,11 +2450,52 @@
     "tagsHeader": "Etiquetas",
     "noteHeader": "Nota",
     "vpnsHeading": "VPN",
-    "createByCountryHeading": "Crear por país"
+    "createByCountryHeading": "Crear por país",
+    "aria": {
+      "details": "Detalles de {{name}}",
+      "launch": "Iniciar {{name}}",
+      "stop": "Detener {{name}}",
+      "proxy": "Proxy de {{name}}: {{value}}",
+      "tags": "Etiquetas de {{name}}",
+      "note": "Nota de {{name}}",
+      "extensionGroup": "Grupo de extensiones de {{name}}",
+      "dns": "Lista de bloqueo DNS de {{name}}",
+      "status": "Estado de {{name}}",
+      "rename": "Cambiar el nombre de {{name}}",
+      "sync": "Sincronización de {{name}}: {{status}}",
+      "launchError": "El último inicio falló: {{error}}",
+      "health": "Conexión de {{name}}: {{status}}",
+      "traffic": "Detalles de tráfico de {{name}}"
+    },
+    "menu": {
+      "openDetails": "Abrir detalles",
+      "rename": "Cambiar nombre",
+      "moveToGroup": "Mover a un grupo",
+      "copyId": "Copiar ID",
+      "runRemote": "Ejecutar en la nube",
+      "lockNow": "Bloquear ahora",
+      "moveToTrash": "Mover a la papelera"
+    },
+    "emptyGroupTitle": "Este grupo está vacío",
+    "emptyGroupHint": "Crea un perfil en este grupo o mueve aquí perfiles existentes.",
+    "emptyGroupCreate": "Nuevo perfil aquí",
+    "emptyGroupMove": "Mover perfiles aquí",
+    "health": {
+      "degraded": "La conexión es lenta o inestable",
+      "down": "La conexión está caída"
+    },
+    "route": "Proxy / VPN: {{name}}",
+    "routeNone": "Sin proxy ni VPN",
+    "launchTooltip": {
+      "launching": "Abriendo…",
+      "stopping": "Deteniendo…",
+      "singleInstance": "Solo puede ejecutarse una instancia de este navegador a la vez. Detén primero la que está abierta."
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}} seleccionados",
-    "clearSelection": "Limpiar selección"
+    "clearSelection": "Limpiar selección",
+    "selectedHidden": "{{selected}} seleccionados · {{hidden}} ocultos por filtros"
   },
   "appUpdate": {
     "toast": {
@@ -2651,8 +2792,8 @@
     "remoteSessionNotDrivable": "Esta sesión remota aún no está lista para controlarse. Espera a que esté activa.",
     "remotePlatformUnsupported": "Las sesiones remotas solo se ejecutan en hosts macOS, Windows o Linux. La plataforma de este perfil es {{platform}}.",
     "remoteProfileNotSynced": "Este perfil aún no ha terminado de subirse a la sincronización en la nube. Espera a que se complete su primera sincronización e inténtalo de nuevo.",
-    "trashEntryNotFound": "Este perfil ya no está en la papelera.",
-    "trashRestoreConflict": "Ya existe un perfil con el mismo ID, por lo que este no se puede restaurar.",
+    "trashEntryNotFound": "Esto ya no está en la papelera.",
+    "trashRestoreConflict": "Ya existe algo con el mismo ID, por lo que no se puede restaurar.",
     "recipesNotEntitled": "Las recetas requieren el plan Pro o superior.",
     "agentRecipeInvalid": "Una receta necesita un nombre y al menos un paso.",
     "agentRecipeNotFound": "Esa receta ya no existe.",
@@ -2771,7 +2912,41 @@
     "syncServerAddressMismatch": "La dirección del servidor es {{address}}. Introduce esa dirección.",
     "remoteNeedsDonutSync": "Las sesiones remotas y Cookie Bot obtienen los perfiles de la sincronización con Donut cloud. Este equipo se sincroniza con tu propio servidor.",
     "accountSyncUnavailable": "Donut todavía no puede iniciar sesión en tu propio servidor. Inténtalo más tarde.",
-    "selfHostedTeamSeat": "Las cuentas de equipo no pueden sincronizar con un servidor que usa un token de sincronización."
+    "selfHostedTeamSeat": "Las cuentas de equipo no pueden sincronizar con un servidor que usa un token de sincronización.",
+    "agentTargetInvalid": "Elige dónde se ejecuta la receta: en este ordenador o en la flota remota.",
+    "agentTargetOffline": "Este ordenador no está conectado a Donut cloud. Activa el control remoto en Integraciones y vuelve a intentarlo.",
+    "agentPlatformInvalid": "La flota remota no puede ejecutar el sistema operativo de este perfil.",
+    "agentRunLimitReached": "Hay demasiadas ejecuciones en curso. Espera a que termine una y vuelve a intentarlo.",
+    "remoteRequiresCloudSync": "Activa primero la sincronización en la nube para este perfil. Un host remoto no tiene otra forma de obtenerlo.",
+    "remoteEncryptedSyncUnsupported": "Este perfil usa sincronización cifrada de extremo a extremo, que un host remoto no puede descifrar. Cámbialo a sincronización normal para ejecutarlo en remoto.",
+    "remoteUnknownPlatform": "Este perfil no tiene un sistema operativo registrado, así que ningún host remoto le corresponde.",
+    "networkCaptureFailed": "El navegador no aceptó la captura de red: {{detail}}",
+    "networkCaptureNotRunning": "No hay ninguna captura de red activa para este perfil.",
+    "vpnKeyUnreadable": "No se puede leer la clave que abre tus VPN guardadas, así que no se cambió nada. Revisa los permisos de la carpeta vpn en la carpeta de datos de la app.",
+    "entityInUse_one": "Lo usa {{count}} perfil. Asígnale primero otro proxy o VPN.",
+    "entityInUse_other": "Lo usan {{count}} perfiles. Asígnales primero otro proxy o VPN.",
+    "entityInUse_many": "Lo usan {{count}} perfiles. Asígnales primero otro proxy o VPN.",
+    "syncCancelled": "Se canceló la sincronización.",
+    "syncServerError": "El servidor de sincronización falló (estado {{status}}). La sincronización lo intentará más tarde.",
+    "syncStorageRejected": "El almacenamiento de sincronización rechazó la transferencia (estado {{status}}).",
+    "syncTransferIncomplete": "Algunos archivos no se transfirieron. La sincronización lo intentará más tarde.",
+    "syncAuthFailed": "El inicio de sesión de sincronización ya no es válido. Vuelve a iniciar sesión o revisa el token de sincronización.",
+    "syncForbidden": "El servidor de sincronización no permite este cambio.",
+    "syncTooLarge": "Este elemento es demasiado grande para el servidor de sincronización.",
+    "syncRateLimited": "El servidor de sincronización está ocupado. La sincronización lo intentará más tarde.",
+    "syncServerRejected": "El servidor de sincronización rechazó la solicitud (estado {{status}}).",
+    "syncLocalFilesFailed": "No se pudieron leer ni escribir los archivos en este equipo.",
+    "syncDataInvalid": "No se puede leer la copia sincronizada.",
+    "syncDecryptFailed": "No se pudieron descifrar los datos sincronizados. Revisa la contraseña de cifrado.",
+    "syncCrossOsProfile": "Un perfil de otro sistema operativo solo sincroniza su configuración.",
+    "syncEphemeralProfile": "Un perfil efímero no se puede sincronizar.",
+    "syncTombstoneNotCleared": "No se pudo contactar con el servidor de sincronización, así que la sincronización sigue desactivada para este perfil.",
+    "syncNotEnabled": "La sincronización está desactivada para este perfil.",
+    "proxyUpstreamUnreachable": "No se pudo conectar con el proxy.",
+    "proxyUpstreamTimeout": "El proxy no responde.",
+    "proxyAuthFailed": "El proxy rechazó el usuario o la contraseña.",
+    "vpnUnreachable": "El servidor VPN no responde.",
+    "entityInUse": "Lo usan {{count}} perfiles. Asígnales primero otro proxy o VPN."
   },
   "rail": {
     "profiles": "Perfiles",
@@ -2977,7 +3152,11 @@
       "launch": "iniciar abrir ejecutar navegador",
       "stop": "detener salir cerrar",
       "info": "detalles información editar perfil",
-      "group": "grupo filtrar cambiar carpeta"
+      "group": "grupo filtrar cambiar carpeta",
+      "newProfile": "nuevo añadir crear perfil navegador",
+      "stopAllRunning": "detener todos ejecución cerrar parar",
+      "focusSearch": "buscar encontrar filtrar",
+      "goBack": "volver atrás escape inicio"
     }
   },
   "shortcuts": {
@@ -2996,7 +3175,11 @@
     "goAgent": "Ir a Agente",
     "openTips": "Abrir consejos",
     "sendFeedback": "Enviar comentarios",
-    "openTotp": "Código 2FA desde una clave"
+    "openTotp": "Código 2FA desde una clave",
+    "newProfile": "Nuevo perfil",
+    "stopAllRunning": "Detener todos los perfiles en ejecución",
+    "focusSearch": "Buscar perfiles",
+    "goBack": "Volver a Perfiles"
   },
   "closeConfirm": {
     "title": "¿Cerrar Donut Browser?",
@@ -3514,7 +3697,10 @@
     "vpnExtensionEntryNoVersion": " — {{capability}}, {{source}}",
     "scanIncompleteMissing": "Este perfil aún no se ha iniciado, así que solo se pudieron comprobar las extensiones gestionadas por Donut.",
     "exitUnverifiedTimezone": "La huella digital de este perfil no declara ninguna zona horaria, así que la comprobación de salida no puede verificarla. El inicio no se bloquea, pero tampoco se comparó nada.",
-    "exitUnverifiedLanguage": "El idioma de la huella digital de este perfil no se puede comparar con el país de salida, así que esa comprobación queda sin verificar, no aprobada."
+    "exitUnverifiedLanguage": "El idioma de la huella digital de este perfil no se puede comparar con el país de salida, así que esa comprobación queda sin verificar, no aprobada.",
+    "routeProxyHeading": "El proxy no responde",
+    "routeVpnHeading": "La VPN no responde",
+    "routeExplainer": "Es posible que las páginas no carguen. Revisa el proxy o la VPN, o inicia de todos modos."
   },
   "profileMotion": {
     "inspectorSections": "Secciones del perfil",
@@ -3639,15 +3825,17 @@
   },
   "trash": {
     "title": "Papelera",
-    "description": "Los perfiles eliminados esperan aquí hasta que caducan. Restaura uno para recuperarlo con su identidad, proxy y etiquetas.",
+    "description": "Los perfiles, proxies, VPN, grupos, extensiones y plantillas eliminados esperan aquí hasta que caducan. Restaura uno para recuperarlo tal como estaba.",
     "empty": "La papelera está vacía",
-    "emptyHint": "Los perfiles que elimines aparecen aquí y se pueden restaurar hasta que caduquen.",
+    "emptyHint": "Lo que elimines aparece aquí y se puede restaurar hasta que caduque.",
     "columns": {
-      "name": "Perfil",
+      "name": "Nombre",
       "browser": "Navegador",
       "deleted": "Eliminado",
       "expires": "Caduca",
-      "size": "Tamaño"
+      "size": "Tamaño",
+      "kind": "Tipo",
+      "detail": "Detalles"
     },
     "expiresIn_one": "en {{count}} día",
     "expiresIn_other": "en {{count}} días",
@@ -3660,19 +3848,54 @@
     "confirmDeleteForeverTitle": "¿Eliminar definitivamente?",
     "confirmDeleteForeverDescription": "\"{{name}}\" y todos sus datos se destruirán. Esta acción no se puede deshacer.",
     "confirmEmptyTitle": "¿Vaciar la papelera?",
-    "confirmEmptyDescription_one": "{{count}} perfil y todos sus datos se destruirán. Esta acción no se puede deshacer.",
-    "confirmEmptyDescription_other": "{{count}} perfiles y todos sus datos se destruirán. Esta acción no se puede deshacer.",
-    "confirmEmptyDescription_many": "{{count}} perfiles y todos sus datos se destruirán. Esta acción no se puede deshacer.",
+    "confirmEmptyDescription_one": "Se destruirá {{count}} elemento con todos sus datos. No se puede deshacer.",
+    "confirmEmptyDescription_other": "Se destruirán {{count}} elementos con todos sus datos. No se puede deshacer.",
+    "confirmEmptyDescription_many": "Se destruirán {{count}} elementos con todos sus datos. No se puede deshacer.",
     "restored": "\"{{name}}\" se ha restaurado",
     "restoredSyncOff": "No se pudo volver a activar la sincronización, así que el perfil solo está en este dispositivo. Vuelve a elegir su modo de sincronización para compartirlo con tus otros dispositivos.",
-    "restoreFailed": "No se pudo restaurar el perfil: {{error}}",
+    "restoreFailed": "No se pudo restaurar: {{error}}",
     "deletedForever": "\"{{name}}\" se ha eliminado definitivamente",
-    "deleteForeverFailed": "No se pudo eliminar el perfil: {{error}}",
-    "emptied_one": "{{count}} perfil eliminado de la papelera",
-    "emptied_other": "{{count}} perfiles eliminados de la papelera",
-    "emptied_many": "{{count}} perfiles eliminados de la papelera",
+    "deleteForeverFailed": "No se pudo eliminar para siempre: {{error}}",
+    "emptied_one": "{{count}} elemento quitado de la papelera",
+    "emptied_other": "{{count}} elementos quitados de la papelera",
+    "emptied_many": "{{count}} elementos quitados de la papelera",
     "emptyFailed": "No se pudo vaciar la papelera: {{error}}",
-    "loadFailed": "No se pudo cargar la papelera: {{error}}"
+    "loadFailed": "No se pudo cargar la papelera: {{error}}",
+    "kinds": {
+      "all": "Todo",
+      "profile": "Perfiles",
+      "proxy": "Proxies",
+      "vpn": "VPN",
+      "group": "Grupos",
+      "extension": "Extensiones",
+      "extension_group": "Grupos de extensiones",
+      "template": "Plantillas"
+    },
+    "kind": {
+      "profile": "Perfil",
+      "proxy": "Proxy",
+      "vpn": "VPN",
+      "group": "Grupo",
+      "extension": "Extensión",
+      "extension_group": "Grupo de extensiones",
+      "template": "Plantilla"
+    },
+    "restoredSyncOffEntity": "No se pudo volver a activar la sincronización, así que solo está en este dispositivo. Vuelve a activar su sincronización para compartirlo con tus otros dispositivos.",
+    "moved": "«{{name}}» se movió a la papelera",
+    "deleted": "«{{name}}» se eliminó",
+    "deleteFailed": "No se pudo eliminar «{{name}}»: {{error}}",
+    "restoredMany_one": "{{count}} elemento restaurado",
+    "restoredMany_other": "{{count}} elementos restaurados",
+    "restoredMany_many": "{{count}} elementos restaurados",
+    "deletedForeverMany_one": "{{count}} elemento eliminado para siempre",
+    "deletedForeverMany_other": "{{count}} elementos eliminados para siempre",
+    "deletedForeverMany_many": "{{count}} elementos eliminados para siempre",
+    "movedMany_one": "{{count}} elemento movido a la papelera",
+    "movedMany_other": "{{count}} elementos movidos a la papelera",
+    "movedMany_many": "{{count}} elementos movidos a la papelera",
+    "deletedMany_one": "{{count}} elemento eliminado",
+    "deletedMany_other": "{{count}} elementos eliminados",
+    "deletedMany_many": "{{count}} elementos eliminados"
   },
   "agent": {
     "description": "Mira lo que hace tu agente de IA en Donut, responde a sus preguntas e intervén cuando una página te necesite.",
@@ -3702,10 +3925,10 @@
     "setup": {
       "signedOutTitle": "Inicia sesión para trabajar con tu agente",
       "signedOutBody": "Tu agente llega a Donut a través de tu cuenta de Donut. Inicia sesión para conectarlo.",
-      "signedOutAction": "Abrir Cuenta",
+      "signedOutAction": "Abrir cuenta",
       "planTitle": "El control remoto no forma parte de tu plan",
       "planBody": "Para conectar tu propio agente necesitas un plan con control remoto.",
-      "planAction": "Abrir Cuenta",
+      "planAction": "Abrir cuenta",
       "remoteOffTitle": "El control remoto está desactivado",
       "remoteOffBody": "Tu agente se conecta a Donut mediante el control remoto. Actívalo y luego añade Donut a tu agente.",
       "remoteOffAction": "Activar el control remoto",
@@ -3879,7 +4102,19 @@
       "deleted": "Receta eliminada",
       "deleteTitle": "¿Eliminar {{name}}?",
       "deleteDescription": "La receta se elimina de todos los dispositivos.",
-      "needsAutomation": "Las recetas abren y controlan navegadores, por eso requieren el plan Pro o superior. Tu agente puede seguir gestionando perfiles, proxies y grupos."
+      "needsAutomation": "Las recetas abren y controlan navegadores, por eso requieren el plan Pro o superior. Tu agente puede seguir gestionando perfiles, proxies y grupos.",
+      "runAria": "Ejecutar {{name}} ahora",
+      "runTitle": "Ejecutar {{name}}",
+      "runDescription": "Donut cloud reproduce los pasos una vez en el perfil que elijas.",
+      "runProfile": "Perfil",
+      "runProfilePlaceholder": "Elige un perfil",
+      "runNoProfiles": "Crea un perfil primero",
+      "runPlatformUnsupported": "La flota remota no puede ejecutar el sistema operativo de este perfil.",
+      "runDesktopOffline": "Activa el control remoto en Integraciones para ejecutar en este ordenador.",
+      "runStartedOn": "Donut cloud está reproduciendo {{name}} en {{profile}}.",
+      "oneOffName": "Ejecutar ahora: {{name}}",
+      "editAria": "Editar {{name}}",
+      "deleteAria": "Eliminar {{name}}"
     },
     "schedules": {
       "hint": "Ejecuta una receta según un calendario, en la flota remota o en este ordenador.",
@@ -4225,7 +4460,26 @@
     "stopped": "Detenido",
     "noTags": "Sin etiquetas",
     "noProxy": "Sin proxy",
-    "encrypted": "Cifrado"
+    "encrypted": "Cifrado",
+    "views": {
+      "label": "Vistas",
+      "title": "Vistas guardadas",
+      "empty": "Aún no hay vistas guardadas. Pon nombre a la búsqueda, los filtros, el orden y las columnas actuales para volver a ellos.",
+      "nameLabel": "Nombre de la vista",
+      "namePlaceholder": "Nombra esta vista",
+      "replace": "Reemplazar",
+      "useAtStart": "Abrir {{name}} al iniciar",
+      "defaultBadge": "Al iniciar",
+      "rename": "Renombrar {{name}}",
+      "delete": "Eliminar {{name}}",
+      "deleted": "Vista {{name}} eliminada",
+      "full": "Puedes guardar hasta {{limit}} vistas. Elimina una para guardar otra.",
+      "nameTaken": "Otra vista ya tiene este nombre."
+    },
+    "moveColumnLeft": "Mover {{column}} a la izquierda",
+    "moveColumnRight": "Mover {{column}} a la derecha",
+    "selectRowNamed": "Seleccionar {{name}}",
+    "rowAction": "{{action}}: {{name}}"
   },
   "feedback": {
     "title": "Enviar comentarios",
@@ -4435,5 +4689,87 @@
       "valid": "Válida",
       "invalid": "No válida"
     }
+  },
+  "leavePrompt": {
+    "title": "Cambios sin guardar",
+    "description": "Hay cambios sin guardar.",
+    "descriptionOne": "Los cambios en {{label}} no están guardados.",
+    "save": "Guardar",
+    "discard": "Descartar",
+    "stay": "Quedarse"
+  },
+  "moveProfiles": {
+    "title": "Mover perfiles a {{group}}",
+    "description": "Elige los perfiles que pasan a este grupo. Un perfil en ejecución no se puede mover.",
+    "empty": "Todos los perfiles ya están en este grupo.",
+    "confirm": "Mover {{count}}"
+  },
+  "logViewer": {
+    "title": "Registro de la app",
+    "levelFilter": "Filtrar por nivel",
+    "levels": {
+      "all": "Todos",
+      "warn": "Advertencias",
+      "error": "Errores"
+    },
+    "searchPlaceholder": "Buscar en el registro",
+    "copyAria": "Copiar {{count}} líneas del registro",
+    "copied": "Líneas del registro copiadas",
+    "copiedDescription": "Líneas en el portapapeles: {{count}}",
+    "copyFailed": "No se pudo copiar el registro",
+    "empty": "El registro aún no tiene líneas.",
+    "emptyProfile": "Aún no hay líneas de registro para este perfil.",
+    "noMatches": "Ninguna línea coincide con el filtro.",
+    "capped": "Muestra las {{count}} líneas más recientes."
+  },
+  "networkPanel": {
+    "start": "Iniciar captura",
+    "stop": "Detener captura",
+    "capturing": "Solicitudes: {{count}}",
+    "emptyStopped": "Inicia una captura para ver qué solicitan las páginas de este perfil.",
+    "emptyNotRunning": "Inicia el perfil para capturar sus solicitudes de red.",
+    "privacyNote": "Se guarda en memoria hasta que la captura se detiene o el navegador se cierra. Los valores de cookies y autorización se ocultan.",
+    "waiting": "Esperando solicitudes…",
+    "columns": {
+      "method": "Método",
+      "status": "Estado",
+      "host": "Host",
+      "path": "Ruta",
+      "type": "Tipo",
+      "size": "Tamaño",
+      "time": "Tiempo"
+    },
+    "states": {
+      "pending": "Pendiente",
+      "done": "Completada",
+      "failed": "Fallida",
+      "redirected": "Redirigida",
+      "incomplete": "Incompleta"
+    },
+    "openRequest": "Abrir {{method}} {{url}}",
+    "backToList": "Volver a las solicitudes",
+    "requestHeaders": "Encabezados de la solicitud",
+    "responseHeaders": "Encabezados de la respuesta",
+    "requestBody": "Cuerpo de la solicitud",
+    "noHeaders": "Sin encabezados",
+    "fromCache": "desde caché",
+    "redactedNote": "Los valores de cookies y autorización se sustituyen por [redacted].",
+    "startFailed": "No se pudo iniciar la captura",
+    "stopFailed": "No se pudo detener la captura",
+    "withheld": "No registradas mientras controlabas el perfil: {{count}}"
+  },
+  "syncHealth": {
+    "idle": "La sincronización está al día",
+    "syncing": "Sincronizando",
+    "offline": "La sincronización está sin conexión. Los cambios se sincronizarán cuando vuelva la conexión.",
+    "error": "La sincronización falló",
+    "errorWith": "La sincronización falló: {{error}}",
+    "notifyTitle": "La sincronización falló",
+    "conflictToast": "Tu cambio en {{name}} se reemplazó por una copia más reciente de otro dispositivo",
+    "conflictToastUnnamed": "Tu cambio se reemplazó por una copia más reciente de otro dispositivo"
+  },
+  "launchNotice": {
+    "fingerprintEditsNotApplied": "{{name}} se inicia sin sus cambios personalizados de huella digital",
+    "fingerprintEditsNeedPro": "Tus cambios se conservan y vuelven a aplicarse con un plan Pro activo."
   }
 }

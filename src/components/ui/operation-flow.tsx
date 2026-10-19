@@ -1,8 +1,8 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import type { CSSProperties, ReactNode } from "react";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { MOTION_EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -46,9 +46,7 @@ export function OperationFlow({
   compact?: boolean;
   label: string;
 }) {
-  const reduced = useReducedMotion();
-  const modality = useInputModality();
-  const animate = !reduced && modality !== "keyboard";
+  const animate = useMotionAllowed();
   const last = steps.length - 1;
   const current = Math.max(0, Math.min(last, active));
   if (steps.length < 2) return null;
@@ -210,17 +208,18 @@ function FlowWire({
       style={style}
     >
       <motion.span
-        className="absolute inset-y-0 left-0 rounded-full bg-foreground"
+        className="absolute inset-0 origin-left rounded-full bg-foreground"
         initial={false}
-        animate={{ width: filled ? "100%" : "0%" }}
+        animate={{ scaleX: filled ? 1 : 0 }}
         transition={{ duration: animate ? 0.35 : 0, ease: MOTION_EASE_OUT }}
       />
       {pulsing && (
+        // A full-width track that travels its own width carries the pulse
+        // from one end of the wire to the other.
         <motion.span
-          data-slot="operation-pulse"
-          className="absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
+          className="absolute inset-0"
           initial={false}
-          animate={{ left: animate ? ["0%", "100%"] : "100%" }}
+          animate={{ x: animate ? ["0%", "100%"] : "100%" }}
           transition={
             animate
               ? {
@@ -230,7 +229,12 @@ function FlowWire({
                 }
               : { duration: 0 }
           }
-        />
+        >
+          <span
+            data-slot="operation-pulse"
+            className="absolute top-1/2 left-0 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
+          />
+        </motion.span>
       )}
     </span>
   );

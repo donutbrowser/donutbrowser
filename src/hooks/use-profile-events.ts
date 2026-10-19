@@ -1,7 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import i18n from "@/i18n";
+import { translateBackendError } from "@/lib/backend-errors";
+import { groupList, profileList, sameSetOr } from "@/lib/profile-list-store";
 import type { BrowserProfile, GroupWithCount } from "@/types";
 
 interface UseProfileEventsReturn {
@@ -15,131 +16,148 @@ interface UseProfileEventsReturn {
   clearError: () => void;
 }
 
+const NO_PROFILES: BrowserProfile[] = [];
+const NO_GROUPS: GroupWithCount[] = [];
+
+function profilesError(err: unknown) {
+  return i18n.t("errors.loadProfilesFailed", {
+    error: translateBackendError(i18n.t, err),
+  });
+}
+
 /**
- * Custom hook to manage profile-related state and listen for backend events.
- * This hook eliminates the need for manual UI refreshes by automatically
- * updating state when the backend emits profile change events.
+ * Profiles, groups and which profiles run, kept current by backend events.
+ * The lists come from the shared store: every reader of them shares one load
+ * per change.
  */
 export function useProfileEvents(): UseProfileEventsReturn {
-  const [profiles, setProfiles] = useState<BrowserProfile[]>([]);
-  const [groups, setGroups] = useState<GroupWithCount[]>([]);
+  const [profiles, setProfiles] = useState<BrowserProfile[]>(
+    () => profileList.peek() ?? NO_PROFILES,
+  );
+  const [groups, setGroups] = useState<GroupWithCount[]>(
+    () => groupList.peek() ?? NO_GROUPS,
+  );
   const [runningProfiles, setRunningProfiles] = useState<Set<string>>(
-    new Set(),
+    () => new Set(),
   );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load profiles from backend
   const loadProfiles = useCallback(async () => {
     try {
-      const profileList = await invoke<BrowserProfile[]>(
-        "list_browser_profiles",
-      );
-      setProfiles(profileList);
+      setProfiles(await profileList.refresh());
       setError(null);
     } catch (err: unknown) {
       console.error("Failed to load profiles:", err);
-      setError(
-        i18n.t("errors.loadProfilesFailed", { error: JSON.stringify(err) }),
-      );
+      setError(profilesError(err));
     }
   }, []);
 
-  // Load groups from backend
   const loadGroups = useCallback(async () => {
     try {
-      const groupsWithCounts = await invoke<GroupWithCount[]>(
-        "get_groups_with_profile_counts",
-      );
-      setGroups(groupsWithCounts);
+      setGroups(await groupList.refresh());
       setError(null);
     } catch (err) {
       console.error("Failed to load groups with counts:", err);
-      setGroups([]);
+      setGroups(NO_GROUPS);
     }
   }, []);
 
-  // Clear error state
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
-  // Initial load and event listeners setup
   useEffect(() => {
-    let profilesUnlisten: (() => void) | undefined;
+    let disposed = false;
     let runningUnlisten: (() => void) | undefined;
 
-    const setupListeners = async () => {
+    const stopProfiles = profileList.subscribe({
+      value: (list) => {
+        setProfiles(list);
+        setError(null);
+      },
+      error: (err) => {
+        console.error("Failed to load profiles:", err);
+        setError(profilesError(err));
+      },
+    });
+    const stopGroups = groupList.subscribe({
+      value: setGroups,
+      error: (err) => {
+        console.error("Failed to load groups with counts:", err);
+      },
+    });
+
+    const setup = async () => {
       try {
-        // Initial load
-        await Promise.all([loadProfiles(), loadGroups()]);
+        const [list, groupsWithCounts] = await Promise.all([
+          profileList.load(),
+          groupList.load().catch((err: unknown) => {
+            console.error("Failed to load groups with counts:", err);
+            return NO_GROUPS;
+          }),
+        ]);
+        if (disposed) return;
+        setProfiles(list);
+        setGroups(groupsWithCounts);
+        setError(null);
+      } catch (err) {
+        if (disposed) return;
+        console.error("Failed to load profiles:", err);
+        setError(profilesError(err));
+      }
 
-        // Listen for profile changes (create, delete, rename, update, etc.)
-        profilesUnlisten = await listen("profiles-changed", () => {
-          console.log(
-            "Received profiles-changed event, reloading profiles and groups",
-          );
-          void loadProfiles();
-          void loadGroups();
-        });
-
-        // Listen for profile running state changes
-        runningUnlisten = await listen<{ id: string; is_running: boolean }>(
+      try {
+        const unlisten = await listen<{ id: string; is_running: boolean }>(
           "profile-running-changed",
           (event) => {
             const { id, is_running } = event.payload;
             setRunningProfiles((prev) => {
+              if (prev.has(id) === is_running) return prev;
               const next = new Set(prev);
-              if (is_running) {
-                next.add(id);
-              } else {
-                next.delete(id);
-              }
+              if (is_running) next.add(id);
+              else next.delete(id);
               return next;
             });
           },
         );
-
-        console.log("Profile event listeners set up successfully");
+        if (disposed) unlisten();
+        else runningUnlisten = unlisten;
       } catch (err) {
+        if (disposed) return;
         console.error("Failed to setup profile event listeners:", err);
         setError(
           i18n.t("errors.setupProfileListenersFailed", {
-            error: JSON.stringify(err),
+            error: translateBackendError(i18n.t, err),
           }),
         );
       } finally {
-        setIsLoading(false);
+        if (!disposed) setIsLoading(false);
       }
     };
 
-    void setupListeners();
+    void setup();
 
-    // Cleanup listeners on unmount
     return () => {
-      if (profilesUnlisten) profilesUnlisten();
-      if (runningUnlisten) runningUnlisten();
+      disposed = true;
+      stopProfiles();
+      stopGroups();
+      runningUnlisten?.();
     };
-  }, [loadProfiles, loadGroups]);
+  }, []);
 
-  // Hydrate the initial runningProfiles set from the loaded list — every
-  // profile that has a stored process_id is a candidate. The Rust status
-  // checker emits profile-running-changed for any transitions; we then
-  // mutate the Set incrementally instead of fan-out-polling all N profiles
-  // every 30s (which was O(N) sysinfo scans and saturated the runtime for
-  // users with hundreds of profiles).
+  // Hydrate the running set from the loaded list: every profile with a
+  // stored process_id is a candidate. The Rust status checker emits
+  // profile-running-changed for transitions, which update the set one id at
+  // a time instead of polling every profile. The set keeps its identity while
+  // its members stay the same.
   useEffect(() => {
     setRunningProfiles((prev) => {
-      const next = new Set(prev);
-      for (const p of profiles) {
-        if (p.process_id != null) next.add(p.id);
-      }
-      // Drop ids for profiles that no longer exist
       const valid = new Set(profiles.map((p) => p.id));
-      for (const id of next) {
-        if (!valid.has(id)) next.delete(id);
-      }
-      return next;
+      const next = new Set<string>();
+      for (const id of prev) if (valid.has(id)) next.add(id);
+      for (const p of profiles) if (p.process_id != null) next.add(p.id);
+      return sameSetOr(prev, next);
     });
   }, [profiles]);
 

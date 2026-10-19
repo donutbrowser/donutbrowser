@@ -262,7 +262,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
                           version: systemInfo.app_version,
                         })}
                         {systemInfo.portable && (
-                          <span className="ml-1.5 rounded border border-border bg-muted px-1 py-px text-[10px] align-middle">
+                          <span className="ml-1.5 rounded border border-border bg-foreground/5 px-1 py-px text-[11px] align-middle">
                             {t("about.portableBadge")}
                           </span>
                         )}
@@ -387,7 +387,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
                 role="region"
                 tabIndex={0}
                 aria-label={t("about.licenses")}
-                className="-mx-2 min-h-0 flex-1 rounded-md px-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="-mx-2 min-h-0 flex-1 rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {filteredLicenses.length > 0 ? (
                   <ul>
@@ -402,7 +402,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
                             onClick={() => void openUrl(xraySource.sourceUrl)}
                             aria-label={t("about.openSource", { name })}
                             title={t("about.openSource", { name })}
-                            className="flex min-w-0 items-center gap-1.5 rounded-sm text-left text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-[0.98] motion-reduce:transform-none"
+                            className="flex min-w-0 items-center gap-1.5 rounded-sm text-left text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] motion-reduce:transform-none"
                           >
                             <span className="truncate">{name}</span>
                             <LuExternalLink

@@ -16,7 +16,8 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { useEntityMotion } from "@/components/entity-page";
+import { tableSelectionCounts } from "@/components/data-table-action-bar";
+import { RowNameProvider } from "@/components/entity-page";
 import {
   DATA_TABLE_CLASSES,
   TableColumnResizer,
@@ -36,9 +37,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { useTablePreferences } from "@/hooks/use-table-preferences";
 import { useTableFilters, useTableKeyboard } from "@/hooks/use-table-tools";
-import { MOTION_EASE_OUT, MOTION_SPRING_POSITION } from "@/lib/motion";
+import { MOTION_DURATION, MOTION_EASE_OUT, MOTION_SPRING } from "@/lib/motion";
 import { proxyProtocolToken } from "@/lib/proxy-string";
 import { canonicalProxyType } from "@/lib/proxy-type";
 import {
@@ -61,7 +63,7 @@ type Entity =
   | GroupWithCount
   | StoredProxy
   | VpnConfig;
-type EntityTableId = Exclude<TableId, "profiles">;
+type EntityTableId = Exclude<TableId, "profiles" | "trash">;
 const LABELS: Record<EntityTableId, Record<string, string>> = {
   proxies: {
     name: "common.labels.name",
@@ -234,24 +236,19 @@ export function useEntityTableTools<T extends Entity>(
     }
     return result;
   }, [id, data, t]);
-  const clearSelection = useCallback(() => setSelection({}), [setSelection]);
-  const filters = useTableFilters(
-    data,
-    entitySearch,
-    definitions,
-    clearSelection,
-  );
+  const filters = useTableFilters(data, entitySearch, definitions, id);
+  // Rows a filter hides stay selected; rows that no longer exist do not.
   useLayoutEffect(() => {
-    const visible = new Set(filters.rows.map((row) => row.id));
+    const existing = new Set(data.map((row) => row.id));
     setSelection((prev) => {
       const ids = Object.keys(prev).filter((id) => prev[id]);
-      return ids.every((id) => visible.has(id))
+      return ids.every((id) => existing.has(id))
         ? prev
         : Object.fromEntries(
-            ids.filter((id) => visible.has(id)).map((id) => [id, true]),
+            ids.filter((id) => existing.has(id)).map((id) => [id, true]),
           );
     });
-  }, [filters.rows, setSelection]);
+  }, [data, setSelection]);
   const visibility = resolveTableVisibility(
     id === "proxies"
       ? { hostPort: width >= 672, protocol: width >= 672 }
@@ -264,8 +261,8 @@ export function useEntityTableTools<T extends Entity>(
   return { view, labels, filters, visibility, setWidth };
 }
 
-/** Above this many rows, rows enter and leave without animating. */
-const ANIMATED_ROW_LIMIT = 150;
+/** Above this many rows, rows enter, leave and move without animating. */
+const ANIMATED_ROW_LIMIT = 60;
 
 export function ManagedDataTable<T extends Entity>({
   table,
@@ -284,7 +281,7 @@ export function ManagedDataTable<T extends Entity>({
   const { t } = useTranslation();
   const { view, labels, filters, setWidth } = tools;
   const keyboard = useTableKeyboard(table);
-  const motionAllowed = useEntityMotion();
+  const motionAllowed = useMotionAllowed();
   const resizeRef = useCallback(
     (element: HTMLDivElement | null) => {
       if (!element) return;
@@ -340,7 +337,7 @@ export function ManagedDataTable<T extends Entity>({
       <FadingScrollArea
         className={cn(
           "min-h-0 flex-1",
-          table.getSelectedRowModel().rows.length > 0 &&
+          tableSelectionCounts(table).selected > 0 &&
             "pb-[calc(var(--table-action-bar-height,56px)+32px)]",
         )}
         style={{ "--scroll-fade-top-offset": "32px" } as React.CSSProperties}
@@ -435,41 +432,48 @@ export function ManagedDataTable<T extends Entity>({
                     className={DATA_TABLE_CLASSES.row}
                     style={{ height: rowHeight }}
                     layout={animateRows ? "position" : false}
-                    initial={animateRows ? { opacity: 0 } : false}
+                    initial={animateRows ? { opacity: 0.5 } : false}
                     animate={{ opacity: 1 }}
                     exit={{
                       opacity: 0,
-                      transition: { duration: animateRows ? 0.12 : 0 },
+                      transition: {
+                        duration: animateRows ? MOTION_DURATION.fast : 0,
+                      },
                     }}
                     transition={{
-                      opacity: { duration: 0.18, ease: MOTION_EASE_OUT },
-                      layout: MOTION_SPRING_POSITION,
+                      opacity: {
+                        duration: MOTION_DURATION.base,
+                        ease: MOTION_EASE_OUT,
+                      },
+                      layout: MOTION_SPRING.position,
                     }}
                   >
-                    {row.getVisibleCells().map((cell, columnIndex) => (
-                      <TableCell
-                        key={cell.id}
-                        role="gridcell"
-                        aria-colindex={columnIndex + 1}
-                        {...keyboard.cellProps(row.id, cell.column.id)}
-                        className={cn(
-                          DATA_TABLE_CLASSES.cell,
-                          "relative max-w-0",
-                        )}
-                        style={{
-                          width:
-                            cell.column.id === "name" &&
-                            !view.preferences.sizing.name
-                              ? undefined
-                              : cell.column.getSize(),
-                        }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
+                    <RowNameProvider name={row.original.name}>
+                      {row.getVisibleCells().map((cell, columnIndex) => (
+                        <TableCell
+                          key={cell.id}
+                          role="gridcell"
+                          aria-colindex={columnIndex + 1}
+                          {...keyboard.cellProps(row.id, cell.column.id)}
+                          className={cn(
+                            DATA_TABLE_CLASSES.cell,
+                            "relative max-w-0",
+                          )}
+                          style={{
+                            width:
+                              cell.column.id === "name" &&
+                              !view.preferences.sizing.name
+                                ? undefined
+                                : cell.column.getSize(),
+                          }}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      ))}
+                    </RowNameProvider>
                   </motion.tr>
                 ))}
               </AnimatePresence>

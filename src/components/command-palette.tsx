@@ -3,9 +3,6 @@
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaDownload } from "react-icons/fa";
-import { FiWifi } from "react-icons/fi";
-import { GoGear } from "react-icons/go";
 import {
   LuArrowLeft,
   LuBadgeInfo,
@@ -14,6 +11,7 @@ import {
   LuCircleStop,
   LuCloud,
   LuCookie,
+  LuDownload,
   LuInfo,
   LuKeyboard,
   LuKeyRound,
@@ -23,10 +21,13 @@ import {
   LuPlug,
   LuPlus,
   LuPuzzle,
+  LuSearch,
   LuSearchX,
+  LuSettings,
   LuTrash2,
   LuUser,
   LuUsers,
+  LuWifi,
 } from "react-icons/lu";
 
 import {
@@ -86,21 +87,25 @@ interface CommandPaletteProps {
 type Icon = React.ComponentType<{ className?: string }>;
 
 const ICONS: Record<ShortcutId, Icon> = {
+  newProfile: LuPlus,
+  stopAllRunning: LuCircleStop,
+  focusSearch: LuSearch,
+  goBack: LuArrowLeft,
   openPalette: LuKeyboard,
   openShortcuts: LuKeyboard,
   openTips: LuLightbulb,
   sendFeedback: LuMessageSquareHeart,
   openTotp: LuKeyRound,
-  importProfile: FaDownload,
+  importProfile: LuDownload,
   goProfiles: LuUser,
-  goProxies: FiWifi,
+  goProxies: LuWifi,
   goExtensions: LuPuzzle,
   goGroups: LuUsers,
   goCookieBot: LuCookie,
   goAgent: LuBot,
   goIntegrations: LuPlug,
   goAccount: LuCloud,
-  goSettings: GoGear,
+  goSettings: LuSettings,
   goTrash: LuTrash2,
 };
 
@@ -134,6 +139,10 @@ interface PageEntry {
 const RECENT_KEY = "donut.commandPalette.recent";
 
 const PALETTE_SHORTCUT = SHORTCUTS.find((s) => s.id === "openPalette");
+const NEW_PROFILE_SHORTCUT = SHORTCUTS.find((s) => s.id === "newProfile");
+
+/** Shortcuts the palette lists as commands. */
+const listed = (s: ShortcutDef) => s.palette !== false;
 
 // The glide draws the selection, so a selected item stays transparent.
 const ITEM_CLASS =
@@ -362,6 +371,7 @@ export function CommandPalette({
       "commandPalette.actions.createProfile",
     ),
     icon: LuPlus,
+    keys: NEW_PROFILE_SHORTCUT ? shortcutKeys(NEW_PROFILE_SHORTCUT) : undefined,
     run: onCreateProfile,
     sound: "open",
   };
@@ -383,7 +393,10 @@ export function CommandPalette({
     switch (kind) {
       case "shortcut": {
         const s = SHORTCUTS.find((entry) => entry.id === key);
-        return s && s.id !== "openPalette" ? shortcutCommand(s) : null;
+        if (s?.id === "newProfile") return createCommand;
+        return s && s.id !== "openPalette" && listed(s)
+          ? shortcutCommand(s)
+          : null;
       }
       case "action":
         if (id === createCommand.id) return createCommand;
@@ -469,19 +482,26 @@ export function CommandPalette({
       closePage(true);
       return;
     }
-    // Every shortcut works from inside the palette too, and closes it.
+    // Every chord works from inside the palette too, and closes it.
     // Stopping the event keeps the app-wide listener from running it again.
+    // A plain key ("/", Escape) belongs to the search box and the dialog.
     if (PALETTE_SHORTCUT && matchesShortcut(PALETTE_SHORTCUT, native)) {
       event.preventDefault();
       event.stopPropagation();
       dismiss(false);
       return;
     }
-    const shortcut = SHORTCUTS.find((s) => matchesShortcut(s, native));
+    const shortcut = SHORTCUTS.find(
+      (s) => (s.mod || s.alt) && matchesShortcut(s, native),
+    );
     if (shortcut) {
       event.preventDefault();
       event.stopPropagation();
-      run(shortcutCommand(shortcut));
+      run(
+        shortcut.id === "newProfile"
+          ? createCommand
+          : shortcutCommand(shortcut),
+      );
       return;
     }
     const digit = matchesGroupDigit(native);
@@ -512,14 +532,20 @@ export function CommandPalette({
           .map(resolveRecent)
           .filter((command): command is PaletteCommand => command !== null)
           .slice(0, RECENT_SHOWN);
+    const profileShortcut = (id: ShortcutId) => {
+      const s = SHORTCUTS.find((entry) => entry.id === id);
+      return s ? [shortcutCommand(s)] : [];
+    };
     const profileEntries = [
       createCommand,
       ...(stoppedProfiles.length > 0 ? [pageCommand("launch", LuPlay)] : []),
       ...(runningProfiles.length > 0
         ? [pageCommand("stop", LuCircleStop)]
         : []),
+      ...(runningProfiles.length > 0 ? profileShortcut("stopAllRunning") : []),
       ...(profiles.length > 0 ? [pageCommand("info", LuInfo)] : []),
       pageCommand("group", LuUsers),
+      ...(profiles.length > 0 ? profileShortcut("focusSearch") : []),
     ];
     return (
       <>
@@ -560,8 +586,8 @@ export function CommandPalette({
           value="navigation"
           heading={t("commandPalette.groups.navigation")}
         >
-          {SHORTCUTS.filter((s) => s.group === "navigation").map((s) =>
-            item(shortcutCommand(s)),
+          {SHORTCUTS.filter((s) => s.group === "navigation" && listed(s)).map(
+            (s) => item(shortcutCommand(s)),
           )}
         </CommandGroup>
         <CommandGroup
@@ -569,7 +595,7 @@ export function CommandPalette({
           heading={t("commandPalette.groups.actions")}
         >
           {SHORTCUTS.filter(
-            (s) => s.group === "actions" && s.id !== "openPalette",
+            (s) => s.group === "actions" && s.id !== "openPalette" && listed(s),
           ).map((s) => item(shortcutCommand(s)))}
           {item(aboutCommand)}
         </CommandGroup>

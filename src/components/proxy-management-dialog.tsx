@@ -11,12 +11,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { GoPlus } from "react-icons/go";
 import {
   LuActivity,
   LuDownload,
   LuLock,
   LuPencil,
+  LuPlus,
   LuRefreshCcwDot,
   LuRefreshCw,
   LuTrash2,
@@ -74,6 +74,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useProfileReferences } from "@/hooks/use-profile-references";
 import { useProxyEvents } from "@/hooks/use-proxy-events";
+import { useEntityTrash } from "@/hooks/use-trash-events";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
 import { runProxyCheck } from "@/lib/proxy-check-store";
@@ -280,26 +281,50 @@ export function ProxyManagementDialog({
     }
   }, [vpnConfigs]);
 
-  // Proxy handlers
-  const handleDeleteProxy = useCallback((proxy: StoredProxy) => {
-    setProxyToDelete(proxy);
+  const { request: requestProxyTrash, remove: removeProxies } =
+    useEntityTrash("proxy");
+  const { request: requestVpnTrash, remove: removeVpns } =
+    useEntityTrash("vpn");
+
+  /** Rows that left the list leave the selection too. */
+  const dropProxySelection = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    setProxiesRowSelection((prev) => {
+      const next = { ...prev };
+      for (const id of ids) delete next[id];
+      return next;
+    });
   }, []);
+  const dropVpnSelection = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    setVpnsRowSelection((prev) => {
+      const next = { ...prev };
+      for (const id of ids) delete next[id];
+      return next;
+    });
+  }, []);
+
+  // Proxy handlers: a delete goes to the trash at once and the toast offers
+  // Undo. Only "Delete at once" asks first, through the dialog below.
+  const handleDeleteProxy = useCallback(
+    async (proxy: StoredProxy) => {
+      dropProxySelection(
+        await requestProxyTrash([proxy], () => setProxyToDelete(proxy)),
+      );
+    },
+    [requestProxyTrash, dropProxySelection],
+  );
 
   const handleConfirmDelete = useCallback(async () => {
     if (!proxyToDelete) return;
     setIsDeleting(true);
     try {
-      await invoke("delete_stored_proxy", { proxyId: proxyToDelete.id });
-      toast.success(t("proxies.management.deleteSuccess"));
-      await emit("stored-proxies-changed");
-    } catch (error) {
-      console.error("Failed to delete proxy:", error);
-      toast.error(t("proxies.management.deleteFailed"));
+      dropProxySelection(await removeProxies([proxyToDelete]));
     } finally {
       setIsDeleting(false);
       setProxyToDelete(null);
     }
-  }, [proxyToDelete, t]);
+  }, [proxyToDelete, removeProxies, dropProxySelection]);
 
   const handleCreateProxy = useCallback(() => {
     setEditingProxy(null);
@@ -345,25 +370,23 @@ export function ProxyManagementDialog({
   );
 
   // VPN handlers
-  const handleDeleteVpn = useCallback((vpn: VpnConfig) => {
-    setVpnToDelete(vpn);
-  }, []);
+  const handleDeleteVpn = useCallback(
+    async (vpn: VpnConfig) => {
+      dropVpnSelection(await requestVpnTrash([vpn], () => setVpnToDelete(vpn)));
+    },
+    [requestVpnTrash, dropVpnSelection],
+  );
 
   const handleConfirmDeleteVpn = useCallback(async () => {
     if (!vpnToDelete) return;
     setIsDeletingVpn(true);
     try {
-      await invoke("delete_vpn_config", { vpnId: vpnToDelete.id });
-      toast.success(t("vpns.management.deleteSuccess"));
-      await emit("vpn-configs-changed");
-    } catch (error) {
-      console.error("Failed to delete VPN:", error);
-      toast.error(t("vpns.management.deleteFailed"));
+      dropVpnSelection(await removeVpns([vpnToDelete]));
     } finally {
       setIsDeletingVpn(false);
       setVpnToDelete(null);
     }
-  }, [vpnToDelete, t]);
+  }, [vpnToDelete, removeVpns, dropVpnSelection]);
 
   const handleCreateVpn = useCallback(() => {
     setEditingVpn(null);
@@ -607,7 +630,7 @@ export function ProxyManagementDialog({
                 tone="destructive"
                 disabled={usage > 0}
                 onClick={() => {
-                  handleDeleteProxy(proxy);
+                  void handleDeleteProxy(proxy);
                 }}
               />
             </RowActions>
@@ -773,7 +796,7 @@ export function ProxyManagementDialog({
                 tone="destructive"
                 disabled={usage > 0}
                 onClick={() => {
-                  handleDeleteVpn(vpn);
+                  void handleDeleteVpn(vpn);
                 }}
               />
             </RowActions>
@@ -820,12 +843,16 @@ export function ProxyManagementDialog({
     getRowId: (row) => row.id,
   });
 
-  const selectedProxies = proxiesTable
-    .getFilteredSelectedRowModel()
-    .rows.map((row) => row.original);
-  const selectedVpns = vpnsTable
-    .getFilteredSelectedRowModel()
-    .rows.map((row) => row.original);
+  // A selected row that a search or filter hides is still selected: bulk
+  // actions take the selection from the full lists.
+  const selectedProxies = useMemo(
+    () => storedProxies.filter((proxy) => proxiesRowSelection[proxy.id]),
+    [storedProxies, proxiesRowSelection],
+  );
+  const selectedVpns = useMemo(
+    () => vpnConfigs.filter((vpn) => vpnsRowSelection[vpn.id]),
+    [vpnConfigs, vpnsRowSelection],
+  );
 
   // Row selection is gated on sync ownership, which says nothing about local
   // use, so a selection can hold entries the per-row delete refuses. Deleting
@@ -840,65 +867,76 @@ export function ProxyManagementDialog({
   );
   const skippedVpnCount = selectedVpns.length - deletableVpns.length;
 
+  const warnSkippedProxies = useCallback(() => {
+    if (skippedProxyCount > 0) {
+      toast.warning(
+        t("proxies.bulkDelete.skippedProxies", { count: skippedProxyCount }),
+      );
+    }
+  }, [skippedProxyCount, t]);
+  const warnSkippedVpns = useCallback(() => {
+    if (skippedVpnCount > 0) {
+      toast.warning(
+        t("proxies.bulkDelete.skippedVpns", { count: skippedVpnCount }),
+      );
+    }
+  }, [skippedVpnCount, t]);
+
+  /** The selection bar's delete: to the trash, or ask first when it is off. */
+  const handleTrashSelectedProxies = useCallback(async () => {
+    if (deletableProxies.length === 0) {
+      warnSkippedProxies();
+      return;
+    }
+    const removed = await requestProxyTrash(deletableProxies, () =>
+      setShowBulkDeleteProxiesDialog(true),
+    );
+    if (removed.length > 0) warnSkippedProxies();
+    dropProxySelection(removed);
+  }, [
+    deletableProxies,
+    requestProxyTrash,
+    warnSkippedProxies,
+    dropProxySelection,
+  ]);
+
   const handleBulkDeleteProxies = useCallback(async () => {
-    if (selectedProxies.length === 0) return;
+    if (deletableProxies.length === 0) return;
     setIsBulkDeletingProxies(true);
     try {
-      const results = await Promise.allSettled(
-        deletableProxies.map((proxy) =>
-          invoke("delete_stored_proxy", { proxyId: proxy.id }),
-        ),
-      );
-      const failed = results.filter((r) => r.status === "rejected").length;
-      const succeeded = results.length - failed;
-      if (succeeded > 0) {
-        toast.success(t("proxies.management.deleteSuccess"));
-      }
-      if (failed > 0) {
-        toast.error(t("proxies.management.deleteFailed"));
-      }
-      if (skippedProxyCount > 0) {
-        toast.warning(
-          t("proxies.bulkDelete.skippedProxies", { count: skippedProxyCount }),
-        );
-      }
-      await emit("stored-proxies-changed");
-      setProxiesRowSelection({});
+      const removed = await removeProxies(deletableProxies);
+      warnSkippedProxies();
+      dropProxySelection(removed);
     } finally {
       setIsBulkDeletingProxies(false);
       setShowBulkDeleteProxiesDialog(false);
     }
-  }, [selectedProxies, deletableProxies, skippedProxyCount, t]);
+  }, [deletableProxies, removeProxies, warnSkippedProxies, dropProxySelection]);
+
+  const handleTrashSelectedVpns = useCallback(async () => {
+    if (deletableVpns.length === 0) {
+      warnSkippedVpns();
+      return;
+    }
+    const removed = await requestVpnTrash(deletableVpns, () =>
+      setShowBulkDeleteVpnsDialog(true),
+    );
+    if (removed.length > 0) warnSkippedVpns();
+    dropVpnSelection(removed);
+  }, [deletableVpns, requestVpnTrash, warnSkippedVpns, dropVpnSelection]);
 
   const handleBulkDeleteVpns = useCallback(async () => {
-    if (selectedVpns.length === 0) return;
+    if (deletableVpns.length === 0) return;
     setIsBulkDeletingVpns(true);
     try {
-      const results = await Promise.allSettled(
-        deletableVpns.map((vpn) =>
-          invoke("delete_vpn_config", { vpnId: vpn.id }),
-        ),
-      );
-      const failed = results.filter((r) => r.status === "rejected").length;
-      const succeeded = results.length - failed;
-      if (succeeded > 0) {
-        toast.success(t("vpns.management.deleteSuccess"));
-      }
-      if (failed > 0) {
-        toast.error(t("vpns.management.deleteFailed"));
-      }
-      if (skippedVpnCount > 0) {
-        toast.warning(
-          t("proxies.bulkDelete.skippedVpns", { count: skippedVpnCount }),
-        );
-      }
-      await emit("vpn-configs-changed");
-      setVpnsRowSelection({});
+      const removed = await removeVpns(deletableVpns);
+      warnSkippedVpns();
+      dropVpnSelection(removed);
     } finally {
       setIsBulkDeletingVpns(false);
       setShowBulkDeleteVpnsDialog(false);
     }
-  }, [selectedVpns, deletableVpns, skippedVpnCount, t]);
+  }, [deletableVpns, removeVpns, warnSkippedVpns, dropVpnSelection]);
 
   // Bulk-toggle sync: if every selectable row has sync ON, turn them all
   // OFF; otherwise turn them all ON. Items locked by a synced profile
@@ -1056,7 +1094,7 @@ export function ProxyManagementDialog({
                       />
                       <PageAction
                         primary
-                        icon={<GoPlus className="size-4" />}
+                        icon={<LuPlus className="size-4" />}
                         label={t("proxies.management.newProxy")}
                         onClick={handleCreateProxy}
                       />
@@ -1072,7 +1110,7 @@ export function ProxyManagementDialog({
                       />
                       <PageAction
                         primary
-                        icon={<GoPlus className="size-4" />}
+                        icon={<LuPlus className="size-4" />}
                         label={t("proxies.management.newVpn")}
                         onClick={handleCreateVpn}
                       />
@@ -1101,7 +1139,7 @@ export function ProxyManagementDialog({
                         className="gap-2"
                         onClick={handleCreateProxy}
                       >
-                        <GoPlus className="size-4" />
+                        <LuPlus className="size-4" />
                         {t("proxies.management.newProxy")}
                       </RippleButton>
                       <RippleButton
@@ -1140,7 +1178,7 @@ export function ProxyManagementDialog({
                         className="gap-2"
                         onClick={handleCreateVpn}
                       >
-                        <GoPlus className="size-4" />
+                        <LuPlus className="size-4" />
                         {t("proxies.management.newVpn")}
                       </RippleButton>
                       <RippleButton
@@ -1242,29 +1280,14 @@ export function ProxyManagementDialog({
           </DataTableActionBarAction>
           <DataTableActionBarAction
             tooltip={t("proxies.rotation.action")}
-            onClick={() =>
-              void rotateProxyIps(
-                proxiesTable
-                  .getSelectedRowModel()
-                  .rows.map((row) => row.original),
-                t,
-              )
-            }
+            onClick={() => void rotateProxyIps(selectedProxies, t)}
           >
             <LuRefreshCcwDot />
           </DataTableActionBarAction>
           <DataTableActionBarAction
             tooltip={t("common.buttons.delete")}
             onClick={() => {
-              if (skippedProxyCount > 0 && deletableProxies.length === 0) {
-                toast.warning(
-                  t("proxies.bulkDelete.skippedProxies", {
-                    count: skippedProxyCount,
-                  }),
-                );
-                return;
-              }
-              setShowBulkDeleteProxiesDialog(true);
+              void handleTrashSelectedProxies();
             }}
             variant="destructive"
             className="bg-destructive/12 text-destructive-text hover:bg-destructive/20"
@@ -1285,15 +1308,7 @@ export function ProxyManagementDialog({
           <DataTableActionBarAction
             tooltip={t("common.buttons.delete")}
             onClick={() => {
-              if (skippedVpnCount > 0 && deletableVpns.length === 0) {
-                toast.warning(
-                  t("proxies.bulkDelete.skippedVpns", {
-                    count: skippedVpnCount,
-                  }),
-                );
-                return;
-              }
-              setShowBulkDeleteVpnsDialog(true);
+              void handleTrashSelectedVpns();
             }}
             variant="destructive"
             className="bg-destructive/12 text-destructive-text hover:bg-destructive/20"

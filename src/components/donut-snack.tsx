@@ -1,20 +1,18 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useCallback, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@/components/icons/logo";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { MOTION_EASE_OUT } from "@/lib/motion";
 
 /** A tiny snack drawer, unlocked with Shift + the About logo. */
 export function DonutSnack() {
   const { t } = useTranslation();
-  const reduced = useReducedMotion();
-  const modality = useInputModality();
+  const still = !useMotionAllowed();
   const maskId = useId();
   const [bites, setBites] = useState(0);
-  const still = reduced || modality === "keyboard";
   const focusBite = useCallback((button: HTMLButtonElement | null) => {
     button?.focus({ preventScroll: true });
   }, []);

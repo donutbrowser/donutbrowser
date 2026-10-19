@@ -59,7 +59,7 @@ export function Kbd({
       className={cn(
         "inline-flex items-center justify-center rounded-[5px] border border-border bg-background font-sans font-medium text-muted-foreground shadow-[0_1px_0_0_var(--color-border)] transition-[background-color,color,box-shadow] duration-150 select-none",
         size === "sm"
-          ? "h-5 min-w-5 px-1 text-[10px]"
+          ? "h-5 min-w-5 px-1 text-[11px]"
           : "h-6 min-w-6 px-1.5 text-[11px]",
         pressed && "bg-foreground/10 text-foreground shadow-none",
         className,

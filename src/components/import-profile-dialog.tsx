@@ -3,11 +3,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaFileArchive, FaFolder } from "react-icons/fa";
-import { LuChevronRight } from "react-icons/lu";
+import { LuChevronRight, LuFileArchive, LuFolder } from "react-icons/lu";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/loading-button";
 import { ImportProfileArchive } from "@/components/profile-transfer";
@@ -31,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OperationFlow } from "@/components/ui/operation-flow";
@@ -44,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { WayfernConfigForm } from "@/components/wayfern-config-form";
 import { useGroupEvents } from "@/hooks/use-group-events";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { useProxyEvents } from "@/hooks/use-proxy-events";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { translateBackendError } from "@/lib/backend-errors";
@@ -52,6 +52,7 @@ import {
   getSourceBrowserIcon,
 } from "@/lib/browser-utils";
 import { fireSprinkleConfetti } from "@/lib/confetti";
+import { notifySystem } from "@/lib/system-notify";
 import { cn } from "@/lib/utils";
 import type {
   ArchiveScanResult,
@@ -137,8 +138,28 @@ function mergeImportResults(
     imported_count: count("imported"),
     skipped_count: count("skipped"),
     failed_count: count("failed"),
+    cancelled_count: count("cancelled"),
+    cancelled: count("cancelled") > 0,
     results,
   };
+}
+
+/** One line for the outcome: the toast, the heading and the system notice. */
+function importSummary(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  result: ProfileImportBatchResult,
+): string {
+  if (result.cancelled) {
+    return t("importProfile.cancelledSummary", {
+      imported: result.imported_count,
+      total: result.results.length,
+    });
+  }
+  return t("importProfile.resultsSummary", {
+    imported: result.imported_count,
+    skipped: result.skipped_count,
+    failed: result.failed_count,
+  });
 }
 
 interface ImportProfileDialogProps {
@@ -190,8 +211,11 @@ export function ImportProfileDialog({
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [isImporting, setIsImporting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [progress, setProgress] = useState<ProfileImportProgress | null>(null);
   const activeImportItems = useRef<ImportProfileItem[]>([]);
+  // The id the running import was started with, so Cancel stops that one.
+  const activeImportId = useRef<string | null>(null);
   // Each run's summary toast gets its own id. Re-using one id after
   // dismissing it merges the new toast into the one still sliding out, and
   // a fast retry's summary was never seen.
@@ -204,7 +228,7 @@ export function ImportProfileDialog({
   const { storedProxies } = useProxyEvents();
   const { groups } = useGroupEvents();
   const { vpnConfigs } = useVpnEvents();
-  const reducedMotion = useReducedMotion();
+  const motionAllowed = useMotionAllowed();
 
   const activeProfiles =
     importMode === "auto-detect" ? detectedProfiles : scannedProfiles;
@@ -405,8 +429,11 @@ export function ImportProfileDialog({
         return;
       }
 
+      const importId = crypto.randomUUID();
+      activeImportId.current = importId;
       setCurrentStep("importing");
       setIsImporting(true);
+      setIsCancelling(false);
       setProgress(null);
       if (resultsToastId.current) toast.dismiss(resultsToastId.current);
       // A retry covers only the failed subset, so the earlier results are still
@@ -427,31 +454,32 @@ export function ImportProfileDialog({
             groupId: selectedGroupId === "none" ? null : selectedGroupId,
             duplicateStrategy: duplicateStrategy,
             wayfernConfig,
+            importId,
           },
         );
         const combined = previous
           ? mergeImportResults(previous, batchResult)
           : batchResult;
         setResult(combined);
-        const notify =
-          combined.failed_count > 0
+        const notify = combined.cancelled
+          ? toast.info
+          : combined.failed_count > 0
             ? combined.imported_count > 0
               ? toast.warning
               : toast.error
             : toast.success;
+        const summary = importSummary(t, combined);
         resultsToastId.current = `profile-import-results-${Date.now()}`;
-        notify(
-          t("importProfile.resultsSummary", {
-            imported: combined.imported_count,
-            skipped: combined.skipped_count,
-            failed: combined.failed_count,
-          }),
-          { id: resultsToastId.current },
-        );
+        notify(summary, { id: resultsToastId.current });
+        void notifySystem({
+          title: t("importProfile.notifyTitle"),
+          body: summary,
+        });
         if (
           batchResult.imported_count > 0 &&
           combined.failed_count === 0 &&
-          !reducedMotion
+          !combined.cancelled &&
+          motionAllowed
         ) {
           fireSprinkleConfetti();
         }
@@ -468,7 +496,9 @@ export function ImportProfileDialog({
         }
       } finally {
         activeImportItems.current = [];
+        activeImportId.current = null;
         setIsImporting(false);
+        setIsCancelling(false);
       }
     },
     [
@@ -479,11 +509,23 @@ export function ImportProfileDialog({
       selectedGroupId,
       duplicateStrategy,
       wayfernConfig,
-      reducedMotion,
+      motionAllowed,
       result,
       t,
     ],
   );
+
+  const handleCancelImport = async () => {
+    const importId = activeImportId.current;
+    if (!importId) return;
+    setIsCancelling(true);
+    try {
+      await invoke("cancel_profile_import", { importId });
+    } catch (error) {
+      setIsCancelling(false);
+      toast.error(translateBackendError(t, error));
+    }
+  };
 
   // A source browser that is still running is the one failure the user can fix
   // without starting over, so offer the override right where it happened.
@@ -574,7 +616,7 @@ export function ImportProfileDialog({
             <label
               key={profile.path}
               htmlFor={checkboxId}
-              className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-muted"
+              className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-foreground/5 has-[:focus-visible]:bg-foreground/5"
             >
               <Checkbox
                 id={checkboxId}
@@ -641,7 +683,7 @@ export function ImportProfileDialog({
 
                 <AnimatedTabsContent value="auto-detect">
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium">
+                    <h3 className="text-sm font-semibold">
                       {t("importProfile.detectedProfilesTitle")}
                     </h3>
 
@@ -668,7 +710,7 @@ export function ImportProfileDialog({
 
                 <AnimatedTabsContent value="manual">
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium">
+                    <h3 className="text-sm font-semibold">
                       {t("importProfile.manualTitle")}
                     </h3>
 
@@ -692,16 +734,18 @@ export function ImportProfileDialog({
                           size="icon"
                           onClick={() => void handleBrowseFolder()}
                           title={t("importProfile.browseFolderTitle")}
+                          aria-label={t("importProfile.browseFolderTitle")}
                         >
-                          <FaFolder className="size-4" />
+                          <LuFolder className="size-4" />
                         </Button>
                         <Button
                           variant="outline"
                           size="icon"
                           onClick={() => void handleBrowseArchive()}
                           title={t("importProfile.selectArchiveTitle")}
+                          aria-label={t("importProfile.selectArchiveTitle")}
                         >
-                          <FaFileArchive className="size-4" />
+                          <LuFileArchive className="size-4" />
                         </Button>
                         <LoadingButton
                           variant="outline"
@@ -845,7 +889,10 @@ export function ImportProfileDialog({
                 <div>
                   <button
                     type="button"
-                    className="flex cursor-pointer items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+                    className={cn(
+                      "flex cursor-pointer items-center gap-1 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground",
+                      FOCUS_RING,
+                    )}
                     onClick={() => setShowAdvanced((v) => !v)}
                     aria-expanded={showAdvanced}
                   >
@@ -950,7 +997,10 @@ export function ImportProfileDialog({
                 <div>
                   <button
                     type="button"
-                    className="flex cursor-pointer items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+                    className={cn(
+                      "flex cursor-pointer items-center gap-1 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground",
+                      FOCUS_RING,
+                    )}
                     onClick={() => setShowFingerprint((v) => !v)}
                     aria-expanded={showFingerprint}
                   >
@@ -1011,8 +1061,10 @@ export function ImportProfileDialog({
                 />
                 {isImporting && (
                   <div className="space-y-2">
-                    <h3 className="text-lg font-medium">
-                      {t("importProfile.importingTitle")}
+                    <h3 className="text-sm font-semibold">
+                      {isCancelling
+                        ? t("importProfile.cancelling")
+                        : t("importProfile.importingTitle")}
                     </h3>
                     <Progress
                       value={progressPercent}
@@ -1025,10 +1077,13 @@ export function ImportProfileDialog({
                           total: progress.total,
                         })}
                         {progress.status === "importing" && (
-                          <> — {progress.name}</>
+                          <> · {progress.name}</>
                         )}
                       </p>
                     )}
+                    <p className="text-xs text-muted-foreground">
+                      {t("importProfile.cancelHint")}
+                    </p>
                   </div>
                 )}
 
@@ -1037,18 +1092,37 @@ export function ImportProfileDialog({
                     behind the list that explains them. */}
                 {result && (
                   <div className="space-y-2">
-                    <h3 className="text-lg font-medium">
-                      {t("importProfile.resultsSummary", {
-                        imported: result.imported_count,
-                        skipped: result.skipped_count,
-                        failed: result.failed_count,
-                      })}
+                    <h3
+                      data-slot="import-summary"
+                      className="text-sm font-semibold"
+                    >
+                      {importSummary(t, result)}
                     </h3>
+
+                    {!isImporting && (result.cancelled_count ?? 0) > 0 && (
+                      <Button
+                        data-slot="import-remaining"
+                        variant="soft"
+                        size="sm"
+                        onClick={() => {
+                          void handleImport(
+                            false,
+                            new Set(
+                              result.results
+                                .filter((item) => item.status === "cancelled")
+                                .map((item) => item.source_path),
+                            ),
+                          );
+                        }}
+                      >
+                        {t("importProfile.importRemaining")}
+                      </Button>
+                    )}
 
                     {!isImporting && result.failed_count > 0 && (
                       <Button
                         data-slot="import-retry"
-                        variant="secondary"
+                        variant="soft"
                         size="sm"
                         onClick={() => {
                           void handleImport(
@@ -1114,7 +1188,7 @@ export function ImportProfileDialog({
                         key={source.path}
                         data-slot="import-receipt"
                         data-status={status ?? "waiting"}
-                        className="min-w-0 rounded-md bg-muted/30 p-3 text-sm"
+                        className="min-w-0 rounded-md bg-foreground/4 p-3 text-sm"
                       >
                         <div className="flex items-start gap-3">
                           <SourceIcon
@@ -1151,9 +1225,11 @@ export function ImportProfileDialog({
                                 ? t("importProfile.statusFailed")
                                 : status === "skipped"
                                   ? t("importProfile.statusSkipped")
-                                  : status === "importing"
-                                    ? t("importProfile.importingTitle")
-                                    : t("appFeedback.waiting")}
+                                  : status === "cancelled"
+                                    ? t("importProfile.statusCancelled")
+                                    : status === "importing"
+                                      ? t("importProfile.importingTitle")
+                                      : t("appFeedback.waiting")}
                           </span>
                         </div>
                         {!retrying && item?.error && (
@@ -1223,11 +1299,24 @@ export function ImportProfileDialog({
               </LoadingButton>
             </>
           )}
-          {currentStep === "importing" && (
-            <RippleButton disabled={isImporting} onClick={handleClose}>
-              {t("common.buttons.close")}
-            </RippleButton>
-          )}
+          {currentStep === "importing" &&
+            (isImporting ? (
+              <RippleButton
+                data-slot="import-cancel"
+                variant="outline"
+                disabled={isCancelling}
+                aria-busy={isCancelling}
+                onClick={() => void handleCancelImport()}
+              >
+                {isCancelling
+                  ? t("importProfile.cancelling")
+                  : t("importProfile.cancelImport")}
+              </RippleButton>
+            ) : (
+              <RippleButton onClick={handleClose}>
+                {t("common.buttons.close")}
+              </RippleButton>
+            ))}
         </div>
       </DialogContent>
     </Dialog>

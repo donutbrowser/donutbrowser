@@ -34,7 +34,8 @@
       "saving": "Đang lưu…",
       "saved": "Đã lưu",
       "copied": "Đã sao chép",
-      "learnMore": "Tìm hiểu thêm"
+      "learnMore": "Tìm hiểu thêm",
+      "undo": "Hoàn tác"
     },
     "status": {
       "active": "Đang hoạt động",
@@ -299,7 +300,25 @@
           "label": "Sự kiện",
           "description": "Khởi chạy và dừng hồ sơ, đồng bộ, tải xuống và các yêu cầu cần bạn chú ý."
         }
-      }
+      },
+      "previewAria": "Nghe thử âm thanh {{name}}"
+    },
+    "system": {
+      "title": "Hệ thống",
+      "launchAtLogin": "Mở Donut khi đăng nhập",
+      "launchAtLoginDescription": "Donut khởi động khi bạn đăng nhập vào máy tính.",
+      "reopenRunning": "Mở lại các hồ sơ đang chạy khi khởi động",
+      "reopenRunningDescription": "Các hồ sơ đang chạy khi Donut đóng sẽ khởi động lại khi Donut mở.",
+      "notifications": "Thông báo hệ thống",
+      "notificationsDescription": "Khi Donut chạy nền, hệ điều hành báo cho bạn các sự kiện như khởi chạy thất bại hoặc câu hỏi từ một agent."
+    },
+    "launches": {
+      "title": "Khởi chạy hàng loạt",
+      "delay": "Khoảng nghỉ giữa các lần khởi chạy",
+      "delayDescription": "Thời gian Donut chờ trước khi khởi chạy hồ sơ tiếp theo khi bạn khởi chạy nhiều hồ sơ.",
+      "concurrency": "Số hồ sơ khởi chạy cùng lúc",
+      "concurrencyDescription": "Số hồ sơ có thể khởi chạy cùng lúc. Số nhỏ hơn giúp máy tính đỡ tải hơn.",
+      "seconds": "{{value}} giây"
     }
   },
   "header": {
@@ -319,7 +338,8 @@
     "newProfile": "Mới",
     "donutLogo": "Logo Donut Browser",
     "scrollGroupsLeft": "Cuộn nhóm sang trái",
-    "scrollGroupsRight": "Cuộn nhóm sang phải"
+    "scrollGroupsRight": "Cuộn nhóm sang phải",
+    "allGroups": "Tất cả nhóm"
   },
   "search": {
     "helpLabel": "Cú pháp tìm kiếm",
@@ -409,7 +429,7 @@
       "proxy": "Proxy / VPN",
       "lastLaunch": "Lần chạy cuối",
       "empty": "Không tìm thấy hồ sơ.",
-      "ext": "TIỆN ÍCH",
+      "ext": "Tiện ích",
       "dns": "DNS",
       "dnsLevel": "Danh sách chặn DNS: {{level}}",
       "extSearch": "Tìm kiếm nhóm…",
@@ -501,13 +521,16 @@
     },
     "actionBar": {
       "assignToGroup": "Gán vào nhóm",
-      "assignProxy": "Gán Proxy",
+      "assignProxy": "Gán proxy",
       "assignExtensionGroup": "Gán nhóm tiện ích",
-      "copyCookies": "Sao chép Cookie",
+      "copyCookies": "Sao chép cookie",
       "runSelected": "Chạy mục đã chọn",
       "stopSelected": "Dừng mục đã chọn",
       "proRequired": "Cần gói Pro để chạy/dừng hàng loạt",
-      "distributeProxies": "Phân bổ proxy"
+      "distributeProxies": "Phân bổ proxy",
+      "runCount": "Chạy {{count}}",
+      "stopCount": "Dừng {{count}}",
+      "enableSync": "Bật đồng bộ"
     },
     "passwordProtectedBadge": "Được bảo vệ bằng mật khẩu",
     "launchHook": {
@@ -517,7 +540,13 @@
       "confirmTitle": "Chạy {{count}} hồ sơ?",
       "confirmDescription": "Khởi chạy {{count}} hồ sơ cùng lúc có thể tiêu tốn nhiều tài nguyên hệ thống. Tiếp tục?",
       "confirmButton": "Chạy {{count}}",
-      "noneToRun": "Không có hồ sơ nào được chọn để chạy."
+      "noneToRun": "Không có hồ sơ nào được chọn để chạy.",
+      "progress": "Đang khởi chạy {{done}} / {{total}}",
+      "failedSummary": "{{failed}} / {{total}} lần khởi chạy thất bại",
+      "showFailed": "Hiện",
+      "notStarted": "{{count}} / {{total}} lần khởi chạy chưa bắt đầu",
+      "finishedTitle": "Đã khởi chạy hàng loạt xong",
+      "finishedBody": "Đã khởi chạy {{launched}} / {{total}} profile"
     },
     "bulkStop": {
       "confirmTitle": "Dừng {{count}} hồ sơ?",
@@ -533,8 +562,18 @@
     },
     "remote": {
       "runningTooltip": "Đang chạy trên máy từ xa. Dừng lại để đưa hồ sơ về đây.",
-      "pendingSyncTooltip": "Đang tải về những gì phiên từ xa đã thay đổi. Sẽ dùng lại được khi hoàn tất."
-    }
+      "pendingSyncTooltip": "Đang tải về những gì phiên từ xa đã thay đổi. Sẽ dùng lại được khi hoàn tất.",
+      "starting": "Đang khởi chạy {{name}} trên đám mây"
+    },
+    "trash": {
+      "moved": "Đã chuyển \"{{name}}\" vào thùng rác",
+      "movedMany": "Đã chuyển {{count}} profile vào thùng rác"
+    },
+    "stopAll": {
+      "none": "Không có profile nào đang chạy."
+    },
+    "duplicated": "Đã tạo bản sao: {{name}}",
+    "lockedToast": "\"{{name}}\" đã khóa"
   },
   "createProfile": {
     "title": "Tạo hồ sơ mới",
@@ -590,6 +629,9 @@
       "reached": "Gói của bạn cho phép tạo {{limit}} hồ sơ mới mỗi giờ. Bạn có thể tạo hồ sơ tiếp theo sau khoảng {{minutes}} phút.",
       "warningTitle": "Bạn đang tạo hồ sơ quá nhanh",
       "warning": "Vui lòng đợi một chút. Tạo quá nhiều hồ sơ trong một giờ sẽ dẫn đến việc bị chặn tạm thời từ 24 giờ trở lên, trong thời gian đó bạn không thể tạo danh tính mới. Nếu cần giới hạn mỗi giờ cao hơn, hãy cân nhắc ủng hộ Donut bằng một gói trả phí."
+    },
+    "group": {
+      "notFound": "Không tìm thấy nhóm."
     }
   },
   "deleteDialog": {
@@ -926,7 +968,9 @@
     "enabledToast": "Đã bật đồng bộ",
     "disabledToast": "Đã tắt đồng bộ",
     "enabledDescription": "Đồng bộ profile đã được bật",
-    "disabledDescription": "Đồng bộ profile đã được tắt"
+    "disabledDescription": "Đồng bộ profile đã được tắt",
+    "bulkEnabledToast": "Đã bật đồng bộ cho {{count}} profile",
+    "bulkEnableNone": "Các profile đã chọn đã bật đồng bộ."
   },
   "integrations": {
     "title": "Tích hợp",
@@ -1075,7 +1119,13 @@
           "title": "Cấu hình client",
           "description": "Thêm mục này vào cấu hình MCP của một client không có trong danh sách."
         }
-      }
+      },
+      "tryIt": "Thử",
+      "tryItDescription": "Gửi yêu cầu này tới API cục bộ kèm token của bạn và hiển thị câu trả lời.",
+      "tryItNeedsApi": "Bật API cục bộ để gửi yêu cầu này.",
+      "tryItFailed": "Yêu cầu không tới được API cục bộ. Hãy kiểm tra xem nó có đang chạy không.",
+      "liveResponse": "Phản hồi thực tế",
+      "tryItStatus": "HTTP {{status}} · {{ms}} ms"
     },
     "tabRemote": "MCP từ xa",
     "remote": {
@@ -1103,7 +1153,12 @@
       "credentialRotateFailed": "Không thể xoay vòng thông tin xác thực",
       "credentialClientsFailed": "Thông tin xác thực đã được lưu, nhưng không thể cập nhật các ứng dụng khách sau: {{clients}}. Xoay vòng lại để thử lại.",
       "fxHint": "fx đọc thông tin xác thực từ DONUT_MCP_TOKEN. Hãy export biến này trong shell khởi chạy fx.",
-      "fxExportCopied": "Đã sao chép dòng export"
+      "fxExportCopied": "Đã sao chép dòng export",
+      "credentialForget": "Quên",
+      "credentialForgetTitle": "Quên thông tin xác thực?",
+      "credentialForgetDescription": "Donut thu hồi thông tin xác thực và xóa nó khỏi máy tính này. Các ứng dụng khách dùng nó sẽ ngừng hoạt động cho đến khi bạn tạo cái mới.",
+      "credentialForgotten": "Đã quên thông tin xác thực",
+      "credentialForgetFailed": "Không thể quên thông tin xác thực"
     }
   },
   "import": {
@@ -1386,7 +1441,7 @@
     "unknownError": "Đã xảy ra lỗi không xác định. Vui lòng thử lại.",
     "noProfilesForUrl": "Không có profile nào. Vui lòng tạo profile trước khi mở URL.",
     "createProfileFailed": "Tạo profile thất bại: {{error}}",
-    "launchBrowserFailed": "Khởi chạy trình duyệt thất bại: {{error}}",
+    "launchBrowserFailed": "Không thể khởi chạy {{name}}: {{error}}",
     "cannotDeleteRunningProfile": "Không thể xóa profile khi trình duyệt đang chạy. Vui lòng dừng trình duyệt trước.",
     "deleteProfileFailed": "Xóa profile thất bại: {{error}}",
     "renameProfileFailed": "Đổi tên profile thất bại: {{error}}",
@@ -1563,7 +1618,8 @@
   "crossOs": {
     "viewOnly": "Profile này được tạo trên {{os}} và không được hỗ trợ trên hệ thống này",
     "cannotLaunch": "Profile này được tạo trên {{os}} và không được hỗ trợ trên hệ thống này",
-    "cannotModify": "Không thể chỉnh sửa cài đặt đồng bộ cho profile đa hệ điều hành"
+    "cannotModify": "Không thể chỉnh sửa cài đặt đồng bộ cho profile đa hệ điều hành",
+    "cannotLaunchUnknown": "Profile này được tạo trên một hệ điều hành khác và không thể khởi chạy ở đây"
   },
   "profileInfo": {
     "title": "Chi tiết profile",
@@ -1614,7 +1670,8 @@
       "noRules": "Chưa cấu hình quy tắc bỏ qua nào.",
       "ruleTypes": "Hỗ trợ tên máy chủ, địa chỉ IP và biểu thức chính quy.",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}"
+      "proxyLabel": "Proxy: {{name}}",
+      "removeRule": "Xóa {{rule}}"
     },
     "launchHook": {
       "title": "URL hook khởi chạy",
@@ -1650,7 +1707,9 @@
       "launchHook": "Hook khởi chạy",
       "transfer": "Chuyển",
       "startPages": "Trang khởi động",
-      "twoFactor": "Mã 2FA"
+      "twoFactor": "Mã 2FA",
+      "requests": "Yêu cầu",
+      "logs": "Nhật ký"
     },
     "sectionDesc": {
       "fingerprint": "Cấu hình cách profile này hiển thị với các script vân tay.",
@@ -1660,11 +1719,13 @@
       "sync": "Cấu hình cách profile này được phản chiếu sang các thiết bị khác của bạn.",
       "automation": "Chạy lệnh hoặc script mỗi khi profile này khởi chạy.",
       "security": "Mã hóa dữ liệu profile bằng mật khẩu.",
-      "launchHook": "Gửi yêu cầu GET đến URL này mỗi khi profile khởi chạy."
+      "launchHook": "Gửi yêu cầu GET đến URL này mỗi khi profile khởi chạy.",
+      "requests": "Các yêu cầu trình duyệt gửi khi đang chạy. Thông tin đăng nhập được ẩn.",
+      "logs": "Các dòng nhật ký của Donut về hồ sơ này."
     },
     "badges": {
-      "locked": "ĐÃ KHÓA",
-      "active": "ĐANG HOẠT ĐỘNG"
+      "locked": "Đã khóa",
+      "active": "Đang bật"
     },
     "cookies": {
       "runningNotice": "Không thể đọc cookie khi trình duyệt đang chạy. Hãy đóng profile này trước.",
@@ -1673,12 +1734,15 @@
     "security": {
       "protected": "Profile này đã được mã hóa bằng mật khẩu.",
       "unprotected": "Profile này chưa được mã hóa. Đặt mật khẩu để mã hóa dữ liệu khi lưu trữ.",
-      "cannotWhileRunning": "Dừng profile trước khi thay đổi mật khẩu."
+      "cannotWhileRunning": "Dừng profile trước khi thay đổi mật khẩu.",
+      "unlockedTitle": "Đã mở khóa trên thiết bị này",
+      "unlockedDescription": "Dữ liệu vẫn được giải mã cho đến khi bạn khóa lại."
     },
     "fingerprint": {
       "notSupported": "Chỉnh sửa vân tay chỉ khả dụng cho profile Wayfern.",
       "lockedTitle": "Xem và chỉnh sửa vân tay là tính năng Pro",
-      "lockedDescription": "Thông tin thiết bị của bạn được bảo vệ trong mọi profile. Việc xem và chỉnh sửa vân tay của profile yêu cầu gói trả phí đang hoạt động."
+      "lockedDescription": "Thông tin thiết bị của bạn được bảo vệ trong mọi profile. Việc xem và chỉnh sửa vân tay của profile yêu cầu gói trả phí đang hoạt động.",
+      "customValuesKept": "Các giá trị vân tay tùy chỉnh của bạn được giữ lại. Chúng áp dụng khi tài khoản có gói Pro đang hoạt động."
     },
     "syncStatusValue": {
       "waiting": "Đang chờ",
@@ -1701,6 +1765,28 @@
       "includeIndexedDb": "Bao gồm IndexedDB",
       "indexedDbHint": "Khi xuất, hồ sơ được mở ngầm trong giây lát; không trang nào được tải.",
       "importedWithIndexedDb": "Đã nhập. Mục Local Storage: {{items}} · Trang: {{origins}} · Cookie: {{cookies}} · Bản ghi IndexedDB: {{records}}"
+    },
+    "drafts": {
+      "unsaved": "Thay đổi chưa lưu"
+    },
+    "aria": {
+      "runRemote": "Chạy {{name}} trên đám mây",
+      "moreActions": "Thao tác khác cho {{name}}",
+      "close": "Đóng chi tiết của {{name}}",
+      "copyId": "Sao chép ID của {{name}}"
+    },
+    "runningBanner": "Dừng hồ sơ để chỉnh sửa.",
+    "debug": {
+      "title": "Điểm cuối gỡ lỗi",
+      "description": "Kết nối Playwright, Puppeteer hoặc một ứng dụng CDP khác với trình duyệt đang chạy này.",
+      "notRunning": "Khởi chạy hồ sơ để lấy điểm cuối gỡ lỗi.",
+      "unavailable": "Trình duyệt không phản hồi trên cổng gỡ lỗi.",
+      "port": "Cổng",
+      "wsUrl": "URL WebSocket",
+      "wsPending": "URL WebSocket xuất hiện khi trình duyệt phản hồi.",
+      "copyPort": "Sao chép cổng",
+      "copyWsUrl": "Sao chép URL WebSocket",
+      "copyCode": "Sao chép mã {{tool}}"
     }
   },
   "profileTransfer": {
@@ -1958,7 +2044,8 @@
     "created_other": "Đã tạo {{count}} profile",
     "stoppedEarly": "Đã tạo {{created}} trên {{total}} profile. {{error}}",
     "passwordOneOnly": "Bạn chỉ có thể đặt mật khẩu khi tạo một profile.",
-    "saveFromProfileDescription": "Các profile mới tạo từ mẫu này nhận cài đặt của mẫu và mỗi profile có thiết bị mới riêng. Tên, ghi chú và thiết bị vẫn thuộc profile này."
+    "saveFromProfileDescription": "Các profile mới tạo từ mẫu này nhận cài đặt của mẫu và mỗi profile có thiết bị mới riêng. Tên, ghi chú và thiết bị vẫn thuộc profile này.",
+    "notifyTitle": "Đã tạo hàng loạt xong"
   },
   "vpns": {
     "form": {
@@ -2104,7 +2191,14 @@
       "securePreferencesReset": "Các cài đặt được bảo vệ như trang chủ và công cụ tìm kiếm đã trở về mặc định.",
       "extensionsPartial": "Một số tiện ích thuộc về trình duyệt nguồn nên không được chuyển sang.",
       "storeUnreadable": "Một cơ sở dữ liệu không đọc được nên đã bị bỏ qua thay vì sao chép hỏng."
-    }
+    },
+    "cancelImport": "Hủy nhập",
+    "cancelling": "Đang hủy…",
+    "cancelHint": "Hủy sẽ dừng sau hồ sơ hiện tại. Các hồ sơ đã nhập vẫn được giữ.",
+    "cancelledSummary": "Đã hủy nhập. Đã nhập {{imported}}/{{total}}.",
+    "statusCancelled": "Chưa nhập",
+    "importRemaining": "Nhập phần còn lại",
+    "notifyTitle": "Đã nhập xong hồ sơ"
   },
   "syncTooltips": {
     "syncing": "Đang đồng bộ...",
@@ -2193,7 +2287,13 @@
     "badgeProxy": "Proxy",
     "badgeRunning": "Đang chạy",
     "badgeUnavailable": "Không khả dụng",
-    "openButton": "Mở"
+    "openButton": "Mở",
+    "busy": {
+      "launching": "Profile này đang khởi chạy. Vui lòng chờ một chút.",
+      "stopping": "Profile này đang dừng. Vui lòng chờ một chút.",
+      "singleInstance": "{{browser}} đang chạy ({{names}}). Chỉ chạy được một phiên bản cùng lúc.",
+      "unavailable": "Profile này hiện không thể mở liên kết."
+    }
   },
   "wayfernTerms": {
     "title": "Điều khoản và điều kiện Wayfern",
@@ -2331,11 +2431,52 @@
     "tagsHeader": "Thẻ",
     "noteHeader": "Ghi chú",
     "vpnsHeading": "VPN",
-    "createByCountryHeading": "Tạo theo quốc gia"
+    "createByCountryHeading": "Tạo theo quốc gia",
+    "aria": {
+      "details": "Chi tiết của {{name}}",
+      "launch": "Khởi chạy {{name}}",
+      "stop": "Dừng {{name}}",
+      "proxy": "Proxy của {{name}}: {{value}}",
+      "tags": "Thẻ của {{name}}",
+      "note": "Ghi chú của {{name}}",
+      "extensionGroup": "Nhóm tiện ích của {{name}}",
+      "dns": "Danh sách chặn DNS của {{name}}",
+      "status": "Trạng thái của {{name}}",
+      "rename": "Đổi tên {{name}}",
+      "sync": "Đồng bộ của {{name}}: {{status}}",
+      "launchError": "Lần khởi chạy gần nhất thất bại: {{error}}",
+      "health": "Kết nối của {{name}}: {{status}}",
+      "traffic": "Chi tiết lưu lượng của {{name}}"
+    },
+    "menu": {
+      "openDetails": "Mở chi tiết",
+      "rename": "Đổi tên",
+      "moveToGroup": "Chuyển vào nhóm",
+      "copyId": "Sao chép ID",
+      "runRemote": "Chạy trên đám mây",
+      "lockNow": "Khóa ngay",
+      "moveToTrash": "Chuyển vào thùng rác"
+    },
+    "emptyGroupTitle": "Nhóm này đang trống",
+    "emptyGroupHint": "Tạo một hồ sơ trong nhóm này hoặc chuyển các hồ sơ hiện có vào đây.",
+    "emptyGroupCreate": "Hồ sơ mới tại đây",
+    "emptyGroupMove": "Chuyển hồ sơ vào đây",
+    "health": {
+      "degraded": "Kết nối chậm hoặc không ổn định",
+      "down": "Kết nối bị gián đoạn"
+    },
+    "route": "Proxy / VPN: {{name}}",
+    "routeNone": "Không có proxy hoặc VPN",
+    "launchTooltip": {
+      "launching": "Đang khởi chạy…",
+      "stopping": "Đang dừng…",
+      "singleInstance": "Trình duyệt này chỉ chạy được một phiên bản cùng lúc. Hãy dừng phiên bản đang chạy trước."
+    }
   },
   "dataTableActionBar": {
     "selected": "Đã chọn {{count}}",
-    "clearSelection": "Xóa lựa chọn"
+    "clearSelection": "Xóa lựa chọn",
+    "selectedHidden": "Đã chọn {{selected}} · {{hidden}} bị bộ lọc ẩn"
   },
   "appUpdate": {
     "toast": {
@@ -2632,8 +2773,8 @@
     "remoteSessionNotDrivable": "Phiên từ xa này chưa sẵn sàng để điều khiển. Hãy đợi đến khi phiên hoạt động.",
     "remotePlatformUnsupported": "Phiên từ xa chỉ chạy trên máy chủ macOS, Windows hoặc Linux. Nền tảng của hồ sơ này là {{platform}}.",
     "remoteProfileNotSynced": "Hồ sơ này chưa tải lên xong dịch vụ đồng bộ đám mây. Hãy đợi lần đồng bộ đầu tiên hoàn tất rồi thử lại.",
-    "trashEntryNotFound": "Hồ sơ này không còn trong thùng rác.",
-    "trashRestoreConflict": "Đã tồn tại một hồ sơ có cùng ID nên không thể khôi phục hồ sơ này.",
+    "trashEntryNotFound": "Mục này không còn trong thùng rác.",
+    "trashRestoreConflict": "Đã có một mục cùng ID nên không thể khôi phục mục này.",
     "recipesNotEntitled": "Công thức yêu cầu gói Pro trở lên.",
     "agentRecipeInvalid": "Công thức cần có tên và ít nhất một bước.",
     "agentRecipeNotFound": "Công thức đó không còn nữa.",
@@ -2752,7 +2893,40 @@
     "syncServerAddressMismatch": "Địa chỉ của máy chủ là {{address}}. Hãy nhập địa chỉ đó.",
     "remoteNeedsDonutSync": "Phiên từ xa và Cookie Bot lấy hồ sơ từ đồng bộ Donut cloud. Máy tính này đồng bộ với máy chủ riêng của bạn.",
     "accountSyncUnavailable": "Donut chưa thể đăng nhập vào máy chủ riêng của bạn. Hãy thử lại sau.",
-    "selfHostedTeamSeat": "Tài khoản nhóm không thể đồng bộ với máy chủ dùng token đồng bộ."
+    "selfHostedTeamSeat": "Tài khoản nhóm không thể đồng bộ với máy chủ dùng token đồng bộ.",
+    "agentTargetInvalid": "Chọn nơi chạy công thức: trên máy tính này hoặc trên đội máy từ xa.",
+    "agentTargetOffline": "Máy tính này chưa kết nối với Donut cloud. Hãy bật điều khiển từ xa trong Tích hợp rồi thử lại.",
+    "agentPlatformInvalid": "Đội máy từ xa không chạy được hệ điều hành của hồ sơ này.",
+    "agentRunLimitReached": "Có quá nhiều lượt chạy đang diễn ra. Hãy đợi một lượt xong rồi thử lại.",
+    "remoteRequiresCloudSync": "Hãy bật đồng bộ đám mây cho hồ sơ này trước. Máy chủ từ xa không có cách nào khác để lấy hồ sơ.",
+    "remoteEncryptedSyncUnsupported": "Hồ sơ này dùng đồng bộ mã hóa đầu cuối, máy chủ từ xa không thể giải mã. Chuyển sang đồng bộ thường để chạy từ xa.",
+    "remoteUnknownPlatform": "Hồ sơ này không có hệ điều hành được ghi lại, nên không có máy chủ từ xa nào phù hợp.",
+    "networkCaptureFailed": "Trình duyệt không chấp nhận ghi mạng: {{detail}}",
+    "networkCaptureNotRunning": "Không có phiên ghi mạng nào đang chạy cho hồ sơ này.",
+    "vpnKeyUnreadable": "Không đọc được khóa mở các VPN đã lưu, nên không có gì bị thay đổi. Hãy kiểm tra quyền của thư mục vpn trong thư mục dữ liệu của ứng dụng.",
+    "entityInUse_one": "Đang được {{count}} hồ sơ sử dụng. Hãy chuyển chúng sang proxy hoặc VPN khác trước.",
+    "entityInUse_other": "Đang được {{count}} hồ sơ sử dụng. Hãy chuyển chúng sang proxy hoặc VPN khác trước.",
+    "syncCancelled": "Đồng bộ đã bị hủy.",
+    "syncServerError": "Máy chủ đồng bộ gặp lỗi (trạng thái {{status}}). Đồng bộ sẽ thử lại sau.",
+    "syncStorageRejected": "Kho lưu trữ đồng bộ đã từ chối truyền dữ liệu (trạng thái {{status}}).",
+    "syncTransferIncomplete": "Một số tệp chưa được truyền. Đồng bộ sẽ thử lại sau.",
+    "syncAuthFailed": "Phiên đăng nhập đồng bộ không còn hợp lệ. Hãy đăng nhập lại hoặc kiểm tra mã đồng bộ.",
+    "syncForbidden": "Máy chủ đồng bộ không cho phép thay đổi này.",
+    "syncTooLarge": "Mục này quá lớn đối với máy chủ đồng bộ.",
+    "syncRateLimited": "Máy chủ đồng bộ đang bận. Đồng bộ sẽ thử lại sau.",
+    "syncServerRejected": "Máy chủ đồng bộ đã từ chối yêu cầu (trạng thái {{status}}).",
+    "syncLocalFilesFailed": "Không thể đọc hoặc ghi tệp trên máy tính này.",
+    "syncDataInvalid": "Không thể đọc bản sao đã đồng bộ.",
+    "syncDecryptFailed": "Không thể giải mã dữ liệu đã đồng bộ. Hãy kiểm tra mật khẩu mã hóa.",
+    "syncCrossOsProfile": "Hồ sơ từ hệ điều hành khác chỉ đồng bộ phần cài đặt.",
+    "syncEphemeralProfile": "Hồ sơ tạm thời không thể đồng bộ.",
+    "syncTombstoneNotCleared": "Không thể kết nối máy chủ đồng bộ nên đồng bộ vẫn tắt cho hồ sơ này.",
+    "syncNotEnabled": "Đồng bộ đang tắt cho hồ sơ này.",
+    "proxyUpstreamUnreachable": "Không thể kết nối tới proxy.",
+    "proxyUpstreamTimeout": "Proxy không phản hồi.",
+    "proxyAuthFailed": "Proxy đã từ chối tên người dùng hoặc mật khẩu.",
+    "vpnUnreachable": "Máy chủ VPN không phản hồi.",
+    "entityInUse": "Đang được {{count}} hồ sơ sử dụng. Hãy chuyển chúng sang proxy hoặc VPN khác trước."
   },
   "rail": {
     "profiles": "Profile",
@@ -2958,7 +3132,11 @@
       "launch": "khởi chạy mở bắt đầu trình duyệt",
       "stop": "dừng thoát đóng",
       "info": "chi tiết thông tin sửa profile",
-      "group": "nhóm lọc chuyển thư mục"
+      "group": "nhóm lọc chuyển thư mục",
+      "newProfile": "mới thêm tạo profile trình duyệt",
+      "stopAllRunning": "dừng tất cả đang chạy đóng thoát",
+      "focusSearch": "tìm kiếm lọc",
+      "goBack": "quay lại escape trang chủ"
     }
   },
   "shortcuts": {
@@ -2977,7 +3155,11 @@
     "goAgent": "Đến Tác nhân",
     "openTips": "Mở mẹo",
     "sendFeedback": "Gửi phản hồi",
-    "openTotp": "Mã 2FA từ khóa"
+    "openTotp": "Mã 2FA từ khóa",
+    "newProfile": "Profile mới",
+    "stopAllRunning": "Dừng tất cả profile đang chạy",
+    "focusSearch": "Tìm profile",
+    "goBack": "Quay lại Profile"
   },
   "closeConfirm": {
     "title": "Đóng Donut Browser?",
@@ -3474,7 +3656,10 @@
     "vpnExtensionEntryNoVersion": " — {{capability}}, {{source}}",
     "scanIncompleteMissing": "Hồ sơ này chưa từng được khởi chạy nên chỉ có thể kiểm tra các tiện ích do Donut quản lý.",
     "exitUnverifiedTimezone": "Vân tay của hồ sơ này không khai báo múi giờ nào nên việc kiểm tra điểm ra không thể xác minh. Khởi chạy không bị chặn, nhưng cũng không có gì được so sánh.",
-    "exitUnverifiedLanguage": "Ngôn ngữ vân tay của hồ sơ này không thể so sánh với quốc gia thoát, nên kiểm tra đó là chưa xác minh chứ không phải đã đạt."
+    "exitUnverifiedLanguage": "Ngôn ngữ vân tay của hồ sơ này không thể so sánh với quốc gia thoát, nên kiểm tra đó là chưa xác minh chứ không phải đã đạt.",
+    "routeProxyHeading": "Proxy không phản hồi",
+    "routeVpnHeading": "VPN không phản hồi",
+    "routeExplainer": "Trang có thể không tải được. Hãy kiểm tra proxy hoặc VPN, hoặc vẫn khởi chạy."
   },
   "profileMotion": {
     "inspectorSections": "Các mục hồ sơ",
@@ -3599,15 +3784,17 @@
   },
   "trash": {
     "title": "Thùng rác",
-    "description": "Hồ sơ đã xóa được giữ ở đây cho đến khi hết hạn. Khôi phục để lấy lại hồ sơ cùng danh tính, proxy và thẻ.",
+    "description": "Hồ sơ, proxy, VPN, nhóm, tiện ích và mẫu đã xóa được giữ ở đây cho đến khi hết hạn. Khôi phục để lấy lại nguyên trạng.",
     "empty": "Thùng rác trống",
-    "emptyHint": "Hồ sơ bạn xóa sẽ xuất hiện ở đây và có thể khôi phục cho đến khi hết hạn.",
+    "emptyHint": "Những gì bạn xóa sẽ xuất hiện ở đây và có thể khôi phục cho đến khi hết hạn.",
     "columns": {
-      "name": "Hồ sơ",
+      "name": "Tên",
       "browser": "Trình duyệt",
       "deleted": "Đã xóa",
       "expires": "Hết hạn",
-      "size": "Kích thước"
+      "size": "Kích thước",
+      "kind": "Loại",
+      "detail": "Chi tiết"
     },
     "expiresIn_one": "sau {{count}} ngày",
     "expiresIn_other": "sau {{count}} ngày",
@@ -3619,17 +3806,48 @@
     "confirmDeleteForeverTitle": "Xóa vĩnh viễn?",
     "confirmDeleteForeverDescription": "\"{{name}}\" và toàn bộ dữ liệu của nó sẽ bị hủy. Không thể hoàn tác thao tác này.",
     "confirmEmptyTitle": "Dọn sạch thùng rác?",
-    "confirmEmptyDescription_one": "{{count}} hồ sơ và toàn bộ dữ liệu của chúng sẽ bị hủy. Không thể hoàn tác thao tác này.",
-    "confirmEmptyDescription_other": "{{count}} hồ sơ và toàn bộ dữ liệu của chúng sẽ bị hủy. Không thể hoàn tác thao tác này.",
+    "confirmEmptyDescription_one": "{{count}} mục cùng toàn bộ dữ liệu sẽ bị hủy. Không thể hoàn tác.",
+    "confirmEmptyDescription_other": "{{count}} mục cùng toàn bộ dữ liệu sẽ bị hủy. Không thể hoàn tác.",
     "restored": "Đã khôi phục \"{{name}}\"",
     "restoredSyncOff": "Không thể bật lại đồng bộ, nên hồ sơ chỉ có trên thiết bị này. Hãy đặt lại chế độ đồng bộ để chia sẻ hồ sơ với các thiết bị khác của bạn.",
-    "restoreFailed": "Không thể khôi phục hồ sơ: {{error}}",
+    "restoreFailed": "Không thể khôi phục: {{error}}",
     "deletedForever": "Đã xóa vĩnh viễn \"{{name}}\"",
-    "deleteForeverFailed": "Không thể xóa hồ sơ: {{error}}",
-    "emptied_one": "Đã xóa {{count}} hồ sơ khỏi thùng rác",
-    "emptied_other": "Đã xóa {{count}} hồ sơ khỏi thùng rác",
+    "deleteForeverFailed": "Không thể xóa vĩnh viễn: {{error}}",
+    "emptied_one": "Đã xóa {{count}} mục khỏi thùng rác",
+    "emptied_other": "Đã xóa {{count}} mục khỏi thùng rác",
     "emptyFailed": "Không thể dọn sạch thùng rác: {{error}}",
-    "loadFailed": "Không thể tải thùng rác: {{error}}"
+    "loadFailed": "Không thể tải thùng rác: {{error}}",
+    "kinds": {
+      "all": "Tất cả",
+      "profile": "Hồ sơ",
+      "proxy": "Proxy",
+      "vpn": "VPN",
+      "group": "Nhóm",
+      "extension": "Tiện ích",
+      "extension_group": "Nhóm tiện ích",
+      "template": "Mẫu"
+    },
+    "kind": {
+      "profile": "Hồ sơ",
+      "proxy": "Proxy",
+      "vpn": "VPN",
+      "group": "Nhóm",
+      "extension": "Tiện ích",
+      "extension_group": "Nhóm tiện ích",
+      "template": "Mẫu"
+    },
+    "restoredSyncOffEntity": "Không thể bật lại đồng bộ, nên mục này chỉ có trên thiết bị này. Hãy bật lại đồng bộ để chia sẻ với các thiết bị khác của bạn.",
+    "moved": "Đã chuyển \"{{name}}\" vào thùng rác",
+    "deleted": "Đã xóa \"{{name}}\"",
+    "deleteFailed": "Không thể xóa \"{{name}}\": {{error}}",
+    "restoredMany_one": "Đã khôi phục {{count}} mục",
+    "restoredMany_other": "Đã khôi phục {{count}} mục",
+    "deletedForeverMany_one": "Đã xóa vĩnh viễn {{count}} mục",
+    "deletedForeverMany_other": "Đã xóa vĩnh viễn {{count}} mục",
+    "movedMany_one": "Đã chuyển {{count}} mục vào thùng rác",
+    "movedMany_other": "Đã chuyển {{count}} mục vào thùng rác",
+    "deletedMany_one": "Đã xóa {{count}} mục",
+    "deletedMany_other": "Đã xóa {{count}} mục"
   },
   "agent": {
     "description": "Xem tác nhân AI của bạn làm gì trong Donut, trả lời câu hỏi của nó và can thiệp khi một trang cần đến bạn.",
@@ -3659,10 +3877,10 @@
     "setup": {
       "signedOutTitle": "Đăng nhập để làm việc với tác nhân của bạn",
       "signedOutBody": "Tác nhân kết nối với Donut qua tài khoản Donut của bạn. Hãy đăng nhập để kết nối.",
-      "signedOutAction": "Mở Tài khoản",
+      "signedOutAction": "Mở tài khoản",
       "planTitle": "Gói của bạn không có điều khiển từ xa",
       "planBody": "Để kết nối tác nhân của riêng bạn, bạn cần gói có điều khiển từ xa.",
-      "planAction": "Mở Tài khoản",
+      "planAction": "Mở tài khoản",
       "remoteOffTitle": "Điều khiển từ xa đang tắt",
       "remoteOffBody": "Tác nhân kết nối với Donut qua điều khiển từ xa. Hãy bật nó, rồi thêm Donut vào tác nhân của bạn.",
       "remoteOffAction": "Bật điều khiển từ xa",
@@ -3836,7 +4054,19 @@
       "deleted": "Đã xoá công thức",
       "deleteTitle": "Xoá {{name}}?",
       "deleteDescription": "Công thức bị xoá trên mọi thiết bị.",
-      "needsAutomation": "Công thức mở và điều khiển trình duyệt nên cần gói Pro trở lên. Tác nhân của bạn vẫn có thể quản lý hồ sơ, proxy và nhóm."
+      "needsAutomation": "Công thức mở và điều khiển trình duyệt nên cần gói Pro trở lên. Tác nhân của bạn vẫn có thể quản lý hồ sơ, proxy và nhóm.",
+      "runAria": "Chạy {{name}} ngay",
+      "runTitle": "Chạy {{name}}",
+      "runDescription": "Donut cloud phát lại các bước một lần trên hồ sơ bạn chọn.",
+      "runProfile": "Hồ sơ",
+      "runProfilePlaceholder": "Chọn một hồ sơ",
+      "runNoProfiles": "Hãy tạo một hồ sơ trước",
+      "runPlatformUnsupported": "Đội máy từ xa không chạy được hệ điều hành của hồ sơ này.",
+      "runDesktopOffline": "Bật điều khiển từ xa trong Tích hợp để chạy trên máy tính này.",
+      "runStartedOn": "Donut cloud đang phát lại {{name}} trên {{profile}}.",
+      "oneOffName": "Chạy ngay: {{name}}",
+      "editAria": "Sửa {{name}}",
+      "deleteAria": "Xóa {{name}}"
     },
     "schedules": {
       "hint": "Chạy một công thức theo lịch, trên đội máy từ xa hoặc trên máy tính này.",
@@ -4182,7 +4412,26 @@
     "stopped": "Đã dừng",
     "noTags": "Không có thẻ",
     "noProxy": "Không có proxy",
-    "encrypted": "Đã mã hóa"
+    "encrypted": "Đã mã hóa",
+    "views": {
+      "label": "Chế độ xem",
+      "title": "Chế độ xem đã lưu",
+      "empty": "Chưa có chế độ xem nào được lưu. Đặt tên cho tìm kiếm, bộ lọc, sắp xếp và cột hiện tại để quay lại sau.",
+      "nameLabel": "Tên chế độ xem",
+      "namePlaceholder": "Đặt tên cho chế độ xem này",
+      "replace": "Thay thế",
+      "useAtStart": "Mở {{name}} khi khởi động",
+      "defaultBadge": "Khi khởi động",
+      "rename": "Đổi tên {{name}}",
+      "delete": "Xóa {{name}}",
+      "deleted": "Đã xóa chế độ xem {{name}}",
+      "full": "Bạn có thể lưu tối đa {{limit}} chế độ xem. Xóa một chế độ để lưu chế độ khác.",
+      "nameTaken": "Đã có chế độ xem khác dùng tên này."
+    },
+    "moveColumnLeft": "Chuyển {{column}} sang trái",
+    "moveColumnRight": "Chuyển {{column}} sang phải",
+    "selectRowNamed": "Chọn {{name}}",
+    "rowAction": "{{action}}: {{name}}"
   },
   "feedback": {
     "title": "Gửi phản hồi",
@@ -4390,5 +4639,87 @@
       "valid": "Hợp lệ",
       "invalid": "Không hợp lệ"
     }
+  },
+  "leavePrompt": {
+    "title": "Thay đổi chưa lưu",
+    "description": "Có thay đổi chưa được lưu.",
+    "descriptionOne": "Thay đổi trong {{label}} chưa được lưu.",
+    "save": "Lưu",
+    "discard": "Bỏ",
+    "stay": "Ở lại"
+  },
+  "moveProfiles": {
+    "title": "Chuyển profile vào {{group}}",
+    "description": "Chọn các profile để chuyển vào nhóm này. Không thể chuyển profile đang chạy.",
+    "empty": "Tất cả profile đã ở trong nhóm này.",
+    "confirm": "Chuyển {{count}}"
+  },
+  "logViewer": {
+    "title": "Nhật ký ứng dụng",
+    "levelFilter": "Lọc theo mức",
+    "levels": {
+      "all": "Tất cả",
+      "warn": "Cảnh báo",
+      "error": "Lỗi"
+    },
+    "searchPlaceholder": "Tìm trong nhật ký",
+    "copyAria": "Sao chép {{count}} dòng nhật ký",
+    "copied": "Đã sao chép dòng nhật ký",
+    "copiedDescription": "Số dòng trong bộ nhớ tạm: {{count}}",
+    "copyFailed": "Không thể sao chép nhật ký",
+    "empty": "Nhật ký chưa có dòng nào.",
+    "emptyProfile": "Chưa có dòng nhật ký nào cho hồ sơ này.",
+    "noMatches": "Không có dòng nào khớp bộ lọc.",
+    "capped": "Hiển thị {{count}} dòng mới nhất."
+  },
+  "networkPanel": {
+    "start": "Bắt đầu ghi",
+    "stop": "Dừng ghi",
+    "capturing": "Yêu cầu: {{count}}",
+    "emptyStopped": "Bắt đầu ghi để xem các trang của hồ sơ này yêu cầu gì.",
+    "emptyNotRunning": "Khởi chạy hồ sơ để ghi các yêu cầu mạng của nó.",
+    "privacyNote": "Chỉ lưu trong bộ nhớ đến khi dừng ghi hoặc đóng trình duyệt. Giá trị cookie và xác thực được ẩn.",
+    "waiting": "Đang chờ yêu cầu…",
+    "columns": {
+      "method": "Phương thức",
+      "status": "Trạng thái",
+      "host": "Máy chủ",
+      "path": "Đường dẫn",
+      "type": "Loại",
+      "size": "Kích thước",
+      "time": "Thời gian"
+    },
+    "states": {
+      "pending": "Đang chờ",
+      "done": "Xong",
+      "failed": "Thất bại",
+      "redirected": "Đã chuyển hướng",
+      "incomplete": "Chưa hoàn tất"
+    },
+    "openRequest": "Mở {{method}} {{url}}",
+    "backToList": "Quay lại danh sách yêu cầu",
+    "requestHeaders": "Header yêu cầu",
+    "responseHeaders": "Header phản hồi",
+    "requestBody": "Nội dung yêu cầu",
+    "noHeaders": "Không có header",
+    "fromCache": "từ bộ nhớ đệm",
+    "redactedNote": "Giá trị cookie và xác thực được thay bằng [redacted].",
+    "startFailed": "Không thể bắt đầu ghi",
+    "stopFailed": "Không thể dừng ghi",
+    "withheld": "Không ghi lại khi bạn đang điều khiển hồ sơ: {{count}}"
+  },
+  "syncHealth": {
+    "idle": "Đồng bộ đã cập nhật",
+    "syncing": "Đang đồng bộ",
+    "offline": "Đồng bộ đang ngoại tuyến. Thay đổi sẽ được đồng bộ khi có kết nối lại.",
+    "error": "Đồng bộ thất bại",
+    "errorWith": "Đồng bộ thất bại: {{error}}",
+    "notifyTitle": "Đồng bộ thất bại",
+    "conflictToast": "Chỉnh sửa của bạn cho {{name}} đã bị thay bằng bản mới hơn từ thiết bị khác",
+    "conflictToastUnnamed": "Chỉnh sửa của bạn đã bị thay bằng bản mới hơn từ thiết bị khác"
+  },
+  "launchNotice": {
+    "fingerprintEditsNotApplied": "{{name}} khởi chạy mà không có các thay đổi vân tay tùy chỉnh",
+    "fingerprintEditsNeedPro": "Các thay đổi của bạn được giữ lại và sẽ áp dụng lại khi có gói Pro đang hoạt động."
   }
 }

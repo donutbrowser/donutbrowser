@@ -17,7 +17,7 @@
  */
 
 export { DEFAULT_HOST, DEFAULT_PORT, DonutClient, RunSession } from "./client.mts";
-export type { DonutClientOptions, RunProfileOptions } from "./client.mts";
+export type { BatchRunOptions, DonutClientOptions, RunProfileOptions } from "./client.mts";
 export { OMITTED, OPERATIONS } from "./coverage.mts";
 export type { OperationKey } from "./coverage.mts";
 export {

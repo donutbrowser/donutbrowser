@@ -461,15 +461,26 @@ class DonutClient:
         *,
         url: Optional[str] = None,
         headless: Optional[bool] = None,
+        delay_ms: Optional[int] = None,
+        concurrency: Optional[int] = None,
     ) -> BatchRunResponse:
         """POST /v1/profiles/batch/run
 
         Answers 200 even when some profiles failed; read ``results[].ok``.
+        ``delay_ms`` (0 to 60000) spaces the launches and ``concurrency``
+        (1 to 20) caps how many start at once; both default to the app's
+        bulk launch settings.
         """
         return self._request(
             "POST",
             "/v1/profiles/batch/run",
-            body=_body(profile_ids=list(profile_ids), url=url, headless=headless),
+            body=_body(
+                profile_ids=list(profile_ids),
+                url=url,
+                headless=headless,
+                delay_ms=delay_ms,
+                concurrency=concurrency,
+            ),
         )
 
     def batch_stop_profiles(self, profile_ids: Sequence[str]) -> BatchStopResponse:

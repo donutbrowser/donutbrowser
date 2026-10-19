@@ -11,11 +11,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { GoPlus } from "react-icons/go";
 import {
   LuBookmark,
   LuFolder,
   LuPencil,
+  LuPlus,
   LuRefreshCw,
   LuTrash2,
 } from "react-icons/lu";
@@ -26,7 +26,6 @@ import {
   DataTableActionBarSelection,
 } from "@/components/data-table-action-bar";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
-import { DeleteGroupDialog } from "@/components/delete-group-dialog";
 import { EditGroupDialog } from "@/components/edit-group-dialog";
 import { EntityEmptyState } from "@/components/entity-empty-state";
 import {
@@ -46,6 +45,11 @@ import {
 import { ProfileUsageButton } from "@/components/profile-usage-button";
 import { SortableColumnHeader } from "@/components/table-controls";
 import { GroupsScene } from "@/components/tips/scenes-essentials";
+import {
+  AnimatedTabs,
+  AnimatedTabsList,
+  AnimatedTabsTrigger,
+} from "@/components/ui/animated-tabs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -61,6 +65,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useProfileReferences } from "@/hooks/use-profile-references";
+import { useEntityTrash } from "@/hooks/use-trash-events";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import type { GroupWithCount, ProfileGroup } from "@/types";
@@ -89,7 +94,10 @@ export function GroupManagementDialog({
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<GroupWithCount | null>(
+    null,
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
   const [bookmarksDialogOpen, setBookmarksDialogOpen] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
@@ -181,20 +189,67 @@ export function GroupManagementDialog({
     [loadGroups, onGroupManagementComplete],
   );
 
-  const handleGroupDeleted = useCallback(() => {
-    void loadGroups();
-    onGroupManagementComplete();
-  }, [loadGroups, onGroupManagementComplete]);
+  // A delete, the trash sweep and an Undo from a toast all change the list.
+  useEffect(() => {
+    if (!isOpen) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    void listen("groups-changed", () => {
+      void loadGroups();
+    }).then((stop) => {
+      if (cancelled) stop();
+      else unlisten = stop;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isOpen, loadGroups]);
+
+  const { request: requestGroupTrash, remove: removeGroups } =
+    useEntityTrash("group");
+
+  /** Groups that left the list leave the selection and the page too. */
+  const afterGroupsRemoved = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      setRowSelection((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      onGroupManagementComplete();
+    },
+    [onGroupManagementComplete],
+  );
 
   const handleEditGroup = useCallback((group: GroupWithCount) => {
     setSelectedGroup(group);
     setEditDialogOpen(true);
   }, []);
 
-  const handleDeleteGroup = useCallback((group: GroupWithCount) => {
-    setSelectedGroup(group);
-    setDeleteDialogOpen(true);
-  }, []);
+  // A group goes to the trash at once and the toast offers Undo. Its
+  // profiles keep it, so a restore puts them back in it. Only "Delete at
+  // once" asks first.
+  const handleDeleteGroup = useCallback(
+    async (group: GroupWithCount) => {
+      afterGroupsRemoved(
+        await requestGroupTrash([group], () => setGroupToDelete(group)),
+      );
+    },
+    [requestGroupTrash, afterGroupsRemoved],
+  );
+
+  const handleConfirmDeleteGroup = useCallback(async () => {
+    if (!groupToDelete) return;
+    setIsDeleting(true);
+    try {
+      afterGroupsRemoved(await removeGroups([groupToDelete]));
+    } finally {
+      setIsDeleting(false);
+      setGroupToDelete(null);
+    }
+  }, [groupToDelete, removeGroups, afterGroupsRemoved]);
 
   const handleEditBookmarks = useCallback((group: GroupWithCount) => {
     setSelectedGroup(group);
@@ -367,7 +422,7 @@ export function GroupManagementDialog({
                 icon={<LuTrash2 />}
                 tone="destructive"
                 onClick={() => {
-                  handleDeleteGroup(group);
+                  void handleDeleteGroup(group);
                 }}
               />
             </RowActions>
@@ -409,47 +464,35 @@ export function GroupManagementDialog({
     getRowId: (row) => row.id,
   });
 
-  const selectedRows = table.getFilteredSelectedRowModel().rows;
+  // A selected row that a search or filter hides is still selected: bulk
+  // actions take the selection from the full list.
   const selectedGroupsForBulk = useMemo(
-    () => selectedRows.map((row) => row.original),
-    [selectedRows],
+    () => groups.filter((group) => rowSelection[group.id]),
+    [groups, rowSelection],
   );
   const selectedNames = useMemo(
     () => selectedGroupsForBulk.map((g) => g.name).join(", "),
     [selectedGroupsForBulk],
   );
 
+  const handleTrashSelected = useCallback(async () => {
+    afterGroupsRemoved(
+      await requestGroupTrash(selectedGroupsForBulk, () =>
+        setBulkDeleteOpen(true),
+      ),
+    );
+  }, [selectedGroupsForBulk, requestGroupTrash, afterGroupsRemoved]);
+
   const handleBulkDelete = useCallback(async () => {
     if (selectedGroupsForBulk.length === 0) return;
     setIsBulkDeleting(true);
     try {
-      const ids = selectedGroupsForBulk.map((g) => g.id);
-      const results = await Promise.allSettled(
-        ids.map((groupId) => invoke("delete_profile_group", { groupId })),
-      );
-      const firstRejection = results.find((r) => r.status === "rejected") as
-        | PromiseRejectedResult
-        | undefined;
-      if (firstRejection) {
-        showErrorToast(
-          parseBackendError(firstRejection.reason)
-            ? translateBackendError(t, firstRejection.reason)
-            : t("groups.deleteFailed"),
-        );
-      } else {
-        showSuccessToast(t("groups.deleteSuccess"));
-      }
-      table.toggleAllRowsSelected(false);
+      afterGroupsRemoved(await removeGroups(selectedGroupsForBulk));
       setBulkDeleteOpen(false);
-      await loadGroups();
-      onGroupManagementComplete();
-    } catch (err) {
-      console.error("Bulk group delete failed:", err);
-      showErrorToast(translateBackendError(t, err));
     } finally {
       setIsBulkDeleting(false);
     }
-  }, [selectedGroupsForBulk, table, loadGroups, onGroupManagementComplete, t]);
+  }, [selectedGroupsForBulk, removeGroups, afterGroupsRemoved]);
 
   const handleBulkToggleSync = useCallback(async () => {
     if (selectedGroupsForBulk.length === 0) return;
@@ -501,20 +544,23 @@ export function GroupManagementDialog({
 
           <div className="@container flex min-h-0 w-full flex-1 flex-col">
             <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-2">
-              <div
-                data-slot="group-summary-pill"
-                className="inline-flex h-7 items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-sm font-medium whitespace-nowrap text-accent-foreground"
-              >
-                <span>{t("groups.pageTitle")}</span>
-                <TickingCount
-                  slot="group-summary-count"
-                  value={groups.length}
-                  className="text-xs"
-                />
-              </div>
+              <AnimatedTabs value="groups">
+                <AnimatedTabsList>
+                  <AnimatedTabsTrigger value="groups" data-summary="groups">
+                    <span data-slot="group-summary-title">
+                      {t("groups.pageTitle")}
+                    </span>
+                    <TickingCount
+                      slot="group-summary-count"
+                      value={groups.length}
+                      className="text-xs"
+                    />
+                  </AnimatedTabsTrigger>
+                </AnimatedTabsList>
+              </AnimatedTabs>
               <PageAction
                 primary
-                icon={<GoPlus className="size-4" />}
+                icon={<LuPlus className="size-4" />}
                 label={t("groupManagement.newGroup")}
                 onClick={() => {
                   setCreateDialogOpen(true);
@@ -558,7 +604,7 @@ export function GroupManagementDialog({
                         setCreateDialogOpen(true);
                       }}
                     >
-                      <GoPlus className="size-4" />
+                      <LuPlus className="size-4" />
                       {t("groupManagement.newGroup")}
                     </RippleButton>
                   </EntityEmptyState>
@@ -590,7 +636,9 @@ export function GroupManagementDialog({
           </DataTableActionBarAction>
           <DataTableActionBarAction
             tooltip={t("common.buttons.delete")}
-            onClick={() => setBulkDeleteOpen(true)}
+            onClick={() => {
+              void handleTrashSelected();
+            }}
             variant="destructive"
             className="bg-destructive/12 text-destructive-text hover:bg-destructive/20"
           >
@@ -644,13 +692,19 @@ export function GroupManagementDialog({
         }}
       />
 
-      <DeleteGroupDialog
-        isOpen={deleteDialogOpen}
+      <DeleteConfirmationDialog
+        isOpen={groupToDelete !== null}
         onClose={() => {
-          setDeleteDialogOpen(false);
+          if (!isDeleting) setGroupToDelete(null);
         }}
-        group={selectedGroup}
-        onGroupDeleted={handleGroupDeleted}
+        onConfirm={handleConfirmDeleteGroup}
+        title={t("groups.deleteTitle")}
+        description={t("groupManagement.bulkDelete.description", {
+          count: 1,
+          names: groupToDelete?.name ?? "",
+        })}
+        confirmButtonText={t("groups.deleteGroup")}
+        isLoading={isDeleting}
       />
     </>
   );

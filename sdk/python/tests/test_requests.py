@@ -168,10 +168,10 @@ CASES: List[Case] = [
     (
         "batch_run_profiles",
         (["p1", "p2"],),
-        {"headless": False},
+        {"headless": False, "delay_ms": 500, "concurrency": 2},
         "POST",
         "/v1/profiles/batch/run",
-        {"profile_ids": ["p1", "p2"], "headless": False},
+        {"profile_ids": ["p1", "p2"], "headless": False, "delay_ms": 500, "concurrency": 2},
         {},
         "/v1/profiles/batch/run",
     ),

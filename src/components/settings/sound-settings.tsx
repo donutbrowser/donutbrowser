@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Slider as SliderPrimitive } from "radix-ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuPlay } from "react-icons/lu";
@@ -10,11 +9,12 @@ import {
   ChoiceGroup,
   SettingBlock,
   SettingRow,
-  useSettingsMotion,
+  SettingSlider,
 } from "@/components/settings/settings-primitives";
 import { AnimatedDisclosureContent } from "@/components/ui/animated-disclosure";
 import { AnimatedSwitch } from "@/components/ui/animated-switch";
 import { Button } from "@/components/ui/button";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { MOTION_EASE_OUT } from "@/lib/motion";
 import {
   DEFAULT_SOUND_PACK,
@@ -50,7 +50,7 @@ const CATEGORY_KEYS = {
  * turns off, with a cross in their place.
  */
 function SpeakerGlyph({ on }: { on: boolean }) {
-  const animate = useSettingsMotion();
+  const animate = useMotionAllowed();
   const transition = (delay: number) =>
     animate
       ? { duration: 0.28, delay, ease: MOTION_EASE_OUT }
@@ -101,7 +101,7 @@ function SpeakerGlyph({ on }: { on: boolean }) {
 
 /** Four bars that jump once each time `beat` changes, like a level meter. */
 function Bars({ beat, active }: { beat: number; active: boolean }) {
-  const animate = useSettingsMotion();
+  const animate = useMotionAllowed();
   return (
     <span
       aria-hidden="true"
@@ -131,44 +131,8 @@ function Bars({ beat, active }: { beat: number; active: boolean }) {
   );
 }
 
-function VolumeSlider({
-  value,
-  label,
-  onChange,
-  onCommit,
-}: {
-  value: number;
-  label: string;
-  onChange: (value: number) => void;
-  onCommit: (value: number) => void;
-}) {
-  return (
-    <div className="flex w-56 items-center gap-3">
-      <SliderPrimitive.Root
-        data-slot="settings-sound-volume"
-        aria-label={label}
-        className="relative flex h-5 flex-1 cursor-pointer touch-none items-center select-none"
-        min={0}
-        max={100}
-        step={5}
-        value={[value]}
-        onValueChange={([next]) => onChange(next)}
-        onValueCommit={([next]) => onCommit(next)}
-      >
-        <SliderPrimitive.Track className="relative h-1.5 grow overflow-hidden rounded-full bg-foreground/10">
-          <SliderPrimitive.Range className="absolute h-full rounded-full bg-primary" />
-        </SliderPrimitive.Track>
-        <SliderPrimitive.Thumb
-          aria-label={label}
-          className="block size-4 rounded-full bg-background shadow-md ring-1 ring-foreground/15 transition-transform duration-100 outline-none hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
-        />
-      </SliderPrimitive.Root>
-      <span className="w-9 text-right text-xs text-muted-foreground tabular-nums">
-        {value}%
-      </span>
-    </div>
-  );
-}
+/** Volume in steps of five. */
+const VOLUME_STOPS = Array.from({ length: 21 }, (_, index) => index * 5);
 
 /** Interface sounds: on or off, how loud, which set, and which kinds. */
 export function SoundSettings({
@@ -213,9 +177,12 @@ export function SoundSettings({
           label={t("settings.sounds.volume")}
           changed={isChanged("ui_sound_volume")}
         >
-          <VolumeSlider
+          <SettingSlider
+            slot="settings-sound-volume"
             value={draft.ui_sound_volume}
+            stops={VOLUME_STOPS}
             label={t("settings.sounds.volume")}
+            format={(value) => `${value}%`}
             onChange={(value) => onChange({ ui_sound_volume: value })}
             onCommit={(value) =>
               play(sample, { ui_sound_volume: value }, "volume")
@@ -279,7 +246,9 @@ export function SoundSettings({
                 variant="subtle"
                 size="icon"
                 className="size-8"
-                aria-label={t("settings.sounds.preview")}
+                aria-label={t("settings.sounds.previewAria", {
+                  name: t(`settings.sounds.categories.${category.id}.label`),
+                })}
                 title={t("settings.sounds.preview")}
                 data-sound="off"
                 onClick={() => play(category.sample, {}, category.id)}

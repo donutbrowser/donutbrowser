@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { type ReactNode, useCallback, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -32,10 +32,11 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { StepDots } from "@/components/ui/step-dots";
 import { StepTransition } from "@/components/ui/step-transition";
 import { useBrowserSetup } from "@/hooks/use-browser-setup";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { usePermissions } from "@/hooks/use-permissions";
 import { translateBackendError } from "@/lib/backend-errors";
 import { getBrowserDisplayName } from "@/lib/browser-utils";
+import { MOTION_DURATION, MOTION_EASE_IN, MOTION_SPRING } from "@/lib/motion";
 import { getCurrentOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
@@ -172,9 +173,7 @@ export function WelcomeDialog({
   onComplete: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const reduceMotion = useReducedMotion();
-  const inputModality = useInputModality();
-  const animateSteps = !reduceMotion && inputModality === "pointer";
+  const animateSteps = useMotionAllowed();
   const {
     requestPermission,
     isMicrophoneAccessGranted,
@@ -610,21 +609,29 @@ export function WelcomeDialog({
                 <motion.div
                   key={step}
                   className="absolute inset-0 p-3"
+                  // The new drawing is half visible on its first frame; the
+                  // old one leaves quickly and never holds the new one back.
                   initial={
                     animateSteps
-                      ? { x: direction * 40, opacity: 0, scale: 0.98 }
+                      ? { x: direction * 40, opacity: 0.5, scale: 0.98 }
                       : false
                   }
                   animate={{ x: 0, opacity: 1, scale: 1 }}
                   exit={
                     animateSteps
-                      ? { x: -direction * 40, opacity: 0, scale: 0.98 }
+                      ? {
+                          x: -direction * 40,
+                          opacity: 0,
+                          scale: 0.98,
+                          transition: {
+                            duration: MOTION_DURATION.fast,
+                            ease: MOTION_EASE_IN,
+                          },
+                        }
                       : { opacity: 0, transition: { duration: 0 } }
                   }
                   transition={
-                    animateSteps
-                      ? { type: "spring", stiffness: 320, damping: 34 }
-                      : { duration: 0 }
+                    animateSteps ? MOTION_SPRING.gentle : { duration: 0 }
                   }
                 >
                   {scene}

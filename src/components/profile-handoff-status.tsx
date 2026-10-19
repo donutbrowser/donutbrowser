@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -10,7 +10,7 @@ import {
   LuMonitor,
   LuTriangleAlert,
 } from "react-icons/lu";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { MOTION_EASE_OUT } from "@/lib/motion";
 import type { RemoteHandoffState } from "@/lib/remote-sessions";
 import { cn } from "@/lib/utils";
@@ -32,8 +32,7 @@ export function ProfileHandoffStatus({
   onOpenSync,
 }: ProfileHandoffStatusProps) {
   const { t } = useTranslation();
-  const reduceMotion = useReducedMotion();
-  const inputModality = useInputModality();
+  const motionAllowed = useMotionAllowed();
   const [observed, setObserved] = useState({
     profileId,
     state,
@@ -150,7 +149,7 @@ export function ProfileHandoffStatus({
                     : "100%",
             }}
             transition={{
-              duration: reduceMotion || inputModality === "keyboard" ? 0 : 0.2,
+              duration: motionAllowed ? 0.2 : 0,
               ease: MOTION_EASE_OUT,
             }}
             className="absolute top-0 left-1/4 flex w-1/2 justify-start"

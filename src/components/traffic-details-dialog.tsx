@@ -302,7 +302,7 @@ export function TrafficDetailsDialog({
               {t("traffic.title")}
               {profileName && (
                 <span className="ml-2 font-normal text-muted-foreground">
-                  — {profileName}
+                  · {profileName}
                 </span>
               )}
             </DialogTitle>
@@ -349,7 +349,10 @@ export function TrafficDetailsDialog({
                         setTimePeriod(v as TimePeriod);
                       }}
                     >
-                      <SelectTrigger className="h-8 w-[120px]">
+                      <SelectTrigger
+                        className="h-8 w-[120px]"
+                        aria-label={t("traffic.timePeriodPlaceholder")}
+                      >
                         <SelectValue
                           placeholder={t("traffic.timePeriodPlaceholder")}
                         />
@@ -506,7 +509,7 @@ export function TrafficDetailsDialog({
 
                 {/* Period Stats - now uses backend-computed values */}
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="rounded-lg bg-muted/50 p-3">
+                  <div className="rounded-lg bg-foreground/5 p-3">
                     <p className="text-xs text-muted-foreground">
                       {t("traffic.sentLabel", {
                         period:
@@ -519,7 +522,7 @@ export function TrafficDetailsDialog({
                       {formatBytes(stats?.period_bytes_sent ?? 0)}
                     </p>
                   </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
+                  <div className="rounded-lg bg-foreground/5 p-3">
                     <p className="text-xs text-muted-foreground">
                       {t("traffic.receivedLabel", {
                         period:
@@ -532,7 +535,7 @@ export function TrafficDetailsDialog({
                       {formatBytes(stats?.period_bytes_received ?? 0)}
                     </p>
                   </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
+                  <div className="rounded-lg bg-foreground/5 p-3">
                     <p className="text-xs text-muted-foreground">
                       {t("traffic.requestsLabel", {
                         period:
@@ -594,6 +597,7 @@ export function TrafficDetailsDialog({
                     value={domainSearch}
                     onChange={(e) => setDomainSearch(e.target.value)}
                     placeholder={t("traffic.searchDomains")}
+                    aria-label={t("traffic.searchDomains")}
                     className="h-8 pl-8 text-sm"
                   />
                 </div>
@@ -616,7 +620,7 @@ export function TrafficDetailsDialog({
                       })}
                     </h3>
                     <div className="rounded-md border">
-                      <div className="grid grid-cols-[1fr_80px_80px_80px] gap-2 border-b bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
+                      <div className="grid grid-cols-[1fr_80px_80px_80px] gap-2 border-b bg-foreground/5 px-3 py-2 text-xs font-medium text-muted-foreground">
                         <span>{t("traffic.columnDomain")}</span>
                         <span className="text-right">
                           {t("traffic.columnRequests")}
@@ -632,7 +636,7 @@ export function TrafficDetailsDialog({
                         {topDomainsByTraffic.map((domain, index) => (
                           <div
                             key={domain.domain}
-                            className="grid grid-cols-[1fr_80px_80px_80px] gap-2 border-b px-3 py-2 text-sm last:border-b-0 hover:bg-muted/30"
+                            className="grid grid-cols-[1fr_80px_80px_80px] gap-2 border-b px-3 py-2 text-sm last:border-b-0 hover:bg-foreground/8"
                           >
                             <div className="flex min-w-0 items-center gap-2">
                               <span className="w-4 shrink-0 text-xs text-muted-foreground">
@@ -668,7 +672,7 @@ export function TrafficDetailsDialog({
                       })}
                     </h3>
                     <div className="rounded-md border">
-                      <div className="grid grid-cols-[1fr_80px_100px] gap-2 border-b bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
+                      <div className="grid grid-cols-[1fr_80px_100px] gap-2 border-b bg-foreground/5 px-3 py-2 text-xs font-medium text-muted-foreground">
                         <span>{t("traffic.columnDomain")}</span>
                         <span className="text-right">
                           {t("traffic.columnRequests")}
@@ -681,7 +685,7 @@ export function TrafficDetailsDialog({
                         {topDomainsByRequests.map((domain, index) => (
                           <div
                             key={domain.domain}
-                            className="grid grid-cols-[1fr_80px_100px] gap-2 border-b px-3 py-2 text-sm last:border-b-0 hover:bg-muted/30"
+                            className="grid grid-cols-[1fr_80px_100px] gap-2 border-b px-3 py-2 text-sm last:border-b-0 hover:bg-foreground/8"
                           >
                             <div className="flex min-w-0 items-center gap-2">
                               <span className="w-4 shrink-0 text-xs text-muted-foreground">
@@ -717,7 +721,7 @@ export function TrafficDetailsDialog({
                         {stats.unique_ips.map((ip) => (
                           <span
                             key={ip}
-                            className="rounded bg-muted px-2 py-1 font-mono text-xs"
+                            className="rounded bg-foreground/5 px-2 py-1 font-mono text-xs"
                           >
                             {ip}
                           </span>

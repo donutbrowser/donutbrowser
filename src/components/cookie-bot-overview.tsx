@@ -604,7 +604,7 @@ function MachineTimeChart({
             <div
               aria-hidden="true"
               className={cn(
-                "relative w-9 shrink-0 text-[10px] tabular-nums text-muted-foreground",
+                "relative w-9 shrink-0 text-[11px] tabular-nums text-muted-foreground",
                 plotHeight,
               )}
             >
@@ -661,7 +661,7 @@ function MachineTimeChart({
             </div>
             <div
               aria-hidden="true"
-              className="grid text-[10px] tabular-nums text-muted-foreground"
+              className="grid text-[11px] tabular-nums text-muted-foreground"
               style={{
                 gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
                 columnGap: 3,
@@ -734,15 +734,17 @@ function DayBar({
         >
           {day.seconds > 0 ? (
             <motion.div
-              initial={reduceMotion ? false : { height: "0%" }}
-              animate={{ height: `${Math.max(height, 1.5)}%` }}
+              // The bar has its final height at once and grows into it.
+              initial={reduceMotion ? false : { scaleY: 0 }}
+              animate={{ scaleY: 1 }}
               transition={
                 reduceMotion
                   ? { duration: 0 }
                   : { duration: 0.5, ease: MOTION_EASE_OUT, delay }
               }
+              style={{ height: `${Math.max(height, 1.5)}%` }}
               className={cn(
-                "w-full max-w-4 rounded-t-[3px]",
+                "w-full max-w-4 origin-bottom rounded-t-[3px]",
                 today ? "bg-chart-1" : "bg-chart-1/70",
               )}
             />
@@ -809,7 +811,7 @@ function EnrolledRow({
       data-slot="cookie-bot-enrolled-row"
       data-table-row={schedule.profile_id}
       data-profile-id={schedule.profile_id}
-      initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+      initial={reduceMotion ? false : { opacity: 0.5, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={
         reduceMotion
@@ -846,7 +848,7 @@ function EnrolledRow({
           {hiddenTimes > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="shrink-0 cursor-default rounded-sm bg-foreground/6 px-1 text-[10px] text-muted-foreground">
+                <span className="shrink-0 cursor-default rounded-sm bg-foreground/6 px-1 text-[11px] text-muted-foreground">
                   +{hiddenTimes}
                 </span>
               </TooltipTrigger>
@@ -918,6 +920,7 @@ function EnrolledRow({
         <div className="flex items-center justify-end gap-0.5">
           <RowAction
             label={t("cookieBot.enrolled.edit")}
+            name={schedule.profile_name}
             forbidden={!editable}
             forbiddenReason={t("cookieBot.conflict.replaceForbidden")}
             onClick={() => {
@@ -928,6 +931,7 @@ function EnrolledRow({
           </RowAction>
           <RowAction
             label={t("cookieBot.schedule.unenrol")}
+            name={schedule.profile_name}
             forbidden={!editable}
             forbiddenReason={t("cookieBot.conflict.replaceForbidden")}
             destructive

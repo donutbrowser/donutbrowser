@@ -15,6 +15,12 @@ import {
   AnimatedDisclosureContent,
   AnimatedDisclosureItem,
 } from "@/components/ui/animated-disclosure";
+import {
+  AnimatedTabs,
+  AnimatedTabsContent,
+  AnimatedTabsList,
+  AnimatedTabsTrigger,
+} from "@/components/ui/animated-tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -32,7 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { translateBackendError } from "@/lib/backend-errors";
 import type {
   BrowserProfile,
@@ -435,21 +440,21 @@ export function CookieManagementDialog({
           <DialogTitle>{t("cookies.management.title")}</DialogTitle>
         </DialogHeader>
 
-        <Tabs
+        <AnimatedTabs
           defaultValue={initialTab}
           onValueChange={handleTabChange}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="import">
+          <AnimatedTabsList className="flex w-full">
+            <AnimatedTabsTrigger value="import" className="flex-1">
               {t("cookies.management.tabImport")}
-            </TabsTrigger>
-            <TabsTrigger value="export">
+            </AnimatedTabsTrigger>
+            <AnimatedTabsTrigger value="export" className="flex-1">
               {t("cookies.management.tabExport")}
-            </TabsTrigger>
-          </TabsList>
+            </AnimatedTabsTrigger>
+          </AnimatedTabsList>
 
-          <TabsContent value="import" className="mt-4 space-y-4">
+          <AnimatedTabsContent value="import" className="mt-4 space-y-4">
             {!importResult && (
               <>
                 <p className="text-sm text-muted-foreground">
@@ -553,9 +558,9 @@ export function CookieManagementDialog({
                 </div>
               </div>
             )}
-          </TabsContent>
+          </AnimatedTabsContent>
 
-          <TabsContent value="export" className="mt-4 space-y-3">
+          <AnimatedTabsContent value="export" className="mt-4 space-y-3">
             <div className="space-y-2">
               <Label>{t("cookies.export.formatLabel")}</Label>
               <Select
@@ -643,8 +648,8 @@ export function CookieManagementDialog({
                 {t("cookies.management.exportButton")}
               </LoadingButton>
             </div>
-          </TabsContent>
-        </Tabs>
+          </AnimatedTabsContent>
+        </AnimatedTabs>
       </DialogContent>
     </Dialog>
   );

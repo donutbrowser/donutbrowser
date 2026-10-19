@@ -1,110 +1,108 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import i18n from "@/i18n";
-import type { StoredProxy } from "@/types";
+import { translateBackendError } from "@/lib/backend-errors";
+import {
+  countBy,
+  profileList,
+  storedProxyList,
+} from "@/lib/profile-list-store";
+import type { BrowserProfile, StoredProxy } from "@/types";
+
+const NO_PROXIES: StoredProxy[] = [];
+const NO_USAGE: Record<string, number> = {};
+
+const proxyOf = (profile: BrowserProfile) => profile.proxy_id;
+
+function proxiesError(err: unknown) {
+  return i18n.t("errors.loadProxiesFailed", {
+    error: translateBackendError(i18n.t, err),
+  });
+}
 
 /**
- * Custom hook to manage proxy-related state and listen for backend events.
- * This hook eliminates the need for manual UI refreshes by automatically
- * updating state when the backend emits proxy change events.
+ * Stored proxies and how many profiles use each, kept current by backend
+ * events. Both lists come from the shared store, so every reader shares one
+ * load per change. With `enabled: false` (a closed dialog) it loads nothing
+ * and listens to nothing.
  */
-export function useProxyEvents() {
-  const [storedProxies, setStoredProxies] = useState<StoredProxy[]>([]);
-  const [proxyUsage, setProxyUsage] = useState<Record<string, number>>({});
+export function useProxyEvents({ enabled = true }: { enabled?: boolean } = {}) {
+  const [storedProxies, setStoredProxies] = useState<StoredProxy[]>(
+    () => storedProxyList.peek() ?? NO_PROXIES,
+  );
+  const [proxyUsage, setProxyUsage] = useState<Record<string, number>>(() => {
+    const profiles = profileList.peek();
+    return profiles ? countBy(profiles, proxyOf) : NO_USAGE;
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load proxy usage (how many profiles are using each proxy)
-  const loadProxyUsage = useCallback(async () => {
-    try {
-      const profiles = await invoke<{ proxy_id?: string }[]>(
-        "list_browser_profiles",
-      );
-      const counts: Record<string, number> = {};
-      for (const p of profiles) {
-        if (p.proxy_id) counts[p.proxy_id] = (counts[p.proxy_id] ?? 0) + 1;
-      }
-      setProxyUsage(counts);
-    } catch (err) {
-      console.error("Failed to load proxy usage:", err);
-      // Don't set error for non-critical proxy usage
-    }
+  const applyProfiles = useCallback((profiles: BrowserProfile[]) => {
+    setProxyUsage((previous) => countBy(profiles, proxyOf, previous));
   }, []);
 
-  // Load proxies from backend
   const loadProxies = useCallback(async () => {
     try {
-      const stored = await invoke<StoredProxy[]>("get_stored_proxies");
-      setStoredProxies(stored);
-      await loadProxyUsage();
+      setStoredProxies(await storedProxyList.refresh());
       setError(null);
     } catch (err: unknown) {
       console.error("Failed to load proxies:", err);
-      setError(
-        i18n.t("errors.loadProxiesFailed", { error: JSON.stringify(err) }),
-      );
+      setError(proxiesError(err));
     }
-  }, [loadProxyUsage]);
+  }, []);
 
-  // Clear error state
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
-  // Initial load and event listeners setup
   useEffect(() => {
-    let proxiesUnlisten: (() => void) | undefined;
-    let profilesUnlisten: (() => void) | undefined;
-    let storedProxiesUnlisten: (() => void) | undefined;
+    if (!enabled) return;
+    let disposed = false;
+    const stopProxies = storedProxyList.subscribe({
+      value: (list) => {
+        setStoredProxies(list);
+        setError(null);
+      },
+      error: (err) => {
+        console.error("Failed to load proxies:", err);
+        setError(proxiesError(err));
+      },
+    });
+    const stopProfiles = profileList.subscribe({
+      value: applyProfiles,
+      // Usage counts are not critical: the profile list reports its own
+      // errors.
+      error: () => undefined,
+    });
 
-    const setupListeners = async () => {
+    void (async () => {
       try {
-        // Initial load
-        await loadProxies();
-
-        // Listen for proxy changes (create, delete, update, start, stop, etc.)
-        proxiesUnlisten = await listen("proxies-changed", () => {
-          console.log("Received proxies-changed event, reloading proxies");
-          void loadProxies();
-        });
-
-        // Listen for profile changes to update proxy usage counts
-        profilesUnlisten = await listen("profiles-changed", () => {
-          console.log("Received profiles-changed event, reloading proxy usage");
-          void loadProxyUsage();
-        });
-
-        // Listen for profile updates to update proxy usage counts
-        storedProxiesUnlisten = await listen("stored-proxies-changed", () => {
-          console.log(
-            "Received stored-proxies-changed event, reloading proxies",
-          );
-          void loadProxies();
-        });
-
-        console.log("Proxy event listeners set up successfully");
+        const list = await storedProxyList.load();
+        if (disposed) return;
+        setStoredProxies(list);
+        setError(null);
       } catch (err) {
-        console.error("Failed to setup proxy event listeners:", err);
-        setError(
-          i18n.t("errors.setupProxyListenersFailed", {
-            error: JSON.stringify(err),
-          }),
-        );
+        if (disposed) return;
+        console.error("Failed to load proxies:", err);
+        setError(proxiesError(err));
       } finally {
-        setIsLoading(false);
+        if (!disposed) setIsLoading(false);
       }
-    };
+    })();
+    profileList.load().then(
+      (profiles) => {
+        if (!disposed) applyProfiles(profiles);
+      },
+      (err: unknown) => {
+        console.error("Failed to load proxy usage:", err);
+      },
+    );
 
-    void setupListeners();
-
-    // Cleanup listeners on unmount
     return () => {
-      if (proxiesUnlisten) proxiesUnlisten();
-      if (profilesUnlisten) profilesUnlisten();
-      if (storedProxiesUnlisten) storedProxiesUnlisten();
+      disposed = true;
+      stopProxies();
+      stopProfiles();
     };
-  }, [loadProxies, loadProxyUsage]);
+  }, [enabled, applyProfiles]);
 
   return {
     storedProxies,

@@ -160,7 +160,8 @@ export function IntroScene() {
       <motion.g
         className="text-foreground"
         style={{ originX: "50%", originY: "50%" }}
-        initial={reduce ? false : { scale: 0.6, rotate: -40, opacity: 0 }}
+        // The mark is the one part of the drawing on its first frame.
+        initial={reduce ? false : { scale: 0.6, rotate: -40, opacity: 0.5 }}
         animate={{ scale: 1, rotate: 0, opacity: 1 }}
         transition={
           reduce

@@ -23,10 +23,8 @@ interface PermissionDialogProps {
   permissionType: PermissionType;
   /**
    * Fired when the displayed permission becomes granted. The just-granted
-   * type is passed through so the parent can act optimistically — its own
-   * usePermissions instance polls on a 5 s cadence and would otherwise be
-   * stale right after the macOS system prompt is accepted, leaving the
-   * dialog open in a confusing state.
+   * type is passed through so the parent can move on before its own state
+   * shows the grant.
    */
   onPermissionGranted?: (justGranted: PermissionType) => void;
 }

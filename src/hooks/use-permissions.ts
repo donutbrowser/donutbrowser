@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { getCurrentOS, type OperatingSystem } from "@/lib/platform";
 
 // Platform-specific imports
@@ -30,44 +30,93 @@ interface UsePermissionsReturn {
   requiresSystemPermissions: boolean;
 }
 
-export function usePermissions(active = true): UsePermissionsReturn {
-  const [isMicrophoneAccessGranted, setIsMicrophoneAccessGranted] =
-    useState(false);
-  const [isCameraAccessGranted, setIsCameraAccessGranted] = useState(false);
-  const [currentOS, setCurrentOS] = useState<OperatingSystem | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+interface PermissionState {
+  microphone: boolean;
+  camera: boolean;
+  initialized: boolean;
+}
 
-  // Check permissions status
-  const checkPermissions = useCallback(async () => {
-    if (!currentOS) return;
+/** While a permission UI is open, how often it reads the macOS state. */
+const OPEN_POLL_MS = 5000;
 
-    if (currentOS !== "macos") {
-      // Windows/Linux - assume permissions are granted
-      setIsMicrophoneAccessGranted(true);
-      setIsCameraAccessGranted(true);
-      setIsInitialized(true);
-      return;
-    }
+const INITIAL_STATE: PermissionState = {
+  microphone: false,
+  camera: false,
+  initialized: false,
+};
 
-    // macOS - use the permissions API
+// One state for every instance: what one instance reads, all of them show.
+let shared = INITIAL_STATE;
+const subscribers = new Set<() => void>();
+let reading: Promise<void> | null = null;
+// Bumped by a request: a read that started before it holds older values.
+let generation = 0;
+
+function publish(next: Partial<PermissionState>) {
+  const merged = { ...shared, ...next };
+  if (
+    merged.microphone === shared.microphone &&
+    merged.camera === shared.camera &&
+    merged.initialized === shared.initialized
+  ) {
+    return;
+  }
+  shared = merged;
+  for (const notify of subscribers) notify();
+}
+
+function subscribe(notify: () => void) {
+  subscribers.add(notify);
+  return () => {
+    subscribers.delete(notify);
+  };
+}
+
+const snapshot = () => shared;
+const serverSnapshot = () => INITIAL_STATE;
+
+/** Reads both permissions; concurrent calls share one read. */
+function readPermissions(os: OperatingSystem): Promise<void> {
+  if (os !== "macos") {
+    // Windows/Linux - assume permissions are granted
+    publish({ microphone: true, camera: true, initialized: true });
+    return Promise.resolve();
+  }
+  if (reading) return reading;
+  const startedAt = generation;
+  reading = (async () => {
     try {
       const permissions = await loadMacOSPermissions();
       if (permissions) {
-        const [micGranted, camGranted] = await Promise.all([
+        const [microphone, camera] = await Promise.all([
           permissions.checkMicrophonePermission(),
           permissions.checkCameraPermission(),
         ]);
-
-        setIsMicrophoneAccessGranted(micGranted);
-        setIsCameraAccessGranted(camGranted);
+        if (startedAt === generation) publish({ microphone, camera });
       }
     } catch (error) {
       console.error("Failed to check permissions on macOS:", error);
     } finally {
-      setIsInitialized(true);
+      publish({ initialized: true });
+      reading = null;
     }
-  }, [currentOS]);
+  })();
+  return reading;
+}
+
+/**
+ * macOS camera and microphone access. Called without an argument (the app
+ * shell), it reads the state once and again whenever the window comes back
+ * to the front, which is where a change made in System Settings shows up.
+ * A permission UI passes whether it is open: while open it also reads the
+ * state every few seconds, to catch a late grant; while closed it reads
+ * nothing.
+ */
+export function usePermissions(open?: boolean): UsePermissionsReturn {
+  const state = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  const [currentOS, setCurrentOS] = useState<OperatingSystem | null>(null);
+  const active = open ?? true;
+  const poll = open === true;
 
   // Request permission
   const requestPermission = useCallback(
@@ -80,29 +129,24 @@ export function usePermissions(active = true): UsePermissionsReturn {
         const permissions = await loadMacOSPermissions();
         if (!permissions) return false;
 
-        const readPermission = async () => {
-          const granted =
-            type === "microphone"
-              ? await permissions.checkMicrophonePermission()
-              : await permissions.checkCameraPermission();
-          if (type === "microphone") {
-            setIsMicrophoneAccessGranted(granted);
-          } else {
-            setIsCameraAccessGranted(granted);
-          }
-          return granted;
-        };
-
         if (type === "microphone") {
           await permissions.requestMicrophonePermission();
         } else {
           await permissions.requestCameraPermission();
         }
 
-        // Read once immediately. The hook's macOS poll keeps watching for
+        // Read once immediately. An open permission UI keeps watching for
         // delayed TCC propagation without holding this request (and any next
         // system prompt) open for several extra seconds.
-        return readPermission();
+        const granted =
+          type === "microphone"
+            ? await permissions.checkMicrophonePermission()
+            : await permissions.checkCameraPermission();
+        generation += 1;
+        publish(
+          type === "microphone" ? { microphone: granted } : { camera: granted },
+        );
+        return granted;
       } catch (error) {
         console.error(`Failed to request ${type} permission on macOS:`, error);
         return false;
@@ -111,40 +155,41 @@ export function usePermissions(active = true): UsePermissionsReturn {
     [currentOS],
   );
 
-  // Initialize platform detection and start interval checking
   useEffect(() => {
     setCurrentOS(getCurrentOS());
   }, []);
 
-  // Set up interval checking when platform is determined.
-  // On non-macOS platforms, permissions are always granted — a single check
-  // is enough and we skip the interval entirely to avoid burning CPU.
   useEffect(() => {
     if (!currentOS || !active) return;
+    void readPermissions(currentOS);
 
-    // Initial check
-    void checkPermissions();
-
-    // Only poll on macOS where permissions can change at runtime
+    // Only macOS permissions can change at runtime.
     if (currentOS !== "macos") return;
 
-    intervalRef.current = setInterval(() => {
-      void checkPermissions();
-    }, 5000);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+    const readIfVisible = () => {
+      if (document.visibilityState === "visible") {
+        void readPermissions(currentOS);
       }
     };
-  }, [active, currentOS, checkPermissions]);
+    window.addEventListener("focus", readIfVisible);
+    document.addEventListener("visibilitychange", readIfVisible);
+    const interval = poll ? setInterval(readIfVisible, OPEN_POLL_MS) : null;
+
+    return () => {
+      window.removeEventListener("focus", readIfVisible);
+      document.removeEventListener("visibilitychange", readIfVisible);
+      if (interval !== null) clearInterval(interval);
+    };
+  }, [active, poll, currentOS]);
 
   return {
     requestPermission,
-    isMicrophoneAccessGranted,
-    isCameraAccessGranted,
-    isInitialized,
+    isMicrophoneAccessGranted: state.microphone,
+    isCameraAccessGranted: state.camera,
+    // Not before the platform is known: on the first render `currentOS` is
+    // still null, and a caller would take macOS for a platform without the
+    // permission gate.
+    isInitialized: currentOS !== null && state.initialized,
     currentOS,
     requiresSystemPermissions: currentOS === "macos",
   };

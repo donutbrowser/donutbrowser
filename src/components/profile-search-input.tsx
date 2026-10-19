@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import {
   type ReactNode,
   useCallback,
@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   LuCircleAlert,
@@ -19,8 +20,10 @@ import {
   LuSearch,
   LuX,
 } from "react-icons/lu";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { tipAnchor } from "@/lib/coach-mark";
-import { MOTION_EASE_OUT, MOTION_SPRING_POSITION } from "@/lib/motion";
+import { MOTION_DURATION, MOTION_EASE_OUT, MOTION_SPRING } from "@/lib/motion";
 import {
   findProfileSearchField,
   PROFILE_SEARCH_EXAMPLES,
@@ -61,6 +64,7 @@ const RECENT_KEY = "donut-profile-search-recent";
 const RECENT_IDLE_MS = 3000;
 /** Time one slice of count work may take before it yields to typing. */
 const COUNT_SLICE_MS = 4;
+const RESIZE_EASING = `cubic-bezier(${MOTION_EASE_OUT.join(",")})`;
 
 const NO_VOCABULARY: ProfileSearchVocabulary = new Map();
 
@@ -342,7 +346,7 @@ export function ProfileSearchInput({
   context = EMPTY_CONTEXT,
 }: ProfileSearchInputProps) {
   const { t } = useTranslation();
-  const reduceMotion = useReducedMotion();
+  const motionAllowed = useMotionAllowed();
   const id = useId();
   const listId = `${id}-list`;
   const optionId = (index: number) => `${id}-option-${index}`;
@@ -358,6 +362,7 @@ export function ProfileSearchInput({
   const revealActive = useRef(false);
 
   const [focused, setFocused] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [caret, setCaret] = useState(0);
   const [collapsed, setCollapsed] = useState(true);
   const [composing, setComposing] = useState(false);
@@ -420,6 +425,46 @@ export function ProfileSearchInput({
     context,
     open && profiles !== undefined,
   );
+
+  // The box snaps to its new width, so the header lays out once; the fill and
+  // the contents then slide from where they were, on transforms only.
+  const expand = (next: boolean) => {
+    const wrapper = wrapperRef.current;
+    if (next === expanded || !wrapper) return;
+    const from = wrapper.getBoundingClientRect();
+    flushSync(() => setExpanded(next));
+    const to = wrapper.getBoundingClientRect();
+    if (!motionAllowed || !to.width || Math.abs(to.width - from.width) < 1)
+      return;
+    const start = from.left - to.left;
+    const end = from.right - to.right;
+    const timing = {
+      duration: MOTION_DURATION.base * 1000,
+      easing: RESIZE_EASING,
+    };
+    for (const element of wrapper.querySelectorAll<HTMLElement>(
+      "[data-resize-edge]",
+    )) {
+      const edge = element.dataset.resizeEdge;
+      for (const running of element.getAnimations()) running.cancel();
+      element.animate(
+        [
+          {
+            transform:
+              edge === "fill"
+                ? `translateX(${start}px) scaleX(${from.width / to.width})`
+                : `translateX(${edge === "end" ? end : start}px)`,
+          },
+          { transform: "none" },
+        ],
+        timing,
+      );
+    }
+  };
+
+  const collapseUnlessWithin = (next: EventTarget | null) => {
+    if (!wrapperRef.current?.contains(next as Node | null)) expand(false);
+  };
 
   const syncScroll = useCallback(() => {
     const input = inputRef.current;
@@ -496,7 +541,7 @@ export function ProfileSearchInput({
     setQuery(next.query, next.caret);
     setDismissed(item.completes);
     setSettle(
-      reduceMotion
+      !motionAllowed
         ? null
         : {
             start: item.start,
@@ -620,9 +665,12 @@ export function ProfileSearchInput({
           <motion.span
             key={`${settle.key}-${from}`}
             className={className}
-            initial={{ opacity: 0.4 }}
+            initial={{ opacity: 0.5 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.18, ease: MOTION_EASE_OUT }}
+            transition={{
+              duration: MOTION_DURATION.base,
+              ease: MOTION_EASE_OUT,
+            }}
           >
             {text}
           </motion.span>,
@@ -765,32 +813,48 @@ export function ProfileSearchInput({
           <div
             ref={wrapperRef}
             data-slot="profile-search"
+            data-expanded={expanded || undefined}
             {...tipAnchor("profile-search")}
-            className="relative h-7 w-36 shrink-0 rounded-lg bg-foreground/5 transition-[width,background-color,box-shadow] duration-200 ease-out focus-within:w-56 focus-within:bg-foreground/7 focus-within:ring-2 focus-within:ring-foreground/15 hover:bg-foreground/7 motion-reduce:transition-none min-[860px]:w-52 min-[860px]:focus-within:w-80"
+            className={cn(
+              "group/search relative h-7 shrink-0 rounded-lg",
+              expanded ? "w-56 min-[860px]:w-80" : "w-36 min-[860px]:w-52",
+            )}
           >
-            <LuSearch className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <span
+              aria-hidden="true"
+              data-resize-edge="fill"
+              className="pointer-events-none absolute inset-0 origin-left rounded-lg bg-foreground/5 transition-[background-color,box-shadow] duration-200 ease-out group-focus-within/search:bg-foreground/7 group-focus-within/search:ring-2 group-focus-within/search:ring-foreground/15 group-hover/search:bg-foreground/7 motion-reduce:transition-none"
+            />
+            <LuSearch
+              data-resize-edge="start"
+              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+            />
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-y-0 right-7 left-8 overflow-hidden"
             >
-              <div
-                ref={textRef}
-                data-slot="profile-search-highlight"
-                className="whitespace-pre text-xs leading-7"
-              >
-                {highlighted}
-                {ghost ? (
-                  <span
-                    data-slot="profile-search-ghost"
-                    className="text-muted-foreground/60"
-                  >
-                    {ghost}
-                  </span>
-                ) : null}
+              <div data-resize-edge="start">
+                <div
+                  ref={textRef}
+                  data-slot="profile-search-highlight"
+                  className="whitespace-pre text-xs leading-7"
+                >
+                  {highlighted}
+                  {ghost ? (
+                    <span
+                      data-slot="profile-search-ghost"
+                      className="text-muted-foreground/60"
+                    >
+                      {ghost}
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
             <Input
               ref={inputRef}
+              id="profile-search-input"
+              data-resize-edge="start"
               type="text"
               variant="bare"
               role="combobox"
@@ -820,12 +884,14 @@ export function ProfileSearchInput({
                 setDismissed(false);
               }}
               onFocus={() => {
+                expand(true);
                 setFocused(true);
                 setDismissed(stayClosedOnFocus.current);
                 stayClosedOnFocus.current = false;
                 readCaret();
               }}
-              onBlur={() => {
+              onBlur={(event) => {
+                collapseUnlessWithin(event.relatedTarget);
                 setFocused(false);
                 setActive(null);
                 setSettle(null);
@@ -849,7 +915,12 @@ export function ProfileSearchInput({
                   setDismissed(false);
                   inputRef.current?.focus();
                 }}
-                className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-0.5 transition-colors hover:bg-foreground/10"
+                data-resize-edge="end"
+                onBlur={(event) => collapseUnlessWithin(event.relatedTarget)}
+                className={cn(
+                  "absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-0.5 transition-colors hover:bg-foreground/10",
+                  FOCUS_RING,
+                )}
                 aria-label={t("header.clearSearch")}
               >
                 <LuX className="size-3.5 text-muted-foreground hover:text-foreground" />
@@ -876,12 +947,15 @@ export function ProfileSearchInput({
           <motion.div
             data-slot="profile-search-suggestions"
             initial={
-              reduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, transform: "translateY(-4px) scale(0.98)" }
+              motionAllowed
+                ? { opacity: 0.5, transform: "translateY(-4px) scale(0.98)" }
+                : false
             }
             animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
-            transition={{ duration: 0.14, ease: MOTION_EASE_OUT }}
+            transition={{
+              duration: MOTION_DURATION.fast,
+              ease: MOTION_EASE_OUT,
+            }}
             style={{
               transformOrigin: "var(--radix-popover-content-transform-origin)",
             }}
@@ -960,9 +1034,9 @@ export function ProfileSearchInput({
                               data-slot="profile-search-active"
                               className="absolute inset-0 rounded-md bg-primary/10"
                               transition={
-                                reduceMotion
-                                  ? { duration: 0 }
-                                  : MOTION_SPRING_POSITION
+                                motionAllowed
+                                  ? MOTION_SPRING.position
+                                  : { duration: 0 }
                               }
                             />
                           ) : null}

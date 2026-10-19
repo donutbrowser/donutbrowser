@@ -27,14 +27,15 @@
       "export": "Dışa Aktar",
       "refresh": "Yenile",
       "loading": "Yükleniyor...",
-      "saveSettings": "Ayarları Kaydet",
+      "saveSettings": "Ayarları kaydet",
       "moreInfo": "Daha fazla bilgi",
       "downloading": "İndiriliyor...",
       "minimize": "Küçült",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi",
       "copied": "Kopyalandı",
-      "learnMore": "Daha fazla bilgi"
+      "learnMore": "Daha fazla bilgi",
+      "undo": "Geri al"
     },
     "status": {
       "active": "Etkin",
@@ -122,9 +123,9 @@
       "title": "Görünüm",
       "theme": "Tema",
       "themeDescription": "Tercih ettiğiniz temayı seçin veya sistem ayarlarınızı takip edin. Özel tema değişiklikleri yalnızca kaydettiğinizde uygulanır.",
-      "themePreset": "Tema Ön Ayarı",
-      "customColors": "Özel Renkler",
-      "yourOwn": "Kendi Temanız",
+      "themePreset": "Tema ön ayarı",
+      "customColors": "Özel renkler",
+      "yourOwn": "Kendi temanız",
       "light": "Açık",
       "dark": "Koyu",
       "system": "Sistem"
@@ -132,12 +133,12 @@
     "language": {
       "title": "Dil",
       "description": "Uygulama arayüzü için tercih ettiğiniz dili seçin.",
-      "systemDefault": "Sistem Varsayılanı",
-      "interface": "Arayüz Dili"
+      "systemDefault": "Sistem varsayılanı",
+      "interface": "Arayüz dili"
     },
     "defaultBrowser": {
       "title": "Varsayılan Tarayıcı",
-      "setAsDefault": "Varsayılan Tarayıcı Olarak Ayarla",
+      "setAsDefault": "Varsayılan tarayıcı olarak ayarla",
       "description": "Varsayılan olarak ayarlandığında, Donut Browser web bağlantılarını yönetir ve hangi profilin kullanılacağını seçmenize olanak tanır.",
       "setSuccess": "Donut Browser artık varsayılan tarayıcınız",
       "setFailed": "Varsayılan tarayıcı ayarlanamadı",
@@ -147,7 +148,7 @@
       "notDefault": "Donut Browser varsayılan tarayıcınız değil"
     },
     "permissions": {
-      "title": "Sistem İzinleri",
+      "title": "Sistem izinleri",
       "description": "Bu izinler, Donut Browser'dan başlatılan tarayıcıların sistem kaynaklarına erişmesine olanak tanır. Her web sitesi yine de sizden ayrı ayrı izin isteyecektir.",
       "microphone": "Mikrofon",
       "microphoneDescription": "Tarayıcı uygulamaları için mikrofon erişimi",
@@ -162,15 +163,15 @@
       "label": "Yerel API ve MCP"
     },
     "encryption": {
-      "title": "Eşitleme Şifrelemesi",
+      "title": "Eşitleme şifrelemesi",
       "description": "Uçtan uca şifreli eşitlemeyi etkinleştirmek için bir parola belirleyin. Bu parolayı kaybederseniz şifrelenmiş profiller kurtarılamaz.",
       "passwordSetDescription": "Uçtan uca şifreleme parolası ayarlandı",
       "noPassword": "Parola ayarlanmadı",
       "passwordPlaceholder": "Parola (en az 8 karakter)",
       "confirmPlaceholder": "Parolayı onaylayın",
-      "setPassword": "Parola Belirle",
-      "changePassword": "Parolayı Değiştir",
-      "removePassword": "Parolayı Kaldır",
+      "setPassword": "Parola belirle",
+      "changePassword": "Parolayı değiştir",
+      "removePassword": "Parolayı kaldır",
       "removed": "Şifreleme parolası kaldırıldı",
       "passwordSaved": "Şifreleme parolası ayarlandı",
       "passwordMismatch": "Parolalar eşleşmiyor",
@@ -178,7 +179,7 @@
       "requiresProOrOwner": "Profil şifrelemesi Pro kullanıcıları ve ekip sahipleri için kullanılabilir.",
       "validatePassword": "Doğrula",
       "validateDialog": {
-        "title": "Şifreleme Parolasını Doğrula",
+        "title": "Şifreleme parolasını doğrula",
         "description": "Bu cihazda saklanan parolayla eşleştiğini doğrulamak için şifreleme parolanızı girin.",
         "submit": "Doğrula",
         "matchToast": "Parola doğru",
@@ -188,7 +189,7 @@
       "ruleMatch": "Parolalar eşleşiyor"
     },
     "commercial": {
-      "title": "Ticari Lisans",
+      "title": "Ticari lisans",
       "trialActive": "Deneme: {{days}} gün, {{hours}} saat kaldı",
       "trialActiveDescription": "Deneme süresince ticari kullanım ücretsizdir. Süre sona erdiğinde tüm özellikler çalışmaya devam eder — kişisel kullanım ücretsiz kalır, yalnızca ticari kullanım lisans gerektirir.",
       "trialExpired": "Deneme süresi doldu",
@@ -198,7 +199,7 @@
     },
     "advanced": {
       "title": "Gelişmiş",
-      "clearCache": "Tüm Sürüm Önbelleğini Temizle",
+      "clearCache": "Tüm sürüm önbelleğini temizle",
       "clearCacheDescription": "Önbelleğe alınmış tüm tarayıcı sürüm verilerini temizleyin ve tüm tarayıcı sürümlerini kaynaklarından yenileyin. Bu, tüm tarayıcılar için sürüm bilgilerinin yeniden indirilmesini zorlar.",
       "clearCacheFailed": "Önbellek temizlenemedi",
       "copyLogs": "Günlükleri kopyala",
@@ -207,9 +208,9 @@
       "copyLogsDescription": "Son günlüklerin hassas verileri ayıklanmış bir paketini kopyalar (en fazla 5 MB). Ayıklama her tür kişisel veriyi belirleyemeyeceğinden paylaşmadan önce inceleyin.",
       "logs": "Günlükler"
     },
-    "disableAutoUpdates": "Uygulama Otomatik Güncellemelerini Devre Dışı Bırak",
+    "disableAutoUpdates": "Uygulama otomatik güncellemelerini devre dışı bırak",
     "disableAutoUpdatesDescription": "Uygulamanın Donut Browser güncellemelerini otomatik olarak denetlemesini ve yüklemesini engelleyin. Tarayıcı güncellemeleri bundan etkilenmez.",
-    "keepDecryptedProfilesInRam": "Şifresi Çözülmüş Profilleri RAM'de Tut",
+    "keepDecryptedProfilesInRam": "Şifresi çözülmüş profilleri RAM'de tut",
     "keepDecryptedProfilesInRamDescription": "Daha hızlı başlatma için parola korumalı profillerin şifresi çözülmüş RAM kopyasını başlatmalar arasında koruyun. Diskteki kopya her durumda şifreli kalır.",
     "privacy": {
       "consistencyWarning": "Parmak izi uyuşmazlığında engelle",
@@ -299,7 +300,25 @@
           "label": "Olaylar",
           "description": "Profil başlatma ve durdurma, eşitleme, indirmeler ve ilginizi gerektiren istekler."
         }
-      }
+      },
+      "previewAria": "{{name}} seslerini dinle"
+    },
+    "system": {
+      "title": "Sistem",
+      "launchAtLogin": "Oturum açılırken Donut'u aç",
+      "launchAtLoginDescription": "Bilgisayarınızda oturum açtığınızda Donut başlar.",
+      "reopenRunning": "Başlangıçta çalışan profilleri yeniden aç",
+      "reopenRunningDescription": "Donut kapanırken çalışan profiller, Donut açıldığında yeniden başlar.",
+      "notifications": "Sistem bildirimleri",
+      "notificationsDescription": "Donut arka plandayken işletim sisteminiz başarısız bir başlatma veya bir ajandan gelen soru gibi olayları bildirir."
+    },
+    "launches": {
+      "title": "Toplu başlatma",
+      "delay": "Başlatmalar arası bekleme",
+      "delayDescription": "Birden çok profil başlattığınızda Donut'un bir sonraki profili başlatmadan önce beklediği süre.",
+      "concurrency": "Aynı anda başlayan profil sayısı",
+      "concurrencyDescription": "Aynı anda kaç profilin başlayabileceği. Daha düşük bir sayı bilgisayarınızı daha az yorar.",
+      "seconds": "{{value}} sn"
     }
   },
   "header": {
@@ -319,7 +338,8 @@
     "newProfile": "Yeni",
     "donutLogo": "Donut Browser logosu",
     "scrollGroupsLeft": "Grupları sola kaydır",
-    "scrollGroupsRight": "Grupları sağa kaydır"
+    "scrollGroupsRight": "Grupları sağa kaydır",
+    "allGroups": "Tüm gruplar"
   },
   "search": {
     "helpLabel": "Arama söz dizimi",
@@ -409,7 +429,7 @@
       "proxy": "Proxy / VPN",
       "lastLaunch": "Son Başlatma",
       "empty": "Profil bulunamadı.",
-      "ext": "UZN",
+      "ext": "Uzantılar",
       "dns": "DNS",
       "dnsLevel": "DNS engel listesi: {{level}}",
       "extSearch": "Gruplarda ara…",
@@ -500,14 +520,17 @@
       "confirmButton": "Profili Sil"
     },
     "actionBar": {
-      "assignToGroup": "Gruba Ata",
-      "assignProxy": "Proxy Ata",
-      "assignExtensionGroup": "Uzantı Grubu Ata",
-      "copyCookies": "Çerezleri Kopyala",
+      "assignToGroup": "Gruba ata",
+      "assignProxy": "Proxy ata",
+      "assignExtensionGroup": "Uzantı grubu ata",
+      "copyCookies": "Çerezleri kopyala",
       "runSelected": "Seçilenleri çalıştır",
       "stopSelected": "Seçilenleri durdur",
       "proRequired": "Toplu çalıştırma/durdurma için Pro plan gerekli",
-      "distributeProxies": "Proxy'leri dağıt"
+      "distributeProxies": "Proxy'leri dağıt",
+      "runCount": "{{count}} çalıştır",
+      "stopCount": "{{count}} durdur",
+      "enableSync": "Eşitlemeyi aç"
     },
     "passwordProtectedBadge": "Parola Korumalı",
     "launchHook": {
@@ -517,7 +540,13 @@
       "confirmTitle": "{{count}} profil çalıştırılsın mı?",
       "confirmDescription": "{{count}} profili aynı anda başlatmak çok fazla sistem kaynağı kullanabilir. Devam edilsin mi?",
       "confirmButton": "{{count}} Profili Çalıştır",
-      "noneToRun": "Çalıştırılacak seçili profil yok."
+      "noneToRun": "Çalıştırılacak seçili profil yok.",
+      "progress": "Başlatılıyor {{done}} / {{total}}",
+      "failedSummary": "{{total}} başlatmadan {{failed}} tanesi başarısız",
+      "showFailed": "Göster",
+      "notStarted": "{{total}} başlatmadan {{count}} tanesi başlamadı",
+      "finishedTitle": "Toplu başlatma bitti",
+      "finishedBody": "{{total}} profilden {{launched}} tanesi başlatıldı"
     },
     "bulkStop": {
       "confirmTitle": "{{count}} profil durdurulsun mu?",
@@ -533,11 +562,21 @@
     },
     "remote": {
       "runningTooltip": "Uzak bir makinede çalışıyor. Profili buraya geri getirmek için durdurun.",
-      "pendingSyncTooltip": "Uzak oturumun değiştirdikleri indiriliyor. Bittiğinde yeniden kullanılabilir olacak."
-    }
+      "pendingSyncTooltip": "Uzak oturumun değiştirdikleri indiriliyor. Bittiğinde yeniden kullanılabilir olacak.",
+      "starting": "{{name}} bulutta başlatılıyor"
+    },
+    "trash": {
+      "moved": "\"{{name}}\" çöp kutusuna taşındı",
+      "movedMany": "{{count}} profil çöp kutusuna taşındı"
+    },
+    "stopAll": {
+      "none": "Çalışan profil yok."
+    },
+    "duplicated": "Kopya oluşturuldu: {{name}}",
+    "lockedToast": "\"{{name}}\" kilitlendi"
   },
   "createProfile": {
-    "title": "Yeni Profil Oluştur",
+    "title": "Yeni profil oluştur",
     "configureTitle": "Yeni {{browser}} Profili Oluştur",
     "antiDetect": {
       "title": "Anti-Detect Tarayıcı",
@@ -550,7 +589,7 @@
       "description": "Desteklenen normal tarayıcılar arasından seçim yapın",
       "badge": "Normal Tarayıcı"
     },
-    "profileName": "Profil Adı",
+    "profileName": "Profil adı",
     "profileNamePlaceholder": "Profil adını girin",
     "proxy": {
       "title": "Proxy / VPN",
@@ -590,6 +629,9 @@
       "reached": "Planınız saatte {{limit}} yeni profile izin verir. Bir sonrakini yaklaşık {{minutes}} dk sonra oluşturabilirsiniz.",
       "warningTitle": "Profilleri çok hızlı oluşturuyorsunuz",
       "warning": "Lütfen biraz bekleyin. Bir saatte çok fazla profil oluşturmak, 24 saat veya daha uzun süren geçici bir engele yol açar; bu süre boyunca yeni kimlik oluşturamazsınız. Daha yüksek bir saatlik sınıra ihtiyacınız varsa, Donut'u ücretli bir planla desteklemeyi düşünün."
+    },
+    "group": {
+      "notFound": "Grup bulunamadı."
     }
   },
   "deleteDialog": {
@@ -872,32 +914,32 @@
     },
     "serverUrl": "Sunucu URL'si",
     "serverUrlPlaceholder": "https://sync.example.com",
-    "token": "Eşitleme Jetonu",
+    "token": "Eşitleme jetonu",
     "tokenPlaceholder": "Eşitleme jetonunuzu girin",
     "status": {
       "connected": "Bağlı",
       "disconnected": "Bağlantı Kesildi",
       "syncing": "Eşitleniyor...",
-      "error": "Eşitleme Hatası"
+      "error": "Eşitleme hatası"
     },
     "description": "Profillerinizi, proxy'lerinizi ve gruplarınızı cihazlar arasında eşitlemek için bir eşitleme sunucusuna bağlanın.",
     "cloud": {
       "tabLabel": "Bulut",
-      "selfHostedTabLabel": "Kendi Sunucunuz",
+      "selfHostedTabLabel": "Kendi sunucunuz",
       "email": "E-posta",
       "deviceLinkInstructions": "Giriş sayfasını tarayıcınızda açmak için \"Giriş Yap\"a tıklayın. Orada oturum açtıktan sonra gösterilen kodu kopyalayıp aşağıya yapıştırın.",
       "openLogin": "Giriş Yap",
       "linkCodeLabel": "Giriş kodu",
       "linkCodePlaceholder": "Web sitesindeki kodu yapıştırın",
       "signInTitle": "Oturum aç",
-      "verifyAndLogin": "Doğrula ve Giriş Yap",
+      "verifyAndLogin": "Doğrula ve giriş yap",
       "loggingIn": "Giriş yapılıyor...",
       "connected": "Bağlı",
       "plan": "Plan",
       "profiles": "Profiller",
       "profileUsage": "{{used}} / {{limit}}",
-      "manageAccount": "Hesabı Yönet",
-      "logout": "Çıkış Yap",
+      "manageAccount": "Hesabı yönet",
+      "logout": "Çıkış yap",
       "logoutConfirm": "Çıkış yapmak istediğinizden emin misiniz? Bulut eşitlemesi duracak.",
       "loginSuccess": "Başarıyla giriş yapıldı!",
       "logoutSuccess": "Başarıyla çıkış yapıldı.",
@@ -905,7 +947,7 @@
     },
     "team": {
       "title": "Ekip",
-      "name": "Ekip Adı",
+      "name": "Ekip adı",
       "role": "Rol",
       "roleOwner": "Sahip",
       "roleAdmin": "Yönetici",
@@ -926,7 +968,9 @@
     "enabledToast": "Eşitleme etkinleştirildi",
     "disabledToast": "Eşitleme devre dışı bırakıldı",
     "enabledDescription": "Profil eşitleme etkinleştirildi",
-    "disabledDescription": "Profil eşitleme devre dışı bırakıldı"
+    "disabledDescription": "Profil eşitleme devre dışı bırakıldı",
+    "bulkEnabledToast": "{{count}} profil için eşitleme açık",
+    "bulkEnableNone": "Seçili profiller için eşitleme zaten açık."
   },
   "integrations": {
     "title": "Entegrasyonlar",
@@ -1002,11 +1046,11 @@
       }
     },
     "tabApi": "Yerel API",
-    "apiEnableLabel": "Yerel API Sunucusunu Etkinleştir",
+    "apiEnableLabel": "Yerel API sunucusunu etkinleştir",
     "apiEnableDescription": "Profillerin, grupların ve proxy'lerin REST API üzerinden yönetilmesine izin verin.",
     "apiPortLabel": "Bağlantı Noktası",
     "apiPortDescription": "Sunucunun dinlediği port. Yalnızca bu bilgisayar bağlanabilir.",
-    "apiTokenLabel": "Kimlik Doğrulama Jetonu",
+    "apiTokenLabel": "Kimlik doğrulama jetonu",
     "apiTokenDescription": "Her istekte Bearer token olarak gönderin.",
     "apiInvalidPort": "Geçersiz bağlantı noktası",
     "apiInvalidPortDescription": "Bağlantı noktası 1 ile 65535 arasında olmalıdır",
@@ -1075,7 +1119,13 @@
           "title": "İstemci yapılandırması",
           "description": "Bu girdiyi listede olmayan bir istemcinin MCP yapılandırmasına ekleyin."
         }
-      }
+      },
+      "tryIt": "Dene",
+      "tryItDescription": "Bu isteği belirtecinizle yerel API'ye gönderir ve yanıtı gösterir.",
+      "tryItNeedsApi": "Bu isteği göndermek için yerel API'yi açın.",
+      "tryItFailed": "İstek yerel API'ye ulaşmadı. Çalıştığını kontrol edin.",
+      "liveResponse": "Canlı yanıt",
+      "tryItStatus": "HTTP {{status}} · {{ms}} ms"
     },
     "tabRemote": "Uzak MCP",
     "remote": {
@@ -1103,7 +1153,12 @@
       "credentialRotateFailed": "Kimlik bilgisi döndürülemedi",
       "credentialClientsFailed": "Kimlik bilgisi kaydedildi ancak şu istemciler güncellenemedi: {{clients}}. Yeniden denemek için tekrar döndürün.",
       "fxHint": "fx kimlik bilgisini DONUT_MCP_TOKEN'dan okur. fx'i başlatan kabukta dışa aktarın.",
-      "fxExportCopied": "Dışa aktarma satırı kopyalandı"
+      "fxExportCopied": "Dışa aktarma satırı kopyalandı",
+      "credentialForget": "Unut",
+      "credentialForgetTitle": "Kimlik bilgisi unutulsun mu?",
+      "credentialForgetDescription": "Donut kimlik bilgisini iptal eder ve bu bilgisayardan kaldırır. Onu kullanan istemciler, yenisini oluşturana kadar çalışmaz.",
+      "credentialForgotten": "Kimlik bilgisi unutuldu",
+      "credentialForgetFailed": "Kimlik bilgisi unutulamadı"
     }
   },
   "import": {
@@ -1386,7 +1441,7 @@
     "unknownError": "Bilinmeyen bir hata oluştu. Lütfen yeniden deneyin.",
     "noProfilesForUrl": "Kullanılabilir profil yok. Lütfen URL açmadan önce bir profil oluşturun.",
     "createProfileFailed": "Profil oluşturulamadı: {{error}}",
-    "launchBrowserFailed": "Tarayıcı başlatılamadı: {{error}}",
+    "launchBrowserFailed": "{{name}} başlatılamadı: {{error}}",
     "cannotDeleteRunningProfile": "Tarayıcı çalışırken profil silinemez. Lütfen önce tarayıcıyı durdurun.",
     "deleteProfileFailed": "Profil silinemedi: {{error}}",
     "renameProfileFailed": "Profil yeniden adlandırılamadı: {{error}}",
@@ -1547,9 +1602,9 @@
     "cancel": "İptal"
   },
   "syncAll": {
-    "title": "Mevcut Öğeler için Eşitlemeyi Etkinleştir",
+    "title": "Mevcut öğeler için eşitlemeyi etkinleştir",
     "description": "Eşitlenmeyen öğeleriniz var. Hepsi için eşitlemeyi etkinleştirmek ister misiniz?",
-    "enableAll": "Tümünü Etkinleştir",
+    "enableAll": "Tümünü etkinleştir",
     "skip": "Atla",
     "success": "Tüm öğeler için eşitleme etkinleştirildi",
     "labels": {
@@ -1557,16 +1612,17 @@
       "vpns": "VPN'ler",
       "groups": "Gruplar",
       "extensions": "Uzantılar",
-      "extensionGroups": "Uzantı Grupları"
+      "extensionGroups": "Uzantı grupları"
     }
   },
   "crossOs": {
     "viewOnly": "Bu profil {{os}} üzerinde oluşturuldu ve bu sistemde desteklenmiyor",
     "cannotLaunch": "Bu profil {{os}} üzerinde oluşturuldu ve bu sistemde desteklenmiyor",
-    "cannotModify": "İşletim sistemleri arası bir profilin eşitleme ayarları değiştirilemez"
+    "cannotModify": "İşletim sistemleri arası bir profilin eşitleme ayarları değiştirilemez",
+    "cannotLaunchUnknown": "Bu profil başka bir işletim sisteminde oluşturuldu ve burada başlatılamaz"
   },
   "profileInfo": {
-    "title": "Profil Ayrıntıları",
+    "title": "Profil ayrıntıları",
     "tabs": {
       "info": "Bilgi",
       "settings": "Ayarlar"
@@ -1607,25 +1663,26 @@
     },
     "network": {
       "bypassRules": "Proxy Atlama Kuralları",
-      "bypassRulesTitle": "Proxy Atlama Kuralları",
+      "bypassRulesTitle": "Proxy atlama kuralları",
       "bypassRulesDescription": "Bu kurallarla eşleşen istekler, proxy'yi atlayarak doğrudan bağlanır.",
-      "addRule": "Kural Ekle",
+      "addRule": "Kural ekle",
       "rulePlaceholder": "örn. example.com, 192.168.1.*, .*\\.local",
       "noRules": "Yapılandırılmış atlama kuralı yok.",
       "ruleTypes": "Alan adları, IP adresleri ve regex desenleri desteklenir.",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}"
+      "proxyLabel": "Proxy: {{name}}",
+      "removeRule": "{{rule}} kuralını kaldır"
     },
     "launchHook": {
-      "title": "Başlatma Kancası URL'si",
-      "label": "Başlatma Kancası URL'si",
+      "title": "Başlatma kancası URL'si",
+      "label": "Başlatma kancası URL'si",
       "description": "Donut Browser, profil her başlatıldığında bu URL'ye bir GET isteği gönderir.",
       "placeholder": "https://example.com/hooks/profile-launch",
       "invalidUrlHint": "Geçerli bir http:// veya https:// URL'si girin."
     },
     "actions": {
-      "manageCookies": "Çerezleri Yönet",
-      "assignExtensionGroup": "Uzantı Grubu Ata"
+      "manageCookies": "Çerezleri yönet",
+      "assignExtensionGroup": "Uzantı grubu ata"
     },
     "clone": {
       "title": "Profili Klonla",
@@ -1650,7 +1707,9 @@
       "launchHook": "Başlatma kancası",
       "transfer": "Aktarım",
       "startPages": "Başlangıç sayfaları",
-      "twoFactor": "2FA kodları"
+      "twoFactor": "2FA kodları",
+      "requests": "İstekler",
+      "logs": "Günlükler"
     },
     "sectionDesc": {
       "fingerprint": "Bu profilin parmak izi tarama betiklerine nasıl görüneceğini yapılandırın.",
@@ -1660,11 +1719,13 @@
       "sync": "Bu profilin diğer cihazlarınıza nasıl yansıtılacağını yapılandırın.",
       "automation": "Bu profil her başlatıldığında bir komut veya betik çalıştırın.",
       "security": "Profil verilerini bir parolayla şifreleyin.",
-      "launchHook": "Profil her başlatıldığında bu URL'ye bir GET isteği gönderin."
+      "launchHook": "Profil her başlatıldığında bu URL'ye bir GET isteği gönderin.",
+      "requests": "Tarayıcının çalışırken yaptığı istekler. Kimlik bilgileri gizlenir.",
+      "logs": "Donut'un bu profille ilgili günlük satırları."
     },
     "badges": {
-      "locked": "KİLİTLİ",
-      "active": "ETKİN"
+      "locked": "Kilitli",
+      "active": "Etkin"
     },
     "cookies": {
       "runningNotice": "Tarayıcı çalışırken çerezler okunamaz. Önce bu profili kapatın.",
@@ -1673,12 +1734,15 @@
     "security": {
       "protected": "Bu profil bir parolayla şifrelenmiş.",
       "unprotected": "Bu profil şifrelenmemiş. Verilerini bekleme durumunda şifrelemek için bir parola belirleyin.",
-      "cannotWhileRunning": "Parolasını değiştirmeden önce profili durdurun."
+      "cannotWhileRunning": "Parolasını değiştirmeden önce profili durdurun.",
+      "unlockedTitle": "Bu cihazda kilidi açık",
+      "unlockedDescription": "Siz kilitleyene kadar verileri şifresi çözülmüş kalır."
     },
     "fingerprint": {
       "notSupported": "Parmak izi düzenleme yalnızca Wayfern profillerinde kullanılabilir.",
       "lockedTitle": "Parmak izini görüntülemek ve düzenlemek bir Pro özelliğidir",
-      "lockedDescription": "Cihaz bilgileriniz her profilde korunur. Bir profilin parmak izini görüntülemek ve düzenlemek etkin bir ücretli plan gerektirir."
+      "lockedDescription": "Cihaz bilgileriniz her profilde korunur. Bir profilin parmak izini görüntülemek ve düzenlemek etkin bir ücretli plan gerektirir.",
+      "customValuesKept": "Özel parmak izi değerleriniz saklanır. Hesapta etkin bir Pro planı olduğunda uygulanır."
     },
     "syncStatusValue": {
       "waiting": "Bekliyor",
@@ -1701,6 +1765,28 @@
       "includeIndexedDb": "IndexedDB'yi dahil et",
       "indexedDbHint": "Dışa aktarma profili bir anlığına arka planda açar; hiçbir sayfa yüklenmez.",
       "importedWithIndexedDb": "İçe aktarıldı. Local Storage öğeleri: {{items}} · Siteler: {{origins}} · Çerezler: {{cookies}} · IndexedDB kayıtları: {{records}}"
+    },
+    "drafts": {
+      "unsaved": "Kaydedilmemiş değişiklikler"
+    },
+    "aria": {
+      "runRemote": "{{name}} profilini bulutta çalıştır",
+      "moreActions": "{{name}} için diğer işlemler",
+      "close": "{{name}} ayrıntılarını kapat",
+      "copyId": "{{name}} kimliğini kopyala"
+    },
+    "runningBanner": "Düzenlemek için profili durdurun.",
+    "debug": {
+      "title": "Hata ayıklama uç noktası",
+      "description": "Çalışan bu tarayıcıya Playwright, Puppeteer veya başka bir CDP istemcisi bağlayın.",
+      "notRunning": "Hata ayıklama uç noktasını almak için profili başlatın.",
+      "unavailable": "Tarayıcı hata ayıklama bağlantı noktasında yanıt vermiyor.",
+      "port": "Bağlantı noktası",
+      "wsUrl": "WebSocket URL'si",
+      "wsPending": "WebSocket URL'si tarayıcı yanıt verdiğinde görünür.",
+      "copyPort": "Bağlantı noktasını kopyala",
+      "copyWsUrl": "WebSocket URL'sini kopyala",
+      "copyCode": "{{tool}} kodunu kopyala"
     }
   },
   "profileTransfer": {
@@ -1831,7 +1917,7 @@
     "cookieManagementLocked": "Çerez yönetimi bir Pro özelliğidir"
   },
   "dnsBlocklist": {
-    "title": "DNS Engel Listesi",
+    "title": "DNS engel listesi",
     "none": "Yok",
     "light": "Hafif",
     "normal": "Normal",
@@ -1958,7 +2044,8 @@
     "created_other": "{{count}} profil oluşturuldu",
     "stoppedEarly": "{{total}} profilden {{created}} tanesi oluşturuldu. {{error}}",
     "passwordOneOnly": "Parolayı yalnızca tek bir profil oluştururken ayarlayabilirsiniz.",
-    "saveFromProfileDescription": "Bu şablondan oluşturulan yeni profiller şablonun ayarlarını ve her biri kendi yeni cihazını alır. Ad, not ve cihaz bu profilde kalır."
+    "saveFromProfileDescription": "Bu şablondan oluşturulan yeni profiller şablonun ayarlarını ve her biri kendi yeni cihazını alır. Ad, not ve cihaz bu profilde kalır.",
+    "notifyTitle": "Toplu oluşturma tamamlandı"
   },
   "vpns": {
     "form": {
@@ -2104,7 +2191,14 @@
       "securePreferencesReset": "Ana sayfa ve arama motoru gibi korumalı ayarlar varsayılana döndü.",
       "extensionsPartial": "Bazı uzantılar kaynak tarayıcıya aitti ve aktarılmadı.",
       "storeUnreadable": "Bir veritabanı okunamadı ve bozuk şekilde kopyalanmak yerine atlandı."
-    }
+    },
+    "cancelImport": "İçe aktarmayı iptal et",
+    "cancelling": "İptal ediliyor…",
+    "cancelHint": "İptal, geçerli profilden sonra durur. İçe aktarılmış profiller korunur.",
+    "cancelledSummary": "İçe aktarma iptal edildi. {{total}} profilden {{imported}} tanesi içe aktarıldı.",
+    "statusCancelled": "İçe aktarılmadı",
+    "importRemaining": "Kalanları içe aktar",
+    "notifyTitle": "Profil içe aktarma tamamlandı"
   },
   "syncTooltips": {
     "syncing": "Eşitleniyor...",
@@ -2193,7 +2287,13 @@
     "badgeProxy": "Proxy",
     "badgeRunning": "Çalışıyor",
     "badgeUnavailable": "Kullanılamıyor",
-    "openButton": "Aç"
+    "openButton": "Aç",
+    "busy": {
+      "launching": "Bu profil başlatılıyor. Biraz bekleyin.",
+      "stopping": "Bu profil durduruluyor. Biraz bekleyin.",
+      "singleInstance": "{{browser}} zaten çalışıyor ({{names}}). Aynı anda yalnızca bir örnek çalışabilir.",
+      "unavailable": "Bu profil şu anda bağlantı açamıyor."
+    }
   },
   "wayfernTerms": {
     "title": "Wayfern Şartlar ve Koşulları",
@@ -2331,11 +2431,52 @@
     "tagsHeader": "Etiketler",
     "noteHeader": "Not",
     "vpnsHeading": "VPN'ler",
-    "createByCountryHeading": "Ülkeye göre oluştur"
+    "createByCountryHeading": "Ülkeye göre oluştur",
+    "aria": {
+      "details": "{{name}} ayrıntıları",
+      "launch": "{{name}} profilini başlat",
+      "stop": "{{name}} profilini durdur",
+      "proxy": "{{name}} için proxy: {{value}}",
+      "tags": "{{name}} etiketleri",
+      "note": "{{name}} notu",
+      "extensionGroup": "{{name}} uzantı grubu",
+      "dns": "{{name}} DNS engelleme listesi",
+      "status": "{{name}} durumu",
+      "rename": "{{name}} profilini yeniden adlandır",
+      "sync": "{{name}} eşitlemesi: {{status}}",
+      "launchError": "Son başlatma başarısız oldu: {{error}}",
+      "health": "{{name}} bağlantısı: {{status}}",
+      "traffic": "{{name}} trafik ayrıntıları"
+    },
+    "menu": {
+      "openDetails": "Ayrıntıları aç",
+      "rename": "Yeniden adlandır",
+      "moveToGroup": "Gruba taşı",
+      "copyId": "Kimliği kopyala",
+      "runRemote": "Bulutta çalıştır",
+      "lockNow": "Şimdi kilitle",
+      "moveToTrash": "Çöp kutusuna taşı"
+    },
+    "emptyGroupTitle": "Bu grup boş",
+    "emptyGroupHint": "Bu grupta bir profil oluşturun veya mevcut profilleri buraya taşıyın.",
+    "emptyGroupCreate": "Buraya yeni profil",
+    "emptyGroupMove": "Profilleri buraya taşı",
+    "health": {
+      "degraded": "Bağlantı yavaş veya kararsız",
+      "down": "Bağlantı kesik"
+    },
+    "route": "Proxy / VPN: {{name}}",
+    "routeNone": "Proxy veya VPN yok",
+    "launchTooltip": {
+      "launching": "Başlatılıyor…",
+      "stopping": "Durduruluyor…",
+      "singleInstance": "Bu tarayıcının aynı anda yalnızca bir örneği çalışabilir. Önce çalışanı durdurun."
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}} seçildi",
-    "clearSelection": "Seçimi temizle"
+    "clearSelection": "Seçimi temizle",
+    "selectedHidden": "{{selected}} seçildi · {{hidden}} filtrelerle gizlendi"
   },
   "appUpdate": {
     "toast": {
@@ -2632,8 +2773,8 @@
     "remoteSessionNotDrivable": "Bu uzak oturum henüz yönetilmeye hazır değil. Etkin duruma gelmesini bekleyin.",
     "remotePlatformUnsupported": "Uzak oturumlar yalnızca macOS, Windows veya Linux sunucularında çalışır. Bu profilin platformu {{platform}}.",
     "remoteProfileNotSynced": "Bu profil buluta yüklenmeyi henüz tamamlamadı. İlk eşitlemenin bitmesini bekleyip tekrar deneyin.",
-    "trashEntryNotFound": "Bu profil artık çöp kutusunda değil.",
-    "trashRestoreConflict": "Aynı kimliğe sahip bir profil zaten var, bu nedenle bu profil geri yüklenemez.",
+    "trashEntryNotFound": "Bu öğe artık çöp kutusunda değil.",
+    "trashRestoreConflict": "Aynı kimliğe sahip bir öğe zaten var, bu nedenle bu öğe geri yüklenemez.",
     "recipesNotEntitled": "Tarifler, Pro veya daha üst bir plan gerektirir.",
     "agentRecipeInvalid": "Bir tarifin adı ve en az bir adımı olmalı.",
     "agentRecipeNotFound": "Bu tarif artık yok.",
@@ -2752,7 +2893,40 @@
     "syncServerAddressMismatch": "Sunucunun adresi {{address}}. Bu adresi girin.",
     "remoteNeedsDonutSync": "Uzak oturumlar ve Cookie Bot profilleri Donut cloud eşitlemesinden alır. Bu bilgisayar kendi sunucunuzla eşitleniyor.",
     "accountSyncUnavailable": "Donut henüz kendi sunucunuzda oturum açamıyor. Daha sonra tekrar deneyin.",
-    "selfHostedTeamSeat": "Ekip hesapları, eşitleme jetonu kullanan bir sunucuyla eşitlenemez."
+    "selfHostedTeamSeat": "Ekip hesapları, eşitleme jetonu kullanan bir sunucuyla eşitlenemez.",
+    "agentTargetInvalid": "Tarifin nerede çalışacağını seçin: bu bilgisayarda veya uzak filoda.",
+    "agentTargetOffline": "Bu bilgisayar Donut bulutuna bağlı değil. Entegrasyonlar'da uzaktan kontrolü açın ve tekrar deneyin.",
+    "agentPlatformInvalid": "Uzak filo bu profilin işletim sistemini çalıştıramıyor.",
+    "agentRunLimitReached": "Devam eden çok fazla çalıştırma var. Birinin bitmesini bekleyip tekrar deneyin.",
+    "remoteRequiresCloudSync": "Önce bu profil için bulut eşitlemeyi açın. Uzak bir sunucu profili başka bir yolla alamaz.",
+    "remoteEncryptedSyncUnsupported": "Bu profil, uzak sunucunun çözemediği uçtan uca şifreli eşitleme kullanıyor. Uzakta çalıştırmak için normal eşitlemeye geçin.",
+    "remoteUnknownPlatform": "Bu profil için kayıtlı bir işletim sistemi yok, bu yüzden eşleşen uzak sunucu yok.",
+    "networkCaptureFailed": "Tarayıcı ağ yakalamayı kabul etmedi: {{detail}}",
+    "networkCaptureNotRunning": "Bu profil için çalışan bir ağ yakalaması yok.",
+    "vpnKeyUnreadable": "Kayıtlı VPN'lerinizi açan anahtar okunamıyor, bu yüzden hiçbir şey değiştirilmedi. Uygulama veri klasöründeki vpn klasörünün izinlerini kontrol edin.",
+    "entityInUse_one": "{{count}} profil tarafından kullanılıyor. Önce onu başka bir proxy'ye veya VPN'e geçirin.",
+    "entityInUse_other": "{{count}} profil tarafından kullanılıyor. Önce onları başka bir proxy'ye veya VPN'e geçirin.",
+    "syncCancelled": "Eşitleme iptal edildi.",
+    "syncServerError": "Eşitleme sunucusu hata verdi (durum {{status}}). Eşitleme daha sonra yeniden denenecek.",
+    "syncStorageRejected": "Eşitleme deposu aktarımı reddetti (durum {{status}}).",
+    "syncTransferIncomplete": "Bazı dosyalar aktarılamadı. Eşitleme daha sonra yeniden denenecek.",
+    "syncAuthFailed": "Eşitleme oturumu artık geçerli değil. Yeniden oturum açın veya eşitleme belirtecini kontrol edin.",
+    "syncForbidden": "Eşitleme sunucusu bu değişikliğe izin vermiyor.",
+    "syncTooLarge": "Bu öğe eşitleme sunucusu için çok büyük.",
+    "syncRateLimited": "Eşitleme sunucusu meşgul. Eşitleme daha sonra yeniden denenecek.",
+    "syncServerRejected": "Eşitleme sunucusu isteği reddetti (durum {{status}}).",
+    "syncLocalFilesFailed": "Bu bilgisayardaki dosyalar okunamadı veya yazılamadı.",
+    "syncDataInvalid": "Eşitlenen kopya okunamıyor.",
+    "syncDecryptFailed": "Eşitlenen veriler çözülemedi. Şifreleme parolasını kontrol edin.",
+    "syncCrossOsProfile": "Başka bir işletim sisteminden gelen profil yalnızca ayarlarını eşitler.",
+    "syncEphemeralProfile": "Geçici bir profil eşitlenemez.",
+    "syncTombstoneNotCleared": "Eşitleme sunucusuna ulaşılamadı, bu nedenle bu profil için eşitleme kapalı kalıyor.",
+    "syncNotEnabled": "Bu profil için eşitleme kapalı.",
+    "proxyUpstreamUnreachable": "Proxy'ye bağlanılamadı.",
+    "proxyUpstreamTimeout": "Proxy yanıt vermiyor.",
+    "proxyAuthFailed": "Proxy kullanıcı adını veya parolayı reddetti.",
+    "vpnUnreachable": "VPN sunucusu yanıt vermiyor.",
+    "entityInUse": "{{count}} profil tarafından kullanılıyor. Önce onları başka bir proxy'ye veya VPN'e geçirin."
   },
   "rail": {
     "profiles": "Profiller",
@@ -2958,7 +3132,11 @@
       "launch": "başlat aç çalıştır tarayıcı",
       "stop": "durdur kapat sonlandır",
       "info": "ayrıntılar bilgi düzenle profil",
-      "group": "grup filtre değiştir klasör"
+      "group": "grup filtre değiştir klasör",
+      "newProfile": "yeni ekle oluştur profil tarayıcı",
+      "stopAllRunning": "durdur tümü çalışan kapat sonlandır",
+      "focusSearch": "ara bul filtrele",
+      "goBack": "geri escape ana sayfa"
     }
   },
   "shortcuts": {
@@ -2977,7 +3155,11 @@
     "goAgent": "Ajan'a git",
     "openTips": "İpuçlarını aç",
     "sendFeedback": "Geri bildirim gönder",
-    "openTotp": "Anahtardan 2FA kodu"
+    "openTotp": "Anahtardan 2FA kodu",
+    "newProfile": "Yeni profil",
+    "stopAllRunning": "Çalışan tüm profilleri durdur",
+    "focusSearch": "Profillerde ara",
+    "goBack": "Profiller'e dön"
   },
   "closeConfirm": {
     "title": "Donut Browser kapatılsın mı?",
@@ -3474,7 +3656,10 @@
     "vpnExtensionEntryNoVersion": " — {{capability}}, {{source}}",
     "scanIncompleteMissing": "Bu profil henüz başlatılmadığından yalnızca Donut tarafından yönetilen uzantılar denetlenebildi.",
     "exitUnverifiedTimezone": "Bu profilin parmak izinde saat dilimi belirtilmediği için çıkış kontrolü bunu doğrulayamaz. Başlatma engellenmez, ancak hiçbir karşılaştırma da yapılmadı.",
-    "exitUnverifiedLanguage": "Bu profilin parmak izi dili çıkış ülkesiyle karşılaştırılamıyor, bu nedenle bu kontrol geçmiş değil doğrulanmamış sayılır."
+    "exitUnverifiedLanguage": "Bu profilin parmak izi dili çıkış ülkesiyle karşılaştırılamıyor, bu nedenle bu kontrol geçmiş değil doğrulanmamış sayılır.",
+    "routeProxyHeading": "Proxy yanıt vermiyor",
+    "routeVpnHeading": "VPN yanıt vermiyor",
+    "routeExplainer": "Sayfalar yüklenmeyebilir. Proxy'yi veya VPN'i kontrol edin ya da yine de başlatın."
   },
   "profileMotion": {
     "inspectorSections": "Profil bölümleri",
@@ -3599,15 +3784,17 @@
   },
   "trash": {
     "title": "Çöp Kutusu",
-    "description": "Silinen profiller süreleri dolana kadar burada bekler. Birini geri yükleyerek kimliği, proxy'si ve etiketleriyle geri alabilirsiniz.",
+    "description": "Silinen profiller, proxy'ler, VPN'ler, gruplar, uzantılar ve şablonlar süreleri dolana kadar burada bekler. Birini geri yükleyerek olduğu gibi geri alabilirsiniz.",
     "empty": "Çöp kutusu boş",
-    "emptyHint": "Sildiğiniz profiller burada görünür ve süreleri dolana kadar geri yüklenebilir.",
+    "emptyHint": "Sildikleriniz burada görünür ve süreleri dolana kadar geri yüklenebilir.",
     "columns": {
-      "name": "Profil",
+      "name": "Ad",
       "browser": "Tarayıcı",
       "deleted": "Silinme",
       "expires": "Süre sonu",
-      "size": "Boyut"
+      "size": "Boyut",
+      "kind": "Tür",
+      "detail": "Ayrıntılar"
     },
     "expiresIn_one": "{{count}} gün içinde",
     "expiresIn_other": "{{count}} gün içinde",
@@ -3619,17 +3806,48 @@
     "confirmDeleteForeverTitle": "Kalıcı olarak silinsin mi?",
     "confirmDeleteForeverDescription": "\"{{name}}\" ve tüm verileri yok edilecek. Bu işlem geri alınamaz.",
     "confirmEmptyTitle": "Çöp kutusu boşaltılsın mı?",
-    "confirmEmptyDescription_one": "{{count}} profil ve tüm verileri yok edilecek. Bu işlem geri alınamaz.",
-    "confirmEmptyDescription_other": "{{count}} profil ve tüm verileri yok edilecek. Bu işlem geri alınamaz.",
+    "confirmEmptyDescription_one": "{{count}} öğe ve tüm verileri yok edilir. Bu işlem geri alınamaz.",
+    "confirmEmptyDescription_other": "{{count}} öğe ve tüm verileri yok edilir. Bu işlem geri alınamaz.",
     "restored": "\"{{name}}\" geri yüklendi",
     "restoredSyncOff": "Senkronizasyon yeniden açılamadı, bu yüzden profil yalnızca bu cihazda. Diğer cihazlarınızla paylaşmak için senkronizasyon modunu yeniden ayarlayın.",
-    "restoreFailed": "Profil geri yüklenemedi: {{error}}",
+    "restoreFailed": "Geri yüklenemedi: {{error}}",
     "deletedForever": "\"{{name}}\" kalıcı olarak silindi",
-    "deleteForeverFailed": "Profil silinemedi: {{error}}",
-    "emptied_one": "{{count}} profil çöp kutusundan kaldırıldı",
-    "emptied_other": "{{count}} profil çöp kutusundan kaldırıldı",
+    "deleteForeverFailed": "Kalıcı olarak silinemedi: {{error}}",
+    "emptied_one": "{{count}} öğe çöp kutusundan kaldırıldı",
+    "emptied_other": "{{count}} öğe çöp kutusundan kaldırıldı",
     "emptyFailed": "Çöp kutusu boşaltılamadı: {{error}}",
-    "loadFailed": "Çöp kutusu yüklenemedi: {{error}}"
+    "loadFailed": "Çöp kutusu yüklenemedi: {{error}}",
+    "kinds": {
+      "all": "Tümü",
+      "profile": "Profiller",
+      "proxy": "Proxy'ler",
+      "vpn": "VPN'ler",
+      "group": "Gruplar",
+      "extension": "Uzantılar",
+      "extension_group": "Uzantı grupları",
+      "template": "Şablonlar"
+    },
+    "kind": {
+      "profile": "Profil",
+      "proxy": "Proxy",
+      "vpn": "VPN",
+      "group": "Grup",
+      "extension": "Uzantı",
+      "extension_group": "Uzantı grubu",
+      "template": "Şablon"
+    },
+    "restoredSyncOffEntity": "Senkronizasyon yeniden açılamadı, bu yüzden yalnızca bu cihazda. Diğer cihazlarınızla paylaşmak için senkronizasyonunu yeniden açın.",
+    "moved": "\"{{name}}\" çöp kutusuna taşındı",
+    "deleted": "\"{{name}}\" silindi",
+    "deleteFailed": "\"{{name}}\" silinemedi: {{error}}",
+    "restoredMany_one": "{{count}} öğe geri yüklendi",
+    "restoredMany_other": "{{count}} öğe geri yüklendi",
+    "deletedForeverMany_one": "{{count}} öğe kalıcı olarak silindi",
+    "deletedForeverMany_other": "{{count}} öğe kalıcı olarak silindi",
+    "movedMany_one": "{{count}} öğe çöp kutusuna taşındı",
+    "movedMany_other": "{{count}} öğe çöp kutusuna taşındı",
+    "deletedMany_one": "{{count}} öğe silindi",
+    "deletedMany_other": "{{count}} öğe silindi"
   },
   "agent": {
     "description": "Yapay zekâ ajanınızın Donut'ta ne yaptığını görün, sorularını yanıtlayın ve bir sayfa size ihtiyaç duyduğunda devreye girin.",
@@ -3836,7 +4054,19 @@
       "deleted": "Tarif silindi",
       "deleteTitle": "{{name}} silinsin mi?",
       "deleteDescription": "Tarif tüm cihazlardan silinir.",
-      "needsAutomation": "Tarifler tarayıcıları açıp yönettiği için Pro veya daha üst bir plan gerektirir. Ajanınız profilleri, proxy'leri ve grupları yönetmeye devam edebilir."
+      "needsAutomation": "Tarifler tarayıcıları açıp yönettiği için Pro veya daha üst bir plan gerektirir. Ajanınız profilleri, proxy'leri ve grupları yönetmeye devam edebilir.",
+      "runAria": "{{name}} tarifini şimdi çalıştır",
+      "runTitle": "{{name}} tarifini çalıştır",
+      "runDescription": "Donut bulutu adımları seçtiğiniz profilde bir kez oynatır.",
+      "runProfile": "Profil",
+      "runProfilePlaceholder": "Bir profil seçin",
+      "runNoProfiles": "Önce bir profil oluşturun",
+      "runPlatformUnsupported": "Uzak filo bu profilin işletim sistemini çalıştıramıyor.",
+      "runDesktopOffline": "Bu bilgisayarda çalıştırmak için Entegrasyonlar'da uzaktan kontrolü açın.",
+      "runStartedOn": "Donut bulutu {{name}} tarifini {{profile}} profilinde oynatıyor.",
+      "oneOffName": "Şimdi çalıştır: {{name}}",
+      "editAria": "{{name}} tarifini düzenle",
+      "deleteAria": "{{name}} tarifini sil"
     },
     "schedules": {
       "hint": "Bir tarifi takvime göre uzak filoda veya bu bilgisayarda çalıştırın.",
@@ -4182,7 +4412,26 @@
     "stopped": "Durduruldu",
     "noTags": "Etiket yok",
     "noProxy": "Proxy yok",
-    "encrypted": "Şifreli"
+    "encrypted": "Şifreli",
+    "views": {
+      "label": "Görünümler",
+      "title": "Kayıtlı görünümler",
+      "empty": "Henüz kayıtlı görünüm yok. Geri dönmek için geçerli aramaya, filtrelere, sıralamaya ve sütunlara bir ad verin.",
+      "nameLabel": "Görünüm adı",
+      "namePlaceholder": "Bu görünüme ad verin",
+      "replace": "Değiştir",
+      "useAtStart": "Başlangıçta {{name}} görünümünü aç",
+      "defaultBadge": "Başlangıçta",
+      "rename": "{{name}} adını değiştir",
+      "delete": "{{name}} görünümünü sil",
+      "deleted": "{{name}} görünümü silindi",
+      "full": "En fazla {{limit}} görünüm kaydedebilirsiniz. Yenisini kaydetmek için birini silin.",
+      "nameTaken": "Bu ada sahip başka bir görünüm var."
+    },
+    "moveColumnLeft": "{{column}} sütununu sola taşı",
+    "moveColumnRight": "{{column}} sütununu sağa taşı",
+    "selectRowNamed": "{{name}} öğesini seç",
+    "rowAction": "{{action}}: {{name}}"
   },
   "feedback": {
     "title": "Geri bildirim gönder",
@@ -4390,5 +4639,87 @@
       "valid": "Geçerli",
       "invalid": "Geçersiz"
     }
+  },
+  "leavePrompt": {
+    "title": "Kaydedilmemiş değişiklikler",
+    "description": "Bazı değişiklikler kaydedilmedi.",
+    "descriptionOne": "{{label}} içindeki değişiklikler kaydedilmedi.",
+    "save": "Kaydet",
+    "discard": "Vazgeç",
+    "stay": "Kal"
+  },
+  "moveProfiles": {
+    "title": "Profilleri {{group}} grubuna taşı",
+    "description": "Bu gruba taşınacak profilleri seçin. Çalışan bir profil taşınamaz.",
+    "empty": "Tüm profiller zaten bu grupta.",
+    "confirm": "{{count}} profili taşı"
+  },
+  "logViewer": {
+    "title": "Uygulama günlüğü",
+    "levelFilter": "Düzeye göre filtrele",
+    "levels": {
+      "all": "Tümü",
+      "warn": "Uyarılar",
+      "error": "Hatalar"
+    },
+    "searchPlaceholder": "Günlükte ara",
+    "copyAria": "{{count}} günlük satırını kopyala",
+    "copied": "Günlük satırları kopyalandı",
+    "copiedDescription": "Panodaki satırlar: {{count}}",
+    "copyFailed": "Günlük kopyalanamadı",
+    "empty": "Günlükte henüz satır yok.",
+    "emptyProfile": "Bu profil için henüz günlük satırı yok.",
+    "noMatches": "Filtreyle eşleşen satır yok.",
+    "capped": "En yeni {{count}} satır gösteriliyor."
+  },
+  "networkPanel": {
+    "start": "Yakalamayı başlat",
+    "stop": "Yakalamayı durdur",
+    "capturing": "İstekler: {{count}}",
+    "emptyStopped": "Bu profilin sayfalarının ne istediğini görmek için bir yakalama başlatın.",
+    "emptyNotRunning": "Ağ isteklerini yakalamak için profili başlatın.",
+    "privacyNote": "Yakalama durana veya tarayıcı kapanana kadar bellekte tutulur. Çerez ve yetkilendirme değerleri gizlenir.",
+    "waiting": "İstekler bekleniyor…",
+    "columns": {
+      "method": "Yöntem",
+      "status": "Durum",
+      "host": "Ana makine",
+      "path": "Yol",
+      "type": "Tür",
+      "size": "Boyut",
+      "time": "Süre"
+    },
+    "states": {
+      "pending": "Bekliyor",
+      "done": "Tamamlandı",
+      "failed": "Başarısız",
+      "redirected": "Yönlendirildi",
+      "incomplete": "Eksik"
+    },
+    "openRequest": "{{method}} {{url}} aç",
+    "backToList": "İsteklere dön",
+    "requestHeaders": "İstek başlıkları",
+    "responseHeaders": "Yanıt başlıkları",
+    "requestBody": "İstek gövdesi",
+    "noHeaders": "Başlık yok",
+    "fromCache": "önbellekten",
+    "redactedNote": "Çerez ve yetkilendirme değerleri [redacted] ile değiştirilir.",
+    "startFailed": "Yakalama başlatılamadı",
+    "stopFailed": "Yakalama durdurulamadı",
+    "withheld": "Profili siz kontrol ederken kaydedilmeyenler: {{count}}"
+  },
+  "syncHealth": {
+    "idle": "Eşitleme güncel",
+    "syncing": "Eşitleniyor",
+    "offline": "Eşitleme çevrimdışı. Bağlantı geri geldiğinde değişiklikler eşitlenir.",
+    "error": "Eşitleme başarısız",
+    "errorWith": "Eşitleme başarısız: {{error}}",
+    "notifyTitle": "Eşitleme başarısız",
+    "conflictToast": "{{name}} üzerindeki düzenlemeniz başka bir cihazdan gelen daha yeni bir kopyayla değiştirildi",
+    "conflictToastUnnamed": "Düzenlemeniz başka bir cihazdan gelen daha yeni bir kopyayla değiştirildi"
+  },
+  "launchNotice": {
+    "fingerprintEditsNotApplied": "{{name}} özel parmak izi değişiklikleri olmadan başlatılıyor",
+    "fingerprintEditsNeedPro": "Değişiklikleriniz saklanır ve etkin bir Pro planıyla yeniden uygulanır."
   }
 }

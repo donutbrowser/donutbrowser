@@ -7,13 +7,18 @@ import {
   filterTableRows,
   type TableFilter,
   type TableFilterValues,
+  type TableId,
 } from "@/lib/table-tools";
 
+/**
+ * Search and facet filters for one table. The selection is left alone: rows a
+ * filter hides stay selected, and the selection bar counts them.
+ */
 export function useTableFilters<T>(
   data: T[],
   searchText: (row: T) => string,
   definitions: TableFilter<T>[],
-  clearSelection: () => void,
+  tableId?: TableId,
 ) {
   const [query, setQuery] = useState("");
   const [values, setValues] = useState<TableFilterValues>({});
@@ -50,25 +55,48 @@ export function useTableFilters<T>(
     [data, query, searchText, definitions, values],
   );
   return {
+    tableId,
     query,
     values,
     rows,
     facets,
     total: data.length,
-    onQueryChange: (value: string) => {
-      clearSelection();
-      setQuery(value);
-    },
-    onValuesChange: (value: TableFilterValues) => {
-      clearSelection();
-      setValues(value);
-    },
+    onQueryChange: setQuery,
+    onValuesChange: setValues,
     reset: () => {
-      clearSelection();
       setQuery("");
       setValues({});
     },
   };
+}
+
+const TABBABLE =
+  'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
+
+/**
+ * The next element Tab reaches outside `boundary`, after it (forward) or
+ * before it (backward), inside the dialog that holds it when there is one.
+ */
+function tabbableOutside(boundary: HTMLElement, forward: boolean) {
+  const scope =
+    boundary.closest<HTMLElement>('[role="dialog"],[role="alertdialog"]') ??
+    document.body;
+  const candidates = [...scope.querySelectorAll<HTMLElement>(TABBABLE)].filter(
+    (element) =>
+      element.tabIndex >= 0 &&
+      !boundary.contains(element) &&
+      !element.closest("[inert]") &&
+      element.getClientRects().length > 0,
+  );
+  const side = forward
+    ? Node.DOCUMENT_POSITION_FOLLOWING
+    : Node.DOCUMENT_POSITION_PRECEDING;
+  const outside = candidates.filter(
+    (element) =>
+      boundary.compareDocumentPosition(element) & side &&
+      !(element.contains(boundary) || boundary.contains(element)),
+  );
+  return forward ? outside[0] : outside.at(-1);
 }
 
 export function useTableKeyboard<T extends RowData>(
@@ -78,18 +106,23 @@ export function useTableKeyboard<T extends RowData>(
     edit?: (rowId: string, columnId: string) => boolean;
   },
 ) {
-  const tableRef = useRef<HTMLTableElement>(null);
+  const element = useRef<HTMLTableElement | null>(null);
   const [active, setActive] = useState<{
     rowId: string;
     columnId: string;
   } | null>(null);
   const pending = useRef<number | null>(null);
-  useEffect(
-    () => () => {
+  const lastTab = useRef(0);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Tab") lastTab.current = performance.now();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
       if (pending.current !== null) cancelAnimationFrame(pending.current);
-    },
-    [],
-  );
+    };
+  }, []);
   const rows = table.getRowModel().rows;
   const columns = table.getVisibleLeafColumns();
   const rowId = rows.some((row) => row.id === active?.rowId)
@@ -104,16 +137,44 @@ export function useTableKeyboard<T extends RowData>(
     if (pending.current !== null) cancelAnimationFrame(pending.current);
     let attempts = 0;
     const focus = () => {
-      const element = tableRef.current?.querySelector<HTMLElement>(
+      const cell = element.current?.querySelector<HTMLElement>(
         `[data-table-row="${CSS.escape(nextRow)}"] [data-table-column="${CSS.escape(nextColumn)}"]`,
       );
-      if (element) {
-        element.focus({ preventScroll: true });
-        element.scrollIntoView({ block: "nearest", inline: "nearest" });
+      if (cell) {
+        cell.focus({ preventScroll: true });
+        cell.scrollIntoView({ block: "nearest", inline: "nearest" });
         pending.current = null;
       } else if (++attempts < 8) pending.current = requestAnimationFrame(focus);
     };
     pending.current = requestAnimationFrame(focus);
+  }, []);
+
+  // Tab into the rows lands on the remembered cell, not on the first button
+  // of the first row: the rows are one stop, and arrows move inside them.
+  const enter = useRef<(event: FocusEvent) => void>(() => {});
+  enter.current = (event) => {
+    const target = event.target as HTMLElement;
+    const body = target.closest("tbody");
+    if (
+      !body ||
+      !rowId ||
+      !columnId ||
+      performance.now() - lastTab.current > 200 ||
+      body.contains(event.relatedTarget as Node | null) ||
+      (target.dataset.tableColumn === columnId &&
+        target.closest<HTMLElement>("[data-table-row]")?.dataset.tableRow ===
+          rowId)
+    )
+      return;
+    options?.scrollToIndex?.(rows.findIndex((row) => row.id === rowId));
+    focusCell(rowId, columnId);
+  };
+  const tableRef = useCallback((node: HTMLTableElement | null) => {
+    element.current = node;
+    if (!node) return;
+    const onFocusIn = (event: FocusEvent) => enter.current(event);
+    node.addEventListener("focusin", onFocusIn);
+    return () => node.removeEventListener("focusin", onFocusIn);
   }, []);
 
   return {
@@ -137,8 +198,24 @@ export function useTableKeyboard<T extends RowData>(
       )
         return;
       const target = event.target as HTMLElement;
+      if (event.key === "Tab") {
+        // Tab leaves the rows for the next control on the page; Shift+Tab
+        // goes back to the header. Arrow keys move between cells.
+        const body = target.closest("tbody");
+        if (
+          !body ||
+          !element.current?.contains(body) ||
+          target.matches('input,textarea,[contenteditable="true"]')
+        )
+          return;
+        const next = tabbableOutside(body, !event.shiftKey);
+        if (!next) return;
+        event.preventDefault();
+        next.focus();
+        return;
+      }
       const cell = target.closest<HTMLElement>("[data-table-column]");
-      if (!cell || !tableRef.current?.contains(cell)) return;
+      if (!cell || !element.current?.contains(cell)) return;
       if (target !== cell) return;
       const currentRow =
         cell.closest<HTMLElement>("[data-table-row]")?.dataset.tableRow;
@@ -173,18 +250,7 @@ export function useTableKeyboard<T extends RowData>(
       else if (event.key === "ArrowLeft") c--;
       else if (event.key === "Home") c = 0;
       else if (event.key === "End") c = columns.length - 1;
-      else if (event.key === "Tab") {
-        c += event.shiftKey ? -1 : 1;
-        if (c < 0) {
-          r--;
-          c = columns.length - 1;
-        }
-        if (c >= columns.length) {
-          r++;
-          c = 0;
-        }
-        if (r < 0 || r >= rows.length) return;
-      } else return;
+      else return;
       event.preventDefault();
       r = Math.max(0, Math.min(rows.length - 1, r));
       c = Math.max(0, Math.min(columns.length - 1, c));

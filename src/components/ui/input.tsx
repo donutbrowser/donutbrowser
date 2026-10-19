@@ -4,6 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
 import { useFieldVariant } from "@/components/ui/field-variant";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { cn } from "@/lib/utils";
 
 const inputVariants = cva(
@@ -11,9 +12,8 @@ const inputVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "h-9 rounded-md border border-input bg-transparent px-3 py-1 shadow-xs focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:ring-destructive/40",
-        soft: "h-9 rounded-lg bg-foreground/5 px-3 py-1 hover:bg-foreground/7 focus-visible:bg-foreground/7 focus-visible:ring-2 focus-visible:ring-foreground/15 aria-invalid:bg-destructive/10 aria-invalid:ring-2 aria-invalid:ring-destructive/40",
+        default: `h-9 rounded-md border border-input bg-transparent px-3 py-1 shadow-xs ${FOCUS_RING} aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive dark:bg-input/30`,
+        soft: `h-9 rounded-lg bg-foreground/5 px-3 py-1 hover:bg-foreground/7 focus-visible:bg-foreground/7 ${FOCUS_RING} aria-invalid:bg-destructive/10 aria-invalid:ring-2 aria-invalid:ring-destructive/40 aria-invalid:focus-visible:ring-destructive`,
         bare: "bg-transparent p-0",
       },
     },

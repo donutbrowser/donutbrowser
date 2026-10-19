@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -24,8 +24,13 @@ import { FadingScrollArea } from "@/components/ui/fading-scroll-area";
 import { Label } from "@/components/ui/label";
 import { SECTION_LABEL_CLASS } from "@/components/ui/settings-panel";
 import { StepTransition } from "@/components/ui/step-transition";
-import { useInputModality } from "@/hooks/use-input-modality";
-import { MOTION_EASE_OUT, MOTION_SPRING_POSITION } from "@/lib/motion";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import {
+  MOTION_DURATION,
+  MOTION_EASE_IN,
+  MOTION_EASE_OUT,
+  MOTION_SPRING_POSITION,
+} from "@/lib/motion";
 import { isMacOS } from "@/lib/platform";
 import {
   TIP_SECTIONS,
@@ -79,9 +84,7 @@ export function TipsDialog({
   onShowMe,
 }: TipsDialogProps) {
   const { t } = useTranslation();
-  const reduceMotion = useReducedMotion();
-  const modality = useInputModality();
-  const animate = !reduceMotion && modality === "pointer";
+  const animate = useMotionAllowed();
   const listId = useId();
   const autoShowId = useId();
   const total = tips.length;
@@ -328,7 +331,15 @@ export function TipsDialog({
                     animate={{ x: 0, scale: 1, opacity: 1 }}
                     exit={
                       animate
-                        ? { x: -direction * 36, scale: 0.98, opacity: 0 }
+                        ? {
+                            x: -direction * 36,
+                            scale: 0.98,
+                            opacity: 0,
+                            transition: {
+                              duration: MOTION_DURATION.fast,
+                              ease: MOTION_EASE_IN,
+                            },
+                          }
                         : { opacity: 0, transition: { duration: 0 } }
                     }
                     transition={

@@ -20,6 +20,9 @@ DBE = "DBE"
 nd = "nd"
 # Playwright's code for a BigUint64Array in an encoded IndexedDB value.
 bui = "bui"
+# German and French words in the tray menu labels (tray.rs).
+Alle = "Alle"
+cours = "cours"
 
 [default.extend-identifiers]
 # Chrome Web Store extension name in the known-VPN list.

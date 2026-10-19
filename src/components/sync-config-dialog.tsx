@@ -6,6 +6,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
+import {
+  AnimatedTabs,
+  AnimatedTabsContent,
+  AnimatedTabsList,
+  AnimatedTabsTrigger,
+} from "@/components/ui/animated-tabs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,18 +21,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProBadge } from "@/components/ui/pro-badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
+import { translateBackendError } from "@/lib/backend-errors";
 import { effectivePlanOf } from "@/lib/entitlements";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
+import { cn } from "@/lib/utils";
 import type { SyncServerCheck, SyncSettings, SyncSourceState } from "@/types";
 
 const DEVICE_LINK_URL = "https://donutbrowser.com/auth/link";
@@ -221,7 +229,9 @@ export function SyncConfigDialog({
       onClose();
     } catch (error) {
       console.error("Failed to save sync settings:", error);
-      showErrorToast(t("sync.config.saveFailed"));
+      showErrorToast(t("sync.config.saveFailed"), {
+        description: translateBackendError(t, error),
+      });
     } finally {
       setIsSaving(false);
     }
@@ -245,7 +255,9 @@ export function SyncConfigDialog({
       showSuccessToast(t("sync.config.disconnected"));
     } catch (error) {
       console.error("Failed to disconnect:", error);
-      showErrorToast(t("sync.config.disconnectFailed"));
+      showErrorToast(t("sync.config.disconnectFailed"), {
+        description: translateBackendError(t, error),
+      });
     } finally {
       setIsSaving(false);
     }
@@ -260,9 +272,9 @@ export function SyncConfigDialog({
       onLoginStarted?.();
     } catch (error) {
       console.error("Failed to open login link:", error);
-      showErrorToast(String(error));
+      showErrorToast(translateBackendError(t, error));
     }
-  }, [onLoginStarted]);
+  }, [onLoginStarted, t]);
 
   const handleCloudLogout = useCallback(async () => {
     try {
@@ -277,7 +289,7 @@ export function SyncConfigDialog({
       }
     } catch (error) {
       console.error("Failed to logout:", error);
-      showErrorToast(String(error));
+      showErrorToast(translateBackendError(t, error));
     }
   }, [logout, t]);
 
@@ -360,7 +372,9 @@ export function SyncConfigDialog({
                         ? t("sync.team.roleOwner")
                         : user.teamRole === "admin"
                           ? t("sync.team.roleAdmin")
-                          : t("sync.team.roleMember")}
+                          : user.teamRole === "launcher"
+                            ? t("sync.team.roleLauncher")
+                            : t("sync.team.roleMember")}
                     </span>
                   </div>
                   <p className="pt-1 text-xs text-muted-foreground">
@@ -390,9 +404,9 @@ export function SyncConfigDialog({
             </div>
           </div>
         ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="w-full">
-              <TabsTrigger
+          <AnimatedTabs value={activeTab} onValueChange={setActiveTab}>
+            <AnimatedTabsList className="flex w-full">
+              <AnimatedTabsTrigger
                 value="cloud"
                 className="flex-1"
                 disabled={cloudBlocked}
@@ -401,8 +415,8 @@ export function SyncConfigDialog({
                   {t("sync.cloud.tabLabel")}
                   {cloudBlocked && <ProBadge />}
                 </span>
-              </TabsTrigger>
-              <TabsTrigger
+              </AnimatedTabsTrigger>
+              <AnimatedTabsTrigger
                 value="self-hosted"
                 className="flex-1"
                 disabled={selfHostedBlocked}
@@ -411,13 +425,13 @@ export function SyncConfigDialog({
                   {t("sync.cloud.selfHostedTabLabel")}
                   {selfHostedBlocked && <ProBadge />}
                 </span>
-              </TabsTrigger>
-            </TabsList>
+              </AnimatedTabsTrigger>
+            </AnimatedTabsList>
 
-            <TabsContent value="cloud">
+            <AnimatedTabsContent value="cloud">
               {isCloudLoading ? (
                 <div className="flex justify-center py-8">
-                  <div className="size-6 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <div className="size-6 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
                 </div>
               ) : (
                 <div className="grid gap-4 py-4">
@@ -432,12 +446,12 @@ export function SyncConfigDialog({
                   </Button>
                 </div>
               )}
-            </TabsContent>
+            </AnimatedTabsContent>
 
-            <TabsContent value="self-hosted">
+            <AnimatedTabsContent value="self-hosted">
               {isLoading ? (
                 <div className="flex justify-center py-8">
-                  <div className="size-6 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <div className="size-6 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
                 </div>
               ) : (
                 <div className="grid gap-4 py-4">
@@ -475,7 +489,10 @@ export function SyncConfigDialog({
                             onClick={() => {
                               setShowToken(!showToken);
                             }}
-                            className="absolute top-1/2 right-3 -translate-y-1/2 transform rounded-sm p-1 transition-colors hover:bg-accent hover:text-accent-foreground"
+                            className={cn(
+                              "absolute top-1/2 right-3 -translate-y-1/2 transform rounded-sm p-1 transition-colors hover:bg-foreground/5 hover:text-foreground",
+                              FOCUS_RING,
+                            )}
                             aria-label={
                               showToken
                                 ? t("common.aria.hideToken")
@@ -500,7 +517,7 @@ export function SyncConfigDialog({
 
                   {connectionStatus === "testing" && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
                       {t("sync.status.syncing")}
                     </div>
                   )}
@@ -567,8 +584,8 @@ export function SyncConfigDialog({
                   {t("common.buttons.save")}
                 </LoadingButton>
               </DialogFooter>
-            </TabsContent>
-          </Tabs>
+            </AnimatedTabsContent>
+          </AnimatedTabs>
         )}
       </DialogContent>
     </Dialog>

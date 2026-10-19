@@ -9,7 +9,7 @@ import { Logo } from "@/components/icons/logo";
 import { TipIcon } from "@/components/tips/tip-icon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { MOTION_EASE_OUT } from "@/lib/motion";
 import { isMacOS } from "@/lib/platform";
 import { type TipDefinition, type TipId, tipTextKeys } from "@/lib/tips";
@@ -41,8 +41,7 @@ export function PaidWelcomeDialog({
 }) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
-  const modality = useInputModality();
-  const animate = !reduceMotion && modality === "pointer";
+  const animate = useMotionAllowed();
   const mod = isMacOS() ? "⌘" : "Ctrl";
 
   useEffect(() => {

@@ -2,20 +2,21 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
+import { FOCUS_RING, PRESS } from "@/components/ui/focus-ring";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] duration-[120ms] ease-[var(--ease-out)] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  `inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap ${FOCUS_RING} disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4`,
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-xs hover:shadow-md",
+        default: "bg-primary text-primary-foreground shadow-xs hover:shadow-sm",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-xs hover:shadow-md focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
+          "bg-destructive text-destructive-foreground shadow-xs hover:shadow-sm focus-visible:ring-destructive",
         outline:
           "border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-xs hover:shadow-md",
+          "bg-secondary text-secondary-foreground shadow-xs hover:shadow-sm",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         // Tinted from the theme's own foreground, so the fill stays quiet in
         // themes whose accent or secondary color is loud.
@@ -42,7 +43,7 @@ const buttonVariants = cva(
           "soft",
           "subtle",
         ],
-        className: "active:scale-[0.98] motion-reduce:active:scale-100",
+        className: PRESS,
       },
     ],
     defaultVariants: {

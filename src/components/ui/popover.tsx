@@ -3,6 +3,7 @@
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import type * as React from "react";
 
+import { usePopupMotion } from "@/components/ui/popup-motion";
 import { cn } from "@/lib/utils";
 
 function Popover({
@@ -22,8 +23,10 @@ function PopoverContent({
   align = "center",
   sideOffset = 4,
   collisionPadding = 8,
+  ref,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  const popupMotion = usePopupMotion(ref);
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
@@ -32,10 +35,11 @@ function PopoverContent({
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
         className={cn(
-          "z-50000 max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-md border bg-popover p-4 text-popover-foreground shadow-sm outline-hidden data-[state=closed]:pointer-events-none data-[state=closed]:hidden",
+          "popup-motion z-50000 max-h-(--radix-popover-content-available-height) origin-(--radix-popover-content-transform-origin) overflow-y-auto rounded-md border bg-popover p-4 text-popover-foreground shadow-sm outline-hidden",
           className,
         )}
         {...props}
+        {...popupMotion}
       />
     </PopoverPrimitive.Portal>
   );

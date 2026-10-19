@@ -7,19 +7,26 @@ import type {
   LegacyRow as Row,
   LegacyTable as Table,
 } from "@tanstack/react-table/legacy";
-import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   LuArrowDown,
+  LuArrowLeft,
+  LuArrowRight,
   LuArrowUp,
   LuArrowUpDown,
+  LuBookmark,
   LuCheck,
   LuChevronsUp,
   LuListFilter,
+  LuPencil,
   LuPlus,
   LuSearch,
   LuSettings2,
+  LuStar,
+  LuTrash2,
   LuX,
 } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
@@ -32,6 +39,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -45,8 +53,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TableView } from "@/hooks/use-table-preferences";
-import { selectTableRange, type TableFilterValues } from "@/lib/table-tools";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import {
+  type TableView,
+  useTablePreferences,
+} from "@/hooks/use-table-preferences";
+import { MOTION_DURATION, MOTION_EASE_OUT, MOTION_SPRING } from "@/lib/motion";
+import {
+  selectTableRange,
+  type TableFilterValues,
+  type TableId,
+} from "@/lib/table-tools";
+import {
+  captureTableView,
+  findTableViewByName,
+  movableColumnOrder,
+  moveTableColumn,
+  orderTableColumns,
+  pruneTableViewFilters,
+  type SavedTableView,
+  TABLE_VIEW_LIMIT,
+  TABLE_VIEW_NAME_LIMIT,
+  type TableViewState,
+  tableViewMatches,
+  upsertTableView,
+} from "@/lib/table-views";
+import { showErrorToast, showUndoToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 
 /**
@@ -84,6 +116,7 @@ export function TableFilterControls({
   total,
   onReset,
   showSearch = true,
+  tableId,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -94,6 +127,8 @@ export function TableFilterControls({
   total: number;
   onReset: () => void;
   showSearch?: boolean;
+  /** Offers the table's saved views next to the filters. */
+  tableId?: TableId;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -104,6 +139,18 @@ export function TableFilterControls({
       data-slot="table-filters"
       className="flex min-w-0 flex-wrap items-center gap-1.5"
     >
+      {tableId && (
+        <SavedViewsMenu
+          tableId={tableId}
+          query={query}
+          values={values}
+          facets={facets}
+          onApply={(nextQuery, nextValues) => {
+            onQueryChange(nextQuery);
+            onValuesChange(nextValues);
+          }}
+        />
+      )}
       {showSearch && (
         <div className="relative">
           <LuSearch className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -231,6 +278,332 @@ export function TableFilterControls({
   );
 }
 
+/** Tables whose default view this session has already applied. */
+const startViewsApplied = new Set<TableId>();
+
+function newViewId() {
+  return crypto.randomUUID();
+}
+
+/**
+ * Named views of a table: the search, filters, sort, visible columns and
+ * column order, saved under a name. One view can open at start.
+ */
+function SavedViewsMenu({
+  tableId,
+  query,
+  values,
+  facets,
+  onApply,
+}: {
+  tableId: TableId;
+  query: string;
+  values: TableFilterValues;
+  facets: FilterFacet[];
+  onApply: (query: string, values: TableFilterValues) => void;
+}) {
+  const { t } = useTranslation();
+  const view = useTablePreferences(tableId);
+  const motionAllowed = useMotionAllowed();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const { views, defaultView } = view;
+  const state: TableViewState = {
+    query,
+    filters: values,
+    sorting: view.preferences.sorting,
+    visibility: view.preferences.visibility,
+    column_order: view.columnOrder,
+  };
+  const current = views.find((item) => tableViewMatches(item, state));
+  const replacing = findTableViewByName(views, name);
+  const draftTaken =
+    renaming !== null &&
+    views.some(
+      (item) =>
+        item.id !== renaming &&
+        item.name.toLocaleLowerCase() === draft.trim().toLocaleLowerCase(),
+    );
+
+  const apply = (saved: SavedTableView, offered?: FilterFacet[]) => {
+    view.applyView(saved);
+    onApply(
+      saved.query,
+      offered ? pruneTableViewFilters(saved.filters, offered) : saved.filters,
+    );
+  };
+
+  // The default view opens once per app start, before any other choice.
+  useEffect(() => {
+    if (!view.loaded || startViewsApplied.has(tableId)) return;
+    startViewsApplied.add(tableId);
+    const saved = views.find((item) => item.id === defaultView);
+    if (saved) apply(saved);
+  });
+
+  const save = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const next = upsertTableView(
+      views,
+      captureTableView(replacing?.id ?? newViewId(), trimmed, state),
+    );
+    if (!next) {
+      showErrorToast(t("tables.views.full", { limit: TABLE_VIEW_LIMIT }));
+      return;
+    }
+    view.setViews(next, defaultView);
+    setName("");
+  };
+
+  const commitRename = () => {
+    const trimmed = draft.trim();
+    if (renaming && trimmed && !draftTaken)
+      view.setViews(
+        views.map((item) =>
+          item.id === renaming ? { ...item, name: trimmed } : item,
+        ),
+        defaultView,
+      );
+    setRenaming(null);
+  };
+
+  const remove = (saved: SavedTableView) => {
+    const previous = { views, defaultView };
+    view.setViews(
+      views.filter((item) => item.id !== saved.id),
+      defaultView === saved.id ? null : defaultView,
+    );
+    showUndoToast(t("tables.views.deleted", { name: saved.name }), () =>
+      view.setViews(previous.views, previous.defaultView),
+    );
+  };
+
+  const swap = motionAllowed
+    ? {
+        initial: { opacity: 0.5, y: 4 },
+        exit: {
+          opacity: 0,
+          y: -4,
+          transition: { duration: MOTION_DURATION.fast },
+        },
+      }
+    : {
+        initial: false as const,
+        exit: { opacity: 0, transition: { duration: 0 } },
+      };
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setRenaming(null);
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          variant="soft"
+          size="sm"
+          data-slot="table-views-trigger"
+          className="h-8 max-w-56 gap-1.5 overflow-hidden rounded-lg px-2.5 text-xs"
+          disabled={!view.loaded}
+        >
+          <LuBookmark className="size-3.5 shrink-0" />
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={current?.id ?? ""}
+              className="truncate"
+              initial={swap.initial}
+              animate={{ opacity: 1, y: 0 }}
+              exit={swap.exit}
+              transition={{
+                duration: MOTION_DURATION.base,
+                ease: MOTION_EASE_OUT,
+              }}
+            >
+              {current?.name ?? t("tables.views.label")}
+            </motion.span>
+          </AnimatePresence>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-0">
+        <div className="p-1.5">
+          <p className="px-2 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">
+            {t("tables.views.title")}
+          </p>
+          {views.length === 0 ? (
+            <p className="px-2 pb-2 text-xs text-pretty text-muted-foreground">
+              {t("tables.views.empty")}
+            </p>
+          ) : (
+            <ul
+              data-slot="table-views-list"
+              className="-mx-1 max-h-64 space-y-0.5 overflow-y-auto p-1"
+            >
+              <AnimatePresence initial={false} mode="popLayout">
+                {views.map((saved) => {
+                  const isCurrent = saved.id === current?.id;
+                  const isDefault = saved.id === defaultView;
+                  return (
+                    <motion.li
+                      key={saved.id}
+                      data-view-id={saved.id}
+                      layout={motionAllowed ? "position" : false}
+                      initial={motionAllowed ? { opacity: 0.5, y: -4 } : false}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{
+                        opacity: 0,
+                        transition: {
+                          duration: motionAllowed ? MOTION_DURATION.fast : 0,
+                        },
+                      }}
+                      transition={{
+                        duration: MOTION_DURATION.base,
+                        ease: MOTION_EASE_OUT,
+                        layout: MOTION_SPRING.position,
+                      }}
+                      className="flex min-h-8 items-center gap-0.5 rounded-md transition-colors duration-100 hover:bg-foreground/5"
+                    >
+                      {renaming === saved.id ? (
+                        <Input
+                          variant="soft"
+                          autoFocus
+                          aria-label={t("tables.views.nameLabel")}
+                          aria-invalid={draftTaken || undefined}
+                          title={
+                            draftTaken ? t("tables.views.nameTaken") : undefined
+                          }
+                          maxLength={TABLE_VIEW_NAME_LIMIT}
+                          value={draft}
+                          onChange={(event) => setDraft(event.target.value)}
+                          onBlur={commitRename}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              commitRename();
+                            }
+                          }}
+                          className="h-7 min-w-0 flex-1 text-xs md:text-xs"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          aria-current={isCurrent || undefined}
+                          onClick={() => {
+                            apply(saved, facets);
+                            setOpen(false);
+                          }}
+                          className={cn(
+                            "flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-sm",
+                            FOCUS_RING,
+                          )}
+                        >
+                          <LuCheck
+                            aria-hidden="true"
+                            className={cn(
+                              "size-3.5 shrink-0 transition-opacity duration-100",
+                              isCurrent ? "opacity-100" : "opacity-0",
+                            )}
+                          />
+                          <span className="truncate">{saved.name}</span>
+                          {isDefault && (
+                            <span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-[11px] leading-4 text-muted-foreground">
+                              {t("tables.views.defaultBadge")}
+                            </span>
+                          )}
+                        </button>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="subtle"
+                        className="size-7 shrink-0 rounded-md"
+                        aria-pressed={isDefault}
+                        aria-label={t("tables.views.useAtStart", {
+                          name: saved.name,
+                        })}
+                        title={t("tables.views.useAtStart", {
+                          name: saved.name,
+                        })}
+                        onClick={() =>
+                          view.setViews(views, isDefault ? null : saved.id)
+                        }
+                      >
+                        <LuStar
+                          className={cn(
+                            "size-3.5",
+                            isDefault && "fill-current text-foreground",
+                          )}
+                        />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="subtle"
+                        className="size-7 shrink-0 rounded-md"
+                        aria-label={t("tables.views.rename", {
+                          name: saved.name,
+                        })}
+                        title={t("tables.views.rename", { name: saved.name })}
+                        onClick={() => {
+                          setDraft(saved.name);
+                          setRenaming(saved.id);
+                        }}
+                      >
+                        <LuPencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="subtle"
+                        className="size-7 shrink-0 rounded-md hover:bg-destructive/10 hover:text-destructive-text"
+                        aria-label={t("tables.views.delete", {
+                          name: saved.name,
+                        })}
+                        title={t("tables.views.delete", { name: saved.name })}
+                        onClick={() => remove(saved)}
+                      >
+                        <LuTrash2 className="size-3.5" />
+                      </Button>
+                    </motion.li>
+                  );
+                })}
+              </AnimatePresence>
+            </ul>
+          )}
+        </div>
+        <form
+          className="flex items-center gap-1.5 border-t border-border p-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            save();
+          }}
+        >
+          <Input
+            variant="soft"
+            aria-label={t("tables.views.nameLabel")}
+            placeholder={t("tables.views.namePlaceholder")}
+            maxLength={TABLE_VIEW_NAME_LIMIT}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="h-8 min-w-0 flex-1 text-xs md:text-xs"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            variant="soft"
+            data-slot="table-views-save"
+            className="h-8 rounded-lg text-xs"
+            disabled={!name.trim()}
+          >
+            {replacing ? t("tables.views.replace") : t("common.buttons.save")}
+          </Button>
+        </form>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function TableViewControls<T extends RowData>({
   table,
   view,
@@ -241,10 +614,40 @@ export function TableViewControls<T extends RowData>({
   labels: TableColumnLabel[];
 }) {
   const { t } = useTranslation();
+  const motionAllowed = useMotionAllowed();
   const sorting = table.options.state?.sorting ?? [];
   const sortColumns = labels.filter(({ id }) =>
     table.getColumn(id)?.getCanSort(),
   );
+  const columnIds = table.getAllLeafColumns().map((column) => column.id);
+  const movable = labels
+    .map((label) => label.id)
+    .filter((id) => columnIds.includes(id));
+  const order = movableColumnOrder(movable, view.columnOrder);
+  // The columns the list offers: every one a person can show or hide, and
+  // the fixed ones on screen.
+  const listed = order
+    .map((id) => labels.find((label) => label.id === id))
+    .filter(
+      (label): label is TableColumnLabel =>
+        !!label &&
+        (label.hideable !== false ||
+          (table.getColumn(label.id)?.getIsVisible() ?? false)),
+    );
+  const listedIds = new Set(listed.map((label) => label.id));
+  const fullOrder = orderTableColumns(
+    columnIds,
+    movable,
+    view.columnOrder,
+  ).join("\n");
+  // The saved order reaches the table here, so every table that shows these
+  // controls follows it.
+  useLayoutEffect(() => {
+    const current = (table.atoms.columnOrder?.get() ?? []).join("\n");
+    if (current !== fullOrder) table.setColumnOrder(fullOrder.split("\n"));
+  }, [table, fullOrder]);
+  const move = (id: string, delta: -1 | 1) =>
+    view.setColumnOrder(moveTableColumn(order, id, delta, listedIds));
   const name = (id: string) =>
     labels.find((column) => column.id === id)?.label ?? id;
   const primarySort = sorting[0];
@@ -434,25 +837,33 @@ export function TableViewControls<T extends RowData>({
             {t("tables.view")}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-64 space-y-3 p-3">
+        <PopoverContent align="end" className="w-72 space-y-3 p-3">
           <div className="space-y-1">
             <p className="px-1 text-xs font-medium text-muted-foreground">
               {t("tables.columns")}
             </p>
-            <div className="max-h-56 space-y-0.5 overflow-y-auto">
-              {labels
-                .filter((label) => label.hideable !== false)
-                .map((label) => (
+            <div className="max-h-64 space-y-0.5 overflow-y-auto">
+              {listed.map((label, index) => (
+                <motion.div
+                  key={label.id}
+                  data-column-id={label.id}
+                  layout={motionAllowed ? "position" : false}
+                  transition={MOTION_SPRING.position}
+                  className="flex min-h-8 items-center gap-0.5 rounded-md pr-0.5 transition-colors duration-100 hover:bg-foreground/6"
+                >
                   <label
                     htmlFor={`table-visible-${view.id}-${label.id}`}
-                    key={label.id}
-                    className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-1.5 transition-colors duration-100 hover:bg-foreground/6"
+                    className={cn(
+                      "flex min-h-8 min-w-0 flex-1 items-center gap-2 px-1.5",
+                      label.hideable !== false && "cursor-pointer",
+                    )}
                   >
                     <Checkbox
                       id={`table-visible-${view.id}-${label.id}`}
                       checked={
                         table.getColumn(label.id)?.getIsVisible() ?? false
                       }
+                      disabled={label.hideable === false}
                       onCheckedChange={(checked) =>
                         view.setVisibility((prev) => ({
                           ...prev,
@@ -460,9 +871,35 @@ export function TableViewControls<T extends RowData>({
                         }))
                       }
                     />
-                    <span className="text-sm">{label.label}</span>
+                    <span className="truncate text-sm">{label.label}</span>
                   </label>
-                ))}
+                  {(
+                    [
+                      [-1, "tables.moveColumnLeft", LuArrowLeft],
+                      [1, "tables.moveColumnRight", LuArrowRight],
+                    ] as const
+                  ).map(([delta, key, Icon]) => {
+                    const end =
+                      delta < 0 ? index === 0 : index === listed.length - 1;
+                    return (
+                      <Button
+                        key={key}
+                        size="icon"
+                        variant="subtle"
+                        className="size-6 shrink-0 rounded-md aria-disabled:pointer-events-none aria-disabled:opacity-35"
+                        aria-label={t(key, { column: label.label })}
+                        title={t(key, { column: label.label })}
+                        aria-disabled={end || !view.loaded || undefined}
+                        onClick={() => {
+                          if (!end) move(label.id, delta);
+                        }}
+                      >
+                        <Icon className="size-3.5" />
+                      </Button>
+                    );
+                  })}
+                </motion.div>
+              ))}
             </div>
           </div>
           <div className="space-y-1">
@@ -555,6 +992,17 @@ export function TableCheckboxSlot({ children }: { children: React.ReactNode }) {
   return <span className="flex items-center justify-center">{children}</span>;
 }
 
+/** A selection column at least this wide shows each row's icon beside its checkbox. */
+const SELECT_WITH_ICON_WIDTH = 48;
+
+function selectColumnHoldsIcons<T extends RowData>(table: Table<T>) {
+  return (table.getColumn("select")?.getSize() ?? 0) >= SELECT_WITH_ICON_WIDTH;
+}
+
+/**
+ * Selects or clears every row on screen. Rows a filter hides keep their
+ * state, so a selection survives a search.
+ */
 export function TableSelectHeader<T extends RowData>({
   table,
 }: {
@@ -567,26 +1015,34 @@ export function TableSelectHeader<T extends RowData>({
   const selected = selectable.filter((row) => row.getIsSelected()).length;
   return (
     <TableCheckboxSlot>
-      <Checkbox
-        aria-label={t("common.aria.selectAll")}
-        className="relative after:absolute after:-inset-2 after:content-['']"
-        checked={
-          selected > 0 && selected === selectable.length
-            ? true
-            : selected > 0
-              ? "indeterminate"
-              : false
-        }
-        disabled={!selectable.length}
-        onCheckedChange={(checked) => {
-          selectionAnchors.delete(table);
-          table.setRowSelection(
-            checked
-              ? Object.fromEntries(selectable.map((row) => [row.id, true]))
-              : {},
-          );
-        }}
-      />
+      <span data-slot="table-selection" className="flex items-center gap-1.5">
+        <Checkbox
+          aria-label={t("common.aria.selectAll")}
+          className="relative after:absolute after:-inset-2 after:content-['']"
+          checked={
+            selected > 0 && selected === selectable.length
+              ? true
+              : selected > 0
+                ? "indeterminate"
+                : false
+          }
+          disabled={!selectable.length}
+          onCheckedChange={(checked) => {
+            selectionAnchors.delete(table);
+            table.setRowSelection((prev) => {
+              const next = { ...prev };
+              for (const row of selectable) {
+                if (checked) next[row.id] = true;
+                else delete next[row.id];
+              }
+              return next;
+            });
+          }}
+        />
+        {selectColumnHoldsIcons(table) && (
+          <span aria-hidden="true" className="size-4 shrink-0" />
+        )}
+      </span>
     </TableCheckboxSlot>
   );
 }
@@ -601,20 +1057,19 @@ export function TableRowCheckbox<T extends RowData>({
   icon?: React.ReactNode;
 }) {
   const { t } = useTranslation();
-  const hasSelection = table.getSelectedRowModel().rows.length > 0;
+  const name = (row.original as { name?: unknown }).name;
   return (
     <TableCheckboxSlot>
-      <span className="group relative flex size-4 shrink-0 items-center justify-center">
+      <span data-slot="table-selection" className="flex items-center gap-1.5">
         <Checkbox
-          aria-label={t("common.aria.selectRow")}
+          aria-label={
+            typeof name === "string" && name
+              ? t("tables.selectRowNamed", { name })
+              : t("common.aria.selectRow")
+          }
           checked={row.getIsSelected()}
           disabled={!row.getCanSelect()}
-          className={cn(
-            "relative after:absolute after:-inset-2 after:content-['']",
-            icon &&
-              !hasSelection &&
-              "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-          )}
+          className="relative after:absolute after:-inset-2 after:content-['']"
           onClick={(event) => {
             if (!row.getCanSelect()) return;
             const ids = table
@@ -634,10 +1089,10 @@ export function TableRowCheckbox<T extends RowData>({
             if (!event.shiftKey) selectionAnchors.set(table, row.id);
           }}
         />
-        {icon && !hasSelection && (
+        {icon && selectColumnHoldsIcons(table) && (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 group-hover:opacity-0 group-focus-within:opacity-0"
+            className="pointer-events-none flex size-4 shrink-0 items-center justify-center"
           >
             {icon}
           </span>

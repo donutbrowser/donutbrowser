@@ -4,7 +4,6 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { LuChevronUp, LuCornerDownRight } from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
-import { useSettingsMotion } from "@/components/settings/settings-primitives";
 import { Button } from "@/components/ui/button";
 import { ConfirmationMark } from "@/components/ui/confirmation-mark";
 import {
@@ -12,6 +11,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import { MOTION_SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 export interface PendingChange {
@@ -46,7 +47,7 @@ export function SettingsSaveBar({
   onCancel?: () => void;
 }) {
   const { t } = useTranslation();
-  const animate = useSettingsMotion();
+  const animate = useMotionAllowed();
   const count = pendingChanges.length;
   const hasChanges = count > 0;
 
@@ -97,7 +98,7 @@ export function SettingsSaveBar({
                 aria-hidden="true"
                 initial={animate ? { scale: 2.2 } : false}
                 animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 500, damping: 18 }}
+                transition={animate ? MOTION_SPRING.snappy : { duration: 0 }}
                 className="size-1.5 rounded-full bg-primary"
               />
             ) : (

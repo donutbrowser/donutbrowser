@@ -882,6 +882,7 @@ export function StatusBadge({
  */
 export function RowAction({
   label,
+  name,
   forbidden,
   forbiddenReason,
   destructive,
@@ -889,12 +890,15 @@ export function RowAction({
   children,
 }: {
   label: string;
+  /** The row's item; screen readers hear it after the label. */
+  name?: string;
   forbidden?: boolean;
   forbiddenReason?: string;
   destructive?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -907,7 +911,9 @@ export function RowAction({
               destructive &&
                 "hover:bg-destructive/10 hover:text-destructive-text",
             )}
-            aria-label={label}
+            aria-label={
+              name ? t("tables.rowAction", { action: label, name }) : label
+            }
             disabled={forbidden}
             onClick={onClick}
           >

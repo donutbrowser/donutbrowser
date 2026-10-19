@@ -150,7 +150,7 @@ export function AccountPage({
       await refreshProfile();
       showSuccessToast(t("account.refreshed"));
     } catch (e) {
-      showErrorToast(String(e));
+      showErrorToast(translateBackendError(t, e));
     } finally {
       setIsRefreshing(false);
     }
@@ -167,7 +167,7 @@ export function AccountPage({
       await loadSelfHostedSettings();
       showSuccessToast(t("account.loggedOut"));
     } catch (e) {
-      showErrorToast(String(e));
+      showErrorToast(translateBackendError(t, e));
     } finally {
       setIsLoggingOut(false);
     }
@@ -235,7 +235,7 @@ export function AccountPage({
       // Use the structured backend-error translator so the cloud-vs-self-
       // hosted mutex (`SELF_HOSTED_REQUIRES_LOGOUT`) shows a clear message
       // instead of the generic "save failed" toast.
-      showErrorToast(translateBackendError(t as never, error));
+      showErrorToast(translateBackendError(t, error));
     } finally {
       setIsSavingSelfHosted(false);
     }
@@ -259,7 +259,9 @@ export function AccountPage({
       showSuccessToast(t("sync.config.disconnected"));
     } catch (error) {
       console.error("Failed to disconnect:", error);
-      showErrorToast(t("sync.config.disconnectFailed"));
+      showErrorToast(t("sync.config.disconnectFailed"), {
+        description: translateBackendError(t, error),
+      });
     } finally {
       setIsSavingSelfHosted(false);
     }
@@ -469,7 +471,7 @@ export function AccountPage({
                           key={detail.id}
                           className="min-w-0 rounded-lg bg-foreground/4 px-3 py-2"
                         >
-                          <dt className="text-[10px] tracking-wide text-muted-foreground uppercase">
+                          <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">
                             {detail.label}
                           </dt>
                           <dd className="mt-0.5 truncate font-medium">

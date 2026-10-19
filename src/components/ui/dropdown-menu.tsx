@@ -4,6 +4,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import type * as React from "react";
 import { LuCheck, LuChevronRight, LuCircle } from "react-icons/lu";
 
+import { usePopupMotion } from "@/components/ui/popup-motion";
 import { cn } from "@/lib/utils";
 
 function DropdownMenu({
@@ -34,18 +35,21 @@ function DropdownMenuTrigger({
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  ref,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  const popupMotion = usePopupMotion(ref);
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          "z-50000 max-h-(--radix-dropdown-menu-content-available-height) min-w-32 overflow-x-hidden overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-sm data-[state=closed]:pointer-events-none data-[state=closed]:hidden",
+          "popup-motion z-50000 max-h-(--radix-dropdown-menu-content-available-height) min-w-32 origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-sm",
           className,
         )}
         {...props}
+        {...popupMotion}
       />
     </DropdownMenuPrimitive.Portal>
   );
@@ -225,17 +229,20 @@ function DropdownMenuSubTrigger({
 function DropdownMenuSubContent({
   className,
   collisionPadding = 8,
+  ref,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  const popupMotion = usePopupMotion(ref);
   return (
     <DropdownMenuPrimitive.SubContent
       data-slot="dropdown-menu-sub-content"
       collisionPadding={collisionPadding}
       className={cn(
-        "z-50000 max-h-(--radix-dropdown-menu-content-available-height) min-w-32 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-sm data-[state=closed]:pointer-events-none data-[state=closed]:hidden",
+        "popup-motion z-50000 max-h-(--radix-dropdown-menu-content-available-height) min-w-32 origin-(--radix-dropdown-menu-content-transform-origin) overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-sm",
         className,
       )}
       {...props}
+      {...popupMotion}
     />
   );
 }

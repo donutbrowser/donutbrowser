@@ -2,7 +2,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuDownload } from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
@@ -33,11 +33,18 @@ interface PortableManifest {
  * small enough to send, while one carrying cookies and logins is the profile
  * itself and should be moved deliberately.
  */
-export function ExportProfileSection({ profile }: { profile: BrowserProfile }) {
+export function ExportProfileSection({
+  profile,
+  isRunning = Boolean(profile.process_id),
+}: {
+  profile: BrowserProfile;
+  /** The live state when the caller knows it; the stored pid otherwise. */
+  isRunning?: boolean;
+}) {
   const { t } = useTranslation();
+  const includeDataId = useId();
   const [includeData, setIncludeData] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
-  const isRunning = Boolean(profile.process_id);
 
   const handleExport = async () => {
     const destination = await save({
@@ -87,14 +94,14 @@ export function ExportProfileSection({ profile }: { profile: BrowserProfile }) {
       </p>
       <div className="flex items-center gap-x-2">
         <Checkbox
-          id="export-include-data"
+          id={includeDataId}
           checked={includeData && !profile.password_protected}
           disabled={profile.password_protected || isExporting}
           onCheckedChange={(checked) => {
             setIncludeData(checked === true);
           }}
         />
-        <Label htmlFor="export-include-data">
+        <Label htmlFor={includeDataId}>
           {t("profileTransfer.includeData")}
         </Label>
       </div>

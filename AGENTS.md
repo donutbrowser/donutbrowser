@@ -39,13 +39,14 @@ donutbrowser/
 │   │   ├── entity-page.tsx            # Proxy/VPN/group/extension page parts: page and row actions, kind badges, sync and check cells
 │   │   ├── entity-empty-state.tsx     # Empty states of those pages, with their scenes
 │   │   ├── profile-search-input.tsx   # Profile search with ghost-text completion and suggestions
+│   │   ├── profile-table/            # Profile table parts: launch control, traffic cell and snapshots, row menu, column fit
 │   │   ├── settings/                 # Settings page parts: rows, choice cards, theme previews, sounds, save bar
 │   │   ├── onboarding/               # Welcome step scenes
 │   │   └── tips/                     # Feature tips: scenes, icons and the day's coach mark
 │   ├── hooks/                        # Event-driven React hooks, table preferences, filtering, and keyboard controls
 │   ├── i18n/locales/                 # Translations (de, en, es, fr, ja, ko, pt, ru, tr, vi, zh)
 │   ├── generated/                    # Build-generated third-party license inventory
-│   ├── lib/                          # Utilities (themes, toast, browser-utils, ui-sounds, schedules, team-activity, coach-mark placement)
+│   ├── lib/                          # Utilities (themes, toast, browser-utils, ui-sounds, schedules, team-activity, coach-mark placement, profile-list-store)
 │   └── types.ts                      # Shared TypeScript interfaces
 ├── src-tauri/                        # Rust backend (Tauri)
 │   ├── src/
@@ -190,7 +191,7 @@ evidence to the owning suite. `e2e:smoke` fails if command registration and the 
 Three log surfaces, in order of usefulness:
 
 - Donut Browser GUI: `~/Library/Logs/com.donutbrowser/DonutBrowser.log` on macOS (newest = active session; older `DonutBrowser_<date>.log` are rotated). The GUI, Tauri, `browser_runner`, `proxy_manager`, and `sync` all log here, and uncaught frontend errors arrive with the `webview` target. Search for `profile=<uuid>` to follow a launch: `Proxy worker started`, then `Browser launched` (or `Browser launch failed` / `Browser launch blocked`), then `Browser stopped` or `Browser exited`. Dev builds write to `DonutBrowserDev.log` instead.
-- donut-proxy worker: `$TMPDIR/donut-proxy-<config_id>.log`. One file per worker process (each profile launch spawns a fresh one); same line shape as the app log, with UTC timestamps. Its first line is `Worker started kind=proxy|vpn id= pid= listen= upstream=<scheme://host:port|direct> ...` (never credentials) and, when it stops on its own, its last is `Worker exiting ... reason=`; a worker the app kills writes no last line, so read the app's `Proxy worker stopped id=<id>` instead. Map a worker to its launch via `Proxy worker started id=<id> ... profile=<uuid>` and `Proxy worker stopped id=<id> ... reason=...` (`browser_exited(<browser pid>)`, `orphan_at_startup`, ...) in DonutBrowser.log. Upstream rejects (status lines like `HTTP/1.1 402 user reached limit`) and tunnel errors are at WARN as `CONNECT tunnel failed err="..." suppressed_30s=N`, at most once per 30s per message, with the destination host replaced by `<target>`. Destinations (accepted CONNECT requests, per-request detail) are at DEBUG or TRACE on purpose, so the log is not a list of visited sites; set `RUST_LOG=donutbrowser_lib::proxy_server=debug` (or `=trace`) in the app's environment to see them; it overrides the INFO default.
+- donut-proxy worker: `$TMPDIR/donut-proxy-<config_id>.log`. One file per worker process (each profile launch spawns a fresh one); same line shape as the app log, with UTC timestamps. Its first line is `Worker started kind=proxy|vpn id= pid= listen= upstream=<scheme://host:port|direct> ...` (never credentials) and, when it stops on its own, its last is `Worker exiting ... reason=`; a worker the app kills writes no last line, so read the app's `Proxy worker stopped id=<id>` instead. Map a worker to its launch via `Proxy worker started id=<id> ... profile=<uuid>` and `Proxy worker stopped id=<id> ... reason=...` (`browser_exited(<browser pid>)`, `orphan_at_startup`, ...) in DonutBrowser.log. Upstream rejects (status lines like `HTTP/1.1 402 user reached limit`) and tunnel errors are at WARN as `CONNECT tunnel failed err="..." suppressed_30s=N`, at most once per 30s per message, with the destination host replaced by `<target>`. Destinations (accepted CONNECT requests, per-request detail) are at DEBUG or TRACE on purpose, so the log is not a list of visited sites; set `RUST_LOG=donutbrowser_lib::proxy_server=debug` (or `=trace`) in the app's environment to see them; it overrides the INFO default. The worker writes its traffic stats file at most once a minute, and again when it gets SIGTERM.
 
 Linux/Windows swap `~/Library/Logs/com.donutbrowser/` for the platform-appropriate location (see `app_dirs::app_name()`), but the `$TMPDIR` worker logs are always under the system temp dir.
 

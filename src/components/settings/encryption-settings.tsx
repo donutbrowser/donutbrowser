@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -52,14 +53,17 @@ export function EncryptionSettings({
   const showForm = !hasPassword || changing;
 
   // Every path awaits the rollover so a failed re-sync is shown, not lost.
-  const rollover = useCallback(async (context: string) => {
-    try {
-      await invoke("rollover_encryption_for_all_entities");
-    } catch (rolloverErr) {
-      console.error(`Rollover after ${context} failed:`, rolloverErr);
-      showErrorToast(String(rolloverErr));
-    }
-  }, []);
+  const rollover = useCallback(
+    async (context: string) => {
+      try {
+        await invoke("rollover_encryption_for_all_entities");
+      } catch (rolloverErr) {
+        console.error(`Rollover after ${context} failed:`, rolloverErr);
+        showErrorToast(translateBackendError(t, rolloverErr));
+      }
+    },
+    [t],
+  );
 
   const savePassword = async () => {
     if (!longEnough) {
@@ -80,7 +84,7 @@ export function EncryptionSettings({
       await rollover("password set");
       showSuccessToast(t("settings.encryption.passwordSaved"));
     } catch (err) {
-      showErrorToast(String(err));
+      showErrorToast(translateBackendError(t, err));
     } finally {
       setIsSaving(false);
     }
@@ -95,7 +99,7 @@ export function EncryptionSettings({
       await rollover("password removal");
       showSuccessToast(t("settings.encryption.removed"));
     } catch (err) {
-      showErrorToast(String(err));
+      showErrorToast(translateBackendError(t, err));
     } finally {
       setIsRemoving(false);
     }
@@ -115,7 +119,7 @@ export function EncryptionSettings({
         showErrorToast(t("settings.encryption.validateDialog.mismatchToast"));
       }
     } catch (err) {
-      showErrorToast(String(err));
+      showErrorToast(translateBackendError(t, err));
     } finally {
       setIsVerifying(false);
     }

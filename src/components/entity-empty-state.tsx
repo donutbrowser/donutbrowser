@@ -2,7 +2,6 @@
 
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useState } from "react";
-import { useEntityMotion } from "@/components/entity-page";
 import {
   Globe,
   Laptop,
@@ -16,7 +15,8 @@ import {
   useScene,
   Window,
 } from "@/components/tips/scene-primitives";
-import { MOTION_EASE_OUT } from "@/lib/motion";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 
 /** The drawing plays this long, then rests until the pointer comes over it. */
 const SCENE_PLAY_MS = 12_000;
@@ -39,7 +39,7 @@ export function EntityEmptyState({
   description: string;
   children?: ReactNode;
 }) {
-  const animate = useEntityMotion();
+  const animate = useMotionAllowed();
   const [intro, setIntro] = useState(true);
   const [hovered, setHovered] = useState(false);
   useEffect(() => {
@@ -50,9 +50,9 @@ export function EntityEmptyState({
     <motion.div
       data-slot="entity-empty-state"
       data-entity={entity}
-      initial={animate ? { opacity: 0, transform: "translateY(6px)" } : false}
+      initial={animate ? { opacity: 0.5, transform: "translateY(8px)" } : false}
       animate={{ opacity: 1, transform: "translateY(0px)" }}
-      transition={{ duration: 0.24, ease: MOTION_EASE_OUT }}
+      transition={{ duration: MOTION_DURATION.slow, ease: MOTION_EASE_OUT }}
       className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-10 text-center"
     >
       <div

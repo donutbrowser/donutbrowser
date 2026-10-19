@@ -1475,6 +1475,12 @@ test("offline cloud, update, team-lock, trial, and synchronizer contracts are de
         }),
         notSignedIn,
       );
+      assert.match(
+        await app.invokeError("start_profile_remote_session", {
+          profileId: missingProfileId,
+        }),
+        notSignedIn,
+      );
       // The local-launch gate. Nothing has run remotely in this session, so it
       // is empty — but it must answer, because a UI that cannot read it shows
       // an enabled Run button over a profile the backend will refuse.
@@ -1702,6 +1708,35 @@ test("offline cloud, update, team-lock, trial, and synchronizer contracts are de
           id: "00000000-0000-0000-0000-000000000000",
         }),
         notSignedIn,
+      );
+      const run = {
+        recipeId: "00000000-0000-0000-0000-000000000000",
+        profileId: "00000000-0000-0000-0000-000000000001",
+        name: "E2E run",
+      };
+      assert.match(
+        await app.invokeError("run_agent_recipe_now", {
+          ...run,
+          target: "desktop",
+        }),
+        notSignedIn,
+      );
+      // A run that names no place to run, or a fleet run with no OS the fleet
+      // leases, is refused before any network call.
+      assert.match(
+        await app.invokeError("run_agent_recipe_now", {
+          ...run,
+          target: "moon",
+        }),
+        /"code":"AGENT_TARGET_INVALID"/,
+      );
+      assert.match(
+        await app.invokeError("run_agent_recipe_now", {
+          ...run,
+          target: "fleet",
+          platform: "android",
+        }),
+        /"code":"AGENT_PLATFORM_INVALID"/,
       );
       assert.match(
         await app.invokeError("create_agent_recipe", {

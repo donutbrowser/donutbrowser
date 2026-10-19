@@ -4,19 +4,23 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { type HTMLMotionProps, motion, type Transition } from "motion/react";
 import * as React from "react";
 
+import { FOCUS_RING, PRESS } from "@/components/ui/focus-ring";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  `relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg text-sm font-medium whitespace-nowrap ${PRESS} ${FOCUS_RING} disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4`,
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:shadow-sm",
+        default: "bg-primary text-primary-foreground shadow-xs hover:shadow-sm",
         destructive:
-          "bg-destructive text-destructive-foreground hover:shadow-sm focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
+          "bg-destructive text-destructive-foreground shadow-xs hover:shadow-sm focus-visible:ring-destructive",
         outline:
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground dark:bg-input/30",
-        secondary: "bg-secondary text-secondary-foreground hover:shadow-sm",
+        secondary:
+          "bg-secondary text-secondary-foreground shadow-xs hover:shadow-sm",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         soft: "bg-foreground/6 text-foreground hover:bg-foreground/10",
       },
@@ -72,17 +76,20 @@ function RippleButton({
   variant,
   size,
   scale = 10,
-  transition = { duration: 0.6, ease: "easeOut" },
+  transition = { duration: MOTION_DURATION.draw, ease: MOTION_EASE_OUT },
   ...props
 }: RippleButtonProps) {
   const [ripples, setRipples] = React.useState<Ripple[]>([]);
+  const motionAllowed = useMotionAllowed();
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   React.useImperativeHandle(ref, () => buttonRef.current as HTMLButtonElement);
 
   const createRipple = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       const button = buttonRef.current;
-      if (!button) return;
+      // A keyboard click has no point to ripple from (detail 0), and reduced
+      // motion gets no ripple at all.
+      if (!button || !motionAllowed || event.detail === 0) return;
 
       const rect = button.getBoundingClientRect();
       const x = event.clientX - rect.left;
@@ -98,9 +105,9 @@ function RippleButton({
 
       setTimeout(() => {
         setRipples((prev) => prev.filter((r) => r.id !== newRipple.id));
-      }, 600);
+      }, MOTION_DURATION.draw * 1000);
     },
-    [],
+    [motionAllowed],
   );
 
   const handleClick = React.useCallback(
@@ -118,7 +125,6 @@ function RippleButton({
       ref={buttonRef}
       data-slot="ripple-button"
       onClick={handleClick}
-      whileTap={{ scale: 0.97 }}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     >

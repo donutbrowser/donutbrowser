@@ -29,13 +29,17 @@ import {
   placeCoachMark,
   type Side,
 } from "@/lib/coach-mark";
-import { MOTION_EASE_OUT } from "@/lib/motion";
+import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /** A modal surface is open; a coach mark waits behind it. */
 const MODAL_SELECTOR = '[role="dialog"], [role="alertdialog"]';
-/** Layout shifts that raise no event (a sticky header settling) are caught by this poll. */
-const POLL_MS = 400;
+/**
+ * Observers report through the rendering loop, which a throttled webview
+ * stops; this slow poll still places the card there. It runs only while the
+ * window shows.
+ */
+const FALLBACK_POLL_MS = 2000;
 /** DOM changes come in bursts; one measure after the burst is enough. */
 const MUTATION_SETTLE_MS = 40;
 /** A move to a new anchor travels; plain scrolling follows at once. */
@@ -106,6 +110,55 @@ function onScreen(element: Element): boolean {
   const rect = element.getBoundingClientRect();
   if (rect.width < 1 || rect.height < 1) return false;
   return mostlyVisible(toBox(rect), clipsOf(element));
+}
+
+/**
+ * Calls `onMove` when `element` moves or grows on screen, a transform
+ * included, with no polling. An IntersectionObserver whose root margin hugs
+ * the element's box sees any shift as a drop of the visible ratio; it is then
+ * rebuilt around the new box. Returns the disconnect.
+ */
+function watchMoves(element: Element, onMove: () => void): () => void {
+  let observer: IntersectionObserver | null = null;
+  const stop = () => {
+    observer?.disconnect();
+    observer = null;
+  };
+  const start = (threshold: number) => {
+    stop();
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    const root = document.documentElement;
+    const margin = [
+      rect.top,
+      root.clientWidth - rect.right,
+      root.clientHeight - rect.bottom,
+      rect.left,
+    ]
+      .map((inset) => `${-Math.floor(inset)}px`)
+      .join(" ");
+    const level = Math.min(1, Math.max(threshold, 0.01));
+    let first = true;
+    observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!first) {
+          // Only a crossing of the level reports again: the box changed.
+          onMove();
+          start(1);
+          return;
+        }
+        first = false;
+        // The first report is where the element starts. Part of it may be
+        // clipped already: watch for a drop below what shows now.
+        const ratio = entry?.intersectionRatio ?? 0;
+        if (ratio > 0.01 && Math.abs(ratio - level) > 0.001) start(ratio);
+      },
+      { rootMargin: margin, threshold: level },
+    );
+    observer.observe(element);
+  };
+  start(1);
+  return stop;
 }
 
 /** The first anchor, by preference, with an element that shows. */
@@ -283,6 +336,8 @@ export function CoachMark({
 
   const cardRef = useRef<HTMLElement>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
+  /** Runs after each measure: follows the anchor that measure chose. */
+  const afterMeasureRef = useRef<(() => void) | null>(null);
   const travelUntilRef = useRef(0);
   const shownRef = useRef(false);
 
@@ -424,6 +479,7 @@ export function CoachMark({
         ? previous
         : { anchor: found?.id ?? null, side, hidden },
     );
+    afterMeasureRef.current?.();
   }, [
     bodyId,
     cardX,
@@ -445,33 +501,75 @@ export function CoachMark({
   useEffect(() => setMounted(true), []);
 
   // Placed before the first paint, then kept in place by every event that can
-  // move the anchor. No frame callback is involved, so a throttled webview
-  // still places the card.
+  // move the anchor: scrolling, resizing, DOM changes, the anchor moving or
+  // changing size, a candidate anchor coming into or out of view. Only a slow
+  // fallback poll runs on a timer.
   useLayoutEffect(() => {
     if (!mounted) return;
-    measure();
     const onChange = () => measure();
     let settle = 0;
     const onMutation = () => {
       window.clearTimeout(settle);
       settle = window.setTimeout(measure, MUTATION_SETTLE_MS);
     };
+    const measureIfVisible = () => {
+      if (document.visibilityState === "visible") measure();
+    };
     window.addEventListener("resize", onChange);
     document.addEventListener("scroll", onChange, {
       capture: true,
       passive: true,
     });
+    document.addEventListener("visibilitychange", measureIfVisible);
     const resize = new ResizeObserver(onChange);
     if (cardRef.current) resize.observe(cardRef.current);
     const mutations = new MutationObserver(onMutation);
     mutations.observe(document.body, { childList: true, subtree: true });
-    const poll = window.setInterval(onChange, POLL_MS);
+
+    // Candidates crossing the "mostly visible" line (0.6) change the anchor.
+    const candidates = new IntersectionObserver(onChange, {
+      threshold: [0.5, 0.6, 0.7, 1],
+    });
+    let watchedCandidates: Element[] = [];
+    let followed: HTMLElement | null = null;
+    let stopMoves: (() => void) | null = null;
+    afterMeasureRef.current = () => {
+      const anchor = anchorRef.current;
+      if (anchor !== followed) {
+        if (followed) resize.unobserve(followed);
+        stopMoves?.();
+        stopMoves = null;
+        followed = anchor;
+        if (anchor) {
+          resize.observe(anchor);
+          stopMoves = watchMoves(anchor, onChange);
+        }
+      }
+      const selector = latest.current.anchors.map(anchorSelector).join(",");
+      const next = selector
+        ? Array.from(document.querySelectorAll(selector))
+        : [];
+      if (
+        next.length !== watchedCandidates.length ||
+        next.some((element, index) => element !== watchedCandidates[index])
+      ) {
+        candidates.disconnect();
+        for (const element of next) candidates.observe(element);
+        watchedCandidates = next;
+      }
+    };
+    measure();
+    const poll = window.setInterval(measureIfVisible, FALLBACK_POLL_MS);
     return () => {
+      window.clearInterval(poll);
+      afterMeasureRef.current = null;
       window.removeEventListener("resize", onChange);
       document.removeEventListener("scroll", onChange, { capture: true });
+      document.removeEventListener("visibilitychange", measureIfVisible);
       resize.disconnect();
       mutations.disconnect();
-      window.clearInterval(poll);
+      candidates.disconnect();
+      stopMoves?.();
       window.clearTimeout(settle);
     };
   }, [mounted, measure]);
@@ -575,7 +673,7 @@ export function CoachMark({
             initial={reduceMotion ? false : { opacity: 0 }}
             animate={{ opacity: leaving ? 0 : 1 }}
             transition={{
-              duration: leaving ? 0.16 : 0.32,
+              duration: leaving ? 0.16 : MOTION_DURATION.slow,
               ease: MOTION_EASE_OUT,
             }}
           />

@@ -65,13 +65,16 @@ async function tableRows(app, tableId) {
  * more than half a pixel off the center of their cell. */
 async function offCenterSelectionControls(app, tableSelector) {
   return app.execute(
-    `return [...document.querySelectorAll(arguments[0] + ' :is(th, td) :is([role="checkbox"], [role="checkbox"] + [aria-hidden="true"] > svg)')]
+    `return [...document.querySelectorAll(arguments[0] + ' :is(th, td) :is([data-slot="table-selection"], [role="checkbox"], [role="checkbox"] + [aria-hidden="true"] > svg)')]
        .map((node) => {
          const cell = node.closest("th, td").getBoundingClientRect();
          const rect = node.getBoundingClientRect();
+         // The checkbox and the row's icon sit side by side; their group is
+         // centered across the cell, and each of them down it.
+         const group = node.matches('[data-slot="table-selection"]');
          return {
-           control: node.getAttribute("aria-label") ?? "icon",
-           x: rect.left + rect.width / 2 - (cell.left + cell.width / 2),
+           control: group ? "selection" : (node.getAttribute("aria-label") ?? "icon"),
+           x: group ? rect.left + rect.width / 2 - (cell.left + cell.width / 2) : 0,
            y: rect.top + rect.height / 2 - (cell.top + cell.height / 2),
          };
        })
@@ -185,6 +188,8 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
         options: [...dialog.querySelectorAll('#profile-proxy, [role="checkbox"]')].map(border),
         proxyName: document.querySelector('#profile-proxy').getAttribute('aria-labelledby')
           .split(' ').map((id) => document.getElementById(id)?.textContent.trim()),
+        groupName: document.querySelector('#profile-group').getAttribute('aria-labelledby')
+          .split(' ').map((id) => document.getElementById(id)?.textContent.trim()),
       };
     `);
       assert.equal(chrome.name, "0px", "the name field has no box");
@@ -192,6 +197,11 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
       assert.deepEqual(chrome.proxyName, [
         en.createProfile.proxy.title,
         en.createProfile.proxy.noProxy,
+      ]);
+      // The destination group shows as a pill: none while the list shows all.
+      assert.deepEqual(chrome.groupName, [
+        en.profiles.table.group,
+        en.groups.noGroup,
       ]);
       await app.capture("profile-create-compact-wide");
       // The device's operating system is chosen on the dialog itself. Without
@@ -632,12 +642,28 @@ test("profile table filters, range selection, view settings, and keyboard edits 
           JSON.stringify([profiles[1].id]),
         { description: "profile text search" },
       );
-      assert.equal(
-        await app.execute(
-          `return Boolean(document.querySelector('[data-slot="table-action-bar"]'));`,
+      // The selection outlives the search; the bar counts what it hides.
+      assert.ok(
+        (
+          await app.execute(
+            `return document.querySelector('[data-slot="table-action-bar"]')?.textContent ?? "";`,
+          )
+        ).includes(
+          en.dataTableActionBar.selectedHidden
+            .replace("{{selected}}", "4")
+            .replace("{{hidden}}", "3"),
         ),
-        false,
-        "search clears all action targets",
+        "the bar counts the selected rows the search hides",
+      );
+      await app.clickSelector(
+        `[data-slot="table-action-bar"] [aria-label="${en.dataTableActionBar.clearSelection}"]`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return !document.querySelector('[data-slot="table-action-bar"]');`,
+          ),
+        { description: "clearing the selection removes the bar" },
       );
       const searchValue = () =>
         app.execute("return document.querySelector(arguments[0]).value;", [
@@ -1010,8 +1036,10 @@ test("a proxy with a change-IP link offers Change IP on its row", async () => {
         password: null,
       },
     });
+    // Mod+Shift+N opens Network; plain Mod+N makes a new profile.
     await app.pressShortcut({
       key: "n",
+      shift: true,
       ...(process.platform === "darwin" ? { meta: true } : { ctrl: true }),
     });
     await app.waitFor(
@@ -1058,8 +1086,10 @@ test("management tables share search, filters, selection, and saved views", asyn
       );
     await app.invoke("create_profile_group", { name: "Table group Alpha" });
     await app.invoke("create_profile_group", { name: "Table group Beta" });
+    // Mod+Shift+N opens Network; plain Mod+N makes a new profile.
     await app.pressShortcut({
       key: "n",
+      shift: true,
       ...(process.platform === "darwin" ? { meta: true } : { ctrl: true }),
     });
     await app.waitFor(
@@ -1437,7 +1467,7 @@ function checkedThemeCard(app, slotName) {
 }
 
 async function saveSettings(app) {
-  await app.clickText("Save Settings", { roles: ["button"] });
+  await app.clickText("Save settings", { roles: ["button"] });
   await app.waitFor(
     () =>
       app.execute(
@@ -1768,6 +1798,7 @@ test("MCP clients on this computer come first, and toolsets go to the connected 
     ]);
     await stubCommand(app, "add_mcp_to_agent", null);
     await stubCommand(app, "set_mcp_toolsets", []);
+    await stubCommand(app, "forget_mcp_remote_credential", null);
     const calls = (command) =>
       app.execute(
         "return (window.__donutStubbedCalls ?? []).filter((c) => c.command === arguments[0]).map((c) => c.payload);",
@@ -1823,6 +1854,20 @@ test("MCP clients on this computer come first, and toolsets go to the connected 
       "recipes",
     ]);
     await dismissSurface(app);
+
+    // Forgetting the credential asks first, then revokes and removes it.
+    await app.clickSelector('[data-slot="mcp-credential-forget"]');
+    await app.waitForText(en.integrations.remote.credentialForgetTitle);
+    await app.clickTextIn(
+      '[role="dialog"]',
+      en.integrations.remote.credentialForget,
+      { roles: ["button"] },
+    );
+    await app.waitFor(
+      async () => (await calls("forget_mcp_remote_credential")).length === 1,
+      { description: "the confirmed forget reached the backend" },
+    );
+    await app.waitForText(en.integrations.remote.credentialForgotten);
     await dismissSurface(app);
   });
 });
@@ -1970,6 +2015,18 @@ test("the local API page shows a one-line example and opens runnable examples in
     assert.equal(printed.length, 1);
     assert.ok(Array.isArray(printed[0].profiles), JSON.stringify(printed[0]));
 
+    // "Try it" sends the listing to the running server with the saved token
+    // and shows the answer in the dialog.
+    await app.clickSelector('[data-slot="code-example-try"]');
+    await app.waitFor(
+      () =>
+        app.execute(
+          `const panel = document.querySelector('[data-slot="code-example-live-response"]');
+           return panel?.dataset.status === "200" && panel.innerText.includes('"profiles"');`,
+        ),
+      { description: "the live answer of the local API" },
+    );
+
     // The language is the reader's choice and stays as they move on.
     await app.clickSelector('[data-testid="code-example-createProxy"]');
     await app.waitFor(
@@ -2100,30 +2157,50 @@ test("every custom theme keeps tabs, counts, group pills, and rail states readab
     await app.waitFor(
       () =>
         app.execute(
-          `return Boolean(document.querySelector('[data-slot="group-summary-pill"]'));`,
+          `return Boolean(document.querySelector('[data-summary="groups"] [data-slot="animated-tabs-indicator"]'));`,
         ),
-      { description: "Profile groups summary pill" },
+      { description: "Profile groups summary tab" },
     );
 
     for (const theme of THEMES) {
       await applyThemeForContrastAudit(app, theme);
       const snapshot = await app.execute(`
         const rootStyle = getComputedStyle(document.documentElement);
-        const pill = document.querySelector(
-          '[data-slot="group-summary-pill"]',
-        );
+        // The page title is the active tab of a one-tab list, as on the
+        // other sub-pages: its fill is the tab indicator.
+        const pill = document.querySelector('[data-summary="groups"]');
         const count = pill?.querySelector(
           '[data-slot="group-summary-count"]',
         );
-        const title = pill?.firstElementChild;
+        const title = pill?.querySelector('[data-slot="group-summary-title"]');
+        const fill = pill?.querySelector(
+          '[data-slot="animated-tabs-indicator"]',
+        );
         const rail = document.querySelector('nav [aria-current="page"]');
+        // The active item's fill is a translucent pill over the rail. Paint
+        // both on a 1px canvas to read the colour under the icon.
+        const railFill = (() => {
+          if (!rail) return null;
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 1;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          const layers = [
+            rail.closest("nav"),
+            rail.querySelector('[data-slot="rail-active-pill"]'),
+          ];
+          for (const node of layers) {
+            if (!node) continue;
+            context.fillStyle = getComputedStyle(node).backgroundColor;
+            context.fillRect(0, 0, 1, 1);
+          }
+          const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+          return "rgb(" + r + ", " + g + ", " + b + ")";
+        })();
         return {
-          pillBackground: pill ? getComputedStyle(pill).backgroundColor : null,
+          pillBackground: fill ? getComputedStyle(fill).backgroundColor : null,
           pillTitle: title ? getComputedStyle(title).color : null,
           pillCount: count ? getComputedStyle(count).color : null,
-          railBackground: rail
-            ? getComputedStyle(rail).backgroundColor
-            : null,
+          railBackground: railFill,
           railForeground: rail ? getComputedStyle(rail).color : null,
           accent: rootStyle.getPropertyValue("--accent").trim(),
           accentForeground: rootStyle
@@ -2856,6 +2933,40 @@ test("interface sounds, their pack, volume and kinds stay as saved", async () =>
     const restarted = await app.invoke("get_app_settings");
     assert.equal(restarted.ui_sounds, false, "the choice survives a restart");
     assert.equal(restarted.ui_sound_pack, "retro");
+  });
+});
+
+test("system and bulk launch settings stay as saved", async () => {
+  await withApp("ui-system-launch-settings", async (app) => {
+    const before = await app.invoke("get_app_settings");
+    assert.equal(before.launch_at_login, false);
+    assert.equal(before.reopen_running_profiles, false);
+    assert.equal(before.system_notifications, true);
+    assert.equal(before.bulk_launch_delay_ms, 800);
+    assert.equal(before.bulk_launch_concurrency, 3);
+    await app.clickSelector('[aria-label="Settings"]');
+    await app.waitForText(en.settings.system.launchAtLoginDescription);
+    await app.clickSelector("#settings-launch-at-login");
+    await app.clickSelector("#settings-reopen-running");
+    await app.clickSelector("#settings-system-notifications");
+    // Each slider steps through its stops: 800 ms -> 1 s, 3 -> 4 at once.
+    for (const slot of [
+      "settings-bulk-launch-delay",
+      "settings-bulk-launch-concurrency",
+    ]) {
+      await app.execute(
+        `document.querySelector('[data-slot="' + arguments[0] + '"] [role="slider"]').focus();`,
+        [slot],
+      );
+      await app.pressShortcut({ key: "\uE014" });
+    }
+    await saveSettings(app);
+    const saved = await app.invoke("get_app_settings");
+    assert.equal(saved.launch_at_login, true);
+    assert.equal(saved.reopen_running_profiles, true);
+    assert.equal(saved.system_notifications, false);
+    assert.equal(saved.bulk_launch_delay_ms, 1000);
+    assert.equal(saved.bulk_launch_concurrency, 4);
   });
 });
 
@@ -3601,6 +3712,25 @@ test("scheduled recipes stay behind the plan, and a schedule is built from the f
         undefined,
         "only the weekly fields",
       );
+
+      // A recipe also runs once on demand: the profile and the place it runs
+      // go to the cloud, which replays it.
+      await stubCommand(app, "run_agent_recipe_now", { id: "replay-1" });
+      await app.clickSelector('[data-testid="agent-tab-recipes"]');
+      await app.clickSelector(
+        `[data-slot="agent-recipe-run"][aria-label="${en.agent.recipes.runAria.replace("{{name}}", "Check orders")}"]`,
+      );
+      await app.clickSelector('[data-slot="agent-recipe-run-profile"]');
+      await app.clickText("Scheduled Profile", { roles: ["option"] });
+      await app.clickSelector('[data-slot="agent-recipe-run-start"]');
+      await app.waitFor(
+        async () => (await calls("run_agent_recipe_now")).length === 1,
+        { description: "the run sent to the cloud" },
+      );
+      const [run] = await calls("run_agent_recipe_now");
+      assert.equal(run.recipeId, "r1");
+      assert.equal(run.profileId, profile.id);
+      assert.equal(run.target, "desktop", "a connected desktop runs it here");
     },
     { seedDownloadedBrowser: true },
   );
@@ -4459,17 +4589,26 @@ test("templates save from the create dialog and the inspector, and several profi
         { description: "the template's name prefix filling an empty name" },
       );
       await app.clickSelector('[data-slot="template-picker"]');
+      // With the trash on, the template goes to the trash at once: no
+      // confirmation, and the toast offers Undo.
       await app.clickSelector('[data-slot="template-delete"]');
-      await app.clickSelector('[data-slot="template-delete-confirm"]');
       await app.waitFor(async () => (await templates()).length === 0, {
         description: "the template deleted from the picker",
       });
+      await app.waitForText(en.trash.moved.replace("{{name}}", "Quick"));
+      assert.ok(
+        (await app.invoke("list_trashed_entities")).some(
+          (entry) => entry.kind === "template" && entry.id === quick.id,
+        ),
+        "the template waits in the trash",
+      );
       await dismissSurface(app);
       await dismissSurface(app);
 
       await app.clickSelector(
         `[data-slot="profile-inspect-trigger"][data-profile-id="${base.id}"]`,
       );
+      await app.clickSelector('[data-slot="profile-info-more"]');
       await app.clickSelector('[data-slot="profile-info-save-template"]');
       await app.waitForText(en.templates.saveFromProfileDescription);
       await app.clickSelector('[data-slot="save-template-confirm"]');
@@ -4480,6 +4619,66 @@ test("templates save from the create dialog and the inspector, and several profi
     },
     { seedDownloadedBrowser: true },
   );
+});
+
+test("the trash page lists deleted entities by kind and restores one", async () => {
+  await withApp("ui-trash-page", async (app) => {
+    const group = await app.invoke("create_profile_group", {
+      name: "Trash Page Group",
+    });
+    const proxy = await app.invoke("create_stored_proxy", {
+      name: "Trash Page Proxy",
+      proxySettings: {
+        proxy_type: "http",
+        host: "127.0.0.1",
+        port: 8091,
+        username: null,
+        password: null,
+      },
+    });
+    await app.invoke("trash_entity", { kind: "group", id: group.id });
+    await app.invoke("trash_entity", { kind: "proxy", id: proxy.id });
+    const hasRow = (id) =>
+      app.execute(
+        `return Boolean(document.querySelector('[data-table-row="' + arguments[0] + '"]'));`,
+        [id],
+      );
+
+    const modifier =
+      process.platform === "darwin" ? { meta: true } : { ctrl: true };
+    await app.pressShortcut({ ...modifier, shift: true, key: "t" });
+    await app.waitFor(() => hasRow(`group:${group.id}`), {
+      description: "the trashed group on the trash page",
+    });
+    assert.equal(await hasRow(`proxy:${proxy.id}`), true);
+
+    // A kind tab shows that kind only.
+    await app.clickSelector('[role="tab"][data-kind="proxy"]');
+    await app.waitFor(async () => !(await hasRow(`group:${group.id}`)), {
+      description: "the proxy tab hides the group",
+    });
+    assert.equal(await hasRow(`proxy:${proxy.id}`), true);
+
+    await app.clickSelector(
+      `[data-table-row="proxy:${proxy.id}"] [data-slot="trash-restore"]`,
+    );
+    await app.waitFor(
+      async () =>
+        (await app.invoke("get_stored_proxies")).some(
+          (item) => item.id === proxy.id,
+        ),
+      { description: "the proxy restored" },
+    );
+    // The emptied tab falls back to everything that is left.
+    await app.waitFor(() => hasRow(`group:${group.id}`), {
+      description: "the list falls back to all kinds",
+    });
+    assert.deepEqual(
+      (await app.invoke("list_trashed_entities")).map((entry) => entry.id),
+      [group.id],
+    );
+    await app.capture("trash-page");
+  });
 });
 
 test("the group bookmark editor adds, reorders and removes a row", async () => {
@@ -4810,7 +5009,10 @@ test("entity pages teach when empty, label protocols neutrally, and reach row ac
            return active?.matches('[data-slot="row-actions"] button')
              ? active.getAttribute("aria-label")
              : null;`,
-        )) === en.proxies.management.editProxy,
+        )) ===
+        en.tables.rowAction
+          .replace("{{action}}", en.proxies.management.editProxy)
+          .replace("{{name}}", plain.name),
       { description: "the edit action focused" },
     );
     await app.execute(`document.activeElement.click();`);
@@ -6255,7 +6457,7 @@ test("Pro users can edit and save launch arguments in each profile", async () =>
               .launch_args?.length === 2,
           { description: "saved launch arguments" },
         );
-        await openEditor();
+        // Saving keeps the panel open, with the saved value in the editor.
         assert.equal(
           await app.execute(
             'return document.querySelector("#wayfern-launch-args").value;',
@@ -6279,6 +6481,8 @@ test("Pro users can edit and save launch arguments in each profile", async () =>
           input.split("\n"),
         );
         await app.clickSelector('[data-slot="profile-info-close"]');
+        // The refused draft is still unsaved, so closing asks first.
+        await app.clickSelector('[data-slot="leave-prompt-discard"]');
         await restoreStubs(app);
         await app.invoke("plugin:event|emit", {
           event: "cloud-auth-changed",

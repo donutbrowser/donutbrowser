@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
+import { translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 
 const DEVICE_LINK_URL = "https://donutbrowser.com/auth/link";
@@ -49,7 +50,7 @@ export function DeviceCodeVerifyDialog({
       await openUrl(DEVICE_LINK_URL);
     } catch (error) {
       console.error("Failed to open login link:", error);
-      showErrorToast(String(error));
+      showErrorToast(translateBackendError(t, error));
     } finally {
       setIsOpeningLogin(false);
     }
@@ -78,7 +79,7 @@ export function DeviceCodeVerifyDialog({
       onClose(true);
     } catch (error) {
       console.error("Device-code exchange failed:", error);
-      showErrorToast(String(error));
+      showErrorToast(translateBackendError(t, error));
     } finally {
       setIsVerifying(false);
     }

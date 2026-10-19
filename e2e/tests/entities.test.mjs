@@ -745,6 +745,28 @@ test("profile, group, proxy, tag, metadata, clone, and bulk-delete lifecycle", a
         /IMPORT_SOURCE_NOT_CHROMIUM/,
         "a Firefox folder must be rejected by name, not imported empty",
       );
+      // A cancel stops the import before its next profile; one asked before
+      // the import starts leaves every item not started.
+      await app.invoke("cancel_profile_import", { importId: "e2e-cancelled" });
+      const cancelledBatch = await app.invoke("import_browser_profiles", {
+        items: [
+          {
+            source_path: scanned[0].path,
+            browser_type: scanned[0].browser,
+            new_profile_name: "Cancelled Import",
+            proxy_id: null,
+            vpn_id: null,
+          },
+        ],
+        groupId: null,
+        duplicateStrategy: "rename",
+        wayfernConfig: { fingerprint: "{}" },
+        importId: "e2e-cancelled",
+      });
+      assert.equal(cancelledBatch.cancelled, true);
+      assert.equal(cancelledBatch.imported_count, 0);
+      assert.equal(cancelledBatch.cancelled_count, 1);
+      assert.equal(cancelledBatch.results[0].status, "cancelled");
       const archivePath = path.join(app.root, "profile-import-fixture.zip");
       await writeFile(archivePath, Buffer.from(extensionZipBase64(), "base64"));
       const archiveScan = await app.invoke("scan_profile_archive", {
@@ -2081,6 +2103,168 @@ test("deleted profiles land in the trash and come back intact on restore", async
       permanent: true,
     });
     assert.deepEqual(await app.invoke("list_browser_profiles"), []);
+  });
+});
+
+test("proxies, VPNs, groups and templates go to the trash and come back as they were", async () => {
+  await withApp("entities-entity-trash", async (app) => {
+    const entityTrash = path.join(app.dataRoot, "data", "trash", "entities");
+    const proxySettings = (port) => ({
+      proxy_type: "socks5",
+      host: "127.0.0.1",
+      port,
+      username: "trash-user",
+      password: "trash-pass",
+    });
+    assert.deepEqual(await app.invoke("list_trashed_entities"), []);
+
+    const proxy = await app.invoke("create_stored_proxy", {
+      name: "Trash Proxy",
+      proxySettings: proxySettings(9),
+    });
+    const profile = await createProfile(app, "Uses The Proxy");
+    await app.invoke("update_profile_proxy", {
+      profileId: profile.id,
+      proxyId: proxy.id,
+    });
+    // A launch through a proxy that is not there would go out direct.
+    assert.match(
+      await app.invokeError("trash_entity", { kind: "proxy", id: proxy.id }),
+      /ENTITY_IN_USE/,
+    );
+    await app.invoke("update_profile_proxy", {
+      profileId: profile.id,
+      proxyId: null,
+    });
+    assert.deepEqual(
+      await app.invoke("trash_entity", { kind: "proxy", id: proxy.id }),
+      { trashed: true },
+    );
+    assert.equal(
+      (await app.invoke("get_stored_proxies")).some(
+        (item) => item.id === proxy.id,
+      ),
+      false,
+    );
+    assert.ok(existsSync(path.join(entityTrash, "proxy", proxy.id)));
+
+    const group = await app.invoke("create_profile_group", {
+      name: "Trash Group",
+    });
+    await app.invoke("assign_profiles_to_group", {
+      profileIds: [profile.id],
+      groupId: group.id,
+    });
+    await app.invoke("trash_entity", { kind: "group", id: group.id });
+    assert.equal(
+      (await app.invoke("list_browser_profiles")).find(
+        (item) => item.id === profile.id,
+      ).group_id,
+      group.id,
+      "a profile keeps its group while the group waits in the trash",
+    );
+
+    const vpn = await app.invoke("create_vpn_config_manual", {
+      name: "Trash VPN",
+      vpnType: "WireGuard",
+      configData: wireGuardFixture(),
+    });
+    await app.invoke("trash_entity", { kind: "vpn", id: vpn.id });
+    const vpnEntry = await readFile(
+      path.join(entityTrash, "vpn", vpn.id, "entry.json"),
+      "utf8",
+    );
+    assert.equal(
+      vpnEntry.includes("PrivateKey ="),
+      false,
+      "a VPN stays sealed in the trash",
+    );
+
+    const template = await app.invoke("create_profile_template", {
+      name: "Trash Template",
+      settings: {},
+    });
+    await app.invoke("trash_entity", { kind: "template", id: template.id });
+
+    const listed = await app.invoke("list_trashed_entities");
+    assert.deepEqual(listed.map((item) => item.kind).sort(), [
+      "group",
+      "proxy",
+      "template",
+      "vpn",
+    ]);
+    const listedProxy = listed.find((item) => item.kind === "proxy");
+    assert.equal(listedProxy.name, "Trash Proxy");
+    assert.equal(listedProxy.detail, "socks5");
+    assert.equal(
+      listedProxy.expires_at - listedProxy.deleted_at,
+      30 * 24 * 60 * 60,
+    );
+    assert.deepEqual(await app.invoke("list_trashed_profiles"), []);
+
+    // A name taken meanwhile gets a suffix; the id and settings come back.
+    await app.invoke("create_stored_proxy", {
+      name: "Trash Proxy",
+      proxySettings: proxySettings(10),
+    });
+    const restored = await app.invoke("restore_trashed_entity", {
+      kind: "proxy",
+      id: proxy.id,
+    });
+    assert.equal(restored.name, "Trash Proxy (restored)");
+    assert.equal(restored.sync_stayed_off, false);
+    assert.equal(
+      (await app.invoke("get_stored_proxies")).find(
+        (item) => item.id === proxy.id,
+      ).proxy_settings.password,
+      "trash-pass",
+    );
+    assert.match(
+      await app.invokeError("restore_trashed_entity", {
+        kind: "proxy",
+        id: proxy.id,
+      }),
+      /TRASH_ENTRY_NOT_FOUND/,
+    );
+
+    await app.invoke("restore_trashed_entity", { kind: "group", id: group.id });
+    assert.ok(
+      (await app.invoke("get_groups_with_profile_counts")).some(
+        (item) => item.id === group.id && item.count === 1,
+      ),
+    );
+    await app.invoke("restore_trashed_entity", { kind: "vpn", id: vpn.id });
+    assert.equal(
+      (await app.invoke("get_vpn_config", { vpnId: vpn.id })).config_data,
+      wireGuardFixture(),
+    );
+
+    await app.invoke("purge_trashed_entity", {
+      kind: "template",
+      id: template.id,
+    });
+    assert.equal(
+      existsSync(path.join(entityTrash, "template", template.id)),
+      false,
+    );
+    assert.match(
+      await app.invokeError("purge_trashed_entity", {
+        kind: "template",
+        id: template.id,
+      }),
+      /TRASH_ENTRY_NOT_FOUND/,
+    );
+    assert.equal(
+      (await app.invoke("list_profile_templates")).some(
+        (item) => item.id === template.id,
+      ),
+      false,
+    );
+
+    // Emptying the trash takes entities with it.
+    await app.invoke("trash_entity", { kind: "group", id: group.id });
+    assert.equal(await app.invoke("empty_trash"), 1);
+    assert.deepEqual(await app.invoke("list_trashed_entities"), []);
   });
 });
 

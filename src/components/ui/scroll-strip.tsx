@@ -155,7 +155,7 @@ export function ScrollStrip({
 
   const overflowing = fadeLeft || fadeRight;
   const chevron =
-    "absolute top-1/2 z-10 grid size-6 -translate-y-1/2 place-items-center rounded-sm text-muted-foreground transition-colors duration-100 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
+    "absolute top-1/2 z-10 grid size-6 -translate-y-1/2 place-items-center rounded-sm text-muted-foreground transition-colors duration-100 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
   return (
     <div className={cn("relative flex min-w-0 items-center", className)}>
@@ -227,9 +227,10 @@ export function ScrollStrip({
           onClickCapture?.(event);
         }}
         className={cn(
-          // p-0.5 clears a 2px focus outline: a row that scrolls sideways
-          // also clips vertically, so a focus ring would be cut at every edge.
-          "scroll-fade-x relative flex scrollbar-none items-center overflow-x-auto p-0.5 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+          // p-1 clears a focus ring (2px, 2px away): a row that scrolls
+          // sideways also clips vertically, so a ring would be cut at every
+          // edge. -m-0.5 keeps the row where p-0.5 used to put it.
+          "scroll-fade-x relative -m-0.5 flex scrollbar-none items-center overflow-x-auto p-1 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
           overflowing && "cursor-grab",
           dragging && "cursor-grabbing select-none",
           stripClassName,

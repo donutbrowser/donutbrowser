@@ -71,6 +71,7 @@
 .light {
   --radius: 0.625rem;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
@@ -169,7 +170,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
     /* Thin, transparent-background scrollbars that look consistent across
        Windows, macOS, and Linux. */
     scrollbar-width: thin;
@@ -180,6 +181,11 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* The browser's own focus outline, for elements without a drawn ring: the
+     full ring color (a lighter one falls under 3:1), 2px off the element. */
+  :focus-visible {
+    outline-offset: 2px;
   }
   /* Keep pointer behavior consistent; explicit cursor utilities still override
      this base rule. */
@@ -362,6 +368,64 @@
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
     scroll-behavior: auto;
+  }
+}
+
+/* The rail logo's wiggle (`animate-[wiggle_0.3s_ease-in-out]`). */
+@keyframes wiggle {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  25% {
+    rotate: -8deg;
+  }
+  75% {
+    rotate: 8deg;
+  }
+}
+
+/* Popups (popovers, menus, selects, tooltips) grow out of their trigger.
+   `data-motion="on"` is set only for pointer users without reduced motion.
+   Menus, selects and popovers only scale: they are fully opaque from the first
+   frame, so a paused animation clock still shows them readable. A tooltip
+   also fades from half opacity. The exit holds a closed popup for 100ms;
+   `usePopupExitFallback` ends it on a timer if the clock is paused. */
+@keyframes popup-enter {
+  from {
+    scale: 0.97;
+  }
+}
+@keyframes popup-enter-fade {
+  from {
+    opacity: 0.5;
+    scale: 0.97;
+  }
+}
+@keyframes popup-exit {
+  to {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+@layer components {
+  .popup-motion[data-motion="on"]:is(
+    [data-state="open"],
+    [data-state="delayed-open"]
+  ) {
+    animation: popup-enter 120ms var(--ease-out);
+  }
+  .popup-motion.popup-motion-fade[data-motion="on"][data-state="delayed-open"] {
+    animation-name: popup-enter-fade;
+  }
+  .popup-motion[data-state="closed"] {
+    pointer-events: none;
+  }
+  .popup-motion[data-motion="on"][data-state="closed"] {
+    animation: popup-exit 100ms var(--ease-in) forwards;
+  }
+  .popup-motion:not([data-motion="on"])[data-state="closed"] {
+    display: none;
   }
 }
 

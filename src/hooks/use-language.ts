@@ -12,6 +12,24 @@ interface AppSettings {
   [key: string]: unknown;
 }
 
+/**
+ * Keep `<html lang>` on the language the app shows, so screen readers and
+ * hyphenation follow it. Mounted once by the app shell.
+ */
+export function useDocumentLanguage() {
+  const { i18n } = useTranslation();
+  useEffect(() => {
+    const apply = (language: string | undefined) => {
+      if (language) document.documentElement.lang = language;
+    };
+    apply(i18n.resolvedLanguage ?? i18n.language);
+    i18n.on("languageChanged", apply);
+    return () => {
+      i18n.off("languageChanged", apply);
+    };
+  }, [i18n]);
+}
+
 export function useLanguage() {
   const { i18n } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);

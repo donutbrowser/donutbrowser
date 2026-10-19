@@ -1,13 +1,16 @@
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   LuCheckCheck,
   LuDownload,
   LuMessageCircleQuestion,
   LuRefreshCw,
-  LuTriangleAlert,
   LuX,
 } from "react-icons/lu";
 import type { ExternalToast } from "sonner";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import { MOTION_EASE_OUT } from "@/lib/motion";
+import { FOCUS_RING } from "./ui/focus-ring";
 import { RippleButton } from "./ui/ripple";
 
 interface BaseToastProps {
@@ -121,22 +124,66 @@ function ProgressBar({
   percentage: number;
   className?: string;
 }) {
+  const fraction = Math.min(Math.max(percentage, 0), 100) / 100;
   return (
-    <div className={`h-1.5 rounded-full bg-muted ${className}`}>
+    <div
+      className={`h-1.5 overflow-hidden rounded-full bg-foreground/10 ${className}`}
+    >
       <div
-        className="h-1.5 rounded-full bg-foreground"
-        style={{ width: `${percentage}%` }}
+        className="h-1.5 w-full origin-left rounded-full bg-foreground transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
+        style={{ transform: `scaleX(${fraction})` }}
       />
     </div>
+  );
+}
+
+/** Lucide's check-check and triangle-alert, drawn stroke by stroke. */
+const DRAWN_ICONS = {
+  success: ["M18 6 7 17l-5-5", "m22 10-7.5 7.5L13 16"],
+  error: [
+    "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3",
+    "M12 9v4",
+    "M12 17h.01",
+  ],
+} as const;
+
+function DrawnIcon({ kind }: { kind: keyof typeof DRAWN_ICONS }) {
+  const draw = useMotionAllowed();
+  const paths = DRAWN_ICONS[kind];
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-4 shrink-0 text-foreground"
+    >
+      {paths.map((d, index) => (
+        <motion.path
+          key={d}
+          d={d}
+          initial={draw ? { pathLength: 0 } : false}
+          animate={{ pathLength: 1 }}
+          transition={{
+            duration: 0.25 / paths.length,
+            delay: (0.25 / paths.length) * index,
+            ease: MOTION_EASE_OUT,
+          }}
+        />
+      ))}
+    </svg>
   );
 }
 
 function getToastIcon(type: ToastProps["type"], stage?: string) {
   switch (type) {
     case "success":
-      return <LuCheckCheck className="size-4 shrink-0 text-foreground" />;
+      return <DrawnIcon kind="success" />;
     case "error":
-      return <LuTriangleAlert className="size-4 shrink-0 text-foreground" />;
+      return <DrawnIcon kind="error" />;
     case "info":
       return (
         <LuMessageCircleQuestion className="size-4 shrink-0 text-foreground" />
@@ -188,7 +235,7 @@ export function UnifiedToast(props: ToastProps) {
             <button
               type="button"
               onClick={onCancel}
-              className="ml-2 shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className={`ml-2 shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground ${FOCUS_RING}`}
               aria-label={t("common.buttons.cancel")}
             >
               <LuX className="size-3" />
@@ -231,7 +278,7 @@ export function UnifiedToast(props: ToastProps) {
                   <ProgressBar percentage={progress.percentage} />
                 </>
               ) : (
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
                   <div className="h-1.5 w-1/3 animate-progress-indeterminate rounded-full bg-foreground motion-reduce:animate-none" />
                 </div>
               )}

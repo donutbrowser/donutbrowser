@@ -11,7 +11,8 @@ export type TableId =
   | "vpns"
   | "extensions"
   | "extensionGroups"
-  | "groups";
+  | "groups"
+  | "trash";
 export interface TablePreferences {
   visibility: ColumnVisibilityState;
   sizing: ColumnSizingState;

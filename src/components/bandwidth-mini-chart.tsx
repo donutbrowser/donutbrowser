@@ -10,6 +10,7 @@ interface BandwidthMiniChartProps {
   currentBandwidth?: number;
   onClick?: () => void;
   className?: string;
+  "aria-label"?: string;
 }
 
 export function BandwidthMiniChart({
@@ -17,7 +18,11 @@ export function BandwidthMiniChart({
   currentBandwidth: externalBandwidth,
   onClick,
   className,
+  "aria-label": ariaLabel,
 }: BandwidthMiniChartProps) {
+  // One gradient per chart: rows that share an id all paint with the first
+  // row's gradient, and lose it when that row unmounts.
+  const gradientId = `bandwidth-${React.useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   // Transform data for the chart - combine sent and received for total bandwidth
   const chartData = React.useMemo(() => {
     // Fill in missing seconds with zeros for smooth chart
@@ -62,8 +67,9 @@ export function BandwidthMiniChart({
     <button
       type="button"
       onClick={onClick}
+      aria-label={ariaLabel}
       className={cn(
-        "relative flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded border-none bg-transparent px-2 transition-colors hover:bg-muted",
+        "relative flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded border-none bg-transparent px-2 transition-colors hover:bg-foreground/6",
         className,
       )}
     >
@@ -79,13 +85,7 @@ export function BandwidthMiniChart({
             margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
           >
             <defs>
-              <linearGradient
-                id="bandwidthGradient"
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="0%"
                   stopColor="var(--chart-1)"
@@ -103,7 +103,7 @@ export function BandwidthMiniChart({
               dataKey="bandwidth"
               stroke="var(--chart-1)"
               strokeWidth={1}
-              fill="url(#bandwidthGradient)"
+              fill={`url(#${gradientId})`}
               isAnimationActive={false}
               dot={false}
               activeDot={false}

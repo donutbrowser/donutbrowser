@@ -1,9 +1,9 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import type { Key, ReactNode } from "react";
-import { useInputModality } from "@/hooks/use-input-modality";
-import { MOTION_EASE_OUT } from "@/lib/motion";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 interface StepTransitionProps {
@@ -36,9 +36,7 @@ export function StepTransition({
   children,
   className,
 }: StepTransitionProps) {
-  const reduceMotion = useReducedMotion();
-  const inputModality = useInputModality();
-  const animateStep = !reduceMotion && inputModality === "pointer";
+  const animateStep = useMotionAllowed();
 
   return (
     <motion.div
@@ -47,7 +45,10 @@ export function StepTransition({
       key={transitionKey}
       initial={animateStep ? { x: direction * 6 } : false}
       animate={{ x: 0 }}
-      transition={{ duration: animateStep ? 0.18 : 0, ease: MOTION_EASE_OUT }}
+      transition={{
+        duration: animateStep ? MOTION_DURATION.base : 0,
+        ease: MOTION_EASE_OUT,
+      }}
       className={cn(className)}
     >
       {children}

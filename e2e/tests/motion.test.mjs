@@ -1176,6 +1176,9 @@ test("profile replay, inspector, group gestures, and remote handoff preserve con
       await resize(app, 720, 600);
       await waitForSelector(app, slot("profile-inspector"), false);
       await app.pressShortcut({ key: "Escape" });
+      // The unsaved launch hook asks before the panel closes.
+      await waitForSelector(app, slot("leave-prompt-discard"));
+      await app.clickSelector(slot("leave-prompt-discard"));
       await waitForSelector(app, slot("profile-info-content"), false);
       await app.pressShortcut({ key: "k", ...modifier });
       await waitForSelector(app, "[cmdk-input]");
@@ -1851,7 +1854,7 @@ test("connection diagnostics and extension impact expose real assigned profiles"
       profileId: profile.id,
       proxyId: proxy.id,
     });
-    await app.pressShortcut({ ...modifier, key: "n" });
+    await app.pressShortcut({ ...modifier, shift: true, key: "n" });
     await waitForSelector(app, slot("profile-usage"));
     await app.clickSelector(slot("profile-usage"));
     await app.waitForText(profile.name);
@@ -2190,7 +2193,19 @@ test("the Wayfern terms gate lifts when the backend announces acceptance", async
 test("the cheat code pays out sprinkles and never touches a profile", async () => {
   await withApp("motion-cheat-code", async (app) => {
     await resize(app, 1000, 700);
-    const code = ["", "", "", "", "", "", "", "", "b", "a"];
+    // Up, up, down, down, left, right, left, right (WebDriver key codes), b, a.
+    const code = [
+      "\uE013",
+      "\uE013",
+      "\uE015",
+      "\uE015",
+      "\uE012",
+      "\uE014",
+      "\uE012",
+      "\uE014",
+      "b",
+      "a",
+    ];
     const toastVisible = () =>
       app.execute(
         `return [...document.querySelectorAll('[data-sonner-toast]')].some(node => node.textContent.includes(arguments[0]));`,

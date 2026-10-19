@@ -2,7 +2,7 @@
 
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import { invoke } from "@tauri-apps/api/core";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -31,7 +31,7 @@ import { SoftFields } from "@/components/ui/field-variant";
 import { Input } from "@/components/ui/input";
 import { StepTransition } from "@/components/ui/step-transition";
 import { Textarea } from "@/components/ui/textarea";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import type { FeedbackKind } from "@/lib/agent-console";
 import { translateBackendError } from "@/lib/backend-errors";
 import { formatBytes } from "@/lib/format-bytes";
@@ -84,9 +84,7 @@ export function FeedbackDialog({
   accountEmail,
 }: FeedbackDialogProps) {
   const { t, i18n } = useTranslation();
-  const reduceMotion = useReducedMotion();
-  const inputModality = useInputModality();
-  const animate = !reduceMotion && inputModality === "pointer";
+  const animate = useMotionAllowed();
 
   const [kind, setKind] = useState<FeedbackKind>("bug");
   const [message, setMessage] = useState("");

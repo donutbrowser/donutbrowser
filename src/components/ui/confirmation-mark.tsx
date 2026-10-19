@@ -1,17 +1,16 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { LuCheck } from "react-icons/lu";
-import { useInputModality } from "@/hooks/use-input-modality";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { MOTION_EASE_OUT } from "@/lib/motion";
 
 export function ConfirmationMark() {
-  const reduced = useReducedMotion();
-  const modality = useInputModality();
+  const motionAllowed = useMotionAllowed();
   return (
     <motion.span
       aria-hidden="true"
-      initial={reduced || modality === "keyboard" ? false : { scale: 0.9 }}
+      initial={motionAllowed ? { scale: 0.9 } : false}
       animate={{ scale: 1 }}
       transition={{ duration: 0.14, ease: MOTION_EASE_OUT }}
       className="inline-flex shrink-0 text-success-text"
