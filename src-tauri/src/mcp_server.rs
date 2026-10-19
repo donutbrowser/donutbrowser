@@ -1537,6 +1537,17 @@ fn preferred_candidate(
   (kept.len() == 1).then(|| kept[0])
 }
 
+/// A candidate from the browser's ambiguity reply as a match. That reply lists
+/// no box, and the box is read again once the node is confirmed.
+fn ambiguity_candidate(candidate: &serde_json::Value) -> Option<wayfern_cdp::LocatorCandidate> {
+  let mut candidate = candidate.clone();
+  let fields = candidate.as_object_mut()?;
+  fields
+    .entry("bounds")
+    .or_insert_with(|| serde_json::json!({ "x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0 }));
+  serde_json::from_value(candidate).ok()
+}
+
 /// The ambiguity refusal, listing at most `limit` candidates.
 fn ambiguity(
   match_count: u64,
@@ -1833,7 +1844,7 @@ async fn wayfern_locate(
       ..
     }) => {
       let preferred = preferred_candidate(locator, match_count, &candidates)
-        .and_then(|index| serde_json::from_value(candidates[index].clone()).ok());
+        .and_then(|index| ambiguity_candidate(&candidates[index]));
       match preferred {
         Some(matched) => Some(matched),
         None => return Err(ambiguity(match_count, candidates, candidate_limit)),
@@ -15318,6 +15329,21 @@ mod tests {
       .message()
       .starts_with("Ambiguous locator: 30 nodes match"));
     assert!(refused.message().contains("Row 4") && !refused.message().contains("Row 5\""));
+  }
+  #[test]
+  fn a_candidate_from_the_browsers_ambiguity_reply_becomes_a_match() {
+    // The browser's reply lists candidates without a box.
+    let candidate = serde_json::json!({
+      "backendNodeId": 4,
+      "role": "textField",
+      "name": "First Name",
+      "text": "",
+      "signature": "8eb94bf54df1ce79",
+      "attributes": [{ "name": "id", "value": "first-name" }],
+    });
+    let matched = ambiguity_candidate(&candidate).expect("a candidate without bounds still reads");
+    assert_eq!(matched.name, "First Name");
+    assert_eq!(matched.backend_node_id, Some(4));
   }
 
   #[tokio::test]
