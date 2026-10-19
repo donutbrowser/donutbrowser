@@ -150,6 +150,59 @@ const LOCATION_KEYS = new Set([
   "accuracy",
 ]);
 
+/**
+ * The MCP tools as an agent reaches them over the remote bridge, on one
+ * initialized session. `tool` fails on an error answer; `toolError` expects one
+ * and returns it.
+ */
+async function mcpClient(base, token, profileId) {
+  let rpcId = 0;
+  let session = null;
+  const post = async (method, params) => {
+    const response = await fetch(`${base}/v1/e2e/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        ...(session ? { "mcp-session-id": session } : {}),
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: ++rpcId, method, params }),
+    });
+    assert.equal(response.status, 200, await response.clone().text());
+    const answer = await response.json();
+    session = answer.session_id ?? session;
+    return answer.body;
+  };
+  const mcp = async (method, params) => {
+    const body = await post(method, params);
+    assert.equal(body.error, undefined, JSON.stringify(body));
+    return body.result;
+  };
+  const call = (name, args) =>
+    post("tools/call", {
+      name,
+      arguments: { profile_id: profileId, ...args },
+    });
+  const tool = async (name, args = {}) => {
+    const body = await call(name, args);
+    assert.equal(body.error, undefined, JSON.stringify(body));
+    assert.notEqual(body.result.isError, true, JSON.stringify(body.result));
+    return body.result.content[0];
+  };
+  const toolJson = async (name, args) =>
+    JSON.parse((await tool(name, args)).text);
+  const toolError = async (name, args = {}) => {
+    const body = await call(name, args);
+    assert.ok(body.error, JSON.stringify(body));
+    return body.error;
+  };
+  await mcp("initialize", {
+    protocolVersion: "2025-06-18",
+    clientInfo: { name: "Donut E2E", version: "1" },
+  });
+  return { mcp, tool, toolJson, toolError };
+}
+
 /** `fingerprint` is the serialised fingerprint STRING, or null for a fresh one. */
 async function createRealProfile(app, version, name, fingerprint = null) {
   return app.invoke("create_browser_profile_new", {
@@ -750,38 +803,11 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
 
     // The MCP browser tools, through the engine an agent reaches over the
     // remote bridge. Each action says where the page is afterwards.
-    let rpcId = 0;
-    let mcpSession = null;
-    const mcp = async (method, params) => {
-      const response = await fetch(`${base}/v1/e2e/mcp`, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${saved.api_token}`,
-          "content-type": "application/json",
-          ...(mcpSession ? { "mcp-session-id": mcpSession } : {}),
-        },
-        body: JSON.stringify({ jsonrpc: "2.0", id: ++rpcId, method, params }),
-      });
-      assert.equal(response.status, 200, await response.clone().text());
-      const answer = await response.json();
-      mcpSession = answer.session_id ?? mcpSession;
-      assert.equal(answer.body.error, undefined, JSON.stringify(answer.body));
-      return answer.body.result;
-    };
-    const tool = async (name, args = {}) => {
-      const result = await mcp("tools/call", {
-        name,
-        arguments: { profile_id: profile.id, ...args },
-      });
-      assert.notEqual(result.isError, true, JSON.stringify(result));
-      return result.content[0];
-    };
-    const toolJson = async (name, args) =>
-      JSON.parse((await tool(name, args)).text);
-    await mcp("initialize", {
-      protocolVersion: "2025-06-18",
-      clientInfo: { name: "Donut E2E", version: "1" },
-    });
+    const { mcp, tool, toolJson, toolError } = await mcpClient(
+      base,
+      saved.api_token,
+      profile.id,
+    );
 
     // The device the profile presents, through each way it is read: the
     // fingerprint form, REST and MCP. An identity-backed profile stores no
@@ -874,25 +900,6 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
     );
 
     // Form tools on a native select and a hidden file input added to the page.
-    const toolError = async (name, args = {}) => {
-      const response = await fetch(`${base}/v1/e2e/mcp`, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${saved.api_token}`,
-          "content-type": "application/json",
-          "mcp-session-id": mcpSession,
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: ++rpcId,
-          method: "tools/call",
-          params: { name, arguments: { profile_id: profile.id, ...args } },
-        }),
-      });
-      const answer = await response.json();
-      assert.ok(answer.body.error, JSON.stringify(answer.body));
-      return answer.body.error;
-    };
     await cdp.evaluate(`(() => {
       const form = document.createElement('form');
       form.innerHTML = '<label for="fixture-country">Country</label>'
@@ -1489,6 +1496,258 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       realTermsBefore,
       "the browser suite modified the real Wayfern terms marker",
     );
+  }
+});
+
+// What MCP agents reported on real forms, on a local page that has each kind
+// of field: a locator by id finds a search input and a search textarea, a click
+// lands on what a person sees (a radio drawn by its label, a day cell, a
+// textarea beside a fixed banner, never the banner), a name that two fields
+// share settles on the exact one, and typing either leaves the text in the
+// field, through the input events a framework listens to, or fails and says so.
+test("MCP locators and typing act on the field a person sees", async () => {
+  assert.ok(process.env.WAYFERN_TEST_TOKEN, "WAYFERN_TEST_TOKEN is required");
+  const localWayfernVersion = cachedFixtureVersion(
+    process.env.DONUT_E2E_PROJECT_ROOT,
+  );
+  const app = appFromEnvironment("browser-mcp-forms", {
+    seedVersionCache: localWayfernVersion ?? false,
+    wayfernTermsAccepted: false,
+  });
+  let cdp;
+  let browserPid;
+  try {
+    const prepared = await prepareWayfern(
+      app,
+      process.env.DONUT_E2E_PROJECT_ROOT,
+    );
+    if (!app.session) await app.start();
+    if (!(await app.invoke("check_wayfern_terms_accepted"))) {
+      await app.invoke("accept_wayfern_terms");
+    }
+    const profile = await createRealProfile(app, prepared.version, "MCP Forms");
+    const settings = await app.invoke("get_app_settings");
+    const saved = await app.invoke("save_app_settings", {
+      settings: {
+        ...settings,
+        api_enabled: true,
+        api_port: 0,
+        api_token: null,
+        onboarding_completed: true,
+      },
+    });
+    const port = await app.invoke("start_api_server", { port: 0 });
+    const base = `http://127.0.0.1:${port}`;
+    const launched = await request(`${base}/v1/profiles/${profile.id}/run`, {
+      method: "POST",
+      token: saved.api_token,
+      body: { url: `${fixtureUrl}/mcp-forms`, headless: true },
+    });
+    assert.equal(launched.response.status, 200, JSON.stringify(launched.value));
+    browserPid = (await app.invoke("list_browser_profiles")).find(
+      (item) => item.id === profile.id,
+    )?.process_id;
+    cdp = await CdpClient.connect(launched.value.remote_debugging_port);
+    await cdp.waitFor("window.__formsReady === true", {
+      description: "the MCP forms fixture",
+    });
+    const { tool, toolJson, toolError } = await mcpClient(
+      base,
+      saved.api_token,
+      profile.id,
+    );
+    const valueOf = (selector) =>
+      cdp.evaluate(`document.querySelector(${JSON.stringify(selector)}).value`);
+    const byId = (id) => ({ attributes: [{ name: "id", value: id }] });
+
+    // An id the browser's own index does not carry: a search input and a
+    // search textarea.
+    const searched = await toolJson("type_locator", {
+      locator: byId("searchInput"),
+      text: "Donut Browser",
+    });
+    assert.equal(searched.typed, true, JSON.stringify(searched));
+    assert.equal(searched.verified, true, JSON.stringify(searched));
+    assert.equal(await valueOf("#searchInput"), "Donut Browser");
+    const asked = await toolJson("type_locator", {
+      locator: byId("sb_form_q"),
+      text: "weather today",
+    });
+    assert.equal(asked.verified, true, JSON.stringify(asked));
+    assert.equal(await valueOf("#sb_form_q"), "weather today");
+
+    // A controlled field keeps only what real input events gave it: a value
+    // assigned by a script is put back on the next render.
+    const controlled = await toolJson("type_locator", {
+      locator: { role: "textbox", name: "Full name" },
+      text: "Jane Doe",
+    });
+    assert.equal(controlled.verified, true, JSON.stringify(controlled));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(await valueOf("#react-name"), "Jane Doe");
+    assert.equal(
+      await cdp.evaluate("document.querySelector('#react-name').dataset.state"),
+      "Jane Doe",
+      "the page's own state took the text",
+    );
+    // Replaced, not appended, and still through input events.
+    assert.match(
+      (
+        await tool("type_text", {
+          selector: "#react-name",
+          text: "John Roe",
+        })
+      ).text,
+      /the field holds the text/,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(await valueOf("#react-name"), "John Roe");
+    assert.equal(
+      await cdp.evaluate("document.querySelector('#react-name').dataset.state"),
+      "John Roe",
+    );
+
+    // An autocomplete whose input is transparent and one pixel wide: the click
+    // goes to its control, and the text reaches the input.
+    const subject = await toolJson("type_locator", {
+      locator: byId("subjectsInput"),
+      text: "Mat",
+    });
+    assert.equal(subject.verified, true, JSON.stringify(subject));
+    assert.equal(await valueOf("#subjectsInput"), "Mat");
+    assert.match(
+      await cdp.evaluate(
+        "document.querySelector('#subjects-menu').textContent",
+      ),
+      /Maths/,
+    );
+    const batch = await toolJson("run_actions", {
+      actions: [
+        {
+          tool: "type_text",
+          arguments: { selector: "#subjectsInput", text: "Phy" },
+        },
+      ],
+    });
+    assert.equal(batch.completed, 1, JSON.stringify(batch));
+    assert.equal(await valueOf("#subjectsInput"), "Phy");
+
+    // Two names that differ by a suffix: the exact one is meant, and a
+    // locator that really is ambiguous says what it matched.
+    const first = await toolJson("type_locator", {
+      locator: { nameContains: "First Name" },
+      text: "Ada",
+    });
+    assert.equal(first.match.name, "First Name", JSON.stringify(first));
+    assert.equal(await valueOf("#first-name"), "Ada");
+    assert.equal(await valueOf("#first-name-optional"), "");
+    const ambiguous = await toolError("resolve_locator", {
+      locator: { role: "textbox", nameContains: "First" },
+    });
+    assert.equal(ambiguous.data.code, "LOCATOR_AMBIGUOUS");
+    assert.deepEqual(
+      ambiguous.data.candidates.map((candidate) => candidate.name).sort(),
+      ["First Name", "First Name (optional)"],
+    );
+    assert.match(ambiguous.message, /First Name \(optional\)/);
+
+    // Radios drawn by their labels: a text locator matches the label, a role
+    // and name locator matches the radio, and both click through the label.
+    const checked = () =>
+      cdp.evaluate("document.querySelector('input[name=gender]:checked')?.id");
+    const female = await toolJson("click_locator", {
+      locator: { text: "Female" },
+    });
+    assert.equal(female.clicked, true, JSON.stringify(female));
+    assert.equal(await checked(), "gender-radio-2");
+    await toolJson("click_locator", {
+      locator: { role: "radio", name: "Male" },
+    });
+    assert.equal(await checked(), "gender-radio-1");
+
+    // A day cell of a date grid.
+    await toolJson("click_locator", { locator: { text: "18" } });
+    assert.equal(
+      await cdp.evaluate("document.querySelector('#days').dataset.picked"),
+      "18",
+    );
+
+    // A field the page will not change: typing fails, and says what it holds.
+    const locked = await toolError("type_locator", {
+      locator: byId("locked"),
+      text: "nothing changes",
+    });
+    assert.equal(locked.data.code, "TYPE_NOT_APPLIED", JSON.stringify(locked));
+    assert.equal(locked.data.reason, "value");
+    assert.match(locked.message, /holds nothing/);
+
+    // A textarea at the bottom of the window, half under a fixed banner: the
+    // click and the typing land on the textarea, never on the banner.
+    const underBanner = `(() => {
+      const box = document.querySelector('#currentAddress').getBoundingClientRect();
+      window.scrollBy(0, box.top - (window.innerHeight - 140));
+      document.activeElement?.blur();
+      return true;
+    })()`;
+    await cdp.evaluate(underBanner);
+    await toolJson("click_locator", { locator: byId("currentAddress") });
+    assert.equal(
+      await cdp.evaluate("document.activeElement?.id"),
+      "currentAddress",
+    );
+    await cdp.evaluate(underBanner);
+    const address = await toolJson("type_locator", {
+      locator: { role: "textbox", name: "Current Address" },
+      text: "221B Baker Street",
+    });
+    assert.equal(address.verified, true, JSON.stringify(address));
+    assert.equal(await valueOf("#currentAddress"), "221B Baker Street");
+    assert.equal(
+      await cdp.evaluate("document.querySelector('#fixedban').dataset.clicks"),
+      undefined,
+      "nothing struck the banner",
+    );
+
+    // By index from a listing, with the same read-back.
+    const listing = (await tool("get_interactive_elements")).text;
+    const line = listing
+      .split("\n")
+      .find((entry) => entry.includes('id="sb_form_q"'));
+    const elementId = /^\[\d+ (e\d+)/.exec(line ?? "")?.[1];
+    assert.ok(elementId, listing);
+    assert.match(
+      (
+        await tool("type_by_index", {
+          element_id: elementId,
+          text: "by index",
+        })
+      ).text,
+      /the field holds the text/,
+    );
+    assert.equal(await valueOf("#sb_form_q"), "by index");
+
+    await request(`${base}/v1/profiles/${profile.id}/kill`, {
+      method: "POST",
+      token: saved.api_token,
+    });
+    if (browserPid) await waitForProcessExit(app, browserPid);
+    await app.invoke("stop_api_server");
+    await app.invoke("delete_profile", { profileId: profile.id });
+  } catch (error) {
+    await app.capture("failure");
+    throw error;
+  } finally {
+    cdp?.close();
+    if (app.session && browserPid && processExists(browserPid)) {
+      const running = (
+        await app.invoke("list_browser_profiles").catch(() => [])
+      ).find((item) => item.process_id === browserPid);
+      if (running)
+        await app
+          .invoke("kill_browser_profile", { profile: running })
+          .catch(() => {});
+    }
+    await app.close();
   }
 });
 

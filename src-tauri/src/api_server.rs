@@ -5505,6 +5505,8 @@ fn agent_error_response(error: crate::mcp_server::AgentError) -> (StatusCode, St
     AgentError::AuthorizationUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
     AgentError::PickerTimedOut { .. } => StatusCode::REQUEST_TIMEOUT,
     AgentError::PickerCancelled { .. } => StatusCode::CONFLICT,
+    // The page did not take the text: a conflict with its state, not a fault.
+    AgentError::TypeNotApplied { .. } => StatusCode::CONFLICT,
     AgentError::Cdp(CdpError::Unauthorized(_)) => StatusCode::UNAUTHORIZED,
     // Nothing answers on the profile's socket: the browser is gone, or is not
     // drivable yet. Both read as "start it and try again".
@@ -5628,12 +5630,12 @@ async fn agent_click_api(
   ),
   request_body = crate::mcp_server::AgentTypeRequest,
   responses(
-    (status = 200, description = "The text was typed", body = crate::mcp_server::AgentTyping),
+    (status = 200, description = "The text was typed, and the field read back holds it (`verified`)", body = crate::mcp_server::AgentTyping),
     (status = 400, description = "Malformed request, no element matched, several did, or the text would take longer than the typing budget (`code` TYPING_TOO_LONG)"),
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
-    (status = 409, description = "The profile is not running"),
+    (status = 409, description = "The profile is not running, or the field did not take the focus or the text (`code` TYPE_NOT_APPLIED, `reason` not_focused or value)"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 502, description = "The browser did not answer as documented"),
     (status = 500, description = "Internal server error")

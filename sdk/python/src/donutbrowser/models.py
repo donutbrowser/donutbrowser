@@ -913,13 +913,17 @@ class _AgentTypingRequired(TypedDict):
     duration_ms: float
     engine: str
     match: LocatorCandidate
+    verified: bool
 
 
 class AgentTyping(_AgentTypingRequired, total=False):
     """What a typing call did.
 
     ``corrections`` is absent on the fallback engine, which does not count its
-    own mistypes.
+    own mistypes. ``verified`` is true when the field was read back and holds
+    the text; it is false only for a field whose value is not the typed text
+    (a date or colour picker). A field that does not hold the text fails with
+    ``TYPE_NOT_APPLIED``.
     """
 
     corrections: int

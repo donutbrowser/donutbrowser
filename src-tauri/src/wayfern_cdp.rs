@@ -110,6 +110,8 @@ pub enum WayfernError {
   PickerTimedOut { timeout_ms: u64 },
   /// The picker ended without a pick: "escape", "stopped" or "navigated".
   PickerCancelled { reason: String },
+  /// The node has no box on screen to act on.
+  NotVisible(String),
   /// A reply did not have the shape the protocol documents.
   Malformed(String),
 }
@@ -123,6 +125,7 @@ impl std::fmt::Display for WayfernError {
         write!(f, "no element was picked within {timeout_ms} ms")
       }
       Self::PickerCancelled { reason } => write!(f, "the element picker was cancelled ({reason})"),
+      Self::NotVisible(m) => f.write_str(m),
       Self::Malformed(m) => write!(f, "unexpected reply from the browser: {m}"),
     }
   }
@@ -1037,8 +1040,9 @@ pub async fn viewport_target(
     .filter_map(|quad| quad_target(quad, viewport_width, viewport_height))
     .next()
     .ok_or_else(|| {
-      WayfernError::Malformed(
-        "the node has no visible box to strike; it may be hidden or clipped".into(),
+      WayfernError::NotVisible(
+        "The element has no visible box to click or type into; it may be hidden or clipped. Open, expand or scroll to the part of the page that shows it."
+          .into(),
       )
     })
 }
@@ -1383,6 +1387,16 @@ pub(crate) mod test_support {
     NativeNoMatch,
     /// Every perception capture reports it ran past the default budget.
     SlowPerception,
+    /// The page resets the field after typing: it reads back empty.
+    TypingLost,
+    /// The field never takes the focus.
+    FieldUnfocusable,
+    /// The node has no box: the page aims at nothing and the DOM has no quads.
+    HiddenControl,
+    /// The node is in a frame: the page leaves its position to the DOM.
+    FramedNode,
+    /// `resolveLocator` matches "First Name (optional)" and "First Name".
+    AmbiguousByName,
   }
 
   pub(crate) type Frames = Arc<Mutex<Vec<Value>>>;
@@ -1448,10 +1462,14 @@ pub(crate) mod test_support {
     let port = listener.local_addr().expect("a bound port").port();
     let frames: Frames = Arc::new(Mutex::new(Vec::new()));
     let recorded = frames.clone();
+    // What the keys put in the field, across every connection: key events
+    // arrive on a socket of their own.
+    let typed: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
 
     tokio::spawn(async move {
       while let Ok((socket, _)) = listener.accept().await {
         let recorded = recorded.clone();
+        let typed = typed.clone();
         tokio::spawn(async move {
           let Ok(mut stream) = tokio_tungstenite::accept_async(socket).await else {
             return;
@@ -1489,6 +1507,7 @@ pub(crate) mod test_support {
               }
               "Vellum.inscribe" => {
                 let text = params.get("text").and_then(Value::as_str).unwrap_or("");
+                typed.lock().unwrap().push_str(text);
                 ok(serde_json::json!({
                   "characters": text.chars().count(), "corrections": 1, "durationMs": 900.0
                 }))
@@ -1515,13 +1534,30 @@ pub(crate) mod test_support {
                 };
                 ok(serde_json::json!({}))
               }
+              "Input.insertText" => {
+                let text = params.get("text").and_then(Value::as_str).unwrap_or("");
+                typed.lock().unwrap().push_str(text);
+                ok(serde_json::json!({}))
+              }
+              "Input.dispatchKeyEvent" => {
+                if params["type"] == "keyDown" {
+                  let mut field = typed.lock().unwrap();
+                  match params.get("text").and_then(Value::as_str) {
+                    Some(text) => field.push_str(text),
+                    None if params["key"] == "Backspace" => {
+                      field.pop();
+                    }
+                    None => {}
+                  }
+                }
+                ok(serde_json::json!({}))
+              }
               "Vellum.release"
               | "Page.enable"
               | "Page.disable"
               | "Wayfern.stopElementPicker"
               | "DOM.scrollIntoViewIfNeeded"
-              | "Input.dispatchMouseEvent"
-              | "Input.dispatchKeyEvent" => ok(serde_json::json!({})),
+              | "Input.dispatchMouseEvent" => ok(serde_json::json!({})),
               "Wayfern.capturePagePerception" => {
                 perception_page += 1;
                 let endless = behaviour == Fake::EndlessPerception;
@@ -1550,6 +1586,19 @@ pub(crate) mod test_support {
               "Wayfern.resolveLocator" if behaviour == Fake::AmbiguousLocator => error(
                 "Ambiguous locator: 2 nodes match. Refine it with a role, a stable attribute, or more exact text. Candidates: [{\"backendNodeId\":7,\"role\":\"button\",\"name\":\"Save\",\"text\":\"Save\",\"signature\":\"s7\",\"attributes\":[]},{\"backendNodeId\":8,\"role\":\"button\",\"name\":\"Save\",\"text\":\"Save\",\"signature\":\"s8\",\"attributes\":[]}]",
               ),
+              "Wayfern.resolveLocator" if behaviour == Fake::AmbiguousByName => {
+                let named = |name: &str, signature: &str| {
+                  let mut candidate = canned_candidate();
+                  candidate["role"] = Value::from("textField");
+                  candidate["name"] = Value::from(name);
+                  candidate["signature"] = Value::from(signature);
+                  candidate
+                };
+                error(&format!(
+                  "Ambiguous locator: 2 nodes match. Refine it with a role, a stable attribute, or more exact text. Candidates: {}",
+                  Value::Array(vec![named("First Name (optional)", "s7"), named("First Name", "s8")])
+                ))
+              }
               "Wayfern.resolveLocator" if behaviour == Fake::NativeNoMatch => {
                 error("No node matches locator (id=save).")
               }
@@ -1563,14 +1612,48 @@ pub(crate) mod test_support {
                 "rowCount": 1, "pageCount": 1, "byteSize": 40, "truncated": false,
                 "stopReason": "complete"
               })),
+              "DOM.getContentQuads" if behaviour == Fake::HiddenControl => {
+                ok(serde_json::json!({ "quads": [] }))
+              }
               "DOM.getContentQuads" => ok(serde_json::json!({
                 "quads": [[100.0, 200.0, 180.0, 200.0, 180.0, 230.0, 100.0, 230.0]]
               })),
               "DOM.resolveNode" => ok(serde_json::json!({
                 "object": { "type": "object", "objectId": "obj-7" }
               })),
+              "Runtime.callFunctionOn" if params["arguments"][0]["value"] == "field" => {
+                ok(serde_json::json!({
+                  "result": { "type": "object", "subtype": "node", "objectId": "field-7" }
+                }))
+              }
               "Runtime.callFunctionOn" => {
-                ok(serde_json::json!({ "result": { "type": "boolean", "value": true } }))
+                let step = params["arguments"][0]["value"].as_str().unwrap_or_default();
+                let value = match step {
+                  "point" if behaviour == Fake::HiddenControl => serde_json::json!({ "hidden": true }),
+                  "point" if behaviour == Fake::FramedNode => serde_json::json!({ "frame": true }),
+                  "point" => {
+                    serde_json::json!({ "x": 140.0, "y": 215.0, "width": 80.0, "height": 30.0 })
+                  }
+                  "focus" => serde_json::json!({
+                    "focused": behaviour != Fake::FieldUnfocusable, "active": "body"
+                  }),
+                  "prepare" => {
+                    serde_json::json!({ "kind": "value", "type": "text", "value": "", "secret": false })
+                  }
+                  "read" => {
+                    let value = if behaviour == Fake::TypingLost {
+                      String::new()
+                    } else {
+                      typed.lock().unwrap().clone()
+                    };
+                    serde_json::json!({
+                      "kind": "value", "type": "text", "value": value, "secret": false, "focusMoved": false
+                    })
+                  }
+                  _ => Value::Bool(true),
+                };
+                let kind = if value.is_boolean() { "boolean" } else { "object" };
+                ok(serde_json::json!({ "result": { "type": kind, "value": value } }))
               }
               "Page.getLayoutMetrics" => ok(serde_json::json!({
                 "cssLayoutViewport": { "clientWidth": 1280.0, "clientHeight": 720.0 }

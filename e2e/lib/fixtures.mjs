@@ -687,3 +687,137 @@ export function extensionCrx3({
     ]),
   );
 }
+
+/**
+ * The form page the MCP locator and typing checks run against. Each part
+ * stands for a kind of field agents reported trouble with: a search input and
+ * a search textarea named by id, a controlled input that keeps only what real
+ * input events gave it, an autocomplete whose input is transparent and one
+ * pixel wide, two fields whose names differ by a suffix, radios drawn by their
+ * labels, a grid of day cells, a field the page empties after every key, and
+ * a textarea far down the page beside a fixed banner that covers the bottom of
+ * the window.
+ */
+export function mcpFormsPage() {
+  const days = Array.from(
+    { length: 31 },
+    (_, i) =>
+      `<div role="option" aria-label="Choose October ${i + 1}, 2026" data-day="${i + 1}">${i + 1}</div>`,
+  ).join("");
+  return `<!doctype html>
+<html>
+  <head>
+    <title>Donut E2E MCP Forms</title>
+    <style>
+      body { font: 14px sans-serif; margin: 0; padding: 16px 16px 160px; }
+      .row { margin: 10px 0; }
+      .control { position: relative; width: 320px; min-height: 36px; border: 1px solid #888; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; cursor: text; }
+      .control .placeholder { position: absolute; left: 8px; color: #777; pointer-events: none; }
+      .control input { width: 1px; opacity: 0; border: 0; padding: 0; outline: 0; font: inherit; background: none; }
+      .choice { position: relative; display: inline-block; padding-left: 24px; margin-right: 16px; }
+      .choice input { position: absolute; z-index: -1; opacity: 0; left: 0; top: 2px; width: 16px; height: 16px; margin: 0; }
+      .choice label::before { content: ""; position: absolute; left: 0; top: 2px; width: 14px; height: 14px; border: 1px solid #333; border-radius: 50%; }
+      .choice input:checked + label::before { background: #333; }
+      .days { display: grid; grid-template-columns: repeat(7, 36px); gap: 2px; }
+      .days div { height: 28px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; cursor: pointer; }
+      .spacer { height: 900px; }
+      #fixedban { position: fixed; left: 0; right: 0; bottom: 0; height: 110px; z-index: 10; background: #333; color: #fff; }
+    </style>
+  </head>
+  <body>
+    <h1>MCP forms</h1>
+    <div class="row"><input id="searchInput" name="search" placeholder="Search Wikipedia"></div>
+    <div class="row"><textarea id="sb_form_q" name="q" rows="1" placeholder="Ask me anything"></textarea></div>
+    <div class="row"><label for="react-name">Full name</label> <input id="react-name" name="fullName"></div>
+    <div class="row">
+      <label for="first-name">First Name</label> <input id="first-name" name="firstName">
+      <label for="first-name-optional">First Name (optional)</label> <input id="first-name-optional" name="firstNameOptional">
+    </div>
+    <div class="row">
+      <div id="subjects" class="control"><span class="placeholder">Subjects</span><input id="subjectsInput" aria-label="Subjects" autocomplete="off"></div>
+      <ul id="subjects-menu"></ul>
+    </div>
+    <div class="row">
+      <div class="choice"><input type="radio" name="gender" id="gender-radio-1" value="Male"><label for="gender-radio-1">Male</label></div>
+      <div class="choice"><input type="radio" name="gender" id="gender-radio-2" value="Female"><label for="gender-radio-2">Female</label></div>
+    </div>
+    <div class="row"><div id="days" class="days" role="listbox" aria-label="October 2026">${days}</div></div>
+    <div class="row"><input id="locked" name="locked" aria-label="Locked"></div>
+    <div class="spacer"></div>
+    <div class="row"><label for="currentAddress">Current Address</label><br><textarea id="currentAddress" name="currentAddress" rows="5" cols="40"></textarea></div>
+    <div class="spacer"></div>
+    <div id="fixedban">Advertisement</div>
+    <script>
+      (() => {
+        const banner = document.getElementById("fixedban");
+        banner.addEventListener("mousedown", () => {
+          banner.dataset.clicks = String(Number(banner.dataset.clicks || 0) + 1);
+        });
+
+        // A controlled input as React keeps one: a value a script assigns moves
+        // the tracker, so the input event after it changes nothing, and every
+        // render puts the state back into the field.
+        const named = document.getElementById("react-name");
+        const native = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+        let state = "";
+        let tracked = "";
+        Object.defineProperty(named, "value", {
+          configurable: true,
+          get() { return native.get.call(this); },
+          set(value) { tracked = String(value); native.set.call(this, value); },
+        });
+        named.addEventListener("input", () => {
+          const now = native.get.call(named);
+          if (now !== tracked) {
+            tracked = now;
+            state = now;
+            named.dataset.state = state;
+          }
+        });
+        setInterval(() => {
+          if (native.get.call(named) !== state) {
+            native.set.call(named, state);
+            tracked = state;
+          }
+        }, 50);
+
+        // An autocomplete: a click anywhere on the control focuses its input,
+        // which grows and shows itself only once it holds text.
+        const control = document.getElementById("subjects");
+        const subject = document.getElementById("subjectsInput");
+        const placeholder = control.querySelector(".placeholder");
+        const menu = document.getElementById("subjects-menu");
+        control.addEventListener("mousedown", (event) => {
+          if (event.target !== subject) {
+            event.preventDefault();
+            subject.focus();
+          }
+        });
+        subject.addEventListener("input", () => {
+          const typed = subject.value;
+          subject.style.width = typed ? typed.length + 1 + "ch" : "1px";
+          subject.style.opacity = typed ? "1" : "0";
+          placeholder.style.display = typed ? "none" : "";
+          menu.innerHTML = ["Maths", "Physics", "Chemistry"]
+            .filter((option) => typed && option.toLowerCase().startsWith(typed.toLowerCase()))
+            .map((option) => "<li>" + option + "</li>")
+            .join("");
+        });
+
+        // A field the page empties after every key.
+        const locked = document.getElementById("locked");
+        locked.addEventListener("input", () => {
+          locked.value = "";
+        });
+
+        const daysGrid = document.getElementById("days");
+        daysGrid.addEventListener("click", (event) => {
+          const day = event.target.closest("[data-day]");
+          if (day) daysGrid.dataset.picked = day.dataset.day;
+        });
+        window.__formsReady = true;
+      })();
+    </script>
+  </body>
+</html>`;
+}

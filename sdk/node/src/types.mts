@@ -786,4 +786,10 @@ export interface AgentTyping {
   duration_ms: number;
   engine: Engine;
   match: LocatorCandidate;
+  /**
+   * The field was read back and holds the text. False only for a field whose
+   * value is not the typed text (a date or colour picker); a field that does
+   * not hold the text fails with `TYPE_NOT_APPLIED`.
+   */
+  verified: boolean;
 }
