@@ -76,6 +76,7 @@ donutbrowser/
 │   │   ├── feedback.rs              # Feedback to the Donut team from the dialog and the send_feedback MCP tool, optional redacted logs
 │   │   ├── sync/                    # Cloud sync (engine, encryption, manifest, scheduler)
 │   │   ├── vpn/                     # WireGuard tunnels
+│   │   ├── ramfs/                   # Windows RAM volume for ephemeral profiles: in-memory file system on WinFsp, hosted by donut-proxy
 │   │   ├── xray/                    # Xray share links (VLESS, VMess, Trojan, Hysteria2): parse, export, client config
 │   │   ├── xray_worker_runner.rs    # Xray-core sidecar lifecycle
 │   │   ├── xray_worker_storage.rs   # Private Xray worker state and runtime files

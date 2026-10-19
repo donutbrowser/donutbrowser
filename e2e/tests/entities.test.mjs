@@ -1522,6 +1522,17 @@ test("a storage state file moves cookies and Local Storage into a closed profile
       }),
       /LOCAL_STORAGE_EPHEMERAL/,
     );
+
+    const storage = await app.invoke("get_ephemeral_storage_status");
+    assert.deepEqual(Object.keys(storage).sort(), ["in_memory", "reason"]);
+    if (process.platform === "win32") {
+      assert.equal(storage.in_memory, storage.reason === null);
+      if (storage.reason !== null) {
+        assert.match(storage.reason, /^winfsp_(missing|error)$/);
+      }
+    } else {
+      assert.deepEqual(storage, { in_memory: true, reason: null });
+    }
   });
 });
 

@@ -271,6 +271,31 @@ async fn main() {
             .help("Direct path to the Xray worker config JSON file"),
         ),
     )
+    .subcommand(
+      Command::new("ramfs")
+        .about("Serve the in-memory volume of ephemeral profiles until killed (Windows with WinFsp; internal use)")
+        .arg(
+          Arg::new("mount")
+            .long("mount")
+            .required(true)
+            .value_parser(clap::value_parser!(std::path::PathBuf))
+            .help("Directory to mount the volume on; it must not exist"),
+        )
+        .arg(
+          Arg::new("capacity")
+            .long("capacity")
+            .required(true)
+            .value_parser(clap::value_parser!(u64))
+            .help("Volume size in bytes"),
+        )
+        .arg(
+          Arg::new("state")
+            .long("state")
+            .required(true)
+            .value_parser(clap::value_parser!(std::path::PathBuf))
+            .help("File that records the mounted volume"),
+        ),
+    )
     .get_matches();
 
   if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
@@ -645,6 +670,17 @@ async fn main() {
       );
       process::exit(1);
     }
+  } else if let Some(ramfs_matches) = matches.subcommand_matches("ramfs") {
+    let mount = ramfs_matches
+      .get_one::<std::path::PathBuf>("mount")
+      .expect("mount is required");
+    let capacity = *ramfs_matches
+      .get_one::<u64>("capacity")
+      .expect("capacity is required");
+    let state = ramfs_matches
+      .get_one::<std::path::PathBuf>("state")
+      .expect("state is required");
+    process::exit(donutbrowser_lib::ramfs::host_main(mount, capacity, state));
   } else {
     eprintln!("No command specified");
     process::exit(1);

@@ -15,6 +15,13 @@ fn main() {
     println!("cargo:rustc-link-lib=framework=CoreServices");
   }
 
+  // WinFsp's DLL loads at the first call into it, so Donut starts on machines
+  // that do not have WinFsp (src/ramfs).
+  #[cfg(windows)]
+  if build_target.contains("windows") {
+    winfsp::build::winfsp_link_delayload();
+  }
+
   // Inject build version based on environment variables set by CI
   if let Ok(build_tag) = std::env::var("BUILD_TAG") {
     // Custom BUILD_TAG takes highest priority (used for nightly builds)

@@ -680,7 +680,11 @@ impl BrowserRunner {
         Some(prepared)
       } else {
         if profile.ephemeral {
-          crate::ephemeral_dirs::create_ephemeral_dir(&profile.id.to_string())
+          // Can mount a RAM disk or start the RAM volume's host and wait for it.
+          let id = profile.id.to_string();
+          tokio::task::spawn_blocking(move || crate::ephemeral_dirs::create_ephemeral_dir(&id))
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?
             .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
         }
         None

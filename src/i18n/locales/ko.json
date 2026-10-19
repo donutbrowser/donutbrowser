@@ -4721,5 +4721,10 @@
   "launchNotice": {
     "fingerprintEditsNotApplied": "{{name}}은(는) 사용자 지정 지문 변경 없이 실행됩니다",
     "fingerprintEditsNeedPro": "변경 사항은 보관되며 활성 Pro 플랜에서 다시 적용됩니다."
+  },
+  "ephemeralStorage": {
+    "onDisk": "이 컴퓨터에서는 임시 프로필이 데이터를 디스크에 기록합니다. 브라우저를 닫으면 Donut이 데이터를 지웁니다. 데이터를 메모리에 유지하려면 WinFsp를 설치하세요.",
+    "winfspError": "WinFsp가 시작되지 않아 임시 프로필이 데이터를 디스크에 기록합니다. 브라우저를 닫으면 Donut이 데이터를 지웁니다.",
+    "download": "WinFsp 다운로드"
   }
 }

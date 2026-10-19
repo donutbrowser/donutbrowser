@@ -78,6 +78,7 @@ export const commandCoverage = {
       "profile_totp::add_profile_totp",
       "profile_totp::delete_profile_totp",
       "profile_totp::get_profile_totp_codes",
+      "ephemeral_dirs::get_ephemeral_storage_status",
       "rename_profile",
       "detect_existing_profiles",
       "import_browser_profiles",

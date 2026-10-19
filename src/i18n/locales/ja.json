@@ -4721,5 +4721,10 @@
   "launchNotice": {
     "fingerprintEditsNotApplied": "{{name}} はカスタムのフィンガープリント変更なしで起動します",
     "fingerprintEditsNeedPro": "変更は保存されており、有効な Pro プランで再び適用されます。"
+  },
+  "ephemeralStorage": {
+    "onDisk": "このコンピューターでは、一時的なプロファイルはデータをディスクに書き込みます。ブラウザを閉じると Donut がそのデータを消去します。データをメモリに保持するには WinFsp をインストールしてください。",
+    "winfspError": "WinFsp が起動しなかったため、一時的なプロファイルはデータをディスクに書き込みます。ブラウザを閉じると Donut がそのデータを消去します。",
+    "download": "WinFsp をダウンロード"
   }
 }

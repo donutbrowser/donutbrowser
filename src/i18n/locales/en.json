@@ -4721,5 +4721,10 @@
   "launchNotice": {
     "fingerprintEditsNotApplied": "{{name}} launches without its custom fingerprint changes",
     "fingerprintEditsNeedPro": "Your changes are kept and apply again with an active Pro plan."
+  },
+  "ephemeralStorage": {
+    "onDisk": "On this computer, ephemeral profiles write their data to disk. Donut erases it when the browser closes. Install WinFsp to keep the data in memory.",
+    "winfspError": "WinFsp did not start, so ephemeral profiles write their data to disk. Donut erases it when the browser closes.",
+    "download": "Download WinFsp"
   }
 }

@@ -4721,5 +4721,10 @@
   "launchNotice": {
     "fingerprintEditsNotApplied": "{{name}} khởi chạy mà không có các thay đổi vân tay tùy chỉnh",
     "fingerprintEditsNeedPro": "Các thay đổi của bạn được giữ lại và sẽ áp dụng lại khi có gói Pro đang hoạt động."
+  },
+  "ephemeralStorage": {
+    "onDisk": "Trên máy tính này, hồ sơ tạm thời ghi dữ liệu vào ổ đĩa. Donut xóa dữ liệu đó khi trình duyệt đóng. Hãy cài WinFsp để giữ dữ liệu trong bộ nhớ.",
+    "winfspError": "WinFsp không khởi động được, nên hồ sơ tạm thời ghi dữ liệu vào ổ đĩa. Donut xóa dữ liệu đó khi trình duyệt đóng.",
+    "download": "Tải WinFsp"
   }
 }

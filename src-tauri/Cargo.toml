@@ -182,7 +182,18 @@ windows = { version = "0.62", features = [
   # CryptUnprotectData, for unwrapping the source browser's os_crypt key from
   # `Local State` during profile import.
   "Win32_Security_Cryptography",
+  # The RAM volume (src/ramfs): its root security descriptor, and loading the
+  # installed WinFsp DLL by full path.
+  "Win32_Security_Authorization",
+  "Win32_System_LibraryLoader",
 ] }
+# WinFsp, for the RAM volume of ephemeral profiles. Donut does not ship the
+# driver; the DLL is delay-loaded and used only when it is installed.
+winfsp = { version = "0.13", default-features = false }
+winfsp-sys = "0.12"
+
+[target.'cfg(windows)'.build-dependencies]
+winfsp = { version = "0.13", default-features = false, features = ["delayload"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

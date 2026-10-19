@@ -26,6 +26,7 @@ import {
   LuTriangleAlert,
 } from "react-icons/lu";
 import { DnsServerField } from "@/components/dns-server-field";
+import { EphemeralStorageNotice } from "@/components/ephemeral-storage-notice";
 import { LoadingButton } from "@/components/loading-button";
 import { ProfileGlyph } from "@/components/profile-glyph";
 import { ProxyFormDialog } from "@/components/proxy-form-dialog";
@@ -1087,6 +1088,8 @@ export function CreateProfileDialog({
               hint={t("profiles.ephemeralDescription")}
             />
           </motion.div>
+
+          {(ephemeral || enablePassword) && <EphemeralStorageNotice />}
 
           {enablePassword && (
             <motion.div className="space-y-1.5" {...reveal}>

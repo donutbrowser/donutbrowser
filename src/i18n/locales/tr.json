@@ -4721,5 +4721,10 @@
   "launchNotice": {
     "fingerprintEditsNotApplied": "{{name}} özel parmak izi değişiklikleri olmadan başlatılıyor",
     "fingerprintEditsNeedPro": "Değişiklikleriniz saklanır ve etkin bir Pro planıyla yeniden uygulanır."
+  },
+  "ephemeralStorage": {
+    "onDisk": "Bu bilgisayarda geçici profiller verilerini diske yazar. Donut, tarayıcı kapandığında bu verileri siler. Verileri bellekte tutmak için WinFsp'yi yükleyin.",
+    "winfspError": "WinFsp başlamadı, bu yüzden geçici profiller verilerini diske yazar. Donut, tarayıcı kapandığında bu verileri siler.",
+    "download": "WinFsp'yi indir"
   }
 }

@@ -4721,5 +4721,10 @@
   "launchNotice": {
     "fingerprintEditsNotApplied": "{{name}} 将在不含自定义指纹更改的情况下启动",
     "fingerprintEditsNeedPro": "你的更改已保留，在 Pro 套餐有效时会再次生效。"
+  },
+  "ephemeralStorage": {
+    "onDisk": "在这台电脑上,临时配置文件会把数据写入磁盘。浏览器关闭时 Donut 会清除这些数据。安装 WinFsp 可将数据保留在内存中。",
+    "winfspError": "WinFsp 未能启动,因此临时配置文件会把数据写入磁盘。浏览器关闭时 Donut 会清除这些数据。",
+    "download": "下载 WinFsp"
   }
 }

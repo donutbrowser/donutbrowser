@@ -2668,6 +2668,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "static_assertions",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
     "name": "strict-num",
     "license": "MIT"
   },
@@ -3156,6 +3160,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "widestring",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
     "name": "winapi",
     "license": "Apache-2.0 OR MIT"
   },
@@ -3230,6 +3238,14 @@
   {
     "name": "windows_x86_64_msvc",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "winfsp",
+    "license": "GPL-3.0"
+  },
+  {
+    "name": "winfsp-sys",
+    "license": "GPL-3.0"
   },
   {
     "name": "winnow",

@@ -4771,5 +4771,10 @@
   "launchNotice": {
     "fingerprintEditsNotApplied": "{{name}} inicia sem as alterações personalizadas de impressão digital",
     "fingerprintEditsNeedPro": "Suas alterações ficam guardadas e voltam a valer com um plano Pro ativo."
+  },
+  "ephemeralStorage": {
+    "onDisk": "Neste computador, os perfis efêmeros gravam seus dados no disco. O Donut os apaga quando o navegador fecha. Instale o WinFsp para manter os dados na memória.",
+    "winfspError": "O WinFsp não iniciou, então os perfis efêmeros gravam seus dados no disco. O Donut os apaga quando o navegador fecha.",
+    "download": "Baixar o WinFsp"
   }
 }

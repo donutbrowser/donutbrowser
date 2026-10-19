@@ -175,6 +175,7 @@ pub mod proxy_runner;
 pub mod proxy_server;
 pub mod proxy_storage;
 pub mod proxy_udp;
+pub mod ramfs;
 mod recipes;
 mod recorder;
 mod remote_exit;
@@ -3725,6 +3726,7 @@ pub fn run_with_builder(
       unlock_profile,
       lock_profile,
       is_profile_locked,
+      ephemeral_dirs::get_ephemeral_storage_status,
       sync::restore_points::list_restore_points,
       sync::restore_points::create_restore_point,
       sync::restore_points::delete_restore_point,
