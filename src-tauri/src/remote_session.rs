@@ -1327,7 +1327,7 @@ pub async fn start_profile_remote_session(
     })?;
   log::info!(
     "Remote session started profile={profile_id} session={} platform={}",
-    outcome.session_id,
+    crate::log_redaction::ShortId(&outcome.session_id),
     outcome.platform
   );
   Ok(outcome)
