@@ -104,6 +104,8 @@ export type BackendErrorCode =
   | "VPN_NOT_WORKING"
   | "CAMOUFOX_IMPORT_DEPRECATED"
   | "PROXY_SIDECAR_VERSION_MISMATCH"
+  | "PROXY_SIDECAR_NOT_RESPONDING"
+  | "WAYFERN_NOT_RESPONDING"
   | "UPDATE_CHECKSUMS_UNAVAILABLE"
   | "UPDATE_CHECKSUM_MISMATCH"
   | "BROWSER_CHECKSUM_UNAVAILABLE"
@@ -652,6 +654,14 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.camoufoxImportDeprecated");
     case "PROXY_SIDECAR_VERSION_MISMATCH":
       return t("backendErrors.proxySidecarVersionMismatch");
+    case "PROXY_SIDECAR_NOT_RESPONDING":
+      return t("backendErrors.proxySidecarNotResponding", {
+        seconds: parsed.params?.seconds ?? "",
+      });
+    case "WAYFERN_NOT_RESPONDING":
+      return t("backendErrors.wayfernNotResponding", {
+        seconds: parsed.params?.seconds ?? "",
+      });
     case "UPDATE_CHECKSUMS_UNAVAILABLE":
       return t("backendErrors.updateChecksumsUnavailable", {
         version: parsed.params?.version ?? "",

@@ -231,6 +231,82 @@ pub const LAUNCH_PLACEHOLDER_PID_MIN: u32 = u32::MAX - 0x00FF_FFFF;
 static NEXT_LAUNCH_PLACEHOLDER_PID: std::sync::atomic::AtomicU32 =
   std::sync::atomic::AtomicU32::new(u32::MAX);
 
+/// What a donut-proxy command printed and how it ended.
+struct SidecarOutput {
+  code: Option<i32>,
+  stdout: Vec<u8>,
+  stderr: Vec<u8>,
+}
+
+impl SidecarOutput {
+  fn success(&self) -> bool {
+    self.code == Some(0)
+  }
+}
+
+/// How long output that is still on its way is read after the command exits.
+const SIDECAR_DRAIN: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Run a short donut-proxy command. A command that does not exit in time is
+/// killed, and the launch reports it instead of waiting forever.
+async fn run_sidecar(
+  command: tauri_plugin_shell::process::Command,
+) -> Result<SidecarOutput, String> {
+  let started = std::time::Instant::now();
+  let (events, child) = command
+    .spawn()
+    .map_err(|e| format!("Failed to execute donut-proxy: {e}"))?;
+  match collect_sidecar(events, crate::proxy_runner::SIDECAR_RESPONSE_LIMIT).await {
+    Some(output) => Ok(output),
+    None => {
+      let _ = child.kill();
+      log::error!(
+        "donut-proxy command timed out elapsed_ms={}",
+        started.elapsed().as_millis()
+      );
+      Err(crate::proxy_runner::sidecar_not_responding_error())
+    }
+  }
+}
+
+/// What a command printed until it exited, or `None` when it did not exit
+/// within `limit`. Its exit ends the wait, not the end of its output: on
+/// Windows the worker it starts can keep the output pipe open, so a wait for
+/// that would last as long as the worker.
+async fn collect_sidecar(
+  mut events: tauri::async_runtime::Receiver<tauri_plugin_shell::process::CommandEvent>,
+  limit: std::time::Duration,
+) -> Option<SidecarOutput> {
+  use tauri_plugin_shell::process::CommandEvent;
+  let mut output = SidecarOutput {
+    code: None,
+    stdout: Vec::new(),
+    stderr: Vec::new(),
+  };
+  let mut deadline = tokio::time::Instant::now() + limit;
+  let mut exited = false;
+  loop {
+    match tokio::time::timeout_at(deadline, events.recv()).await {
+      Ok(Some(CommandEvent::Stdout(line))) => {
+        output.stdout.extend(line);
+        output.stdout.push(b'\n');
+      }
+      Ok(Some(CommandEvent::Stderr(line))) => {
+        output.stderr.extend(line);
+        output.stderr.push(b'\n');
+      }
+      Ok(Some(CommandEvent::Terminated(payload))) => {
+        output.code = payload.code;
+        exited = true;
+        deadline = deadline.min(tokio::time::Instant::now() + SIDECAR_DRAIN);
+      }
+      Ok(Some(_)) => {}
+      Ok(None) => return exited.then_some(output),
+      Err(_) => return exited.then_some(output),
+    }
+  }
+}
+
 /// Allocate a unique `active_proxies` key for a launch in flight, so concurrent
 /// launches can never overwrite each other's placeholder entry.
 pub fn next_launch_placeholder_pid() -> u32 {
@@ -2226,14 +2302,10 @@ impl ProxyManager {
     // Tell the worker which protocol to serve the browser (http or socks5)
     proxy_cmd = proxy_cmd.arg("--local-protocol").arg(local_protocol);
 
-    // Execute the command and wait for it to complete
-    // The donut-proxy binary should start the worker and then exit
-    let output = proxy_cmd
-      .output()
-      .await
-      .map_err(|e| format!("Failed to execute donut-proxy: {e}"))?;
+    // The donut-proxy command starts the worker, prints it and exits.
+    let output = run_sidecar(proxy_cmd).await?;
 
-    if !output.status.success() {
+    if !output.success() {
       let stderr = String::from_utf8_lossy(&output.stderr);
       let stdout = String::from_utf8_lossy(&output.stdout);
       return Err(format!(
@@ -2382,8 +2454,8 @@ impl ProxyManager {
     // A failed spawn (sidecar missing, permission denied, fd exhaustion) must
     // not panic the cleanup task — the proxy is already removed from tracking,
     // so degrade gracefully like the non-success branch below.
-    match proxy_cmd.output().await {
-      Ok(output) if !output.status.success() => {
+    match run_sidecar(proxy_cmd).await {
+      Ok(output) if !output.success() => {
         log::warn!(
           "Proxy worker stop command failed id={proxy_id} stderr={:?}",
           String::from_utf8_lossy(&output.stderr).trim()
@@ -2453,8 +2525,8 @@ impl ProxyManager {
           .arg(&proxy_id);
 
         // Don't panic if the sidecar can't be spawned — still clear the mapping.
-        match proxy_cmd.output().await {
-          Ok(output) if !output.status.success() => {
+        match run_sidecar(proxy_cmd).await {
+          Ok(output) if !output.success() => {
             log::warn!(
               "Proxy worker stop command failed id={proxy_id} stderr={:?}",
               String::from_utf8_lossy(&output.stderr).trim()
@@ -3388,6 +3460,44 @@ mod route_check_tests {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[tokio::test]
+  async fn a_sidecar_that_exits_is_read_while_its_worker_holds_the_pipe() {
+    use tauri_plugin_shell::process::{CommandEvent, TerminatedPayload};
+    let (tx, rx) = tauri::async_runtime::channel(8);
+    tx.send(CommandEvent::Stdout(b"{\"id\":\"p\"}".to_vec()))
+      .await
+      .unwrap();
+    tx.send(CommandEvent::Terminated(TerminatedPayload {
+      code: Some(0),
+      signal: None,
+    }))
+    .await
+    .unwrap();
+    // `tx` stays alive, as the pipe does while a worker keeps it.
+    let output = tokio::time::timeout(
+      std::time::Duration::from_secs(5),
+      collect_sidecar(rx, std::time::Duration::from_secs(30)),
+    )
+    .await
+    .expect("the exit ends the wait")
+    .expect("an exited command has output");
+    assert!(output.success());
+    assert_eq!(output.stdout, b"{\"id\":\"p\"}\n");
+    drop(tx);
+  }
+
+  #[tokio::test]
+  async fn a_sidecar_that_never_exits_is_given_up() {
+    use tauri_plugin_shell::process::CommandEvent;
+    let (tx, rx) = tauri::async_runtime::channel(8);
+    tx.send(CommandEvent::Stdout(b"starting".to_vec()))
+      .await
+      .unwrap();
+    let output = collect_sidecar(rx, std::time::Duration::from_millis(200)).await;
+    assert!(output.is_none());
+    drop(tx);
+  }
   use std::env;
   use std::path::PathBuf;
 

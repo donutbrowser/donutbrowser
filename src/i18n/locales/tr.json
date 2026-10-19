@@ -2658,6 +2658,8 @@
     "dnsRulesExportFailed": "DNS kuralları dışa aktarılamadı.",
     "fingerprintMatchFailed": "Parmak izi proxy'ye eşlenemedi.",
     "proxySidecarVersionMismatch": "Bazı Donut Browser dosyaları farklı sürümlere ait. En son güncellemeyi yeniden yükleyin; profilleriniz güvende kalır.",
+    "proxySidecarNotResponding": "Donut proxy yardımcısı (donut-proxy) {{seconds}} saniye içinde bitmedi. Bir güvenlik yazılımı onu bekletiyor olabilir: antivirüs programınızda donut-proxy'ye izin verin ve yeniden deneyin.",
+    "wayfernNotResponding": "Wayfern başladı ancak {{seconds}} saniye içinde yanıt vermedi. Bir güvenlik yazılımı onu bekletiyor olabilir veya penceresini açamadı. Antivirüs programınızda Wayfern'e izin verin ve yeniden deneyin.",
     "updateProfilesRunning": "Güncellemeyi yüklemeden önce çalışan tüm profilleri durdurun.",
     "updatePreparationFailed": "Donut Browser arka plandaki bir ağ işlemini güvenli şekilde durduramadı. Bilgisayarınızı yeniden başlatıp güncellemeyi tekrar deneyin.",
     "wayfernTermsRequired": "Wayfern'ü kullanmak için Wayfern Hüküm ve Koşullarını kabul edin.",

@@ -1403,6 +1403,11 @@ pub struct WayfernLaunchResult {
   pub stored_profile: Option<BrowserProfile>,
 }
 
+/// How long a started browser has to open its DevTools port.
+const CDP_READY_LIMIT: Duration = Duration::from_secs(90);
+/// How long one DevTools command may take to answer.
+const CDP_COMMAND_LIMIT: Duration = Duration::from_secs(60);
+
 struct WayfernInstance {
   process_id: Option<u32>,
   profile_path: Option<String>,
@@ -2073,13 +2078,29 @@ impl WayfernManager {
     child: &mut tokio::process::Child,
     log: &BrowserLogTap,
   ) -> Result<Vec<CdpTarget>, Box<dyn std::error::Error + Send + Sync>> {
+    self
+      .wait_for_cdp_ready_within(port, child, log, CDP_READY_LIMIT)
+      .await
+  }
+
+  async fn wait_for_cdp_ready_within(
+    &self,
+    port: u16,
+    child: &mut tokio::process::Child,
+    log: &BrowserLogTap,
+    limit: Duration,
+  ) -> Result<Vec<CdpTarget>, Box<dyn std::error::Error + Send + Sync>> {
     let url = format!("http://127.0.0.1:{port}/json/version");
-    let max_attempts = 120;
     let delay = Duration::from_millis(500);
+    // A refused connection can take seconds on Windows, so the wait is bounded
+    // by time, not by a count of tries.
+    let deadline = std::time::Instant::now() + limit;
 
     let pid = child.id().unwrap_or_default();
     let mut last_error: Option<String> = None;
-    for attempt in 0..max_attempts {
+    let mut attempt = 0u32;
+    while std::time::Instant::now() < deadline {
+      attempt += 1;
       if let Ok(Some(status)) = child.try_wait() {
         tokio::time::sleep(Duration::from_millis(300)).await;
         let said = log.lines().join("\n");
@@ -2107,7 +2128,20 @@ impl WayfernManager {
     }
 
     let detail = last_error.unwrap_or_else(|| "no attempts completed".to_string());
-    Err(format!("CDP not ready after {max_attempts} attempts on port {port}: {detail}").into())
+    log::warn!(
+      "Browser did not answer CDP pid={pid} cdp_port={port} attempts={attempt} err=\"{detail}\""
+    );
+    Err(
+      serde_json::json!({
+        "code": "WAYFERN_NOT_RESPONDING",
+        "params": {
+          "seconds": limit.as_secs().to_string(),
+          "detail": format!("CDP not ready on port {port}: {detail}"),
+        }
+      })
+      .to_string()
+      .into(),
+    )
   }
 
   // The control port can open before the first tab. Both launch paths must
@@ -2173,6 +2207,24 @@ impl WayfernManager {
   }
 
   pub(crate) async fn send_cdp_command(
+    &self,
+    ws_url: &str,
+    method: &str,
+    params: serde_json::Value,
+  ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+    match tokio::time::timeout(CDP_COMMAND_LIMIT, self.cdp_exchange(ws_url, method, params)).await {
+      Ok(result) => result,
+      Err(_) => Err(
+        format!(
+          "CDP command {method} got no answer in {} s",
+          CDP_COMMAND_LIMIT.as_secs()
+        )
+        .into(),
+      ),
+    }
+  }
+
+  async fn cdp_exchange(
     &self,
     ws_url: &str,
     method: &str,
@@ -5495,6 +5547,29 @@ mod tests {
     );
     child.kill().await.unwrap();
     server.abort();
+  }
+
+  #[tokio::test]
+  async fn a_browser_that_never_opens_cdp_is_reported_in_time() {
+    let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = closed.local_addr().unwrap().port();
+    drop(closed);
+    let mut child = cdp_test_process();
+    let pid = child.id().unwrap();
+    let error = tokio::time::timeout(
+      Duration::from_secs(10),
+      WayfernManager::new().wait_for_cdp_ready_within(
+        port,
+        &mut child,
+        &BrowserLogTap::default(),
+        Duration::from_secs(1),
+      ),
+    )
+    .await
+    .expect("the wait ends at its limit")
+    .unwrap_err();
+    assert_eq!(code_of(&error.to_string()), "WAYFERN_NOT_RESPONDING");
+    force_kill_process(pid);
   }
 
   #[tokio::test]

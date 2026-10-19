@@ -2658,6 +2658,8 @@
     "dnsRulesExportFailed": "Không thể xuất quy tắc DNS.",
     "fingerprintMatchFailed": "Không thể khớp vân tay với proxy.",
     "proxySidecarVersionMismatch": "Một số tệp Donut Browser thuộc các phiên bản khác nhau. Hãy cài đặt lại bản cập nhật mới nhất; hồ sơ của bạn vẫn được giữ an toàn.",
+    "proxySidecarNotResponding": "Trình trợ giúp proxy của Donut (donut-proxy) không hoàn tất trong {{seconds}} giây. Có thể phần mềm bảo mật đang giữ nó: hãy cho phép donut-proxy trong phần mềm diệt virus rồi thử lại.",
+    "wayfernNotResponding": "Wayfern đã khởi động nhưng không phản hồi trong {{seconds}} giây. Có thể phần mềm bảo mật đang giữ nó, hoặc nó không mở được cửa sổ. Hãy cho phép Wayfern trong phần mềm diệt virus rồi thử lại.",
     "updateProfilesRunning": "Hãy dừng tất cả hồ sơ đang chạy trước khi cài đặt bản cập nhật.",
     "updatePreparationFailed": "Donut Browser không thể dừng an toàn một tiến trình mạng chạy nền. Hãy khởi động lại máy tính rồi thử cập nhật lại.",
     "wayfernTermsRequired": "Hãy chấp nhận Điều khoản và Điều kiện của Wayfern để sử dụng Wayfern.",

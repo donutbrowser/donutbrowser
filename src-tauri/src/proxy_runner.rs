@@ -197,6 +197,17 @@ fn parse_sidecar_version(stdout: &[u8]) -> Option<String> {
     .map(str::to_string)
 }
 
+/// The longest Donut waits for one run of its donut-proxy helper.
+pub(crate) const SIDECAR_RESPONSE_LIMIT: std::time::Duration = std::time::Duration::from_secs(20);
+
+pub(crate) fn sidecar_not_responding_error() -> String {
+  serde_json::json!({
+    "code": "PROXY_SIDECAR_NOT_RESPONDING",
+    "params": { "seconds": SIDECAR_RESPONSE_LIMIT.as_secs().to_string() }
+  })
+  .to_string()
+}
+
 fn sidecar_version_mismatch_error() -> Box<dyn std::error::Error> {
   serde_json::json!({
     "code": "PROXY_SIDECAR_VERSION_MISMATCH"
@@ -221,24 +232,36 @@ pub(crate) async fn ensure_sidecar_version() -> Result<(), Box<dyn std::error::E
     }
   };
   let checked = std::time::Instant::now();
-  let mut command = std::process::Command::new(&executable);
-  command.arg("--version");
+  let mut command = tokio::process::Command::new(&executable);
+  command
+    .arg("--version")
+    .stdin(std::process::Stdio::null())
+    .kill_on_drop(true);
 
   #[cfg(windows)]
   {
-    use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
     command.creation_flags(CREATE_NO_WINDOW);
   }
 
-  let output = match command.output() {
-    Ok(output) => output,
-    Err(e) => {
+  // Security software can hold a helper it has not seen before, and a launch
+  // that waits on it forever shows only a spinner.
+  let output = match tokio::time::timeout(SIDECAR_RESPONSE_LIMIT, command.output()).await {
+    Ok(Ok(output)) => output,
+    Ok(Err(e)) => {
       log::error!(
         "donut-proxy version check failed to run path={} err=\"{e}\"",
         executable.display()
       );
       return Err(sidecar_version_mismatch_error());
+    }
+    Err(_) => {
+      log::error!(
+        "donut-proxy version check timed out path={} elapsed_ms={}",
+        executable.display(),
+        checked.elapsed().as_millis()
+      );
+      return Err(sidecar_not_responding_error().into());
     }
   };
   let actual_version = parse_sidecar_version(&output.stdout);

@@ -2658,6 +2658,8 @@
     "dnsRulesExportFailed": "Failed to export the DNS rules.",
     "fingerprintMatchFailed": "Couldn't match the fingerprint to the proxy.",
     "proxySidecarVersionMismatch": "Some Donut Browser files are from different versions. Reinstall the latest update; your profiles will stay safe.",
+    "proxySidecarNotResponding": "The Donut proxy helper (donut-proxy) did not finish within {{seconds}} seconds. Security software may be holding it: allow donut-proxy in your antivirus, then try again.",
+    "wayfernNotResponding": "Wayfern started but did not answer within {{seconds}} seconds. Security software may be holding it, or it could not open its window. Allow Wayfern in your antivirus, then try again.",
     "updateProfilesRunning": "Stop all running profiles before installing the update.",
     "updatePreparationFailed": "Donut Browser could not safely stop a background network process. Restart your computer, then try the update again.",
     "wayfernTermsRequired": "Accept the Wayfern Terms and Conditions to use Wayfern.",
