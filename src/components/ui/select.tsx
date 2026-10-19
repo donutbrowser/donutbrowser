@@ -65,7 +65,9 @@ function SelectContent({
   position = "popper",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
-  // Grows in; never animates out. A Select unmounts the moment it closes.
+  // Grows in; never animates out. `animate-none` on close cancels the
+  // `popup-exit` of `.popup-motion`, so Radix unmounts the content at once
+  // (`hidden` cannot: the popper sets an inline `display: flex`).
   const motionAllowed = useMotionAllowed();
   return (
     <SelectPrimitive.Portal>
@@ -73,7 +75,7 @@ function SelectContent({
         data-slot="select-content"
         data-motion={motionAllowed ? "on" : undefined}
         className={cn(
-          "popup-motion relative z-50000 max-h-(--radix-select-content-available-height) min-w-32 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-sm data-[state=closed]:pointer-events-none data-[state=closed]:hidden",
+          "popup-motion relative z-50000 max-h-(--radix-select-content-available-height) min-w-32 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-sm data-[state=closed]:pointer-events-none data-[state=closed]:hidden data-[state=closed]:animate-none",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className,

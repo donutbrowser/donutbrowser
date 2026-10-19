@@ -611,6 +611,21 @@ test("profile table filters, range selection, view settings, and keyboard edits 
         [],
       );
       const row = (index) => `tr[data-table-row="${profiles[index].id}"]`;
+      // A new profile is scrolled into view, so the last of the 32 leaves the
+      // table at its end. Scroll back to the first row.
+      await app.waitFor(
+        () =>
+          app.execute(
+            `
+            const root = document.querySelector('[data-table-id="profiles"]');
+            if (root?.querySelector('table')?.getAttribute('aria-rowcount') !== "33") return false;
+            root.querySelector('.scroll-fade').scrollTop = 0;
+            return Boolean(root.querySelector(arguments[0]));
+          `,
+            [row(0)],
+          ),
+        { description: "the first profile row in view" },
+      );
       await app.clickSelector(`${row(0)} [role="checkbox"]`);
       await tableShiftClick(app, `${row(3)} [role="checkbox"]`);
       await app.waitFor(
@@ -1126,11 +1141,28 @@ test("management tables share search, filters, selection, and saved views", asyn
       async () => (await tableRows(app, "proxies")).length === 1,
       { description: "proxy search" },
     );
-    assert.equal(
-      await app.execute(
-        `return Boolean(document.querySelector('[data-slot="table-action-bar"]'));`,
-      ),
-      false,
+    // A search keeps the selection, and the bar counts the rows it hides.
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return document.querySelector('[data-slot="table-action-bar"] [data-slot="table-selection-count"] .sr-only')?.textContent === arguments[0];`,
+          [
+            en.dataTableActionBar.selectedHidden
+              .replace("{{selected}}", "3")
+              .replace("{{hidden}}", "2"),
+          ],
+        ),
+      { description: "selection kept through the search" },
+    );
+    await app.clickSelector(
+      `[data-slot="table-action-bar"] [aria-label="${en.dataTableActionBar.clearSelection}"]`,
+    );
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return !document.querySelector('[data-slot="table-action-bar"]');`,
+        ),
+      { timeoutMs: 2000, description: "selection cleared" },
     );
     await app.fillSelector(
       `[data-table-id="proxies"] input[aria-label="${en.tables.search}"]`,
@@ -1847,6 +1879,7 @@ test("MCP clients on this computer come first, and toolsets go to the connected 
     assert.deepEqual((await calls("set_mcp_toolsets"))[0].toolsets, [
       "organize",
       "network",
+      "traffic",
       "fingerprint",
       "extensions",
       "sync",
@@ -5602,7 +5635,7 @@ test("tips open from the rail, walk the catalog, and deep-link into the feature"
     );
 
     // The action lands inside the feature: the DNS tip opens settings on
-    // its DNS section, and the dialog is gone by then.
+    // its DNS section, and the dialog leaves after its short exit.
     await app.clickSelector(
       '[data-slot="tips-list-item"][data-tip-id="dnsBlocklist"]',
     );
@@ -5614,12 +5647,12 @@ test("tips open from the rail, walk the catalog, and deep-link into the feature"
         ),
       { description: "the DNS settings section focused" },
     );
-    assert.equal(
-      await app.execute(
-        `return Boolean(document.querySelector(arguments[0]));`,
-        [TIPS_DIALOG],
-      ),
-      false,
+    await app.waitFor(
+      () =>
+        app.execute(`return !document.querySelector(arguments[0]);`, [
+          TIPS_DIALOG,
+        ]),
+      { timeoutMs: 2000, description: "the tips dialog to leave" },
     );
 
     // The chord opens the catalog too, and the switch turns the automatic
@@ -6041,11 +6074,13 @@ test("a freshly paid account is welcomed once and walked to its plan tips", asyn
           ),
         { description: "the Cookie Bot tip" },
       );
-      assert.equal(
-        await app.execute(
-          `return Boolean(document.querySelector('[data-slot="paid-welcome"]'));`,
-        ),
-        false,
+      // The welcome leaves after its short exit, under the catalog.
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return !document.querySelector('[data-slot="paid-welcome"]');`,
+          ),
+        { timeoutMs: 2000, description: "the paid welcome to leave" },
       );
       const listed = await app.execute(
         `return [...document.querySelectorAll('[data-slot="tips-list-item"]')].map((node) => node.dataset.tipId);`,

@@ -390,7 +390,7 @@
    Menus, selects and popovers only scale: they are fully opaque from the first
    frame, so a paused animation clock still shows them readable. A tooltip
    also fades from half opacity. The exit holds a closed popup for 100ms;
-   `usePopupExitFallback` ends it on a timer if the clock is paused. */
+   `usePopupMotion` ends it if the clock is paused. A Select has no exit. */
 @keyframes popup-enter {
   from {
     scale: 0.97;
