@@ -1177,6 +1177,19 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       },
       { timeoutMs: 20_000, description: "API-opened Wayfern target" },
     );
+    // The tab's own first load can start before the capture attaches to it;
+    // what the tab sends once it is open is captured.
+    const openedTab = await CdpClient.connect(
+      launched.value.remote_debugging_port,
+      { match: (target) => target.url.includes("/opened-via-api") },
+    );
+    try {
+      await openedTab.evaluate(
+        "fetch('/api/echo?from=opened-via-api').then((response) => response.text())",
+      );
+    } finally {
+      openedTab.close();
+    }
     const capturedRequest = await app.waitFor(
       async () => {
         const listed = await app.invoke("list_network_requests", {

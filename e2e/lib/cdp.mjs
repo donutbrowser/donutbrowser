@@ -33,7 +33,7 @@ export class CdpClient {
     });
   }
 
-  static async connect(port, { timeoutMs = 30_000 } = {}) {
+  static async connect(port, { timeoutMs = 30_000, match = () => true } = {}) {
     assert.equal(
       typeof WebSocket,
       "function",
@@ -49,7 +49,8 @@ export class CdpClient {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const targets = await response.json();
         const target = targets.find(
-          (item) => item.type === "page" && item.webSocketDebuggerUrl,
+          (item) =>
+            item.type === "page" && item.webSocketDebuggerUrl && match(item),
         );
         if (!target) throw new Error("no debuggable page target");
         const socket = new WebSocket(target.webSocketDebuggerUrl);
