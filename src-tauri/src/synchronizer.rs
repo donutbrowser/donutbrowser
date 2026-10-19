@@ -1033,16 +1033,20 @@ impl SynchronizerManager {
             ))
           }
         }
-        "wheel" => {
-          let dx = -event.delta_x.unwrap_or(0.0);
-          let dy = -event.delta_y.unwrap_or(0.0);
-          Some((
-            "Runtime.evaluate",
-            serde_json::json!({
-              "expression": format!("window.scrollBy({dx},{dy})"),
-            }),
-          ))
-        }
+        // A wheel event at the pointer scrolls whatever is under it (a list, a
+        // pane, a modal), as on the leader. The captured deltas have the
+        // opposite sign of the command's.
+        "wheel" => Some((
+          "Input.dispatchMouseEvent",
+          serde_json::json!({
+            "type": "mouseWheel",
+            "x": event.x.unwrap_or(0.0),
+            "y": event.y.unwrap_or(0.0),
+            "deltaX": -event.delta_x.unwrap_or(0.0),
+            "deltaY": -event.delta_y.unwrap_or(0.0),
+            "modifiers": event.modifiers.unwrap_or(0),
+          }),
+        )),
         _ => None,
       };
 
@@ -1369,16 +1373,12 @@ impl SynchronizerManager {
   }
 
   async fn get_cdp_port(profile: &BrowserProfile) -> Result<u16, String> {
-    let profiles_dir = ProfileManager::instance().get_profiles_dir();
-    let profile_path = profile.get_profile_data_path(&profiles_dir);
-    let profile_path_str = profile_path.to_string_lossy();
-
     for attempt in 0..15 {
       if attempt > 0 {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
       }
       let port = crate::wayfern_manager::WayfernManager::instance()
-        .get_cdp_port(&profile_path_str)
+        .cdp_port_for_profile(profile)
         .await;
       if let Some(p) = port {
         return Ok(p);

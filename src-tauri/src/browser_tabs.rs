@@ -13,7 +13,7 @@ use std::time::Duration;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::profile::{BrowserProfile, ProfileManager};
+use crate::profile::BrowserProfile;
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -38,9 +38,8 @@ pub async fn local_port(profile: &BrowserProfile) -> Option<u16> {
   if !crate::browser_runner::browser_is_running_for(&profile.id.to_string()) {
     return None;
   }
-  let path = profile.get_profile_data_path(&ProfileManager::instance().get_profiles_dir());
   crate::wayfern_manager::WayfernManager::instance()
-    .get_cdp_port(&path.to_string_lossy())
+    .cdp_port_for_profile(profile)
     .await
 }
 

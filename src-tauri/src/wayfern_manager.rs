@@ -3914,6 +3914,15 @@ impl WayfernManager {
       .unwrap_or_default()
   }
 
+  /// The DevTools port of the browser running `profile`. An ephemeral or
+  /// password-protected profile runs from its RAM directory, not from its
+  /// path under the profiles dir, so the lookup goes by the path it ran with.
+  pub async fn cdp_port_for_profile(&self, profile: &BrowserProfile) -> Option<u16> {
+    let profiles_dir = crate::profile::ProfileManager::instance().get_profiles_dir();
+    let path = crate::ephemeral_dirs::get_effective_profile_path(profile, &profiles_dir);
+    self.get_cdp_port(&path.to_string_lossy()).await
+  }
+
   pub async fn get_cdp_port(&self, profile_path: &str) -> Option<u16> {
     let inner = self.inner.lock().await;
     let target_path = std::path::Path::new(profile_path)
@@ -3933,65 +3942,69 @@ impl WayfernManager {
     None
   }
 
+  /// The in-memory instance registered for a profile path, if any.
+  fn instance_for_path(
+    inner: &WayfernManagerInner,
+    target_path: &std::path::Path,
+  ) -> Option<WayfernLaunchResult> {
+    inner.instances.iter().find_map(|(id, instance)| {
+      let path = instance.profile_path.as_deref()?;
+      let instance_path = std::path::Path::new(path)
+        .canonicalize()
+        .unwrap_or_else(|_| std::path::Path::new(path).to_path_buf());
+      (instance_path == target_path).then(|| WayfernLaunchResult {
+        id: id.clone(),
+        processId: instance.process_id,
+        profilePath: instance.profile_path.clone(),
+        url: instance.url.clone(),
+        cdp_port: instance.cdp_port,
+        stored_profile: None,
+      })
+    })
+  }
+
+  /// The running browser of a profile. Process checks run without the
+  /// `inner` lock, so launch, stop and CDP calls never wait on them.
   pub async fn find_wayfern_by_profile(&self, profile_path: &str) -> Option<WayfernLaunchResult> {
-    use sysinfo::{ProcessRefreshKind, RefreshKind, System};
-
-    let mut inner = self.inner.lock().await;
-
-    // Canonicalize the target path for comparison
     let target_path = std::path::Path::new(profile_path)
       .canonicalize()
       .unwrap_or_else(|_| std::path::Path::new(profile_path).to_path_buf());
 
-    // Find the instance with the matching profile path
-    let mut found_id: Option<String> = None;
-    for (id, instance) in &inner.instances {
-      if let Some(path) = &instance.profile_path {
-        let instance_path = std::path::Path::new(path)
-          .canonicalize()
-          .unwrap_or_else(|_| std::path::Path::new(path).to_path_buf());
-        if instance_path == target_path {
-          found_id = Some(id.clone());
-          break;
-        }
-      }
-    }
+    let known = {
+      let inner = self.inner.lock().await;
+      Self::instance_for_path(&inner, &target_path)
+    };
 
-    // If we found an instance, verify the process is still running
-    if let Some(id) = found_id {
-      if let Some(instance) = inner.instances.get(&id) {
-        if let Some(pid) = instance.process_id {
-          let system = System::new_with_specifics(
-            RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
+    if let Some(found) = known {
+      if let Some(pid) = found.processId {
+        if crate::proxy_storage::is_process_running(pid) {
+          return Some(found);
+        }
+        let mut inner = self.inner.lock().await;
+        let same_process = inner
+          .instances
+          .get(&found.id)
+          .is_some_and(|instance| instance.process_id == Some(pid));
+        if same_process {
+          log::info!(
+            "Browser exited profile={} pid={pid}",
+            profile_id_in_path(profile_path)
           );
-          let sysinfo_pid = sysinfo::Pid::from_u32(pid);
-
-          if system.process(sysinfo_pid).is_some() {
-            return Some(WayfernLaunchResult {
-              id: id.clone(),
-              processId: instance.process_id,
-              profilePath: instance.profile_path.clone(),
-              url: instance.url.clone(),
-              cdp_port: instance.cdp_port,
-              stored_profile: None,
-            });
-          } else {
-            log::info!(
-              "Browser exited profile={} pid={pid}",
-              profile_id_in_path(profile_path)
-            );
-            inner.instances.remove(&id);
-            return None;
-          }
+          inner.instances.remove(&found.id);
         }
+        return None;
       }
     }
 
     // If not found in in-memory instances, scan system processes.
     // This handles the case where the GUI was restarted but Wayfern is still running.
-    if let Some((pid, found_profile_path, cdp_port)) =
-      Self::find_wayfern_process_by_profile(&target_path)
-    {
+    let scan_path = target_path.clone();
+    let scanned =
+      tokio::task::spawn_blocking(move || Self::find_wayfern_process_by_profile(&scan_path))
+        .await
+        .ok()
+        .flatten();
+    if let Some((pid, found_profile_path, cdp_port)) = scanned {
       // A browser seconds old is almost always one this app is still
       // launching: its instance is registered only once the launch finishes.
       let age_s = crate::proxy_storage::process_start_time(pid).map(|start| {
@@ -4000,6 +4013,15 @@ impl WayfernManager {
           .map(|now| now.as_secs().saturating_sub(start))
           .unwrap_or_default()
       });
+
+      let mut inner = self.inner.lock().await;
+      // A launch may have registered its browser while the scan ran.
+      if let Some(registered) = Self::instance_for_path(&inner, &target_path)
+        .filter(|registered| registered.processId.is_some())
+      {
+        return Some(registered);
+      }
+
       let level = if age_s.is_some_and(|age| age < 120) {
         log::Level::Debug
       } else {
@@ -4040,10 +4062,14 @@ impl WayfernManager {
   fn find_wayfern_process_by_profile(
     target_path: &std::path::Path,
   ) -> Option<(u32, String, Option<u16>)> {
-    use sysinfo::{ProcessRefreshKind, RefreshKind, System};
+    use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
 
     let system = System::new_with_specifics(
-      RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
+      RefreshKind::nothing().with_processes(
+        ProcessRefreshKind::nothing()
+          .with_cmd(UpdateKind::OnlyIfNotSet)
+          .without_tasks(),
+      ),
     );
 
     let target_path_str = target_path.to_string_lossy();
@@ -4138,27 +4164,32 @@ impl WayfernManager {
 
   #[allow(dead_code)]
   pub async fn cleanup_dead_instances(&self) {
-    use sysinfo::{ProcessRefreshKind, RefreshKind, System};
-
-    let mut inner = self.inner.lock().await;
-    let mut dead_ids = Vec::new();
-
-    let system = System::new_with_specifics(
-      RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
-    );
-
-    for (id, instance) in &inner.instances {
-      if let Some(pid) = instance.process_id {
-        let pid = sysinfo::Pid::from_u32(pid);
-        if !system.processes().contains_key(&pid) {
-          dead_ids.push(id.clone());
-        }
-      }
+    let known: Vec<(String, u32)> = {
+      let inner = self.inner.lock().await;
+      inner
+        .instances
+        .iter()
+        .filter_map(|(id, instance)| instance.process_id.map(|pid| (id.clone(), pid)))
+        .collect()
+    };
+    let dead: Vec<(String, u32)> = known
+      .into_iter()
+      .filter(|(_, pid)| !crate::proxy_storage::is_process_running(*pid))
+      .collect();
+    if dead.is_empty() {
+      return;
     }
 
-    for id in dead_ids {
-      log::debug!("Removed dead browser instance id={id}");
-      inner.instances.remove(&id);
+    let mut inner = self.inner.lock().await;
+    for (id, pid) in dead {
+      if inner
+        .instances
+        .get(&id)
+        .is_some_and(|instance| instance.process_id == Some(pid))
+      {
+        log::debug!("Removed dead browser instance id={id}");
+        inner.instances.remove(&id);
+      }
     }
   }
 }
@@ -6012,5 +6043,37 @@ mod tests {
       fit_window_to_work_area((800, 600), Some((3840, 2160))),
       (800, 600)
     );
+  }
+
+  #[tokio::test]
+  #[serial_test::serial]
+  async fn an_ephemeral_profile_finds_the_browser_running_from_its_ram_dir() {
+    let root = tempfile::tempdir().unwrap();
+    std::env::set_var("DONUTBROWSER_EPHEMERAL_ROOT", root.path());
+    let profile = BrowserProfile {
+      id: uuid::Uuid::new_v4(),
+      browser: "wayfern".to_string(),
+      ephemeral: true,
+      ..Default::default()
+    };
+    let id = profile.id.to_string();
+    let ram_dir = crate::ephemeral_dirs::create_ephemeral_dir(&id).unwrap();
+
+    let manager = WayfernManager::new();
+    manager.inner.lock().await.instances.insert(
+      "launch".to_string(),
+      WayfernInstance {
+        process_id: Some(1),
+        profile_path: Some(ram_dir.to_string_lossy().into_owned()),
+        url: None,
+        cdp_port: Some(9333),
+        log_tap: BrowserLogTap::default(),
+      },
+    );
+
+    assert_eq!(manager.cdp_port_for_profile(&profile).await, Some(9333));
+
+    crate::ephemeral_dirs::remove_ephemeral_dir(&id);
+    std::env::remove_var("DONUTBROWSER_EPHEMERAL_ROOT");
   }
 }

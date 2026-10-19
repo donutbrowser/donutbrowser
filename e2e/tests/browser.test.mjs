@@ -503,6 +503,8 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
     assert.equal(typeof checks.consistency, "object");
     assert.equal(typeof checks.exit_probe_pending, "boolean");
     assert.equal(typeof checks.exit_measurement_unreliable, "boolean");
+    // A profile with no proxy or VPN has no route to check before launch.
+    assert.equal(checks.route_unreachable, null);
     // The third consistency state: what no probe can ever verify for this
     // profile. Reported so a launch that compared nothing is never rendered as
     // a launch that compared everything and agreed.
@@ -1143,6 +1145,23 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       );
     }
 
+    // The window's DevTools endpoint and network inspector reach the same
+    // browser the automation port does, and the capture the agent left
+    // running.
+    const endpoint = await app.invoke("get_profile_debug_endpoint", {
+      profileId: profile.id,
+    });
+    assert.equal(endpoint.port, launched.value.remote_debugging_port);
+    assert.match(
+      endpoint.ws_url,
+      /^ws:\/\/127\.0\.0\.1:\d+\/devtools\/browser\//,
+    );
+    const windowCapture = await app.invoke("start_network_capture", {
+      profileId: profile.id,
+    });
+    assert.equal(windowCapture.capturing, true);
+    assert.equal(windowCapture.already_running, true);
+
     const opened = await request(`${base}/v1/profiles/${profile.id}/open-url`, {
       method: "POST",
       token: saved.api_token,
@@ -1158,6 +1177,26 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       },
       { timeoutMs: 20_000, description: "API-opened Wayfern target" },
     );
+    const capturedRequest = await app.waitFor(
+      async () => {
+        const listed = await app.invoke("list_network_requests", {
+          profileId: profile.id,
+        });
+        assert.equal(listed.capturing, true);
+        return (
+          listed.requests.find((item) =>
+            item.url.includes("/opened-via-api"),
+          ) ?? false
+        );
+      },
+      { timeoutMs: 20_000, description: "captured API-opened request" },
+    );
+    const capturedDetail = await app.invoke("get_network_request", {
+      profileId: profile.id,
+      requestId: capturedRequest.id,
+    });
+    assert.equal(capturedDetail.id, capturedRequest.id);
+    assert.equal(typeof capturedDetail.request_headers, "object");
 
     const killed = await request(`${base}/v1/profiles/${profile.id}/kill`, {
       method: "POST",
@@ -1176,12 +1215,24 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       (await toolError("list_network_requests")).data.code,
       "NETWORK_CAPTURE_NOT_RUNNING",
     );
+    assert.deepEqual(
+      await app.invoke("list_network_requests", { profileId: profile.id }),
+      { capturing: false },
+    );
+    assert.deepEqual(
+      await app.invoke("stop_network_capture", { profileId: profile.id }),
+      { stopped: false },
+    );
     const stoppedProfile = (await app.invoke("list_browser_profiles")).find(
       (item) => item.id === profile.id,
     );
     assert.equal(
       await app.invoke("check_browser_status", { profile: stoppedProfile }),
       false,
+    );
+    assert.equal(
+      await app.invoke("get_profile_debug_endpoint", { profileId: profile.id }),
+      null,
     );
 
     const batchProfile = await createRealProfile(
@@ -1202,6 +1253,8 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
         profile_ids: [batchProfile.id],
         url: `${fixtureUrl}/batch`,
         headless: true,
+        delay_ms: 0,
+        concurrency: 1,
       },
     });
     assert.equal(batchRun.response.status, 200);
@@ -1374,6 +1427,14 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       temporaryPid,
       "the temporary profile must report the browser it started",
     );
+    // The browser runs from the profile's RAM directory, and the tools must
+    // find it there: they once looked only under the profiles dir.
+    const ephemeralPage = await mcp("tools/call", {
+      name: "get_page_info",
+      arguments: { profile_id: temporaryId },
+    });
+    assert.notEqual(ephemeralPage.isError, true, JSON.stringify(ephemeralPage));
+    assert.match(ephemeralPage.content[0].text, /temporary/);
     await request(`${base}/v1/profiles/${temporaryId}/kill`, {
       method: "POST",
       token: saved.api_token,
