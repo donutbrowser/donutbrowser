@@ -671,7 +671,7 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
       initial={motionAllowed ? { scale: 0.985 } : false}
       animate={{ scale: 1 }}
       transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE_OUT }}
-      className="absolute inset-0 z-20 overflow-hidden rounded-[inherit] bg-background/95 bg-[radial-gradient(circle_at_50%_48%,color-mix(in_oklab,var(--foreground)_7%,transparent),transparent_62%)]"
+      className="absolute inset-0 z-20 overflow-hidden rounded-[inherit] bg-background bg-[radial-gradient(circle_at_50%_48%,color-mix(in_oklab,var(--foreground)_7%,transparent),transparent_62%)]"
     >
       <canvas
         ref={canvasRef}
