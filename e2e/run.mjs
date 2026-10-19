@@ -7,6 +7,7 @@ import {
   createWriteStream,
   existsSync,
   readFileSync,
+  rmSync,
   statSync,
 } from "node:fs";
 import {
@@ -316,10 +317,16 @@ function syncHarnessLockfile() {
 
 // Tauri starts a sidecar from next to the running executable only. Copy the
 // sidecars this build made there, so a copy left by an older harness never
-// fails every launch on its version check.
+// fails every launch on its version check. The old file is removed first:
+// macOS kills an executable that was overwritten in place.
 function installSidecars() {
   const target = hostRustTarget();
   for (const name of ["donut-proxy", "xray"]) {
+    const destination = path.join(
+      path.dirname(appBinary),
+      `${name}${executableSuffix}`,
+    );
+    rmSync(destination, { force: true });
     copyFileSync(
       path.join(
         projectRoot,
@@ -327,7 +334,7 @@ function installSidecars() {
         "binaries",
         `${name}-${target}${executableSuffix}`,
       ),
-      path.join(path.dirname(appBinary), `${name}${executableSuffix}`),
+      destination,
     );
   }
 }

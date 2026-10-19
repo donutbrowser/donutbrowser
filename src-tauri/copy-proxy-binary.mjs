@@ -1,5 +1,5 @@
 import { execFileSync, execSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { downloadXray } from "./download-xray.mjs";
@@ -75,6 +75,8 @@ function copyBinary(baseName) {
     console.error(`Error: Failed to build ${baseName} binary`);
     process.exit(1);
   }
+  // macOS kills an executable that was overwritten in place.
+  rmSync(dest, { force: true });
   copyFileSync(source, dest);
   console.log(`Built and copied ${binName} to ${dest}`);
 }
