@@ -37,7 +37,8 @@ tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
-tauri-plugin-deep-link = "2"
+# 2.6.2 does not build on Linux: it omits two fields that rust-ini 0.21.3 requires.
+tauri-plugin-deep-link = "=2.6.1"
 tauri-plugin-single-instance = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-macos-permissions = "2"
