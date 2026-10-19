@@ -3234,6 +3234,15 @@ impl WayfernManager {
           result_file,
           account_known,
         ));
+        // The plan of the signed-in account, as this app knows it.
+        if let Some(auth) = crate::cloud_auth::CLOUD_AUTH.get_user().await {
+          let plan = if auth.user.entitlements().active {
+            auth.user.effective_plan().to_string()
+          } else {
+            "free".to_string()
+          };
+          document.insert("accountPlan".to_string(), json!(plan));
+        }
         Some(serde_json::Value::Object(document))
       }
       None => identity_document.clone(),
