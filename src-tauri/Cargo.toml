@@ -44,6 +44,8 @@ tauri-plugin-macos-permissions = "2"
 tauri-plugin-log = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-window-state = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
 log = "0.4"
 env_logger = "0.11"
 
@@ -74,10 +76,10 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 tar = "0"
 bzip2 = "0"
 flate2 = "1"
-lzma-rust2 = { version = "0.22", default-features = false, features = ["std", "optimization", "xz"] }
+lzma-rust2 = { version = "0.23", default-features = false, features = ["std", "optimization", "xz"] }
 msi-extract = "0"
 
-uuid = { version = "1.27", features = ["v4", "serde"] }
+uuid = { version = "1.28", features = ["v4", "serde"] }
 url = "2.5"
 blake3 = "1"
 globset = "0.4"
@@ -103,7 +105,7 @@ sha2 = "0.11"
 # alongside the `ring` this crate already ships through boringtun. Moving up is a
 # build-toolchain decision for every platform, not a routine dependency refresh.
 shadowsocks = { version = ">=1.24, <1.25", default-features = false, features = ["aead-cipher"] }
-hyper = { version = "1.11", features = ["full"] }
+hyper = { version = "1.12", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
 http-body-util = "0.1"
 clap = { version = "4", features = ["derive"] }
@@ -132,7 +134,7 @@ crossbeam-channel = "0.5"
 sys-locale = "0.3"
 jsonc-parser = { version = "0.34", features = ["cst", "serde_json"] }
 toml_edit = "0.25"
-rusty-leveldb = "4.0.1"
+rusty-leveldb = "4.0.2"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31", features = ["signal", "process"] }
@@ -152,7 +154,7 @@ core-foundation = "0.10"
 # Reading the source browser's "<Brand> Safe Storage" Keychain item during
 # profile import, so its cookies and passwords can be re-encrypted for Wayfern.
 security-framework = "3"
-objc2 = "0.6.4"
+objc2 = "0.6.5"
 objc2-app-kit = { version = "0.3.2", features = ["NSWindow", "NSApplication", "NSRunningApplication", "NSView", "NSResponder", "NSButton", "NSControl", "NSGraphics"] }
 objc2-foundation = { version = "0.3.2", features = ["NSGeometry"] }
 
@@ -185,14 +187,14 @@ windows = { version = "0.62", features = [
 [dev-dependencies]
 tempfile = "3.27.0"
 wiremock = "0.6"
-hyper = { version = "1.11", features = ["full"] }
+hyper = { version = "1.12", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
 http-body-util = "0.1"
 tower = "0.5"
 tower-http = { version = "0.7", features = ["fs", "trace"] }
 futures-util = "0.3"
 serial_test = "4"
-lzma-rust2 = { version = "0.22", features = ["encoder"] }
+lzma-rust2 = { version = "0.23", features = ["encoder"] }
 
 # Integration test configuration
 [[test]]

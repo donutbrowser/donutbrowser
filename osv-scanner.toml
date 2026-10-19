@@ -30,3 +30,21 @@ ignoreUntil = 2026-12-31
 id = "RUSTSEC-2024-0370"
 reason = "Unmaintained crate, no fix published; transitive build dependency on Linux targets."
 ignoreUntil = 2026-12-31
+
+# zvariant, zbus_names and zvariant_derive moved into zbus 6. zbus 5 comes in
+# through tauri-plugin-opener, tauri-plugin-single-instance, tauri-plugin-notification
+# (notify-rust) and secret-service, and none of them has a release on zbus 6 yet.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+reason = "zvariant merged into zbus 6; every crate that pulls in zbus still requires zbus 5."
+ignoreUntil = 2026-12-31
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+reason = "zbus_names merged into zbus 6; every crate that pulls in zbus still requires zbus 5."
+ignoreUntil = 2026-12-31
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+reason = "zvariant_derive merged into zbus 6; every crate that pulls in zbus still requires zbus 5."
+ignoreUntil = 2026-12-31

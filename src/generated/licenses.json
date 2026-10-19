@@ -308,6 +308,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "@tauri-apps/plugin-autostart",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
     "name": "@tauri-apps/plugin-clipboard-manager",
     "license": "Apache-2.0 OR MIT"
   },
@@ -325,6 +329,10 @@
   },
   {
     "name": "@tauri-apps/plugin-log",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "@tauri-apps/plugin-notification",
     "license": "Apache-2.0 OR MIT"
   },
   {
@@ -522,6 +530,10 @@
   {
     "name": "atomic-waker",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "auto-launch",
+    "license": "MIT"
   },
   {
     "name": "av-scenechange",
@@ -1740,6 +1752,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "mac-notification-sys",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
     "name": "macos-accessibility-client",
     "license": "Apache-2.0 OR MIT"
   },
@@ -1864,6 +1880,10 @@
     "license": "MIT"
   },
   {
+    "name": "notify-rust",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
     "name": "ntapi",
     "license": "Apache-2.0 OR MIT"
   },
@@ -1972,6 +1992,14 @@
     "license": "Zlib OR Apache-2.0 OR MIT"
   },
   {
+    "name": "objc2-security",
+    "license": "Zlib OR Apache-2.0 OR MIT"
+  },
+  {
+    "name": "objc2-service-management",
+    "license": "Zlib OR Apache-2.0 OR MIT"
+  },
+  {
     "name": "objc2-web-kit",
     "license": "Zlib OR Apache-2.0 OR MIT"
   },
@@ -2018,6 +2046,10 @@
   {
     "name": "ordered-stream",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "os_info",
+    "license": "MIT"
   },
   {
     "name": "os_pipe",
@@ -2544,14 +2576,6 @@
     "license": "MIT"
   },
   {
-    "name": "sigchld",
-    "license": "MIT"
-  },
-  {
-    "name": "signal-hook",
-    "license": "Apache-2.0 OR MIT"
-  },
-  {
     "name": "signal-hook-registry",
     "license": "Apache-2.0 OR MIT"
   },
@@ -2594,6 +2618,10 @@
   {
     "name": "smallvec",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "smappservice-rs",
+    "license": "MIT"
   },
   {
     "name": "smoltcp",
@@ -2720,6 +2748,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "tauri-plugin-autostart",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
     "name": "tauri-plugin-clipboard-manager",
     "license": "Apache-2.0 OR MIT"
   },
@@ -2748,6 +2780,10 @@
     "license": "MIT"
   },
   {
+    "name": "tauri-plugin-notification",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
     "name": "tauri-plugin-opener",
     "license": "Apache-2.0 OR MIT"
   },
@@ -2773,6 +2809,10 @@
   },
   {
     "name": "tauri-utils",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "tauri-winrt-notification",
     "license": "Apache-2.0 OR MIT"
   },
   {
