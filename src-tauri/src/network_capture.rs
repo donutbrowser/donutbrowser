@@ -797,8 +797,6 @@ async fn pump(
   ready: tokio::sync::oneshot::Sender<Result<(), String>>,
 ) {
   let mut ready = Some(ready);
-  // A tab opened while the capture runs waits until its Network domain is
-  // on, so its first request is not missed; `attached` lets it go.
   let attach = connection
     .send_to(
       None,
@@ -806,7 +804,7 @@ async fn pump(
       "Target.setAutoAttach",
       json!({
         "autoAttach": true,
-        "waitForDebuggerOnStart": true,
+        "waitForDebuggerOnStart": false,
         "flatten": true,
         "filter": [{ "type": "page" }],
       }),
