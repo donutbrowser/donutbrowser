@@ -197,8 +197,9 @@ fn parse_sidecar_version(stdout: &[u8]) -> Option<String> {
     .map(str::to_string)
 }
 
-/// The longest Donut waits for one run of its donut-proxy helper.
-pub(crate) const SIDECAR_RESPONSE_LIMIT: std::time::Duration = std::time::Duration::from_secs(20);
+/// The longest Donut waits for one run of its donut-proxy helper. The OS scans
+/// a new helper on its first run; on a busy Mac that took more than 20 s.
+pub(crate) const SIDECAR_RESPONSE_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
 pub(crate) fn sidecar_not_responding_error() -> String {
   serde_json::json!({
