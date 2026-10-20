@@ -162,18 +162,13 @@ pub fn validate_email(email: Option<&str>) -> Result<Option<String>, String> {
   }
 }
 
-/// The log excerpt feedback carries: the newest lines, redacted, at most
-/// `MAX_LOG_BYTES`. Empty when the app has not written a log yet.
+/// The log excerpt feedback carries: anonymous facts, then the newest app and
+/// proxy worker log lines, redacted, at most `MAX_LOG_BYTES`
+/// (`diagnostics::excerpt`).
 pub async fn log_excerpt(dir: PathBuf) -> Result<String, String> {
-  tokio::task::spawn_blocking(move || {
-    if !dir.exists() {
-      return Ok(String::new());
-    }
-    crate::settings_manager::recent_logs(&dir, MAX_LOG_BYTES)
-  })
-  .await
-  .map_err(|e| crate::backend_error_with_detail("FEEDBACK_LOGS_UNREADABLE", e))?
-  .map_err(|e| crate::backend_error_with_detail("FEEDBACK_LOGS_UNREADABLE", e))
+  crate::diagnostics::excerpt(dir, MAX_LOG_BYTES)
+    .await
+    .map_err(|e| crate::backend_error_with_detail("FEEDBACK_LOGS_UNREADABLE", e))
 }
 
 /// Whether an agent may send one more piece of feedback this hour. Counts the

@@ -7131,6 +7131,16 @@ test("feedback goes from the More menu to the team, with the logs the person pre
           { description: "this session's log in the excerpt" },
         );
 
+        // Facts lead the excerpt; a profile shows by alias, never by its
+        // name or id, in the facts and in the log lines alike.
+        const profile = await createUiProfile(app, "Secret Shop Account");
+        const excerpt = await app.invoke("preview_feedback_logs");
+        assert.ok(excerpt.startsWith("===== facts =====\n"), excerpt);
+        assert.match(excerpt, /^app=\S+ os=\S+ arch=\S+ install=\S+/m);
+        assert.match(excerpt, /^profile-1 browser=wayfern /m);
+        assert.ok(!excerpt.includes("Secret Shop Account"));
+        assert.ok(!excerpt.includes(profile.id));
+
         await app.clickSelector(`[aria-label="${en.rail.more.label}"]`);
         await app.clickSelector('[data-slot="rail-open-feedback"]');
         await app.waitFor(

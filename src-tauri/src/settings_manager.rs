@@ -994,18 +994,30 @@ pub async fn save_app_settings(
 
 const TRUNCATED_MARK: &str = "[…truncated — older content elided…]\n";
 
-/// The newest log files, redacted, each under a `===== name =====` header and
-/// in chronological order so the freshest lines are at the bottom. At most
-/// `max_bytes`: the oldest file that only fits in part keeps its last whole
-/// lines.
-pub(crate) fn recent_logs(dir: &Path, max_bytes: usize) -> std::io::Result<String> {
+/// The newest files in `dir` whose name `accept` takes, each under a
+/// `===== name =====` header and in chronological order so the freshest lines
+/// are at the bottom. Every file's content goes through `prepare`, which must
+/// redact. At most `max_bytes`: the oldest file that only fits in part keeps
+/// its last whole lines.
+pub(crate) fn recent_log_files(
+  dir: &Path,
+  max_bytes: usize,
+  accept: impl Fn(&str) -> bool,
+  prepare: &dyn Fn(&str) -> String,
+) -> std::io::Result<String> {
   let mut entries: Vec<(PathBuf, std::time::SystemTime)> = std::fs::read_dir(dir)?
     .filter_map(Result::ok)
     .filter_map(|entry| {
       let path = entry.path();
+      let accepted = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(&accept);
+      if !accepted || !path.is_file() {
+        return None;
+      }
       let modified = entry.metadata().ok()?.modified().ok()?;
-      let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-      (path.is_file() && (ext == "log" || ext == "txt")).then_some((path, modified))
+      Some((path, modified))
     })
     .collect();
   entries.sort_by_key(|(_, modified)| std::cmp::Reverse(*modified));
@@ -1023,7 +1035,7 @@ pub(crate) fn recent_logs(dir: &Path, max_bytes: usize) -> std::io::Result<Strin
     let Ok(raw) = std::fs::read(&path) else {
       continue;
     };
-    let mut content = crate::log_redaction::text(&String::from_utf8_lossy(&raw));
+    let mut content = prepare(&String::from_utf8_lossy(&raw));
     if !content.ends_with('\n') {
       content.push('\n');
     }
@@ -1055,16 +1067,17 @@ fn last_lines(text: &str, max_bytes: usize) -> &str {
   }
 }
 
-/// Read the most recent log files concatenated into a single string,
-/// suitable for paste-into-issue-tracker. Capped at 5 MB to keep clipboard
-/// payloads sane.
+/// The diagnostics excerpt (facts, app logs, worker logs), for
+/// paste-into-issue-tracker. Capped at 5 MB to keep clipboard payloads sane.
 #[tauri::command]
 pub async fn read_log_files(app_handle: tauri::AppHandle) -> Result<String, String> {
   let dir = crate::app_dirs::log_dir(&app_handle);
   if !dir.exists() {
     return Err("Log directory does not exist yet".to_string());
   }
-  recent_logs(&dir, 5 * 1024 * 1024).map_err(|e| format!("Failed to read log dir: {e}"))
+  crate::diagnostics::excerpt(dir, 5 * 1024 * 1024)
+    .await
+    .map_err(|e| format!("Failed to read log dir: {e}"))
 }
 
 /// Reveal the log directory in the OS file manager.
@@ -2360,6 +2373,15 @@ mod tests {
         .ends_with("table_sorting.json"),
       "Sorting file should end with table_sorting.json"
     );
+  }
+
+  fn recent_logs(dir: &Path, max_bytes: usize) -> std::io::Result<String> {
+    recent_log_files(
+      dir,
+      max_bytes,
+      crate::diagnostics::is_app_log,
+      &crate::log_redaction::text,
+    )
   }
 
   fn write_log(dir: &Path, name: &str, body: &[u8], age_secs: u64) {

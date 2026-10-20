@@ -178,6 +178,41 @@ impl AppAutoUpdater {
     true
   }
 
+  /// How this copy was installed, for bug reports: `portable`, `flatpak`,
+  /// `snap`, `appimage`, `deb`, `rpm`, `manual`, `app` (macOS), `installer`
+  /// (Windows) or `unknown`.
+  pub fn install_kind() -> &'static str {
+    if crate::app_dirs::is_portable() {
+      return "portable";
+    }
+    #[cfg(target_os = "linux")]
+    {
+      match crate::app_dirs::linux_sandbox() {
+        Some(crate::app_dirs::LinuxSandbox::Flatpak) => "flatpak",
+        Some(crate::app_dirs::LinuxSandbox::Snap) => "snap",
+        None => match Self::instance().detect_linux_installation_method() {
+          LinuxInstallationMethod::AppImage => "appimage",
+          LinuxInstallationMethod::Deb => "deb",
+          LinuxInstallationMethod::Rpm => "rpm",
+          LinuxInstallationMethod::Manual => "manual",
+          LinuxInstallationMethod::Unknown => "unknown",
+        },
+      }
+    }
+    #[cfg(target_os = "macos")]
+    {
+      "app"
+    }
+    #[cfg(target_os = "windows")]
+    {
+      "installer"
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    {
+      "unknown"
+    }
+  }
+
   /// Get current app version from build-time injection
   pub fn get_current_version() -> String {
     // Use build-time injected version instead of CARGO_PKG_VERSION
