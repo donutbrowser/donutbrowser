@@ -44,6 +44,9 @@ updates:
       # versions cannot both link gtk-3.
       - dependency-name: "gtk"
         versions: [">=0.19"]
+      # 2.6.2 does not build on Linux (see the note in src-tauri/Cargo.toml).
+      - dependency-name: "tauri-plugin-deep-link"
+        versions: ["2.6.2"]
     groups:
       rust-dependencies:
         patterns:
@@ -69,6 +72,9 @@ updates:
       # versions cannot both link gtk-3.
       - dependency-name: "gtk"
         versions: [">=0.19"]
+      # 2.6.2 does not build on Linux (see the note in src-tauri/Cargo.toml).
+      - dependency-name: "tauri-plugin-deep-link"
+        versions: ["2.6.2"]
     groups:
       e2e-rust-dependencies:
         patterns:
