@@ -400,7 +400,7 @@ pub fn supports_identity_api(version: &str) -> bool {
 
 /// First Wayfern version that ships the 152 launch contract: the identity file
 /// (`--wayfern-identity-file`), the `--wayfern-token` switch, WebRTC mode and
-/// exit IP, persona/icon/camera/Widevine/entitlement-cache switches, the
+/// exit IP, persona/icon/camera/entitlement-cache switches, the
 /// `Vellum` input domain and the perception/locator/extraction commands.
 /// Everything gated on it keeps its pre-152 path on any older browser.
 const WAYFERN_152_MIN_VERSION: &str = "152";
@@ -912,54 +912,6 @@ fn valid_camera_crop(crop: &str) -> bool {
     return false;
   };
   values[2] > 0 && values[3] > 0
-}
-
-/// The platform directory a component-updater CDM install uses, and the
-/// library name inside it. `None` on a platform Widevine does not ship for.
-fn widevine_platform() -> Option<(&'static str, &'static str)> {
-  let arch = match std::env::consts::ARCH {
-    "x86_64" => "x64",
-    "aarch64" => "arm64",
-    _ => return None,
-  };
-  let (os, library) = match std::env::consts::OS {
-    "macos" => ("mac", "libwidevinecdm.dylib"),
-    "windows" => ("win", "widevinecdm.dll"),
-    "linux" => ("linux", "libwidevinecdm.so"),
-    _ => return None,
-  };
-  Some((Box::leak(format!("{os}_{arch}").into_boxed_str()), library))
-}
-
-/// The Widevine switch for a launch, when a CDM has been provisioned into
-/// `<data>/WidevineCdm` in the component-updater layout.
-///
-/// Donut does not download the CDM: its distribution is a licensing decision.
-/// What this does is use one that is present, and say so when one is present
-/// but unusable — the browser registers nothing from a broken directory, and a
-/// silent fallback to the bundled path would hide that.
-pub fn widevine_switch(version: &str, data_root: &Path) -> Option<String> {
-  if !supports_wayfern_152(version) {
-    return None;
-  }
-  let dir = data_root.join("WidevineCdm");
-  if !dir.join("manifest.json").is_file() {
-    return None;
-  }
-  match widevine_platform() {
-    Some((platform, library)) => {
-      let payload = dir.join("_platform_specific").join(platform).join(library);
-      if !payload.is_file() {
-        log::warn!(
-          "Widevine library missing, browser registers no CDM dir={} missing={}",
-          dir.display(),
-          payload.display()
-        );
-      }
-    }
-    None => log::warn!("Widevine does not ship for this platform, CDM dir passed as provisioned"),
-  }
-  Some(format!("--wayfern-widevine-cdm-dir={}", dir.display()))
 }
 
 /// The last lines the browser wrote about Wayfern itself.
@@ -3380,10 +3332,6 @@ impl WayfernManager {
       Path::new(profile_path),
       config,
     ));
-    args.extend(widevine_switch(
-      &profile.version,
-      &crate::app_dirs::data_dir(),
-    ));
 
     apply_launch_args(&mut args, &custom_launch_args);
     let mut command = TokioCommand::new(&executable_path);
@@ -5306,26 +5254,6 @@ mod tests {
     assert_eq!(
       camera_source(profile.path(), "/nope/other.png"),
       "/nope/other.png"
-    );
-  }
-
-  #[test]
-  fn widevine_travels_only_when_a_cdm_has_been_provisioned() {
-    let root = tempfile::tempdir().unwrap();
-    assert_eq!(widevine_switch("152.0.7977.64", root.path()), None);
-    let dir = root.path().join("WidevineCdm");
-    std::fs::create_dir_all(&dir).unwrap();
-    assert_eq!(
-      widevine_switch("152.0.7977.64", root.path()),
-      None,
-      "an empty directory is not a provisioned CDM"
-    );
-    std::fs::write(dir.join("manifest.json"), b"{}").unwrap();
-    assert_eq!(widevine_switch("151.0.7922.76", root.path()), None);
-    assert_eq!(
-      widevine_switch("152.0.7977.64", root.path()),
-      Some(format!("--wayfern-widevine-cdm-dir={}", dir.display())),
-      "a provisioned directory is passed even when its payload is missing, so the browser reports it"
     );
   }
 
