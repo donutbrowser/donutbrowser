@@ -4508,7 +4508,7 @@
     "counter": "{{count}} / {{max}}",
     "logs": {
       "label": "Include recent logs",
-      "description": "Logs help us find bugs. Email addresses, IP addresses, web addresses and secrets are removed first.",
+      "description": "Logs help us find bugs. Logs we will get do not contain any personal information.",
       "preview": "Preview logs",
       "loading": "Reading logs…",
       "empty": "There are no logs yet."

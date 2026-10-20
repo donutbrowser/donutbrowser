@@ -4556,7 +4556,7 @@
     "counter": "{{count}} / {{max}}",
     "logs": {
       "label": "Incluir logs recentes",
-      "description": "Os logs nos ajudam a encontrar erros. Endereços de e-mail, endereços IP, endereços web e segredos são removidos antes.",
+      "description": "Os logs nos ajudam a encontrar erros. Os logs que recebemos não contêm nenhuma informação pessoal.",
       "preview": "Ver logs",
       "loading": "Lendo os logs…",
       "empty": "Ainda não há logs."

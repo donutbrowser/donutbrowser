@@ -4508,7 +4508,7 @@
     "counter": "{{count}} / {{max}}",
     "logs": {
       "label": "Son günlükleri ekle",
-      "description": "Günlükler hataları bulmamıza yardım eder. E-posta adresleri, IP adresleri, web adresleri ve gizli bilgiler önceden kaldırılır.",
+      "description": "Günlükler hataları bulmamıza yardım eder. Aldığımız günlükler hiçbir kişisel bilgi içermez.",
       "preview": "Günlükleri gör",
       "loading": "Günlükler okunuyor…",
       "empty": "Henüz günlük yok."

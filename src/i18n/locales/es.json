@@ -4556,7 +4556,7 @@
     "counter": "{{count}} / {{max}}",
     "logs": {
       "label": "Incluir registros recientes",
-      "description": "Los registros nos ayudan a encontrar errores. Antes se eliminan las direcciones de correo, las direcciones IP, las direcciones web y los secretos.",
+      "description": "Los registros nos ayudan a encontrar errores. Los registros que recibimos no contienen ningún dato personal.",
       "preview": "Ver registros",
       "loading": "Leyendo registros…",
       "empty": "Todavía no hay registros."

@@ -4556,7 +4556,7 @@
     "counter": "{{count}} / {{max}}",
     "logs": {
       "label": "Joindre les journaux récents",
-      "description": "Les journaux nous aident à trouver les bugs. Les adresses e-mail, adresses IP, adresses web et secrets sont retirés avant l'envoi.",
+      "description": "Les journaux nous aident à trouver les bugs. Les journaux que nous recevons ne contiennent aucune donnée personnelle.",
       "preview": "Voir les journaux",
       "loading": "Lecture des journaux…",
       "empty": "Il n'y a pas encore de journaux."

@@ -4508,7 +4508,7 @@
     "counter": "{{count}} / {{max}}",
     "logs": {
       "label": "Aktuelle Protokolle anhängen",
-      "description": "Protokolle helfen uns, Fehler zu finden. E-Mail-Adressen, IP-Adressen, Webadressen und Geheimnisse werden vorher entfernt.",
+      "description": "Protokolle helfen uns, Fehler zu finden. Die Protokolle, die wir erhalten, enthalten keine personenbezogenen Daten.",
       "preview": "Protokolle ansehen",
       "loading": "Protokolle werden gelesen…",
       "empty": "Es gibt noch keine Protokolle."

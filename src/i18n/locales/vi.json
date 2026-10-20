@@ -4508,7 +4508,7 @@
     "counter": "{{count}} / {{max}}",
     "logs": {
       "label": "Đính kèm nhật ký gần đây",
-      "description": "Nhật ký giúp chúng tôi tìm lỗi. Địa chỉ email, địa chỉ IP, địa chỉ web và thông tin bí mật được xóa trước.",
+      "description": "Nhật ký giúp chúng tôi tìm lỗi. Nhật ký chúng tôi nhận được không chứa bất kỳ thông tin cá nhân nào.",
       "preview": "Xem nhật ký",
       "loading": "Đang đọc nhật ký…",
       "empty": "Chưa có nhật ký nào."
