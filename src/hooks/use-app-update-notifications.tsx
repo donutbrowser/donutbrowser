@@ -168,8 +168,7 @@ export function useAppUpdateNotifications() {
   useEffect(() => {
     if (
       !isClient ||
-      !updateInfo ||
-      updateInfo.manual_update_required ||
+      !updateInfo?.auto_install ||
       isUpdating ||
       updateReady ||
       autoDownloadedVersion.current === updateInfo.new_version
@@ -181,23 +180,21 @@ export function useAppUpdateNotifications() {
     void handleAppUpdate(updateInfo);
   }, [isClient, updateInfo, isUpdating, updateReady, handleAppUpdate]);
 
-  // Show toast only when update is ready to install or requires manual action
+  // A toast when the update is ready, or when it waits for the person: a
+  // manual update, or automatic updates turned off.
   useEffect(() => {
-    if (!isClient) return;
-
-    const showManualToast = updateInfo?.manual_update_required && !isUpdating;
-    if (!updateReady && !showManualToast) {
-      return;
-    }
-    if (!updateInfo) return;
+    if (!isClient || !updateInfo) return;
+    if (!updateReady && updateInfo.auto_install) return;
 
     toast.custom(
       () => (
         <AppUpdateToast
           updateInfo={updateInfo}
+          onInstall={() => void handleAppUpdate(updateInfo)}
           onRestart={handleRestart}
           onDismiss={dismissAppUpdate}
           updateReady={updateReady}
+          isUpdating={isUpdating}
         />
       ),
       {
@@ -213,6 +210,7 @@ export function useAppUpdateNotifications() {
     );
   }, [
     updateInfo,
+    handleAppUpdate,
     handleRestart,
     dismissAppUpdate,
     updateReady,

@@ -555,6 +555,8 @@ export interface AppUpdateInfo {
   checksums_url?: string | null;
   /** GitHub-computed digest of the chosen asset ("sha256:<hex>"). */
   asset_digest?: string | null;
+  /** The app installs it without asking; false when the person starts it. */
+  auto_install: boolean;
 }
 
 export interface AppUpdateProgress {

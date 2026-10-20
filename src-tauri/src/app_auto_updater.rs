@@ -124,6 +124,23 @@ pub struct AppUpdateInfo {
   /// cross-checked in addition to SHA256SUMS.txt when present.
   #[serde(default)]
   pub asset_digest: Option<String>,
+  /// True when the app downloads and installs this update without asking.
+  /// False for a manual update and when the person turned automatic updates
+  /// off: the UI then offers the update and waits.
+  #[serde(default)]
+  pub auto_install: bool,
+}
+
+impl AppUpdateInfo {
+  /// What this install may do with the update. A portable copy is replaced
+  /// by hand; with automatic updates off, the person starts the install.
+  fn with_install_policy(mut self, portable: bool, auto_updates_disabled: bool) -> Self {
+    if portable {
+      self.manual_update_required = true;
+    }
+    self.auto_install = !self.manual_update_required && !auto_updates_disabled;
+    self
+  }
 }
 
 pub struct AppAutoUpdater {
@@ -309,6 +326,7 @@ impl AppAutoUpdater {
         repo_update,
         checksums_url,
         asset_digest,
+        auto_install: !manual_update_required,
       };
       let result = format!(
         "available asset={asset} manual_update_required={manual_update_required} repo_update={repo_update}"
@@ -333,6 +351,7 @@ impl AppAutoUpdater {
         repo_update: false,
         checksums_url,
         asset_digest,
+        auto_install: true,
       };
       (
         Some(update_info),
@@ -2042,25 +2061,23 @@ pub async fn check_for_app_updates() -> Result<Option<AppUpdateInfo>, String> {
     return Ok(None);
   }
 
-  if crate::app_dirs::is_portable() {
-    log::debug!("App update check skipped reason=portable");
-    return Ok(None);
-  }
-  // The disable_auto_updates setting controls app self-updates only
-  let disabled = crate::settings_manager::SettingsManager::instance()
-    .load_settings()
-    .map(|s| s.disable_auto_updates)
-    .unwrap_or(false);
-  if disabled {
-    log::debug!("App update check skipped reason=disabled_by_setting");
-    return Ok(None);
-  }
-
   let updater = AppAutoUpdater::instance();
   updater
     .check_for_updates()
     .await
+    .map(with_install_policy)
     .map_err(|e| format!("Failed to check for app updates: {e}"))
+}
+
+/// Every install hears about a new version, also a portable one and one with
+/// automatic updates off; only how it installs differs.
+fn with_install_policy(update: Option<AppUpdateInfo>) -> Option<AppUpdateInfo> {
+  // The disable_auto_updates setting controls app self-updates only.
+  let auto_updates_disabled = crate::settings_manager::SettingsManager::instance()
+    .load_settings()
+    .map(|s| s.disable_auto_updates)
+    .unwrap_or(false);
+  update.map(|info| info.with_install_policy(crate::app_dirs::is_portable(), auto_updates_disabled))
 }
 
 #[tauri::command]
@@ -2107,6 +2124,7 @@ pub async fn check_for_app_updates_manual() -> Result<Option<AppUpdateInfo>, Str
   updater
     .check(true)
     .await
+    .map(with_install_policy)
     .map_err(|e| format!("Failed to check for app updates: {e}"))
 }
 
@@ -2596,5 +2614,52 @@ mod tests {
     // Actual values depend on the host system configuration.
     let _deb = AppAutoUpdater::is_deb_repo_configured();
     let _rpm = AppAutoUpdater::is_rpm_repo_configured();
+  }
+
+  fn update_info(manual_update_required: bool) -> AppUpdateInfo {
+    AppUpdateInfo {
+      current_version: "v0.34.0".to_string(),
+      new_version: "v0.35.0".to_string(),
+      release_notes: String::new(),
+      download_url: "https://example.invalid/Donut.msi".to_string(),
+      is_nightly: false,
+      published_at: String::new(),
+      manual_update_required,
+      release_page_url: None,
+      repo_update: false,
+      checksums_url: None,
+      asset_digest: None,
+      auto_install: !manual_update_required,
+    }
+  }
+
+  #[test]
+  fn an_installed_app_with_automatic_updates_installs_by_itself() {
+    let info = update_info(false).with_install_policy(false, false);
+    assert!(info.auto_install);
+    assert!(!info.manual_update_required);
+  }
+
+  #[test]
+  fn automatic_updates_off_still_reports_the_update_and_waits() {
+    let info = update_info(false).with_install_policy(false, true);
+    assert!(!info.auto_install);
+    assert!(!info.manual_update_required);
+    assert_eq!(info.new_version, "v0.35.0");
+  }
+
+  #[test]
+  fn a_portable_copy_is_told_to_download_by_hand() {
+    for disabled in [false, true] {
+      let info = update_info(false).with_install_policy(true, disabled);
+      assert!(info.manual_update_required);
+      assert!(!info.auto_install);
+    }
+  }
+
+  #[test]
+  fn a_manual_update_never_installs_by_itself() {
+    let info = update_info(true).with_install_policy(false, false);
+    assert!(!info.auto_install);
   }
 }

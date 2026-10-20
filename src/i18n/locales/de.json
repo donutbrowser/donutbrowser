@@ -209,7 +209,7 @@
       "logs": "Protokolle"
     },
     "disableAutoUpdates": "Automatische App-Updates deaktivieren",
-    "disableAutoUpdatesDescription": "Verhindert, dass die App automatisch nach Updates für Donut Browser sucht und sie installiert. Browser-Updates sind davon nicht betroffen.",
+    "disableAutoUpdatesDescription": "Donut Browser lädt und installiert seine Updates nicht selbst. Es zeigt weiterhin an, wenn eine neue Version verfügbar ist. Browser-Updates sind davon nicht betroffen.",
     "keepDecryptedProfilesInRam": "Entschlüsselte Profile im RAM behalten",
     "keepDecryptedProfilesInRamDescription": "Behält die entschlüsselte Kopie passwortgeschützter Profile zwischen den Starts im RAM, damit sie schneller starten. Die Kopie auf dem Datenträger bleibt in jedem Fall verschlüsselt.",
     "privacy": {

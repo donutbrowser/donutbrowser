@@ -209,7 +209,7 @@
       "logs": "Günlükler"
     },
     "disableAutoUpdates": "Uygulama otomatik güncellemelerini devre dışı bırak",
-    "disableAutoUpdatesDescription": "Uygulamanın Donut Browser güncellemelerini otomatik olarak denetlemesini ve yüklemesini engelleyin. Tarayıcı güncellemeleri bundan etkilenmez.",
+    "disableAutoUpdatesDescription": "Donut Browser güncellemelerini kendisi indirmez ve yüklemez. Yeni bir sürüm çıktığında yine de gösterir. Tarayıcı güncellemeleri bundan etkilenmez.",
     "keepDecryptedProfilesInRam": "Şifresi çözülmüş profilleri RAM'de tut",
     "keepDecryptedProfilesInRamDescription": "Daha hızlı başlatma için parola korumalı profillerin şifresi çözülmüş RAM kopyasını başlatmalar arasında koruyun. Diskteki kopya her durumda şifreli kalır.",
     "privacy": {

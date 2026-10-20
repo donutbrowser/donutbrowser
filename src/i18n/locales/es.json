@@ -209,7 +209,7 @@
       "logs": "Registros"
     },
     "disableAutoUpdates": "Desactivar actualizaciones automáticas de la app",
-    "disableAutoUpdatesDescription": "Evita que la aplicación busque e instale actualizaciones de Donut Browser automáticamente. Las actualizaciones de navegadores no se ven afectadas.",
+    "disableAutoUpdatesDescription": "Donut Browser no descarga ni instala sus actualizaciones por sí solo. Sigue avisando cuando hay una versión nueva. Las actualizaciones de navegadores no se ven afectadas.",
     "keepDecryptedProfilesInRam": "Mantener perfiles descifrados en RAM",
     "keepDecryptedProfilesInRamDescription": "Conservar la copia descifrada en RAM de los perfiles protegidos por contraseña entre lanzamientos para un inicio más rápido. La copia en disco permanece cifrada en cualquier caso.",
     "privacy": {

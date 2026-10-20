@@ -2,25 +2,30 @@
 
 import { useTranslation } from "react-i18next";
 import { FaExternalLinkAlt, FaTimes } from "react-icons/fa";
-import { LuCheckCheck } from "react-icons/lu";
+import { LuCheckCheck, LuDownload } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
 import type { AppUpdateInfo } from "@/types";
 import { RippleButton } from "./ui/ripple";
 
 interface AppUpdateToastProps {
   updateInfo: AppUpdateInfo;
+  onInstall: () => void;
   onRestart: () => Promise<void>;
   onDismiss: () => void;
   updateReady?: boolean;
+  isUpdating?: boolean;
 }
 
 export function AppUpdateToast({
   updateInfo,
+  onInstall,
   onRestart,
   onDismiss,
   updateReady = false,
+  isUpdating = false,
 }: AppUpdateToastProps) {
   const { t } = useTranslation();
+  const version = updateInfo.new_version;
   const handleRestartClick = async () => {
     await onRestart();
   };
@@ -46,9 +51,13 @@ export function AppUpdateToast({
             <span className="text-sm font-semibold text-foreground">
               {updateReady
                 ? t("appUpdate.toast.updateReady")
-                : updateInfo.repo_update
-                  ? "Update available via package manager"
-                  : t("appUpdate.toast.manualDownloadRequired")}
+                : isUpdating
+                  ? t("about.update.downloading", { version })
+                  : updateInfo.repo_update
+                    ? t("about.update.packageManager", { version })
+                    : updateInfo.manual_update_required
+                      ? t("appUpdate.toast.manualDownloadRequired")
+                      : t("about.update.available", { version })}
             </span>
             <div className="text-xs text-muted-foreground">
               {updateInfo.current_version} → {updateInfo.new_version}
@@ -75,18 +84,25 @@ export function AppUpdateToast({
               <LuCheckCheck className="size-3" />
               {t("appUpdate.toast.restartNow")}
             </RippleButton>
+          ) : updateInfo.repo_update ||
+            isUpdating ? null : updateInfo.manual_update_required ? (
+            <RippleButton
+              onClick={handleViewRelease}
+              size="sm"
+              className="flex items-center gap-2 text-xs"
+            >
+              <FaExternalLinkAlt className="size-3" />
+              {t("appUpdate.toast.viewRelease")}
+            </RippleButton>
           ) : (
-            !updateInfo.repo_update &&
-            updateInfo.manual_update_required && (
-              <RippleButton
-                onClick={handleViewRelease}
-                size="sm"
-                className="flex items-center gap-2 text-xs"
-              >
-                <FaExternalLinkAlt className="size-3" />
-                {t("appUpdate.toast.viewRelease")}
-              </RippleButton>
-            )
+            <RippleButton
+              onClick={onInstall}
+              size="sm"
+              className="flex items-center gap-2 text-xs"
+            >
+              <LuDownload className="size-3" />
+              {t("about.update.update")}
+            </RippleButton>
           )}
           <RippleButton
             variant="outline"
