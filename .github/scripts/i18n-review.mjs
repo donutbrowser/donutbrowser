@@ -278,7 +278,8 @@ async function collect() {
 
 // Text from the API can reach the log and the comment: one line, and no `::`
 // that the runner could read as a workflow command.
-const plain = (text, max) => clip(text, max).replace(/::/g, ": :");
+const plain = (text, max) =>
+  clip(String(text ?? "").replace(/[\u0000-\u001f\u007f]/g, " "), max).replace(/::/g, ": :");
 
 /** The first JSON object in a model answer, or null. */
 function firstJsonObject(text) {
@@ -294,6 +295,25 @@ function firstJsonObject(text) {
     }
   }
   return null;
+}
+
+/**
+ * The model's findings that name a locale and a key of this batch, with plain,
+ * bounded text. Everything the model wrote is untrusted: nothing else of it is
+ * kept, so the files the report step reads hold only checked values.
+ */
+function acceptedFindings(raw, batch, codes) {
+  const keys = new Set(batch.map((b) => b.item.key));
+  const locales = new Set(codes);
+  const out = [];
+  for (const f of raw) {
+    const locale = String(f?.locale ?? "");
+    const key = String(f?.key ?? "");
+    const problem = plain(f?.problem, 300);
+    if (!locales.has(locale) || !keys.has(key) || !problem) continue;
+    out.push({ locale, key, problem, suggestion: plain(f?.suggestion, 500) });
+  }
+  return out;
 }
 
 /** One request. Returns { findings } or { reason } when it failed. */
@@ -399,7 +419,7 @@ async function review() {
         break;
       }
       reviewed.push(...batch.map((b) => b.item.key));
-      findings.push(...answer.findings);
+      findings.push(...acceptedFindings(answer.findings, batch, codes));
       console.log(`Request ${index + 1}: ${batch.length} key(s), ${answer.findings.length} finding(s)`);
     }
   }
