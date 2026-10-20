@@ -292,10 +292,21 @@ function watchMoves(element: Element, onMove: () => void): () => void {
  * that shows. The element followed last keeps the mark while it shows; when
  * it scrolls away or unmounts, the nearest one of the same id takes over.
  */
+/**
+ * What names an anchor element across remounts: its table row, when it sits
+ * in one (a virtualized row comes back as a new element), else the element.
+ */
+function anchorKey(item: HTMLElement): string | HTMLElement {
+  return (
+    item.closest("[data-table-row]")?.getAttribute("data-table-row") ?? item
+  );
+}
+
 function resolveAnchor(
   anchors: readonly CoachAnchorId[],
   lens: ReturnType<typeof createLens>,
   memory: Map<CoachAnchorId, { item: HTMLElement; box: Box }>,
+  homes: Map<CoachAnchorId, string | HTMLElement>,
 ): AnchorCandidate<HTMLElement> | null {
   const candidates: AnchorCandidate<HTMLElement>[] = [];
   for (const id of anchors) {
@@ -310,8 +321,12 @@ function resolveAnchor(
     candidates,
     (candidate) => lens.shows(candidate.item, candidate.box),
     (id) => memory.get(id),
+    (candidate) => homes.get(candidate.id) === anchorKey(candidate.item),
   );
-  if (found) memory.set(found.id, { item: found.item, box: found.box });
+  if (found) {
+    memory.set(found.id, { item: found.item, box: found.box });
+    if (!homes.has(found.id)) homes.set(found.id, anchorKey(found.item));
+  }
   return found;
 }
 
@@ -489,6 +504,8 @@ export function CoachMark({
   const memoryRef = useRef(
     new Map<CoachAnchorId, { item: HTMLElement; box: Box }>(),
   );
+  /** The element each anchor id pointed at first, by its key. */
+  const homesRef = useRef(new Map<CoachAnchorId, string | HTMLElement>());
 
   const cardX = useMotionValue(0);
   const cardY = useMotionValue(0);
@@ -545,7 +562,7 @@ export function CoachMark({
     const lens = createLens();
     const found = blocked
       ? null
-      : resolveAnchor(anchors, lens, memoryRef.current);
+      : resolveAnchor(anchors, lens, memoryRef.current, homesRef.current);
     const element = found?.item ?? null;
     const hidden = blocked || (!found && !floatWithoutAnchor);
     const { viewport } = lens;

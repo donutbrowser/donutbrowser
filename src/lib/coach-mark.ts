@@ -286,16 +286,21 @@ function distance(a: Box, b: Box): number {
  * every row), the one the mark followed last stays while it shows; when it
  * scrolls away or unmounts, the nearest one to where it was takes over, so
  * the mark moves a row and does not jump across the table. With nothing of
- * that id followed before, the first element in page order wins.
+ * that id followed before, the first element in page order wins. The element
+ * the mark started on (`isHome`) takes it back whenever it shows again, so a
+ * scroll back to where the tip began puts the mark where it began.
  */
 export function pickAnchor<T>(
   anchors: readonly CoachAnchorId[],
   candidates: readonly AnchorCandidate<T>[],
   shows: (candidate: AnchorCandidate<T>) => boolean,
   recall: (id: CoachAnchorId) => { item: T; box: Box } | undefined,
+  isHome: (candidate: AnchorCandidate<T>) => boolean = () => false,
 ): AnchorCandidate<T> | null {
   for (const id of anchors) {
     const own = candidates.filter((candidate) => candidate.id === id);
+    const home = own.find((candidate) => isHome(candidate) && shows(candidate));
+    if (home) return home;
     const last = recall(id);
     if (!last) {
       const first = own.find(shows);

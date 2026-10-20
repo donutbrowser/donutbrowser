@@ -262,3 +262,40 @@ test("anchor ids are unique and map to their attribute", () => {
   assert.ok(isRailAnchor("rail-settings"));
   assert.ok(!isRailAnchor("column-dns"));
 });
+
+test("the element a mark started on takes it back when it shows again", () => {
+  const box = (top) => ({ x: 0, y: top, width: 20, height: 20 });
+  const rows = [1, 2, 3].map((n) => ({
+    id: "profile-info",
+    item: `row-${n}`,
+    box: box(n * 40),
+  }));
+  const shows = () => true;
+  const followed = { item: "row-3", box: box(120) };
+  assert.equal(
+    pickAnchor(["profile-info"], rows, shows, () => followed).item,
+    "row-3",
+    "without a home the followed row keeps the mark",
+  );
+  assert.equal(
+    pickAnchor(
+      ["profile-info"],
+      rows,
+      shows,
+      () => followed,
+      (candidate) => candidate.item === "row-1",
+    ).item,
+    "row-1",
+  );
+  assert.equal(
+    pickAnchor(
+      ["profile-info"],
+      rows,
+      (candidate) => candidate.item !== "row-1",
+      () => followed,
+      (candidate) => candidate.item === "row-1",
+    ).item,
+    "row-3",
+    "a home out of view does not take the mark",
+  );
+});
