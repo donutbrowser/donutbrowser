@@ -3,8 +3,8 @@
 
     python3 .github/scripts/extract-json.py ANSWER_FILE OUTPUT_FILE
 
-Copilot answers in text. Even when told to return only JSON, a model can wrap
-it in a markdown fence or put a sentence before it. This skips anything around
+A model answers in text. Even when told to return only JSON, it can wrap the
+object in a markdown fence or put a sentence before it. This skips anything around
 the first object that parses. Exits 0 when it wrote one, 1 when there is none.
 """
 

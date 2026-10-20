@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  copilot-requests: write
 
 jobs:
   generate-release-notes:
@@ -79,44 +78,24 @@ jobs:
           git log --pretty=format:"- %s (%h by %an)" "$PREVIOUS_TAG".."$CURRENT_TAG" --no-merges > commits.txt
           echo "Collected $(wc -l < commits.txt) commits"
 
-      - name: Set up Copilot CLI
-        id: copilot
-        if: steps.get-release.outputs.is-prerelease == 'false'
-        uses: ./.github/actions/setup-copilot-cli
-
       - name: Generate release notes with AI
         id: generate-notes
         if: steps.get-release.outputs.is-prerelease == 'false'
-        uses: actions/ai-inference@2c43c91ae16266ca159d311430343c67a5ffa222 # v3
-        with:
-          prompt-file: .github/prompts/release-notes.prompt.yml
-          input: |
-            version: ${{ steps.get-previous-tag.outputs.current-tag }}
-          file_input: |
-            commits: ./commits.txt
-          # Runs the CLI without AGENTS.md as instructions, without the GitHub
-          # MCP server and without auto-update; see setup-copilot-cli.
-          copilot-cli-path: ${{ steps.copilot.outputs.launcher }}
         env:
-          # The Copilot CLI reads its credential from the environment; the
-          # workflow token carries it under the `copilot-requests` permission
-          # granted above, so no PAT is needed.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          VERSION: ${{ steps.get-previous-tag.outputs.current-tag }}
+        run: |
+          bash .github/scripts/render-prompt.sh .github/prompts/release-notes.prompt.yml \
+            "$VERSION" commits.txt "$RUNNER_TEMP/system.txt" "$RUNNER_TEMP/user.txt"
+          bash .github/scripts/ai-infer.sh "$RUNNER_TEMP/system.txt" "$RUNNER_TEMP/user.txt" "$RUNNER_TEMP/notes.txt"
 
       - name: Update release with generated notes
         if: steps.get-release.outputs.is-prerelease == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RESPONSE_FILE: ${{ steps.generate-notes.outputs.response-file }}
-          RESPONSE_OUTPUT: ${{ steps.generate-notes.outputs.response }}
           RELEASE_ID: ${{ steps.get-release.outputs.release-id }}
         run: |
-          # Prefer reading from the response file to avoid output truncation
-          if [ -n "$RESPONSE_FILE" ] && [ -f "$RESPONSE_FILE" ]; then
-            RELEASE_NOTES=$(cat "$RESPONSE_FILE")
-          else
-            RELEASE_NOTES="$RESPONSE_OUTPUT"
-          fi
+          RELEASE_NOTES=$(cat "$RUNNER_TEMP/notes.txt")
 
           # An empty answer would PATCH the release body to nothing and wipe
           # the notes the release already has.

@@ -13,14 +13,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # GitHub Models (models.github.ai) was retired on 2026-07-30, and every call
-  # to it here had degraded since. Both AI jobs now ask GitHub Copilot through
-  # the workflow token (`copilot-requests: write`). `auto` lets Copilot pick:
-  # it is the only value every Copilot plan accepts and it cannot go stale the
-  # way the pinned `openai/gpt-4.1` did.
-  COPILOT_MODEL: auto
-
 jobs:
   # Decides what happens to a new issue before triage answers it. Minor
   # problems never close an issue: a feature filed as a bug (or the reverse)
@@ -39,7 +31,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-      copilot-requests: write
     outputs:
       action: ${{ steps.decide.outputs.action }}
     steps:
@@ -97,27 +88,21 @@ jobs:
             cat /tmp/issue-body.txt
           } > /tmp/user.txt
 
-      # continue-on-error: an install failure is an outage like any other.
-      # The Copilot step records it and the run turns red at the end.
-      - name: Set up Copilot CLI
-        continue-on-error: true
-        uses: ./.github/actions/setup-copilot-cli
-
-      - name: Ask Copilot
+      - name: Ask the model
         env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           # Fail-open: an outage or an answer that is not JSON must never close
           # or delete a contributor's issue. It is recorded and turns the run red below.
-          if ! bash .github/scripts/copilot-infer.sh /tmp/system.txt /tmp/user.txt /tmp/raw.txt; then
-            printf '%s\n' "the Copilot call failed" >> /tmp/ai-degraded
+          if ! bash .github/scripts/ai-infer.sh /tmp/system.txt /tmp/user.txt /tmp/raw.txt; then
+            printf '%s\n' "the model call failed" >> /tmp/ai-degraded
             echo '{"action": "keep", "kind": "unclear"}' > /tmp/result.json
             exit 0
           fi
 
           if ! python3 .github/scripts/extract-json.py /tmp/raw.txt /tmp/result.json; then
-            echo "::error::Copilot returned no JSON object; keeping the issue"
-            printf '%s\n' "Copilot returned output that was not JSON" >> /tmp/ai-degraded
+            echo "::error::The model returned no JSON object; keeping the issue"
+            printf '%s\n' "the model returned output that was not JSON" >> /tmp/ai-degraded
             echo '{"action": "keep", "kind": "unclear"}' > /tmp/result.json
           fi
 
@@ -136,7 +121,7 @@ jobs:
           action = r.get('action')
           if action not in ('keep', 'close', 'delete'):
               with open('/tmp/ai-degraded', 'a') as fh:
-                  fh.write('Copilot returned no known action; the issue was kept open\n')
+                  fh.write('The model returned no known action; the issue was kept open\n')
               action = 'keep'
           kind = r.get('kind')
           reasons = [' '.join(str(x).split())[:300] for x in (r.get('reasons') or []) if str(x).strip()][:10]
@@ -147,7 +132,7 @@ jobs:
               issue_text = normalize(open('/tmp/issue-title.txt').read() + '\n' + open('/tmp/issue-body.txt').read())
               if len(quote) < 2 or quote not in issue_text:
                   with open('/tmp/ai-degraded', 'a') as fh:
-                      fh.write('Copilot asked to delete the issue without quoting it; it was kept open, check it by hand\n')
+                      fh.write('The model asked to delete the issue without quoting it; it was kept open, check it by hand\n')
                   action = 'keep'
               else:
                   open('/tmp/insult-quote.txt', 'w').write(quote)
@@ -256,18 +241,11 @@ jobs:
     permissions:
       contents: read
       issues: write
-      copilot-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
         with:
           persist-credentials: false
-
-      # continue-on-error: an install failure is an outage like any other.
-      # The Copilot steps record it and the run turns red at the end.
-      - name: Set up Copilot CLI
-        continue-on-error: true
-        uses: ./.github/actions/setup-copilot-cli
 
       - name: Check if first-time contributor
         id: check-first-time
@@ -460,7 +438,7 @@ jobs:
 
       - name: Stage 1 (triage and file selection)
         env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           # The triage call returns ONLY JSON. It classifies the issue and picks a
           # short list of source files for the composer to read.
@@ -477,14 +455,14 @@ jobs:
 
           # An outage must not fail the run here: fall through to the safe
           # classification below and let the last step report it.
-          if bash .github/scripts/copilot-infer.sh /tmp/triage-system.txt /tmp/triage-user.txt /tmp/triage-raw.txt; then
+          if bash .github/scripts/ai-infer.sh /tmp/triage-system.txt /tmp/triage-user.txt /tmp/triage-raw.txt; then
             if ! python3 .github/scripts/extract-json.py /tmp/triage-raw.txt /tmp/triage.json; then
               echo "::error::Triage returned no JSON object; using fallback classification"
               printf '%s\n' "triage returned output that was not JSON" >> /tmp/ai-degraded
               rm -f /tmp/triage.json
             fi
           else
-            printf '%s\n' "the triage Copilot call failed" >> /tmp/ai-degraded
+            printf '%s\n' "the triage model call failed" >> /tmp/ai-degraded
           fi
 
           if [ ! -s /tmp/triage.json ]; then
@@ -608,7 +586,7 @@ jobs:
       - name: Stage 2 (compose response)
         id: compose
         env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
           IS_FIRST_TIME: ${{ steps.check-first-time.outputs.is_first_time }}
         run: |
@@ -631,9 +609,9 @@ jobs:
 
           # Same as triage: an outage must not fail the run. When no comment can
           # be composed the remaining steps are skipped instead.
-          if ! bash .github/scripts/copilot-infer.sh /tmp/composer-system.txt /tmp/composer-user.txt /tmp/ai-comment.txt; then
+          if ! bash .github/scripts/ai-infer.sh /tmp/composer-system.txt /tmp/composer-user.txt /tmp/ai-comment.txt; then
             echo "::error::Skipping the triage comment"
-            printf '%s\n' "the composer Copilot call failed" >> /tmp/ai-degraded
+            printf '%s\n' "the composer model call failed" >> /tmp/ai-degraded
             echo "has_comment=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -691,7 +669,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      copilot-requests: write
     steps:
       # pull_request_target runs in the base repository's context: this is the
       # trusted base branch. The pull request is only ever read as text.
@@ -699,12 +676,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
         with:
           persist-credentials: false
-
-      # continue-on-error: an install failure is an outage like any other.
-      # The Copilot step records it and the run turns red at the end.
-      - name: Set up Copilot CLI
-        continue-on-error: true
-        uses: ./.github/actions/setup-copilot-cli
 
       - name: Check if first-time contributor
         id: check-first-time
@@ -771,7 +742,7 @@ jobs:
       - name: Analyze PR with AI
         id: analyze
         env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
@@ -835,9 +806,9 @@ jobs:
 
           # An outage must not red-cross an otherwise healthy pull request here:
           # skip the review comment; the last step reports the degradation.
-          if ! bash .github/scripts/copilot-infer.sh /tmp/pr-system.txt /tmp/pr-user.txt /tmp/ai-comment.txt; then
+          if ! bash .github/scripts/ai-infer.sh /tmp/pr-system.txt /tmp/pr-user.txt /tmp/ai-comment.txt; then
             echo "::error::Skipping the review comment"
-            printf '%s\n' "the PR review Copilot call failed" >> /tmp/ai-degraded
+            printf '%s\n' "the PR review model call failed" >> /tmp/ai-degraded
             echo "has_comment=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

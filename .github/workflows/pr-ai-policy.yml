@@ -7,20 +7,12 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  # GitHub Models (models.github.ai) was retired on 2026-07-30; the workflow
-  # token reaches GitHub Copilot through this permission instead.
-  copilot-requests: write
 
 # `edited` and `synchronize` can arrive back to back. Queue rather than cancel,
 # so a run is never stopped between commenting and closing.
 concurrency:
   group: pr-ai-policy-${{ github.event.pull_request.number }}
   cancel-in-progress: false
-
-env:
-  # `auto` lets Copilot pick. It is the only value every Copilot plan accepts
-  # and it cannot go stale the way the pinned `openai/gpt-4.1` did.
-  COPILOT_MODEL: auto
 
 jobs:
   check-ai-policy:
@@ -105,15 +97,9 @@ jobs:
           {"compliant": true, "violations": []}
           PROMPT
 
-      # continue-on-error: a failed install must not stop the deterministic
-      # trailer scan from acting. The Copilot step then records the outage.
-      - name: Set up Copilot CLI
-        continue-on-error: true
-        uses: ./.github/actions/setup-copilot-cli
-
-      - name: Ask Copilot
+      - name: Ask the model
         env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TRAILER_HIT: ${{ steps.trailers.outputs.hit }}
         run: |
           {
@@ -128,15 +114,15 @@ jobs:
           # The model half of this check is fail-open: an outage or an answer
           # that is not JSON must never close a pull request. The deterministic
           # trailer scan still stands on its own below.
-          if ! bash .github/scripts/copilot-infer.sh /tmp/system.txt /tmp/user.txt /tmp/raw.txt; then
-            printf '%s\n' "the Copilot call failed" >> /tmp/ai-degraded
+          if ! bash .github/scripts/ai-infer.sh /tmp/system.txt /tmp/user.txt /tmp/raw.txt; then
+            printf '%s\n' "the model call failed" >> /tmp/ai-degraded
             echo '{"compliant": true, "violations": []}' > /tmp/result.json
             exit 0
           fi
 
           if ! python3 .github/scripts/extract-json.py /tmp/raw.txt /tmp/result.json; then
-            echo "::error::Copilot returned no JSON object; treating as compliant"
-            printf '%s\n' "Copilot returned output that was not JSON" >> /tmp/ai-degraded
+            echo "::error::The model returned no JSON object; treating as compliant"
+            printf '%s\n' "the model returned output that was not JSON" >> /tmp/ai-degraded
             echo '{"compliant": true, "violations": []}' > /tmp/result.json
           fi
           echo "Policy response validated"
