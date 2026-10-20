@@ -152,7 +152,7 @@ async function startS3(bin) {
 
 async function buildDonutSync() {
   log("Building donut-sync...");
-  // `nest build` runs incremental tsc, which silently skips emit when
+  // An incremental build silently skips emit when
   // tsconfig.build.tsbuildinfo says nothing changed — even if dist/ was
   // wiped. Drop the cache so we always produce a fresh dist.
   const syncDir = path.join(ROOT_DIR, "donut-sync");

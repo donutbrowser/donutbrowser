@@ -19,8 +19,8 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mts",
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "build": "tsrs",
+    "typecheck": "tsrs --noEmit",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -36,6 +36,6 @@
     "directory": "sdk/node"
   },
   "devDependencies": {
-    "typescript": "^7.0.2"
+    "tsrs": "^0.18.0-ts7.1.0-dev.20260929"
   }
 }

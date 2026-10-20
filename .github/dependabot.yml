@@ -12,9 +12,10 @@ updates:
     allow:
       - dependency-type: "all"
     ignore:
-      # donut-sync stays on TypeScript 6: Nest CLI and ts-jest need the
+      # donut-sync stays on TypeScript 6: ts-jest and `nest start` need the
       # compiler API, which TypeScript 7.0 does not ship (it returns in 7.1).
-      # The root is on 7 already, so this only holds donut-sync back.
+      # Type checks and the donut-sync build use tsrs; this only holds the
+      # TypeScript 6 package that those tools load.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
     groups:

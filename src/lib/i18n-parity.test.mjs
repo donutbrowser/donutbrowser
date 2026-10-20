@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 /**
  * The project rule is that a new user-facing string lands in EVERY locale file
- * in the same change. Nothing enforced it: `pnpm lint` runs biome, tsc, clippy
+ * in the same change. Nothing enforced it: `pnpm lint` runs biome, tsrs, clippy
  * and typos, and `pnpm test` runs ten suites, none of which reads more than one
  * locale. A review found four `backendErrors.wayfern*` keys, all of them
  * emitted by Rust and rendered by the frontend, missing from all nine

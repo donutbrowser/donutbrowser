@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build:
-    # biome and tsc do not depend on the host. Linux starts faster than macOS
+    # biome and tsrs do not depend on the host. Linux starts faster than macOS
     # and leaves the five-runner macOS pool to the Rust and release builds.
     runs-on: ubuntu-latest
     timeout-minutes: 15

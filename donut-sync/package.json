@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "build": "rm -rf dist && tsrs -p tsconfig.build.json --incremental false",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
@@ -44,6 +44,7 @@
     "ts-loader": "^9.6.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsrs": "0.18.0-ts7.1.0-dev.20260929",
     "typescript": "^6.0.3"
   },
   "jest": {
