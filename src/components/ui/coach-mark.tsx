@@ -2,6 +2,8 @@
 
 import {
   animate,
+  cancelFrame,
+  frame,
   type MotionValue,
   motion,
   useMotionValue,
@@ -21,19 +23,29 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  type AnchorCandidate,
   anchorSelector,
   type Box,
   COACH_MARK_EXIT_MS,
   type CoachAnchorId,
+  clipArea,
+  type Insets,
   mostlyVisible,
+  pickAnchor,
   placeCoachMark,
   type Side,
+  visiblePart,
 } from "@/lib/coach-mark";
 import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /** A modal surface is open; a coach mark waits behind it. */
 const MODAL_SELECTOR = '[role="dialog"], [role="alertdialog"]';
+/** The mark's own layers, and surfaces that pass over the page for a moment. */
+const PASSING_LAYERS =
+  "[data-coach-layer], [data-radix-popper-content-wrapper], [data-sonner-toaster]";
+/** A new anchor closer than this to the ring is the same place: no travel. */
+const SAME_PLACE_PX = 2;
 /**
  * Observers report through the rendering loop, which a throttled webview
  * stops; this slow poll still places the card there. It runs only while the
@@ -85,31 +97,145 @@ function toBox(rect: DOMRect): Box {
   return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
 }
 
-/** Every box that clips `element`: its scrolling ancestors and the window. */
-function clipsOf(element: Element): Box[] {
-  const clips: Box[] = [
-    { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight },
-  ];
+const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+function clipsContent(style: CSSStyleDeclaration): boolean {
+  return style.overflowX !== "visible" || style.overflowY !== "visible";
+}
+
+/**
+ * The edges of a `.scroll-fade` container that hide what scrolls under them:
+ * the sticky header it declares, and each fade band while it shows.
+ */
+function coveredEdges(node: HTMLElement, style: CSSStyleDeclaration): Insets {
+  if (!node.classList.contains("scroll-fade")) return NO_INSETS;
+  const length = (name: string) =>
+    Number.parseFloat(style.getPropertyValue(name)) || 0;
+  const band = length("--scroll-fade-size");
+  return {
+    top:
+      length("--scroll-fade-top-offset") +
+      (node.dataset.fadeTop === "true" ? band : 0),
+    right: 0,
+    bottom: node.dataset.fadeBottom === "true" ? band : 0,
+    left: 0,
+  };
+}
+
+interface Ancestor {
+  sticky: boolean;
+  /**
+   * When the element clips: what it shows of content that scrolls inside
+   * it, and of sticky content, which its covered edges do not hide.
+   */
+  clip: { scrolling: Box; sticky: Box } | null;
+}
+
+/** Nothing of the page lies over the middle of what shows of the anchor. */
+function uncovered(element: Element, part: Box): boolean {
+  const top = document
+    .elementsFromPoint(part.x + part.width / 2, part.y + part.height / 2)
+    .find((hit) => !hit.closest(PASSING_LAYERS));
+  return (
+    !top || top === element || element.contains(top) || top.contains(element)
+  );
+}
+
+/**
+ * Reads what shows on screen, for one placement. The buttons of every row
+ * share their scroll containers, so each element is read once.
+ */
+function createLens() {
+  const viewport: Box = {
+    x: 0,
+    y: 0,
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+  const read = new Map<Element, Ancestor>();
+  const ancestor = (node: HTMLElement): Ancestor => {
+    const known = read.get(node);
+    if (known) return known;
+    const style = getComputedStyle(node);
+    const sticky = style.position === "sticky";
+    let found: Ancestor = { sticky, clip: null };
+    if (clipsContent(style)) {
+      const border = toBox(node.getBoundingClientRect());
+      const client = {
+        left: node.clientLeft,
+        top: node.clientTop,
+        width: node.clientWidth,
+        height: node.clientHeight,
+      };
+      const whole = clipArea(border, client, NO_INSETS);
+      const covered = coveredEdges(node, style);
+      found = {
+        sticky,
+        clip: {
+          scrolling:
+            covered === NO_INSETS ? whole : clipArea(border, client, covered),
+          sticky: whole,
+        },
+      };
+    }
+    read.set(node, found);
+    return found;
+  };
+
+  /**
+   * Every box that clips `element`: the window and its clipping ancestors. A
+   * sticky header is not hidden by the edge it sticks to.
+   */
+  const clipsOf = (element: HTMLElement): Box[] => {
+    const clips = [viewport];
+    let pinned = ancestor(element).sticky;
+    for (
+      let node = element.parentElement;
+      node && node !== document.body;
+      node = node.parentElement
+    ) {
+      const { sticky, clip } = ancestor(node);
+      if (clip) {
+        clips.push(pinned ? clip.sticky : clip.scrolling);
+        pinned = false;
+      }
+      if (sticky) pinned = true;
+    }
+    return clips;
+  };
+
+  /** Most of the element shows: not scrolled away, clipped or covered. */
+  const shows = (element: HTMLElement, box: Box): boolean => {
+    if (box.width < 1 || box.height < 1) return false;
+    const clips = clipsOf(element);
+    if (!mostlyVisible(box, clips)) return false;
+    if (element.closest("[inert], [aria-hidden='true']")) return false;
+    const style = getComputedStyle(element);
+    if (style.visibility === "hidden" || style.display === "none") return false;
+    const part = visiblePart(box, clips);
+    return part !== null && uncovered(element, part);
+  };
+
+  /** The part of the page the element's scroll containers show. */
+  const areaOf = (element: HTMLElement): Box => {
+    const [first, ...rest] = clipsOf(element);
+    return visiblePart(first, rest) ?? viewport;
+  };
+
+  return { viewport, shows, areaOf };
+}
+
+/** The element's clipping ancestors, to watch them change size. */
+function clippingAncestors(element: Element): HTMLElement[] {
+  const found: HTMLElement[] = [];
   for (
     let node = element.parentElement;
     node && node !== document.body;
     node = node.parentElement
   ) {
-    const style = getComputedStyle(node);
-    if (style.overflowX !== "visible" || style.overflowY !== "visible") {
-      clips.push(toBox(node.getBoundingClientRect()));
-    }
+    if (clipsContent(getComputedStyle(node))) found.push(node);
   }
-  return clips;
-}
-
-function onScreen(element: Element): boolean {
-  if (element.closest("[inert], [aria-hidden='true']")) return false;
-  const style = getComputedStyle(element);
-  if (style.visibility === "hidden" || style.display === "none") return false;
-  const rect = element.getBoundingClientRect();
-  if (rect.width < 1 || rect.height < 1) return false;
-  return mostlyVisible(toBox(rect), clipsOf(element));
+  return found;
 }
 
 /**
@@ -161,18 +287,32 @@ function watchMoves(element: Element, onMove: () => void): () => void {
   return stop;
 }
 
-/** The first anchor, by preference, with an element that shows. */
+/**
+ * Where to point now: the first anchor id, by preference, with an element
+ * that shows. The element followed last keeps the mark while it shows; when
+ * it scrolls away or unmounts, the nearest one of the same id takes over.
+ */
 function resolveAnchor(
   anchors: readonly CoachAnchorId[],
-): { id: CoachAnchorId; element: HTMLElement } | null {
+  lens: ReturnType<typeof createLens>,
+  memory: Map<CoachAnchorId, { item: HTMLElement; box: Box }>,
+): AnchorCandidate<HTMLElement> | null {
+  const candidates: AnchorCandidate<HTMLElement>[] = [];
   for (const id of anchors) {
-    for (const element of document.querySelectorAll<HTMLElement>(
+    for (const item of document.querySelectorAll<HTMLElement>(
       anchorSelector(id),
     )) {
-      if (onScreen(element)) return { id, element };
+      candidates.push({ id, item, box: toBox(item.getBoundingClientRect()) });
     }
   }
-  return null;
+  const found = pickAnchor(
+    anchors,
+    candidates,
+    (candidate) => lens.shows(candidate.item, candidate.box),
+    (id) => memory.get(id),
+  );
+  if (found) memory.set(found.id, { item: found.item, box: found.box });
+  return found;
 }
 
 /**
@@ -297,7 +437,10 @@ export interface CoachMarkProps extends DataAttributes {
  * Points at a real element: a ring drawn around it, a beacon on its corner,
  * and a card beside it with an arrow. The anchor is found by its
  * `data-tip-anchor` id, and the mark follows it through scrolling, resizing
- * and re-renders, flipping sides to stay on screen.
+ * and re-renders, flipping sides to stay on screen. An anchor counts only
+ * while most of it shows: scrolled out of a container, under a sticky header
+ * or a fade band, covered, or unmounted, it gives the mark to the next anchor
+ * that shows, and with none the mark waits hidden until one comes back.
  *
  * It never takes the focus. The card is a labelled region whose buttons are in
  * the tab order, the anchor is described by the card's text while the mark
@@ -340,6 +483,12 @@ export function CoachMark({
   const afterMeasureRef = useRef<(() => void) | null>(null);
   const travelUntilRef = useRef(0);
   const shownRef = useRef(false);
+  /** The last measure hid the mark: its next appearance does not travel. */
+  const hiddenRef = useRef(true);
+  /** The element each anchor id pointed at last, and where it was. */
+  const memoryRef = useRef(
+    new Map<CoachAnchorId, { item: HTMLElement; box: Box }>(),
+  );
 
   const cardX = useMotionValue(0);
   const cardY = useMotionValue(0);
@@ -393,20 +542,38 @@ export function CoachMark({
       open,
     } = latest.current;
     const blocked = Boolean(document.querySelector(MODAL_SELECTOR));
-    const found = blocked ? null : resolveAnchor(anchors);
+    const lens = createLens();
+    const found = blocked
+      ? null
+      : resolveAnchor(anchors, lens, memoryRef.current);
+    const element = found?.item ?? null;
     const hidden = blocked || (!found && !floatWithoutAnchor);
-    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const { viewport } = lens;
     const size = { width: card.offsetWidth, height: card.offsetHeight };
 
+    const pad = spotlight ? 6 : 4;
+    const ring = found
+      ? {
+          x: found.box.x - pad,
+          y: found.box.y - pad,
+          width: found.box.width + pad * 2,
+          height: found.box.height + pad * 2,
+        }
+      : null;
     const now = performance.now();
     if (
+      ring &&
       shownRef.current &&
+      !hiddenRef.current &&
       !hidden &&
       !reduceMotion &&
-      found?.element !== anchorRef.current
+      element !== anchorRef.current &&
+      (Math.abs(ringX.get() - ring.x) > SAME_PLACE_PX ||
+        Math.abs(ringY.get() - ring.y) > SAME_PLACE_PX)
     ) {
       travelUntilRef.current = now + TRAVEL_MS;
     }
+    if (hiddenRef.current) travelUntilRef.current = 0;
     const travel = now < travelUntilRef.current;
     const move = (value: MotionValue<number>, target: number) => {
       if (travel) animate(value, target, TRAVEL_SPRING);
@@ -414,32 +581,27 @@ export function CoachMark({
     };
     // The anchor is described by the card while the mark points at it.
     const previous = anchorRef.current;
-    if (previous && previous !== found?.element)
-      describe(previous, bodyId, false);
-    if (found) describe(found.element, bodyId, open && !hidden);
-    anchorRef.current = found?.element ?? null;
+    if (previous && previous !== element) describe(previous, bodyId, false);
+    if (element) describe(element, bodyId, open && !hidden);
+    anchorRef.current = element;
 
     let side: Side | null = null;
-    if (found) {
-      const rect = found.element.getBoundingClientRect();
-      const pad = spotlight ? 6 : 4;
+    if (element && ring) {
       const radius =
-        Number.parseFloat(
-          getComputedStyle(found.element).borderTopLeftRadius,
-        ) || 6;
-      const ring = {
-        x: rect.left - pad,
-        y: rect.top - pad,
-        width: rect.width + pad * 2,
-        height: rect.height + pad * 2,
-      };
-      const named = found.element.getAttribute("data-tip-side");
-      const placed = placeCoachMark(ring, size, viewport, {
+        Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 6;
+      const named = element.getAttribute("data-tip-side");
+      const options = {
         side: SIDE_VALUES.includes(named as Side)
           ? (named as Side)
           : preferredSide,
         gap: ARROW_H + 4,
-      });
+      };
+      // Inside the part of its scroll container that shows, when the card
+      // fits there; else anywhere in the window.
+      const inside = placeCoachMark(ring, size, lens.areaOf(element), options);
+      const placed = inside.fits
+        ? inside
+        : placeCoachMark(ring, size, viewport, options);
       side = placed.side;
       const arrow = arrowTransform(placed.side, placed.arrow, size);
       move(cardX, placed.x);
@@ -458,6 +620,11 @@ export function CoachMark({
       move(cardX, (viewport.width - size.width) / 2);
       move(cardY, viewport.height - size.height - 24);
       card.style.transformOrigin = "50% 100%";
+      // The spotlight closes its hole: there is nothing to show through it.
+      move(ringX, ringX.get() + ringW.get() / 2);
+      move(ringY, ringY.get() + ringH.get() / 2);
+      move(ringW, 0);
+      move(ringH, 0);
     }
 
     // The first time the card shows, it settles out from its anchor.
@@ -471,6 +638,7 @@ export function CoachMark({
       animate(enterScale, 1, ENTER_SPRING);
     }
     if (!hidden) shownRef.current = true;
+    hiddenRef.current = hidden;
 
     setLayout((previous) =>
       previous.anchor === (found?.id ?? null) &&
@@ -501,48 +669,56 @@ export function CoachMark({
   useEffect(() => setMounted(true), []);
 
   // Placed before the first paint, then kept in place by every event that can
-  // move the anchor: scrolling, resizing, DOM changes, the anchor moving or
-  // changing size, a candidate anchor coming into or out of view. Only a slow
+  // move the anchor: scrolling anywhere (the window or any scroll container),
+  // resizing, DOM changes, the anchor or its scroll containers moving or
+  // changing size, a candidate anchor coming into or out of view. Events only
+  // ask for a measure; the frame loop runs one per frame, before the frame's
+  // render, so the mark moves in the same frame as the page. Only a slow
   // fallback poll runs on a timer.
   useLayoutEffect(() => {
     if (!mounted) return;
-    const onChange = () => measure();
+    const onFrame = () => measure();
+    const schedule = () => frame.read(onFrame);
     let settle = 0;
     const onMutation = () => {
       window.clearTimeout(settle);
-      settle = window.setTimeout(measure, MUTATION_SETTLE_MS);
+      settle = window.setTimeout(schedule, MUTATION_SETTLE_MS);
     };
     const measureIfVisible = () => {
       if (document.visibilityState === "visible") measure();
     };
-    window.addEventListener("resize", onChange);
-    document.addEventListener("scroll", onChange, {
+    window.addEventListener("resize", schedule);
+    document.addEventListener("scroll", schedule, {
       capture: true,
       passive: true,
     });
     document.addEventListener("visibilitychange", measureIfVisible);
-    const resize = new ResizeObserver(onChange);
+    const resize = new ResizeObserver(schedule);
     if (cardRef.current) resize.observe(cardRef.current);
     const mutations = new MutationObserver(onMutation);
     mutations.observe(document.body, { childList: true, subtree: true });
 
     // Candidates crossing the "mostly visible" line (0.6) change the anchor.
-    const candidates = new IntersectionObserver(onChange, {
+    const candidates = new IntersectionObserver(schedule, {
       threshold: [0.5, 0.6, 0.7, 1],
     });
     let watchedCandidates: Element[] = [];
     let followed: HTMLElement | null = null;
+    let containers: HTMLElement[] = [];
     let stopMoves: (() => void) | null = null;
     afterMeasureRef.current = () => {
       const anchor = anchorRef.current;
       if (anchor !== followed) {
         if (followed) resize.unobserve(followed);
+        for (const container of containers) resize.unobserve(container);
         stopMoves?.();
         stopMoves = null;
         followed = anchor;
+        containers = anchor ? clippingAncestors(anchor) : [];
         if (anchor) {
           resize.observe(anchor);
-          stopMoves = watchMoves(anchor, onChange);
+          for (const container of containers) resize.observe(container);
+          stopMoves = watchMoves(anchor, schedule);
         }
       }
       const selector = latest.current.anchors.map(anchorSelector).join(",");
@@ -562,9 +738,10 @@ export function CoachMark({
     const poll = window.setInterval(measureIfVisible, FALLBACK_POLL_MS);
     return () => {
       window.clearInterval(poll);
+      cancelFrame(onFrame);
       afterMeasureRef.current = null;
-      window.removeEventListener("resize", onChange);
-      document.removeEventListener("scroll", onChange, { capture: true });
+      window.removeEventListener("resize", schedule);
+      document.removeEventListener("scroll", schedule, { capture: true });
       document.removeEventListener("visibilitychange", measureIfVisible);
       resize.disconnect();
       mutations.disconnect();
@@ -659,6 +836,7 @@ export function CoachMark({
       {spotlight && (
         <svg
           aria-hidden="true"
+          data-coach-layer=""
           data-slot="coach-mark-spotlight"
           className="pointer-events-none fixed inset-0 z-[70] h-full w-full"
           style={{ visibility }}
@@ -683,6 +861,7 @@ export function CoachMark({
       {anchored && (
         <svg
           aria-hidden="true"
+          data-coach-layer=""
           data-slot="coach-mark-ring"
           className="pointer-events-none fixed inset-0 z-[71] h-full w-full overflow-visible"
         >
@@ -711,6 +890,7 @@ export function CoachMark({
       {anchored && (
         <motion.div
           aria-hidden="true"
+          data-coach-layer=""
           data-slot="coach-mark-beacon"
           className="pointer-events-none fixed top-0 left-0 z-[72] -mt-1.5 -ml-1.5 size-3"
           style={{ x: beaconX, y: beaconY }}
@@ -740,6 +920,7 @@ export function CoachMark({
       )}
 
       <motion.div
+        data-coach-layer=""
         className="pointer-events-none fixed top-0 left-0 z-[73]"
         style={{ x: cardX, y: cardY, visibility }}
       >

@@ -346,8 +346,14 @@ flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
   rail uses `right`). The coach mark follows its anchor through scrolling,
   resizing and re-renders, flips to stay on screen, hides while a modal
   surface is open, never takes the focus, describes the anchor with its text
-  (`aria-describedby`), and closes with Escape. Placement is the pure
-  `placeCoachMark` (tests in `src/lib/coach-mark.test.mjs`).
+  (`aria-describedby`), and closes with Escape. An anchor counts only while
+  most of it shows: not scrolled out of any container, under a `.scroll-fade`
+  sticky header or fade band, or covered. The followed element keeps the mark
+  while it shows; then the nearest element of the same id, the next anchor,
+  or nothing (the mark hides until one comes back). Events schedule one
+  measure per frame (`frame.read`). The card stays inside the anchor's scroll
+  container when it fits there. Placement and choice are the pure
+  `placeCoachMark` and `pickAnchor` (tests in `src/lib/coach-mark.test.mjs`).
 - One new tip a day, only on the Profiles page with at least one profile,
   after a settled launch (onboarding done, terms accepted, never in the
   first-run session), once the page has been quiet a few seconds with nothing
