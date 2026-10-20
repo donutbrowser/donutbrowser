@@ -4,8 +4,21 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* The Geist variables live on body, so at :root these use the fallbacks. */
+  --font-sans: var(
+    --font-geist-sans,
+    ui-sans-serif,
+    system-ui,
+    sans-serif
+  );
+  --font-mono: var(
+    --font-geist-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace
+  );
   --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out
     infinite;
 
@@ -277,18 +290,20 @@
    `--scroll-fade-top-offset` pushes the top-edge fade band down by N
    pixels so a sticky table header stays fully opaque and only the body
    rows scrolling past it fade. Set it inline on a scroll container whose
-   first N px are occupied by sticky chrome. */
+   first N px are occupied by sticky chrome. Coach marks read both
+   variables: content under the sticky chrome or a fade band is not shown. */
 .scroll-fade {
   --top-mask: black;
   --bottom-mask: black;
   --scroll-fade-top-offset: 0px;
+  --scroll-fade-size: 24px;
   -webkit-mask-image: linear-gradient(
     to bottom,
     black 0,
     black var(--scroll-fade-top-offset),
     var(--top-mask) var(--scroll-fade-top-offset),
-    black calc(var(--scroll-fade-top-offset) + 24px),
-    black calc(100% - 24px),
+    black calc(var(--scroll-fade-top-offset) + var(--scroll-fade-size)),
+    black calc(100% - var(--scroll-fade-size)),
     var(--bottom-mask)
   );
   mask-image: linear-gradient(
@@ -296,8 +311,8 @@
     black 0,
     black var(--scroll-fade-top-offset),
     var(--top-mask) var(--scroll-fade-top-offset),
-    black calc(var(--scroll-fade-top-offset) + 24px),
-    black calc(100% - 24px),
+    black calc(var(--scroll-fade-top-offset) + var(--scroll-fade-size)),
+    black calc(100% - var(--scroll-fade-size)),
     var(--bottom-mask)
   );
 }
