@@ -106,8 +106,14 @@ pub struct McpAgentInfo {
   pub id: String,
   pub display_name: String,
   pub category: AgentCategory,
-  /// True when the client's config has an entry pointing at the endpoint.
+  /// True when the client's config has an entry pointing at the endpoint,
+  /// or names it in a file that does not parse.
   pub connected: bool,
+  /// True when every such entry presents the stored key. A connected client
+  /// that is not current holds an older key or a file Donut cannot read, and
+  /// the page offers to update it.
+  #[serde(default)]
+  pub current: bool,
   /// True when the client itself appears to be installed (its config
   /// directory exists), whether or not Donut is configured in it.
   pub detected: bool,
@@ -640,6 +646,34 @@ fn points_at_remote(value: &serde_json::Value) -> bool {
       .and_then(|v| v.as_str())
       .is_some_and(is_remote_url)
   })
+}
+
+/// Whether an entry presents `key`: in its Authorization header, or, for fx,
+/// by naming the variable the key is exported in.
+fn presents(value: &serde_json::Value, key: &str) -> bool {
+  let bearer = format!("Bearer {key}");
+  ["headers", "http_headers"].iter().any(|field| {
+    value
+      .get(field)
+      .and_then(|headers| headers.get("Authorization"))
+      .and_then(|v| v.as_str())
+      == Some(bearer.as_str())
+  }) || value.get("bearer_token_env").and_then(|v| v.as_str()) == Some(FX_TOKEN_ENV)
+}
+
+/// An entry an earlier version wrote for the old local server: our name and
+/// a loopback URL.
+fn is_legacy_entry(name: &str, value: &serde_json::Value) -> bool {
+  name == SERVER_NAME
+    && ["url", "uri", "serverUrl"].iter().any(|key| {
+      let url = value.get(key).and_then(|v| v.as_str()).unwrap_or_default();
+      let rest = url.trim().strip_prefix("http://").unwrap_or_default();
+      ["127.0.0.1", "localhost", "[::1]"].iter().any(|host| {
+        rest
+          .strip_prefix(host)
+          .is_some_and(|after| after.is_empty() || after.starts_with([':', '/']))
+      })
+    })
 }
 
 /// Ours by name, or ours by URL under any name, so a renamed entry is removed
@@ -1177,27 +1211,109 @@ fn uninstall_in(env: &AgentEnv, agent_id: &str) -> Result<(), String> {
   write_text(&path, &text, false)
 }
 
-/// Whether any entry in a client's config points at the endpoint, so a
+/// What a client's config says about Donut's endpoint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Connection {
+  Absent,
+  /// Our entry from an earlier version, pointing at the old local server.
+  /// Not connected; the next reinstall points it at the endpoint.
+  Legacy,
+  /// An entry points at the endpoint. `current` when every such entry
+  /// presents the stored key.
+  Connected {
+    current: bool,
+  },
+  /// The file names the endpoint but does not parse, so it can be neither
+  /// read nor rewritten.
+  Unreadable,
+}
+
+/// Any entry pointing at the endpoint makes the client connected, so a
 /// renamed entry still reads as connected. An entry under our name that points
 /// anywhere else (an old local server) does not: adding replaces it.
-fn connected_in(env: &AgentEnv, agent_id: &str) -> bool {
+fn connection_in(env: &AgentEnv, agent_id: &str, key: Option<&str>) -> Connection {
   let Some(spec) = spec_for(agent_id) else {
-    return false;
+    return Connection::Absent;
   };
   let Some(path) = config_path(env, agent_id) else {
-    return false;
+    return Connection::Absent;
   };
   if !path.exists() {
-    return false;
+    return Connection::Absent;
   }
-  read_document(&path, spec.format).is_ok_and(|(document, _)| {
-    server_keys(spec).into_iter().any(|key| {
-      document
-        .entries(key)
-        .iter()
-        .any(|(_, value)| points_at_remote(value))
-    })
-  })
+  let Ok((document, _)) = read_document(&path, spec.format) else {
+    let names_endpoint =
+      fs::read_to_string(&path).is_ok_and(|text| text.contains(&remote_mcp_url()));
+    return if names_endpoint {
+      Connection::Unreadable
+    } else {
+      Connection::Absent
+    };
+  };
+  let entries: Vec<(String, serde_json::Value)> = server_keys(spec)
+    .into_iter()
+    .flat_map(|server_key| document.entries(server_key))
+    .collect();
+  let mut remote = entries
+    .iter()
+    .filter(|(_, value)| points_at_remote(value))
+    .peekable();
+  if remote.peek().is_some() {
+    let current = match key {
+      Some(key) => remote.all(|(_, value)| presents(value, key)),
+      None => false,
+    };
+    return Connection::Connected { current };
+  }
+  if entries
+    .iter()
+    .any(|(name, value)| is_legacy_entry(name, value))
+  {
+    Connection::Legacy
+  } else {
+    Connection::Absent
+  }
+}
+
+fn connected_in(env: &AgentEnv, agent_id: &str) -> bool {
+  matches!(
+    connection_in(env, agent_id, None),
+    Connection::Connected { .. }
+  )
+}
+
+/// Rewrite Donut's entry in every client that has one: the connected ones,
+/// and an entry an earlier version pointed at the local server. Returns the
+/// ids that could not be rewritten, a file that names the endpoint but does
+/// not parse among them. Claude Desktop is lib.rs's.
+fn reinstall_in(env: &AgentEnv, target: &McpTarget) -> Vec<String> {
+  let mut failed = Vec::new();
+  for spec in AGENT_SPECS
+    .iter()
+    .filter(|spec| spec.id != "claude-desktop")
+  {
+    let connection = connection_in(env, spec.id, None);
+    if connection == Connection::Absent {
+      continue;
+    }
+    match install_in(env, spec.id, target) {
+      Ok(()) if connection == Connection::Legacy => {
+        log::info!(
+          "MCP client entry moved to the remote endpoint agent={}",
+          spec.id
+        );
+      }
+      Ok(()) => {}
+      Err(e) => {
+        log::warn!(
+          "MCP client entry refresh failed agent={} err=\"{e}\"",
+          spec.id
+        );
+        failed.push(spec.id.to_string());
+      }
+    }
+  }
+  failed
 }
 
 fn process_env() -> Result<AgentEnv, String> {
@@ -1210,6 +1326,16 @@ pub fn install_generic(agent_id: &str, target: &McpTarget) -> Result<(), String>
 
 pub fn uninstall_generic(agent_id: &str) -> Result<(), String> {
   uninstall_in(&process_env()?, agent_id)
+}
+
+pub fn reinstall_generic(target: &McpTarget) -> Vec<String> {
+  match process_env() {
+    Ok(env) => reinstall_in(&env, target),
+    Err(e) => {
+      log::warn!("MCP client refresh skipped err=\"{e}\"");
+      Vec::new()
+    }
+  }
 }
 
 /// Ids of the connected file-based clients. Claude Desktop is not included:
@@ -1226,21 +1352,34 @@ pub fn connected_agents() -> Vec<String> {
     .collect()
 }
 
-pub fn list_agents_with_status(overrides: &[(&str, bool)]) -> Vec<McpAgentInfo> {
+/// Every client with its state against the stored `key`. `overrides` gives
+/// `(id, connected, current)` for a client this module does not read (Claude
+/// Desktop).
+pub fn list_agents_with_status(
+  key: Option<&str>,
+  overrides: &[(&str, bool, bool)],
+) -> Vec<McpAgentInfo> {
   let env = AgentEnv::from_process();
   AGENT_SPECS
     .iter()
     .map(|spec| {
-      let connected = overrides
+      let (connected, current) = overrides
         .iter()
-        .find(|(id, _)| *id == spec.id)
-        .map(|(_, connected)| *connected)
-        .unwrap_or_else(|| env.as_ref().is_some_and(|env| connected_in(env, spec.id)));
+        .find(|(id, ..)| *id == spec.id)
+        .map(|(_, connected, current)| (*connected, *current))
+        .unwrap_or_else(
+          || match env.as_ref().map(|env| connection_in(env, spec.id, key)) {
+            Some(Connection::Connected { current }) => (true, current),
+            Some(Connection::Unreadable) => (true, false),
+            _ => (false, false),
+          },
+        );
       McpAgentInfo {
         id: spec.id.to_string(),
         display_name: spec.display_name.to_string(),
         category: spec.category,
         connected,
+        current,
         detected: env.as_ref().is_some_and(|env| detected(env, spec.id)),
         token_env: token_env_for(spec.id),
       }
@@ -2058,5 +2197,171 @@ mod tests {
     install_in(&env, "cursor", &target).unwrap();
     assert!(connected_in(&env, "cursor"));
     assert_eq!(entry_of(&env, "cursor")["url"], json!(target.url));
+  }
+
+  #[test]
+  fn a_new_key_reaches_every_connected_client_and_nothing_else() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = test_env(dir.path(), Platform::Linux);
+    let old = McpTarget::remote("dmk_old_key".to_string());
+    let new = McpTarget::remote("dmk_new_key".to_string());
+    for agent_id in generic_ids() {
+      install_in(&env, agent_id, &old).unwrap();
+    }
+    uninstall_in(&env, "cursor").unwrap();
+    for agent_id in generic_ids().filter(|id| *id != "cursor" && *id != "fx") {
+      assert_eq!(
+        connection_in(&env, agent_id, Some("dmk_new_key")),
+        Connection::Connected { current: false },
+        "{agent_id}"
+      );
+    }
+
+    assert!(reinstall_in(&env, &new).is_empty());
+    for agent_id in generic_ids().filter(|id| *id != "cursor") {
+      assert_eq!(
+        connection_in(&env, agent_id, Some("dmk_new_key")),
+        Connection::Connected { current: true },
+        "{agent_id}"
+      );
+      let text = read(&config_path(&env, agent_id).unwrap());
+      assert!(!text.contains("dmk_old_key"), "{agent_id}: {text}");
+    }
+    // fx reads the key from the environment: its entry names the variable
+    // and never holds a key, before or after.
+    assert_eq!(
+      entry_of(&env, "fx")["bearer_token_env"],
+      json!(FX_TOKEN_ENV)
+    );
+    assert!(!read(&config_path(&env, "fx").unwrap()).contains("dmk_"));
+    assert_eq!(
+      connection_in(&env, "cursor", Some("dmk_new_key")),
+      Connection::Absent,
+      "a removed entry stays removed"
+    );
+  }
+
+  #[test]
+  fn an_entry_with_an_older_key_is_not_current() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = test_env(dir.path(), Platform::Linux);
+    for agent_id in ["cursor", "codex", "goose"] {
+      install_in(&env, agent_id, &remote()).unwrap();
+      assert_eq!(
+        connection_in(&env, agent_id, Some(KEY)),
+        Connection::Connected { current: true },
+        "{agent_id}"
+      );
+      assert_eq!(
+        connection_in(&env, agent_id, Some("dmk_newer")),
+        Connection::Connected { current: false },
+        "{agent_id}"
+      );
+      assert_eq!(
+        connection_in(&env, agent_id, None),
+        Connection::Connected { current: false },
+        "{agent_id}: no stored key"
+      );
+    }
+    install_in(&env, "fx", &remote()).unwrap();
+    assert_eq!(
+      connection_in(&env, "fx", Some("dmk_newer")),
+      Connection::Connected { current: true },
+      "fx holds no key to be stale"
+    );
+
+    // A renamed entry that still carries an older key keeps the client stale.
+    let path = config_path(&env, "vscode").unwrap();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+      &path,
+      format!(
+        "{{\"servers\": {{\"donut\": {{\"type\": \"http\", \"url\": \"{}\", \"headers\": {{\"Authorization\": \"Bearer dmk_older\"}}}}}}}}",
+        remote_mcp_url()
+      ),
+    )
+    .unwrap();
+    install_in(&env, "vscode", &remote()).unwrap();
+    assert_eq!(
+      connection_in(&env, "vscode", Some(KEY)),
+      Connection::Connected { current: false }
+    );
+  }
+
+  #[test]
+  fn a_file_that_names_the_endpoint_but_does_not_parse_is_reported() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = test_env(dir.path(), Platform::Linux);
+    let path = config_path(&env, "cursor").unwrap();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let broken = format!(
+      "{{ \"mcpServers\": {{ \"donut-browser\": {{ \"url\": \"{}\" }}",
+      remote_mcp_url()
+    );
+    fs::write(&path, &broken).unwrap();
+    // A broken file that never named the endpoint is not ours to report.
+    let other = config_path(&env, "codex").unwrap();
+    fs::create_dir_all(other.parent().unwrap()).unwrap();
+    fs::write(&other, "[mcp_servers\nbroken = ").unwrap();
+
+    assert_eq!(
+      connection_in(&env, "cursor", Some(KEY)),
+      Connection::Unreadable
+    );
+    assert!(!connected_in(&env, "cursor"));
+    assert_eq!(connection_in(&env, "codex", Some(KEY)), Connection::Absent);
+    assert_eq!(reinstall_in(&env, &remote()), vec!["cursor".to_string()]);
+    assert_eq!(read(&path), broken, "left untouched");
+  }
+
+  #[test]
+  fn a_legacy_local_entry_is_moved_to_the_endpoint() {
+    assert!(is_legacy_entry(
+      SERVER_NAME,
+      &json!({ "url": "http://127.0.0.1:51080/mcp/tok" })
+    ));
+    assert!(is_legacy_entry(
+      SERVER_NAME,
+      &json!({ "serverUrl": "http://localhost:51080/mcp" })
+    ));
+    assert!(!is_legacy_entry(
+      "other",
+      &json!({ "url": "http://127.0.0.1:3000/mcp" })
+    ));
+    assert!(!is_legacy_entry(
+      SERVER_NAME,
+      &json!({ "url": "http://127.0.0.10:3000/mcp" })
+    ));
+    assert!(!is_legacy_entry(
+      SERVER_NAME,
+      &json!({ "url": "https://example.com/mcp" })
+    ));
+
+    let dir = tempfile::tempdir().unwrap();
+    let env = test_env(dir.path(), Platform::Linux);
+    let path = config_path(&env, "cursor").unwrap();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+      &path,
+      "{\"mcpServers\": {\"donut-browser\": {\"url\": \"http://127.0.0.1:51080/mcp/tok\"}}}",
+    )
+    .unwrap();
+    // Somebody else's local server is theirs, under any key.
+    let foreign = config_path(&env, "vscode").unwrap();
+    fs::create_dir_all(foreign.parent().unwrap()).unwrap();
+    let foreign_text = "{\"servers\": {\"other\": {\"url\": \"http://127.0.0.1:3000/mcp\"}}}";
+    fs::write(&foreign, foreign_text).unwrap();
+
+    assert_eq!(connection_in(&env, "cursor", Some(KEY)), Connection::Legacy);
+    assert!(!connected_in(&env, "cursor"));
+    assert_eq!(connection_in(&env, "vscode", Some(KEY)), Connection::Absent);
+
+    assert!(reinstall_in(&env, &remote()).is_empty());
+    assert_eq!(entry_of(&env, "cursor")["url"], json!(remote_mcp_url()));
+    assert_eq!(
+      connection_in(&env, "cursor", Some(KEY)),
+      Connection::Connected { current: true }
+    );
+    assert_eq!(read(&foreign), foreign_text);
   }
 }

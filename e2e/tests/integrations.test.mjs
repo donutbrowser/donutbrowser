@@ -853,6 +853,21 @@ test("MCP clients are installed only against the remote endpoint", async () => {
       false,
       "a refused remote install must not have written an entry",
     );
+
+    // The retry for clients a rotation missed writes the stored key and never
+    // mints, so with no key it is refused with the same code, not answered
+    // with every client as failed.
+    await assertCommandErrorCode(
+      app,
+      "refresh_mcp_agents",
+      "MCP_REMOTE_KEY_MISSING",
+    );
+    assert.ok(
+      (await app.invoke("list_mcp_agents")).every(
+        (agent) => agent.current === false,
+      ),
+      "with no key, no client holds the current one",
+    );
   });
 });
 

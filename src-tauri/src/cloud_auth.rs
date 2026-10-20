@@ -882,7 +882,7 @@ impl CloudAuthManager {
     // The stored `dmk_` key belongs to the account that just left this
     // machine, and the agent configs would keep presenting it. There is no
     // session left to revoke it with, so only the local copy goes; the key
-    // itself is retired from the account page.
+    // itself is retired by the next mint, or from the account page.
     Self::forget_mcp_key_locally("after the session expired");
     self.clear_auth().await;
     crate::team_lock::PROFILE_LOCK.disconnect().await;
@@ -1068,8 +1068,12 @@ impl CloudAuthManager {
   /// `retire_mcp_key_on_logout`, shared with the expiry path, which has no
   /// session left to revoke with. Logs rather than fails, because the
   /// credential is leaving with the session either way.
+  ///
+  /// The key id stays: a key that was not revoked is still live on the
+  /// server, and the next mint retires it by that id (a revoked one answers
+  /// 404, which counts as retired).
   fn forget_mcp_key_locally(when: &str) {
-    if let Err(e) = SettingsManager::instance().remove_mcp_remote_key() {
+    if let Err(e) = SettingsManager::instance().drop_mcp_remote_key_plaintext() {
       log::warn!("Remote MCP key not removed locally when=\"{when}\" err=\"{e}\"");
     }
   }
@@ -1973,6 +1977,10 @@ pub async fn cloud_exchange_device_code(
   // app was restarted, which is the worst of both: the UI says yes and the
   // account page says no desktop is connected.
   ensure_remote_bridge(&app_handle).await;
+
+  // Signing out left the connected clients with a dead key; give them a new
+  // one without holding up the sign-in.
+  tauri::async_runtime::spawn(crate::restore_mcp_credential_after_sign_in());
 
   let _ = crate::events::emit_empty("cloud-auth-changed");
 

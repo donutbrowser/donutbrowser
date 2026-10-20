@@ -11,7 +11,9 @@ import {
   LOCAL_API_EXAMPLES,
   maskToken,
   oneLine,
+  REMOTE_MCP_EXAMPLES,
 } from "../../src/lib/api-examples.ts";
+import { REMOTE_MCP_URL } from "../../src/lib/mcp.ts";
 import { getDerivedThemeColors, THEMES } from "../../src/lib/themes.ts";
 import { withApp } from "../lib/app.mjs";
 import {
@@ -1813,11 +1815,17 @@ test("MCP clients on this computer come first, and toolsets go to the connected 
       present: true,
       tokenPrefix: "dmk_ui",
     });
+    const remoteKey = "dmk_ui_0123456789abcdefghijklmnopqrstuvwxyz";
+    await stubCommand(app, "get_app_settings", {
+      ...(await app.invoke("get_app_settings")),
+      mcp_remote_key: remoteKey,
+    });
     const agent = (id, display_name, connected, detected) => ({
       id,
       display_name,
       category: "cli",
       connected,
+      current: connected,
       detected,
       token_env: null,
     });
@@ -1888,6 +1896,51 @@ test("MCP clients on this computer come first, and toolsets go to the connected 
     ]);
     await dismissSurface(app);
 
+    // The page shows the credential by its prefix only; every copy carries
+    // the whole key, so a pasted command runs as is.
+    await app.execute(
+      `window.__copied = [];
+       navigator.clipboard.writeText = async (text) => { window.__copied.push(text); };`,
+    );
+    const copied = () => app.execute("return window.__copied;");
+    const page = await app.bodyText();
+    assert.ok(!page.includes(remoteKey), "the full key is never on screen");
+    assert.ok(page.includes("dmk_ui…"), page);
+    const remoteTarget = { baseUrl: REMOTE_MCP_URL, token: remoteKey };
+    await app.clickSelector(
+      '[data-slot="code-snippet"]:has([data-testid="integrations-remote-example"]) button',
+    );
+    await app.waitFor(async () => (await copied()).length === 1, {
+      description: "the remote quick start was copied",
+    });
+    assert.equal(
+      (await copied())[0],
+      oneLine(curlSnippet(REMOTE_MCP_EXAMPLES[0].request, remoteTarget)),
+    );
+    await app.clickSelector('[data-slot="mcp-credential"] button');
+    await app.waitFor(async () => (await copied()).length === 2, {
+      description: "the credential was copied",
+    });
+    assert.equal((await copied())[1], remoteKey);
+    await app.clickText(en.integrations.examples.open);
+    await app.waitForText(en.integrations.examples.remoteTitle);
+    const examples =
+      (await dialogText(app, en.integrations.examples.remoteTitle)) ?? "";
+    assert.ok(!examples.includes(remoteKey), "the full key is never on screen");
+    assert.ok(examples.includes(en.integrations.examples.credentialIncluded));
+    await app.clickSelector('[data-testid="code-example-listTools"]');
+    await app.clickSelector(
+      '[data-testid="code-examples-dialog"] [data-slot="code-snippet"] button',
+    );
+    await app.waitFor(async () => (await copied()).length === 3, {
+      description: "the List tools example was copied",
+    });
+    assert.equal(
+      (await copied())[2],
+      curlSnippet(REMOTE_MCP_EXAMPLES[0].request, remoteTarget),
+    );
+    await dismissSurface(app);
+
     // Forgetting the credential asks first, then revokes and removes it.
     await app.clickSelector('[data-slot="mcp-credential-forget"]');
     await app.waitForText(en.integrations.remote.credentialForgetTitle);
@@ -1901,6 +1954,111 @@ test("MCP clients on this computer come first, and toolsets go to the connected 
       { description: "the confirmed forget reached the backend" },
     );
     await app.waitForText(en.integrations.remote.credentialForgotten);
+    await dismissSurface(app);
+  });
+});
+
+test("a rotated credential reaches the connected clients, and Retry never mints again", async () => {
+  await withApp("ui-mcp-rotation", async (app) => {
+    await stubCommand(app, "get_remote_control_entitlement", true);
+    await stubCommand(app, "get_mcp_remote_status", {
+      enabled: true,
+      connected: true,
+      instanceId: "ui-mcp-rotation",
+      lastError: null,
+    });
+    await stubCommand(app, "get_mcp_remote_credential", {
+      present: true,
+      tokenPrefix: "dmk_ui",
+    });
+    const remoteKey = "dmk_ui_0123456789abcdefghijklmnopqrstuvwxyz";
+    await stubCommand(app, "get_app_settings", {
+      ...(await app.invoke("get_app_settings")),
+      mcp_remote_key: remoteKey,
+    });
+    const agent = (id, display_name, current) => ({
+      id,
+      display_name,
+      category: "cli",
+      connected: true,
+      current,
+      detected: true,
+      token_env: id === "fx" ? "DONUT_MCP_TOKEN" : null,
+    });
+    await stubCommand(app, "list_mcp_agents", [
+      agent("claude-code", "Claude Code", true),
+      agent("cursor", "Cursor", false),
+      agent("fx", "fx", true),
+    ]);
+    await stubCommand(app, "rotate_mcp_remote_credential", {
+      token_prefix: "dmk_ui",
+      failed_clients: ["cursor"],
+    });
+    await stubCommand(app, "refresh_mcp_agents", []);
+    await stubCommand(app, "add_mcp_to_agent", null);
+    const calls = (command) =>
+      app.execute(
+        "return (window.__donutStubbedCalls ?? []).filter((c) => c.command === arguments[0]).map((c) => c.payload);",
+        [command],
+      );
+
+    await app.clickSelector('[aria-label="Integrations"]');
+    await app.clickText(en.integrations.tabRemote, { roles: ["tab"] });
+    await app.waitForText(en.integrations.mcp.onThisComputer);
+
+    // Rotating says to restart the open clients. A client it missed is
+    // retried with the stored key, never with a second mint, which would
+    // revoke the key the other clients just got.
+    await app.clickText(en.integrations.remote.credentialRotate);
+    await app.waitForText(en.integrations.remote.credentialRestartClients);
+    await app.waitForText(
+      en.integrations.remote.credentialClientsFailed.replace(
+        "{{clients}}",
+        "Cursor",
+      ),
+    );
+    await app.clickTextIn("[data-sonner-toast]", en.common.buttons.retry, {
+      roles: ["button"],
+    });
+    await app.waitFor(
+      async () => (await calls("refresh_mcp_agents")).length === 1,
+      { description: "Retry wrote the stored key again" },
+    );
+    assert.equal(
+      (await calls("rotate_mcp_remote_credential")).length,
+      1,
+      "Retry must not mint again",
+    );
+    await app.waitForText(en.integrations.remote.credentialClientsUpdated);
+
+    // fx reads the key from the shell, so it is told to export the new one;
+    // the line on screen shows only the prefix.
+    await app.waitForText(en.integrations.remote.fxReexport);
+    const fx = await app.execute(
+      `return document.querySelector('[data-slot="mcp-fx-reexport"]')?.innerText ?? "";`,
+    );
+    assert.ok(fx.includes("export DONUT_MCP_TOKEN=dmk_ui…"), fx);
+    assert.ok(!fx.includes(remoteKey), "the full key is never on screen");
+
+    // Only the client that holds an older key offers Update, and Update
+    // writes the stored key into that client alone.
+    assert.equal(
+      await app.execute(
+        `return document.querySelectorAll('[data-slot="mcp-client-update"]').length;`,
+      ),
+      1,
+    );
+    await app.clickSelector(
+      '[data-agent-id="cursor"] [data-slot="mcp-client-update"]',
+    );
+    await app.waitFor(
+      async () => (await calls("add_mcp_to_agent")).length === 1,
+      { description: "Update reached the backend" },
+    );
+    assert.equal((await calls("add_mcp_to_agent"))[0].agentId, "cursor");
+    await app.waitForText(
+      en.integrations.mcp.updatedClient.replace("{{name}}", "Cursor"),
+    );
     await dismissSurface(app);
   });
 });
@@ -5967,6 +6125,160 @@ test("clicking the feature a coach mark points at closes the tip as read", async
       );
     },
     { settings: pinnedTip("searchSyntax") },
+  );
+});
+
+const PROFILE_SCROLL = '[data-table-id="profiles"] .scroll-fade';
+
+/**
+ * The coach mark on the profile table: whether it shows, the anchor it
+ * describes (with its row), its ring, its card and the table's scroll box.
+ */
+async function tableCoachMark(app) {
+  return app.execute(
+    `const card = document.querySelector(arguments[0]);
+     const scroll = document.querySelector(arguments[1]);
+     if (!card || !scroll) return null;
+     const body = card.getAttribute("aria-describedby");
+     const anchor = [...document.querySelectorAll("[data-tip-anchor]")]
+       .find((node) => (node.getAttribute("aria-describedby") ?? "").split(" ").includes(body));
+     const ring = document.querySelector('[data-slot="coach-mark-ring"] rect');
+     const box = (node) => { const r = node.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
+     return {
+       shown: card.dataset.state === "shown" &&
+         getComputedStyle(card.parentElement).visibility === "visible",
+       anchor: card.dataset.anchor,
+       profileId: anchor?.dataset.profileId ?? null,
+       anchorBox: anchor ? box(anchor) : null,
+       ringBox: ring ? box(ring) : null,
+       cardBox: box(card),
+       tableBox: box(scroll),
+       firstRow: scroll.querySelector("tr[data-table-row]")?.dataset.tableRow ?? null,
+     };`,
+    [COACH_MARK, PROFILE_SCROLL],
+  );
+}
+
+/** The ring sits 4px around the anchor it describes, and the card is beside it. */
+function markHugsAnchor(mark) {
+  if (!mark?.shown || !mark.anchorBox || !mark.ringBox) return false;
+  const near = (a, b) => Math.abs(a - b) <= 3;
+  const { anchorBox: anchor, ringBox: ring, cardBox: card } = mark;
+  const covers =
+    card.left < anchor.right &&
+    anchor.left < card.right &&
+    card.top < anchor.bottom &&
+    anchor.top < card.bottom;
+  return (
+    near(ring.left, anchor.left - 4) &&
+    near(ring.top, anchor.top - 4) &&
+    near(ring.right, anchor.right + 4) &&
+    near(ring.bottom, anchor.bottom + 4) &&
+    !covers
+  );
+}
+
+/** A row's info button below the sticky header, inside the table's box. */
+function rowInView(mark) {
+  return (
+    mark.anchor === "row-inspect" &&
+    mark.anchorBox.top >= mark.tableBox.top + 32 &&
+    mark.anchorBox.bottom <= mark.tableBox.bottom
+  );
+}
+
+async function scrollProfileTable(app, top) {
+  await app.execute(
+    `const scroll = document.querySelector(arguments[0]);
+     scroll.scrollTop = arguments[1] === "end" ? scroll.scrollHeight : arguments[1];`,
+    [PROFILE_SCROLL, top],
+  );
+}
+
+test("a coach mark on a table row follows the scroll and moves to a row in view when its row leaves", async () => {
+  await withApp(
+    "ui-tips-coach-scroll",
+    async (app) => {
+      for (let i = 0; i < 30; i++)
+        await createUiProfile(app, `Scroll ${String(i + 1).padStart(2, "0")}`);
+      // A fresh start puts the table at its top and the mark on no row yet.
+      await app.restart();
+      await app.session.command("POST", "/window/rect", {
+        width: 1280,
+        height: 720,
+      });
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const scroll = document.querySelector(arguments[0]);
+             return scroll?.querySelector("table")?.getAttribute("aria-rowcount") === "31" &&
+               scroll.scrollTop === 0 &&
+               scroll.scrollHeight > scroll.clientHeight + 400;`,
+            [PROFILE_SCROLL],
+          ),
+        { description: "thirty rows that scroll" },
+      );
+      await waitForCoachMark(app, "totp");
+
+      // The 2FA tip points at the first row's info button.
+      const first = await app.waitFor(
+        async () => {
+          const mark = await tableCoachMark(app);
+          return markHugsAnchor(mark) && rowInView(mark) ? mark : null;
+        },
+        { description: "the mark on a row's info button" },
+      );
+      assert.equal(first.profileId, first.firstRow);
+
+      // Its row scrolls away under the header: the mark moves to a row that
+      // shows, and never stays on the empty spot.
+      await scrollProfileTable(app, 360);
+      const moved = await app.waitFor(
+        async () => {
+          const mark = await tableCoachMark(app);
+          return markHugsAnchor(mark) &&
+            rowInView(mark) &&
+            mark.profileId !== first.profileId
+            ? mark
+            : null;
+        },
+        { description: "the mark on a row still in view" },
+      );
+
+      // A short scroll keeps that row in view: the mark follows it.
+      await scrollProfileTable(app, 336);
+      await app.waitFor(
+        async () => {
+          const mark = await tableCoachMark(app);
+          return (
+            markHugsAnchor(mark) &&
+            rowInView(mark) &&
+            mark.profileId === moved.profileId &&
+            Math.abs(mark.anchorBox.top - (moved.anchorBox.top + 24)) <= 2
+          );
+        },
+        { description: "the mark following its row" },
+      );
+
+      // To the end and back to the top: each time the followed row leaves,
+      // the mark lands on a row in view.
+      for (const top of ["end", 0]) {
+        const before = (await tableCoachMark(app)).profileId;
+        await scrollProfileTable(app, top);
+        await app.waitFor(
+          async () => {
+            const mark = await tableCoachMark(app);
+            return (
+              markHugsAnchor(mark) &&
+              rowInView(mark) &&
+              mark.profileId !== before
+            );
+          },
+          { description: `the mark in view after scrolling to ${top}` },
+        );
+      }
+    },
+    { settings: pinnedTip("totp") },
   );
 });
 

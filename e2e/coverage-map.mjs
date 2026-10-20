@@ -279,6 +279,7 @@ export const commandCoverage = {
       "get_mcp_remote_credential",
       "rotate_mcp_remote_credential",
       "forget_mcp_remote_credential",
+      "refresh_mcp_agents",
       "synchronizer::start_sync_session",
       "synchronizer::stop_sync_session",
       "synchronizer::remove_sync_follower",

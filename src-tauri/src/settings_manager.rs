@@ -262,11 +262,12 @@ pub struct AppSettings {
   /// The durable `dmk_` credential agents present to the remote MCP endpoint.
   ///
   /// Plaintext, kept in an encrypted file with the same posture as
-  /// `api_token`: loaded into the struct for a frontend settings read (the fx
-  /// client cannot take the credential from its config file, so the page
-  /// offers the export line), and stripped by `save_settings` so the settings
-  /// JSON never carries it. Absent from the wire when there is none, so a
-  /// settings file written by an older build stays byte-for-byte unchanged.
+  /// `api_token`: loaded into the struct for a frontend settings read (the
+  /// page shows only its prefix; the fx export line, the copied examples and
+  /// the copy button carry the key), and stripped by `save_settings` so the
+  /// settings JSON never carries it. Absent from the wire when there is none,
+  /// so a settings file written by an older build stays byte-for-byte
+  /// unchanged.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub mcp_remote_key: Option<String>,
   /// The server-side id of `mcp_remote_key`, so a rotation can revoke exactly
@@ -821,12 +822,19 @@ impl SettingsManager {
   /// that is the caller's job, because only the caller knows whether it still
   /// has a session to revoke with.
   pub fn remove_mcp_remote_key(&self) -> Result<(), Box<dyn std::error::Error>> {
-    Self::remove_secret_file(&self.mcp_remote_key_file())?;
+    self.drop_mcp_remote_key_plaintext()?;
     let mut settings = self.load_settings()?;
     if settings.mcp_remote_key_id.take().is_some() {
       self.save_settings(&settings)?;
     }
     Ok(())
+  }
+
+  /// Drop the plaintext and keep the id. For a key that may still be live on
+  /// the server with no session left to revoke it: the next mint reads the id
+  /// and retires that key.
+  pub fn drop_mcp_remote_key_plaintext(&self) -> Result<(), Box<dyn std::error::Error>> {
+    Self::remove_secret_file(&self.mcp_remote_key_file())
   }
 
   pub fn save_sync_server_url(
@@ -852,8 +860,8 @@ pub async fn get_app_settings(app_handle: tauri::AppHandle) -> Result<AppSetting
     .await
     .map_err(|e| format!("Failed to load API token: {e}"))?;
 
-  // Same posture as the API token: shown so the fx export line can be
-  // copied, never persisted (see `SettingsManager::save_settings`).
+  // Same posture as the API token: sent so the page can copy it, never
+  // persisted (see `SettingsManager::save_settings`).
   settings.mcp_remote_key = manager
     .get_mcp_remote_key()
     .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?
@@ -2214,6 +2222,19 @@ mod tests {
     let json = std::fs::read_to_string(manager.get_settings_file()).unwrap();
     assert!(!json.contains("dmk_"), "{json}");
     assert!(!json.contains("\"mcp_remote_key\""), "{json}");
+    assert_eq!(
+      manager
+        .load_settings()
+        .unwrap()
+        .mcp_remote_key_id
+        .as_deref(),
+      Some("key-1")
+    );
+
+    // Forgotten without a session, the key reads as gone and its id stays,
+    // so the next mint can retire the key still live on the server.
+    manager.drop_mcp_remote_key_plaintext().unwrap();
+    assert!(manager.get_mcp_remote_key().unwrap().is_none());
     assert_eq!(
       manager
         .load_settings()

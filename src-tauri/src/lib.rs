@@ -993,21 +993,30 @@ async fn get_mcp_remote_credential() -> Result<McpRemoteCredential, String> {
 
 /// Mint a new remote MCP credential, retire the one it replaces, and rewrite
 /// every remote agent config to carry it.
+#[tauri::command]
+async fn rotate_mcp_remote_credential() -> Result<McpRemoteCredentialRotation, String> {
+  mint_mcp_credential_and_reinstall().await
+}
+
+/// The rotation itself, shared with the sign-in restore.
 ///
 /// Minted BEFORE the old key is revoked, so a mint that fails leaves the
 /// agents working on the old key. The one exception is the account key cap:
 /// when the server refuses the mint and one of the live keys is ours, ours is
 /// retired first and the mint tried once more.
-#[tauri::command]
-async fn rotate_mcp_remote_credential() -> Result<McpRemoteCredentialRotation, String> {
+///
+/// The key it replaces is named by the id in the settings JSON, not by the
+/// stored key: a session that expired drops the plaintext but keeps the id,
+/// and that key is still live on the server until a mint retires it.
+async fn mint_mcp_credential_and_reinstall() -> Result<McpRemoteCredentialRotation, String> {
   if !cloud_auth::CLOUD_AUTH.is_logged_in().await {
     return Err(backend_error("MCP_REMOTE_REQUIRES_SIGN_IN"));
   }
   let settings_manager = settings_manager::SettingsManager::instance();
   let previous = settings_manager
-    .get_mcp_remote_key()
+    .load_settings()
     .map_err(|e| backend_error_with_detail("INTERNAL_ERROR", e))?
-    .and_then(|stored| stored.id);
+    .mcp_remote_key_id;
 
   let label = mcp_remote_key_label();
   let grant = match cloud_auth::CLOUD_AUTH.create_mcp_key(&label).await {
@@ -1016,7 +1025,17 @@ async fn rotate_mcp_remote_credential() -> Result<McpRemoteCredentialRotation, S
       Some(id) => {
         log::info!("Retiring MCP credential at the cap id={id}");
         cloud_auth::CLOUD_AUTH.revoke_mcp_key(id).await?;
-        cloud_auth::CLOUD_AUTH.create_mcp_key(&label).await?
+        match cloud_auth::CLOUD_AUTH.create_mcp_key(&label).await {
+          Ok(grant) => grant,
+          Err(e) => {
+            // Ours is revoked by now. Kept, it would read as a working key and
+            // the page would offer Rotate for a credential that is dead.
+            if let Err(err) = settings_manager.remove_mcp_remote_key() {
+              log::warn!("Revoked MCP credential not removed locally err=\"{err}\"");
+            }
+            return Err(e);
+          }
+        }
       }
       None => return Err(e),
     },
@@ -1051,6 +1070,57 @@ async fn rotate_mcp_remote_credential() -> Result<McpRemoteCredentialRotation, S
     token_prefix: mcp_key_display_prefix(&grant.key),
     failed_clients,
   })
+}
+
+/// Whether the key left with the session: its plaintext is gone and its id
+/// stays (`forget_mcp_key_locally`). A key forgotten on purpose takes its id
+/// with it. Errors are stringified at once: the settings error is not `Send`.
+fn mcp_key_left_with_session() -> Result<bool, String> {
+  let manager = settings_manager::SettingsManager::instance();
+  let stored = manager.get_mcp_remote_key().map_err(|e| e.to_string())?;
+  let id = manager
+    .load_settings()
+    .map_err(|e| e.to_string())?
+    .mcp_remote_key_id;
+  Ok(stored.is_none() && id.is_some())
+}
+
+/// Give the clients connected before a sign-out a working key again.
+///
+/// Signing out revokes and forgets the key, and a session that expires
+/// forgets it, while every client keeps presenting the old one. Called after a
+/// sign-in; mints only when the key left with the session and a client is
+/// connected, so a person who never connected a client, or who forgot the key
+/// on purpose, gets no key. Best effort: a failure is logged and the page
+/// still offers Create.
+pub(crate) async fn restore_mcp_credential_after_sign_in() {
+  match mcp_key_left_with_session() {
+    Ok(true) => {}
+    Ok(false) => return,
+    Err(e) => {
+      log::warn!("MCP credential restore skipped: key unreadable err=\"{e}\"");
+      return;
+    }
+  }
+  let clients = connected_mcp_clients();
+  if clients.is_empty() {
+    return;
+  }
+  match mint_mcp_credential_and_reinstall().await {
+    Ok(rotation) if rotation.failed_clients.is_empty() => log::info!(
+      "MCP credential restored after sign-in clients={}",
+      clients.join(",")
+    ),
+    Ok(rotation) => log::warn!(
+      "MCP credential restored after sign-in clients={} failed={}",
+      clients.join(","),
+      rotation.failed_clients.join(",")
+    ),
+    Err(e) => log::warn!(
+      "MCP credential not restored after sign-in clients={} err=\"{e}\"",
+      clients.join(",")
+    ),
+  }
 }
 
 /// Revoke the stored remote MCP credential and forget it.
@@ -1235,6 +1305,17 @@ fn claude_desktop_bridge_url() -> Option<String> {
 fn claude_desktop_connected() -> bool {
   is_mcp_in_claude_desktop_internal()
     && claude_desktop_bridge_url().is_some_and(|url| mcp_integrations::is_remote_url(&url))
+}
+
+/// Whether the installed bridge presents `key`, quoted the way the install
+/// writes it.
+fn claude_desktop_presents(key: &str) -> bool {
+  let Some(script) = claude_desktop_extension_dir()
+    .and_then(|dir| std::fs::read_to_string(dir.join("server").join("index.js")).ok())
+  else {
+    return false;
+  };
+  serde_json::to_string(&format!("Bearer {key}")).is_ok_and(|literal| script.contains(&literal))
 }
 
 fn add_mcp_to_claude_desktop_internal(target: &mcp_integrations::McpTarget) -> Result<(), String> {
@@ -1425,10 +1506,18 @@ fn install_mcp_agent(agent_id: &str, target: &mcp_integrations::McpTarget) -> Re
 
 #[tauri::command]
 async fn list_mcp_agents() -> Result<Vec<mcp_integrations::McpAgentInfo>, String> {
-  Ok(mcp_integrations::list_agents_with_status(&[(
-    "claude-desktop",
-    claude_desktop_connected(),
-  )]))
+  // An unreadable key file reads as no key: every client shows as not current.
+  let key = settings_manager::SettingsManager::instance()
+    .get_mcp_remote_key()
+    .ok()
+    .flatten()
+    .map(|stored| stored.key);
+  let desktop_connected = claude_desktop_connected();
+  let desktop_current = desktop_connected && key.as_deref().is_some_and(claude_desktop_presents);
+  Ok(mcp_integrations::list_agents_with_status(
+    key.as_deref(),
+    &[("claude-desktop", desktop_connected, desktop_current)],
+  ))
 }
 
 #[tauri::command]
@@ -1450,27 +1539,40 @@ fn connected_mcp_clients() -> Vec<String> {
   agents
 }
 
-/// Re-run the install for every connected client, so a rotated credential
-/// does not leave them talking with a dead one. Every client is attempted; the
-/// ids of the ones that could not be rewritten come back, each already logged
-/// with its reason.
+/// Re-run the install for every client that carries Donut's entry, so a
+/// rotated credential does not leave them talking with a dead one. Every
+/// client is attempted; the ids of the ones that could not be rewritten come
+/// back, each already logged with its reason.
 fn reinstall_mcp_agents() -> Vec<String> {
-  let agents = connected_mcp_clients();
-  let target = match mcp_target() {
-    Ok(target) => target,
+  match mcp_target() {
+    Ok(target) => reinstall_mcp_agents_with(&target),
     Err(e) => {
       log::warn!("MCP client refresh skipped: target unresolved err=\"{e}\"");
-      return agents;
+      connected_mcp_clients()
     }
-  };
-  let mut failed = Vec::new();
-  for agent_id in agents {
-    if let Err(e) = install_mcp_agent(&agent_id, &target) {
-      log::warn!("MCP client entry refresh failed agent={agent_id} err=\"{e}\"");
-      failed.push(agent_id);
+  }
+}
+
+fn reinstall_mcp_agents_with(target: &mcp_integrations::McpTarget) -> Vec<String> {
+  let mut failed = mcp_integrations::reinstall_generic(target);
+  // Any bundle of ours, one from the old local server included.
+  if is_mcp_in_claude_desktop_internal() {
+    if let Err(e) = add_mcp_to_claude_desktop_internal(target) {
+      log::warn!("MCP client entry refresh failed agent=claude-desktop err=\"{e}\"");
+      failed.push("claude-desktop".to_string());
     }
   }
   failed
+}
+
+/// Write the stored key into every client that carries Donut's entry, without
+/// minting: the retry for the clients a rotation could not reach. Minting
+/// again would revoke the key the other clients just got. Returns the ids
+/// that still could not be rewritten.
+#[tauri::command]
+async fn refresh_mcp_agents() -> Result<Vec<String>, String> {
+  let target = mcp_target()?;
+  Ok(reinstall_mcp_agents_with(&target))
 }
 
 #[tauri::command]
@@ -3631,6 +3733,7 @@ pub fn run_with_builder(
       get_mcp_remote_credential,
       rotate_mcp_remote_credential,
       forget_mcp_remote_credential,
+      refresh_mcp_agents,
       profile_generation_limiter::get_profile_creation_allowance,
       // VPN commands
       import_vpn_config,
