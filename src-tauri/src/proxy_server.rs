@@ -469,15 +469,20 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for SocksHandshakeLogger<S> {
 }
 
 async fn connect_via_socks(
-  socks_addr: &str,
+  socks_host: &str,
+  socks_port: u16,
   target_host: &str,
   target_port: u16,
   is_socks5: bool,
   auth: Option<(&str, &str)>,
 ) -> Result<TcpStream, Box<dyn std::error::Error>> {
-  let stream = tokio::time::timeout(UPSTREAM_DIAL_TIMEOUT, TcpStream::connect(socks_addr))
-    .await
-    .map_err(|_| format!("SOCKS upstream connect to {socks_addr} timed out"))??;
+  let stream = crate::dialer::connect_host(
+    "SOCKS upstream",
+    socks_host,
+    socks_port,
+    UPSTREAM_DIAL_TIMEOUT,
+  )
+  .await?;
 
   if is_socks5 {
     // SOCKS5 connection using async_socks5
@@ -496,8 +501,9 @@ async fn connect_via_socks(
 
     let has_auth = auth_info.is_some();
     log::trace!(
-      "[socks-handshake] dialing {} (target={}:{}, has_auth={})",
-      socks_addr,
+      "[socks-handshake] dialing {}:{} (target={}:{}, has_auth={})",
+      socks_host,
+      socks_port,
       target_host,
       target_port,
       has_auth
@@ -514,7 +520,7 @@ async fn connect_via_socks(
     // and silently FIN instead of returning an RFC1929 status. BufStream
     // coalesces those small writes into one syscall on flush — this is
     // the usage pattern shown in the async_socks5 README
-    let label = format!("{socks_addr}->{target_host}:{target_port}");
+    let label = format!("{socks_host}:{socks_port}->{target_host}:{target_port}");
     let logged = SocksHandshakeLogger::new(stream, label);
     let mut buffered = tokio::io::BufStream::new(logged);
     let handshake = tokio::time::timeout(
@@ -878,7 +884,6 @@ async fn handle_http_via_socks4(
 
   let socks_host = upstream.host_str().unwrap_or("127.0.0.1");
   let socks_port = upstream.port().unwrap_or(1080);
-  let socks_addr = format!("{}:{}", socks_host, socks_port);
 
   // Parse target from request URI
   let target_uri = req.uri();
@@ -886,26 +891,28 @@ async fn handle_http_via_socks4(
   let target_port = target_uri.port_u16().unwrap_or(80);
 
   // Connect to SOCKS4 proxy
-  let mut socks_stream =
-    match tokio::time::timeout(UPSTREAM_DIAL_TIMEOUT, TcpStream::connect(&socks_addr)).await {
-      Ok(Ok(stream)) => stream,
-      Ok(Err(e)) => {
-        warn_upstream_failure("SOCKS4 upstream connect failed", &e.to_string(), None);
-        let mut response = Response::new(Full::new(Bytes::from(format!(
-          "Failed to connect to SOCKS4 proxy: {}",
-          e
-        ))));
-        *response.status_mut() = StatusCode::BAD_GATEWAY;
-        return Ok(response);
-      }
-      Err(_) => {
-        warn_upstream_failure("SOCKS4 upstream connect failed", "timed out", None);
-        let mut response =
-          Response::new(Full::new(Bytes::from("Connect to SOCKS4 proxy timed out")));
-        *response.status_mut() = StatusCode::GATEWAY_TIMEOUT;
-        return Ok(response);
-      }
-    };
+  let mut socks_stream = match crate::dialer::connect_host(
+    "SOCKS4 upstream",
+    socks_host,
+    socks_port,
+    UPSTREAM_DIAL_TIMEOUT,
+  )
+  .await
+  {
+    Ok(stream) => stream,
+    Err(e) => {
+      warn_upstream_failure("SOCKS4 upstream connect failed", &e.to_string(), None);
+      let mut response = Response::new(Full::new(Bytes::from(format!(
+        "Failed to connect to SOCKS4 proxy: {e}"
+      ))));
+      *response.status_mut() = if e.kind() == io::ErrorKind::TimedOut {
+        StatusCode::GATEWAY_TIMEOUT
+      } else {
+        StatusCode::BAD_GATEWAY
+      };
+      return Ok(response);
+    }
+  };
 
   // Build a SOCKS4a CONNECT request. We deliberately do NOT resolve the target
   // hostname locally: tokio::net::lookup_host would call the HOST resolver
@@ -1172,6 +1179,29 @@ async fn forward_http_over_stream<S: AsyncRead + AsyncWrite + Unpin>(
   Ok(hyper_response)
 }
 
+/// Dial the Shadowsocks server and open a tunnel to `target` over it. The
+/// tunnel header goes out with the first write.
+async fn connect_via_shadowsocks(
+  ss_host: &str,
+  ss_port: u16,
+  svr_cfg: &shadowsocks::config::ServerConfig,
+  target: shadowsocks::relay::Address,
+) -> io::Result<shadowsocks::relay::tcprelay::proxy_stream::ProxyClientStream<TcpStream>> {
+  let tcp = crate::dialer::connect_host(
+    "Shadowsocks server",
+    ss_host,
+    ss_port,
+    UPSTREAM_DIAL_TIMEOUT,
+  )
+  .await?;
+  let context = shadowsocks::context::Context::new_shared(shadowsocks::config::ServerType::Local);
+  Ok(
+    shadowsocks::relay::tcprelay::proxy_stream::ProxyClientStream::from_stream(
+      context, tcp, svr_cfg, target,
+    ),
+  )
+}
+
 /// Handle plain HTTP requests through a Shadowsocks upstream.
 /// reqwest doesn't support SS natively, so we connect through the SS tunnel
 /// manually and forward the HTTP request/response.
@@ -1206,7 +1236,6 @@ async fn handle_http_via_shadowsocks(
     }
   };
 
-  let context = shadowsocks::context::Context::new_shared(shadowsocks::config::ServerType::Local);
   let svr_cfg = match shadowsocks::config::ServerConfig::new(
     shadowsocks::config::ServerAddr::from((ss_host.to_string(), ss_port)),
     &password,
@@ -1222,13 +1251,7 @@ async fn handle_http_via_shadowsocks(
 
   let target_addr = shadowsocks::relay::Address::DomainNameAddress(domain.clone(), port);
 
-  let mut stream = match shadowsocks::relay::tcprelay::proxy_stream::ProxyClientStream::connect(
-    context,
-    &svr_cfg,
-    target_addr,
-  )
-  .await
-  {
+  let mut stream = match connect_via_shadowsocks(ss_host, ss_port, &svr_cfg, target_addr).await {
     Ok(s) => s,
     Err(e) => {
       let mut resp = Response::new(Full::new(Bytes::from(format!("SS connect: {e}"))));
@@ -2097,14 +2120,7 @@ async fn handle_connect_from_buffer(
     return Err("Invalid CONNECT request".into());
   }
 
-  let target = parts[1];
-  let (target_host, target_port) = if let Some(colon_pos) = target.find(':') {
-    let host = &target[..colon_pos];
-    let port: u16 = target[colon_pos + 1..].parse().unwrap_or(443);
-    (host, port)
-  } else {
-    (target, 443)
-  };
+  let (target_host, target_port) = split_authority(parts[1]);
 
   // Block if domain is in the DNS blocklist (before any connection)
   if blocklist_matcher.is_blocked(target_host) {
@@ -2217,10 +2233,16 @@ fn worker_connection_limit() -> usize {
   }
 }
 
-/// Connect timeout for the direct (no-upstream) dial path. Bounds a wedged
-/// `getaddrinfo` so a broken resolver can't park a blocking thread for the
-/// full OS timeout.
+/// Limit for a direct (no-upstream) dial, name lookup included.
 const DIRECT_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+async fn dial_direct(host: &str, port: u16) -> io::Result<TcpStream> {
+  crate::dialer::connect_host("direct", host, port, DIRECT_CONNECT_TIMEOUT).await
+}
+
+/// With a profile DNS server and an upstream, the wait before the second
+/// address of a name gets its own dial through the upstream.
+const UPSTREAM_ATTEMPT_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Overall timeout for dialing an UPSTREAM proxy (TCP connect + CONNECT/SOCKS/SS
 /// handshake). Without it, an upstream that accepts TCP but stalls before
@@ -2249,91 +2271,6 @@ const MAX_HTTP_RESPONSE_BUFFER: usize = 10 * 1024 * 1024;
 /// the body and break all three.
 const PLAIN_HTTP_EXCHANGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// Per-host failure state (last failure instant, consecutive failure count) for
-/// the direct dial path. Process-global — each worker is its own process.
-fn direct_dial_failures() -> &'static Mutex<HashMap<String, (std::time::Instant, u32)>> {
-  static M: OnceLock<Mutex<HashMap<String, (std::time::Instant, u32)>>> = OnceLock::new();
-  M.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-/// If `host` is inside its failure backoff window, return the remaining time so
-/// the caller can short-circuit without a fresh getaddrinfo/connect. Never
-/// mutates state, so the window always expires and the path self-heals once
-/// DNS recovers.
-fn direct_backoff_remaining(host: &str) -> Option<std::time::Duration> {
-  let map = direct_dial_failures();
-  let guard = map.lock().unwrap();
-  let (last, fails) = guard.get(host).copied()?;
-  // Exponential window capped at 30s: 2, 4, 8, 16, 30, 30, ...
-  let window = std::time::Duration::from_secs((1u64 << fails.min(5)).min(30));
-  let elapsed = last.elapsed();
-  if elapsed < window {
-    Some(window - elapsed)
-  } else {
-    None
-  }
-}
-
-/// Record a direct-dial failure for `host`, growing its backoff window.
-fn direct_backoff_record(host: &str) {
-  let map = direct_dial_failures();
-  let mut guard = map.lock().unwrap();
-  // Bound memory against a page that emits many distinct failing hosts.
-  if guard.len() > 2048 {
-    guard.retain(|_, (last, _)| last.elapsed() < std::time::Duration::from_secs(60));
-  }
-  let entry = guard
-    .entry(host.to_string())
-    .or_insert_with(|| (std::time::Instant::now(), 0));
-  entry.0 = std::time::Instant::now();
-  entry.1 = entry.1.saturating_add(1);
-}
-
-/// Clear `host`'s failure state after a successful dial.
-fn direct_backoff_clear(host: &str) {
-  direct_dial_failures().lock().unwrap().remove(host);
-}
-
-/// Dial a target directly (no upstream) with a connect timeout and per-host
-/// failure backoff. This is the server-side counterpart to the browser's
-/// instant client-side retry: when a host's DNS/connect is failing (e.g. the
-/// macOS resolver wedges after sleep/wake), repeated CONNECT requests
-/// short-circuit
-/// here instead of each spawning a fresh blocking getaddrinfo — which is what
-/// let a retry-storm exhaust the blocking thread pool and peg the CPU.
-async fn dial_direct(host: &str, port: u16) -> Result<TcpStream, Box<dyn std::error::Error>> {
-  if let Some(remaining) = direct_backoff_remaining(host) {
-    return Err(
-      format!(
-        "skipping direct dial to {host}: backing off ~{}s after repeated connect failures",
-        remaining.as_secs().max(1)
-      )
-      .into(),
-    );
-  }
-  match tokio::time::timeout(DIRECT_CONNECT_TIMEOUT, TcpStream::connect((host, port))).await {
-    Ok(Ok(stream)) => {
-      let _ = stream.set_nodelay(true);
-      direct_backoff_clear(host);
-      Ok(stream)
-    }
-    Ok(Err(e)) => {
-      direct_backoff_record(host);
-      Err(e.into())
-    }
-    Err(_) => {
-      direct_backoff_record(host);
-      Err(
-        format!(
-          "direct connect to {host}:{port} timed out after {}s",
-          DIRECT_CONNECT_TIMEOUT.as_secs()
-        )
-        .into(),
-      )
-    }
-  }
-}
-
 /// Host of a buffered `CONNECT host:port HTTP/1.1` request.
 fn connect_target_host(request: &[u8]) -> Option<String> {
   let line_end = request
@@ -2341,12 +2278,21 @@ fn connect_target_host(request: &[u8]) -> Option<String> {
     .position(|&b| b == b'\r' || b == b'\n')
     .unwrap_or(request.len());
   let line = String::from_utf8_lossy(&request[..line_end]);
-  let target = line.split_whitespace().nth(1)?;
-  let host = match target.strip_prefix('[') {
-    Some(rest) => rest.split(']').next()?,
-    None => target.rsplit_once(':').map_or(target, |(host, _)| host),
-  };
+  let (host, _) = split_authority(line.split_whitespace().nth(1)?);
   (!host.is_empty()).then(|| host.to_string())
+}
+
+/// Host and port of a CONNECT authority, `host:port` or `[v6]:port`. The port
+/// defaults to 443.
+fn split_authority(target: &str) -> (&str, u16) {
+  if let Some((host, rest)) = target.strip_prefix('[').and_then(|t| t.split_once(']')) {
+    let port = rest.strip_prefix(':').and_then(|p| p.parse().ok());
+    return (host, port.unwrap_or(443));
+  }
+  match target.split_once(':') {
+    Some((host, port)) => (host, port.parse().unwrap_or(443)),
+    None => (target, 443),
+  }
 }
 
 /// Warn about a failed tunnel or proxied request, at most once per distinct
@@ -2414,6 +2360,17 @@ async fn read_upstream_connect_response<S: AsyncRead + Unpin>(
   }
 }
 
+/// `host:port` for a CONNECT line. An IPv6 literal (a SOCKS5 client sends one
+/// for `http://[2001:db8::1]/`) needs brackets, or the proxy reads its last
+/// group as the port.
+pub(crate) fn connect_authority(host: &str, port: u16) -> String {
+  if host.parse::<std::net::Ipv6Addr>().is_ok() {
+    format!("[{host}]:{port}")
+  } else {
+    format!("{host}:{port}")
+  }
+}
+
 /// Perform the HTTP CONNECT handshake over an already-established hop to the
 /// proxy and return the tunnelled stream.
 ///
@@ -2422,17 +2379,6 @@ async fn read_upstream_connect_response<S: AsyncRead + Unpin>(
 /// only place `Proxy-Authorization` is written, so whether those credentials
 /// cross the network in the clear is decided entirely by which stream the
 /// caller hands in, nothing here can weaken it.
-/// `host:port` for a CONNECT line. An IPv6 literal (a SOCKS5 client sends one
-/// for `http://[2001:db8::1]/`) needs brackets, or the proxy reads its last
-/// group as the port.
-fn connect_authority(host: &str, port: u16) -> String {
-  if host.parse::<std::net::Ipv6Addr>().is_ok() {
-    format!("[{host}]:{port}")
-  } else {
-    format!("{host}:{port}")
-  }
-}
-
 async fn connect_via_http_proxy<S: AsyncStream + 'static>(
   mut proxy_stream: S,
   proxy_host: &str,
@@ -2544,16 +2490,50 @@ pub(crate) async fn connect_to_target_via_upstream(
   let Some(resolver) = resolver.filter(|_| !should_bypass) else {
     return dial_route(target_host, target_port, upstream_url, should_bypass).await;
   };
-  let addresses = resolver.resolve(target_host).await?;
-  // A second address covers an exit that cannot reach the first one.
-  let mut last_error = String::new();
-  for address in addresses.iter().take(2) {
-    match dial_route(&address.to_string(), target_port, upstream_url, false).await {
-      Ok(stream) => return Ok(stream),
-      Err(e) => last_error = e.to_string(),
-    }
+  let addresses: Vec<SocketAddr> = resolver
+    .resolve(target_host)
+    .await?
+    .iter()
+    .map(|ip| SocketAddr::new(*ip, target_port))
+    .collect();
+  let authority = connect_authority(target_host, target_port);
+  if matches!(upstream_url, None | Some("DIRECT")) {
+    let (stream, _) = crate::dialer::connect_addrs(
+      &format!("direct connect to {authority}"),
+      addresses,
+      tokio::time::Instant::now() + DIRECT_CONNECT_TIMEOUT,
+      DIRECT_CONNECT_TIMEOUT,
+    )
+    .await?;
+    return Ok(Box::new(stream));
   }
-  Err(last_error.into())
+  // Each attempt is a whole dial through the upstream, so the next address
+  // waits longer, and only a second address gets a turn: it covers an exit
+  // that cannot reach the first one.
+  let limit = 2 * UPSTREAM_DIAL_TIMEOUT;
+  let plan = crate::dialer::Race {
+    stagger: UPSTREAM_ATTEMPT_DELAY,
+    attempt_timeout: UPSTREAM_DIAL_TIMEOUT,
+    deadline: tokio::time::Instant::now() + limit,
+  };
+  let candidates = addresses.into_iter().take(2).collect();
+  let raced = crate::dialer::race(candidates, &plan, |address| async move {
+    dial_route(&address.ip().to_string(), target_port, upstream_url, false)
+      .await
+      .map_err(|e| io::Error::other(e.to_string()))
+  })
+  .await;
+  match raced {
+    Ok((stream, _)) => Ok(stream),
+    Err(failure) => Err(
+      failure
+        .into_error(
+          &format!("connect to {authority} through the upstream"),
+          limit,
+        )
+        .into(),
+    ),
+  }
 }
 
 /// Dial `target_host:target_port` over the route as given, with no name
@@ -2564,10 +2544,6 @@ pub(crate) async fn dial_route(
   upstream_url: Option<&str>,
   should_bypass: bool,
 ) -> Result<BoxedAsyncStream, Box<dyn std::error::Error>> {
-  // Helper: configure outbound TCP to match browser TCP fingerprint
-  let configure_tcp = |stream: &TcpStream| {
-    let _ = stream.set_nodelay(true);
-  };
   let target_stream: BoxedAsyncStream = match upstream_url {
     None | Some("DIRECT") => Box::new(dial_direct(target_host, target_port).await?),
     _ if should_bypass => Box::new(dial_direct(target_host, target_port).await?),
@@ -2585,15 +2561,13 @@ pub(crate) async fn dial_route(
           "http" | "https" => {
             let proxy_host = upstream.host_str().unwrap_or("127.0.0.1");
             let proxy_port = upstream.port().unwrap_or(8080);
-            let proxy_stream = tokio::time::timeout(
+            let proxy_stream = crate::dialer::connect_host(
+              "upstream proxy",
+              proxy_host,
+              proxy_port,
               UPSTREAM_DIAL_TIMEOUT,
-              TcpStream::connect((proxy_host, proxy_port)),
             )
-            .await
-            .map_err(|_| {
-              format!("upstream proxy connect to {proxy_host}:{proxy_port} timed out")
-            })??;
-            configure_tcp(&proxy_stream);
+            .await?;
 
             connect_via_http_proxy(
               proxy_stream,
@@ -2611,15 +2585,13 @@ pub(crate) async fn dial_route(
           "httpstls" => {
             let proxy_host = upstream.host_str().unwrap_or("127.0.0.1");
             let proxy_port = upstream.port().unwrap_or(443);
-            let tcp = tokio::time::timeout(
+            let tcp = crate::dialer::connect_host(
+              "upstream proxy",
+              proxy_host,
+              proxy_port,
               UPSTREAM_DIAL_TIMEOUT,
-              TcpStream::connect((proxy_host, proxy_port)),
             )
-            .await
-            .map_err(|_| {
-              format!("upstream proxy connect to {proxy_host}:{proxy_port} timed out")
-            })??;
-            configure_tcp(&tcp);
+            .await?;
 
             let tls = tls_wrap_upstream_hop(tcp, proxy_host).await?;
 
@@ -2636,13 +2608,13 @@ pub(crate) async fn dial_route(
           "socks4" | "socks5" => {
             let socks_host = upstream.host_str().unwrap_or("127.0.0.1");
             let socks_port = upstream.port().unwrap_or(1080);
-            let socks_addr = format!("{}:{}", socks_host, socks_port);
 
             let (username, password) = upstream_userpass(&upstream);
             let auth = (!username.is_empty()).then_some((username.as_str(), password.as_str()));
 
             let stream = connect_via_socks(
-              &socks_addr,
+              socks_host,
+              socks_port,
               target_host,
               target_port,
               scheme == "socks5",
@@ -2677,8 +2649,6 @@ pub(crate) async fn dial_route(
               format!("Unsupported Shadowsocks cipher: {method_str}. Use e.g. aes-256-gcm, chacha20-ietf-poly1305, aes-128-gcm")
             })?;
 
-            let context =
-              shadowsocks::context::Context::new_shared(shadowsocks::config::ServerType::Local);
             let svr_cfg = shadowsocks::config::ServerConfig::new(
               shadowsocks::config::ServerAddr::from((ss_host.to_string(), ss_port)),
               &password,
@@ -2693,19 +2663,7 @@ pub(crate) async fn dial_route(
               }
             };
 
-            let stream = tokio::time::timeout(
-              UPSTREAM_DIAL_TIMEOUT,
-              shadowsocks::relay::tcprelay::proxy_stream::ProxyClientStream::connect(
-                context,
-                &svr_cfg,
-                target_addr,
-              ),
-            )
-            .await
-            .map_err(|_| "Shadowsocks connection timed out".to_string())?
-            .map_err(|e| format!("Shadowsocks connection failed: {e}"))?;
-
-            Box::new(stream)
+            Box::new(connect_via_shadowsocks(ss_host, ss_port, &svr_cfg, target_addr).await?)
           }
           _ => {
             return Err(format!("Unsupported upstream proxy scheme: {}", scheme).into());
@@ -3026,7 +2984,7 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap().to_string();
+    let port = listener.local_addr().unwrap().port();
     let server = tokio::spawn(async move {
       let (mut socket, _) = listener.accept().await.unwrap();
       let mut request = vec![0_u8; 8 + 1 + "example.com".len() + 1];
@@ -3038,7 +2996,7 @@ mod tests {
       request
     });
 
-    connect_via_socks(&address, "example.com", 443, false, None)
+    connect_via_socks("127.0.0.1", port, "example.com", 443, false, None)
       .await
       .expect("SOCKS4a connect");
     let request = server.await.unwrap();
@@ -3051,6 +3009,18 @@ mod tests {
     assert_eq!(connect_authority("2001:db8::1", 443), "[2001:db8::1]:443");
     assert_eq!(connect_authority("203.0.113.5", 80), "203.0.113.5:80");
     assert_eq!(connect_authority("example.com", 443), "example.com:443");
+  }
+
+  #[test]
+  fn a_connect_target_with_an_ipv6_literal_keeps_its_address() {
+    assert_eq!(split_authority("[2001:db8::1]:8443"), ("2001:db8::1", 8443));
+    assert_eq!(split_authority("[2001:db8::1]"), ("2001:db8::1", 443));
+    assert_eq!(split_authority("example.com:80"), ("example.com", 80));
+    assert_eq!(split_authority("example.com"), ("example.com", 443));
+    assert_eq!(
+      connect_target_host(b"CONNECT [2001:db8::1]:443 HTTP/1.1\r\n\r\n").as_deref(),
+      Some("2001:db8::1")
+    );
   }
 
   #[test]

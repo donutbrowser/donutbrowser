@@ -573,12 +573,13 @@ async fn associate_upstream(
     None
   };
 
-  let proxy_stream = tokio::time::timeout(
+  let proxy_stream = crate::dialer::connect_host(
+    "upstream SOCKS5",
+    host,
+    port,
     crate::proxy_server::UPSTREAM_DIAL_TIMEOUT,
-    TcpStream::connect((host, port)),
   )
-  .await
-  .map_err(|_| format!("upstream SOCKS5 connect to {host}:{port} timed out"))??;
+  .await?;
   let bind_sock = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).await?;
   // association_addr None => 0.0.0.0:0 (we accept replies from any peer).
   let datagram = tokio::time::timeout(
@@ -792,7 +793,8 @@ async fn run_udp_relay_socks5(
 }
 
 /// Resolve a UDP destination to a concrete socket address, with the profile
-/// DNS server when there is one and the system resolver otherwise.
+/// DNS server when there is one and the system resolver otherwise. The direct
+/// egress socket is IPv4, so an IPv4 answer goes first.
 async fn resolve_addr(addr: &AddrKind, resolver: Option<&ProfileResolver>) -> Option<SocketAddr> {
   match (addr, resolver) {
     (AddrKind::Ip(s), _) => Some(*s),
@@ -802,10 +804,18 @@ async fn resolve_addr(addr: &AddrKind, resolver: Option<&ProfileResolver>) -> Op
       .ok()?
       .first()
       .map(|ip| SocketAddr::new(*ip, *port)),
-    (AddrKind::Domain(domain, port), None) => tokio::net::lookup_host(format!("{domain}:{port}"))
-      .await
-      .ok()
-      .and_then(|mut it| it.next()),
+    (AddrKind::Domain(domain, port), None) => {
+      let found = crate::dialer::HostResolver::system()
+        .resolve(domain, crate::dialer::LOOKUP_TIMEOUT)
+        .await
+        .ok()?;
+      let ip = found
+        .iter()
+        .find(|a| a.is_ipv4())
+        .or_else(|| found.first())?
+        .ip();
+      Some(SocketAddr::new(ip, *port))
+    }
   }
 }
 
