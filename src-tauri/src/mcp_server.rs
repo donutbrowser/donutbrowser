@@ -234,6 +234,47 @@ fn explain_engine_refusal(mut error: McpError, device_refusal: Option<String>) -
   error
 }
 
+/// Why a running browser refuses automation on an account whose plan includes
+/// it, when no device refusal explains it.
+///
+/// A browser keeps the plan token it was launched with for its whole life.
+/// That token expires, and a launch while the token service did not answer
+/// gets none, so only a new launch gives the browser a token that works.
+pub(crate) async fn stale_plan_token_refusal(profile_id: Option<&str>) -> Option<String> {
+  if CLOUD_AUTH.wayfern_device_refusal().is_some() || !CLOUD_AUTH.can_use_browser_automation().await
+  {
+    return None;
+  }
+  let running_for = profile_id
+    .and_then(|id| {
+      crate::profile::ProfileManager::instance()
+        .find_profile(id)
+        .ok()
+    })
+    .and_then(|profile| profile.process_id)
+    .and_then(crate::proxy_storage::process_start_time)
+    .and_then(|start| {
+      let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+      Some(now.saturating_sub(start))
+    });
+  Some(stale_plan_token_message(running_for))
+}
+
+fn stale_plan_token_message(running_for: Option<u64>) -> String {
+  let age = running_for
+    .map(|secs| format!(" This browser has run for {} h.", secs / 3600))
+    .unwrap_or_default();
+  format!(
+    "This browser cannot confirm the plan, although the account includes browser automation: \
+     a browser keeps the plan token it was launched with, and that token has expired, or the \
+     token service did not answer when the browser started.{age} Restart the profile to \
+     automate it: call kill_profile, then run_profile."
+  )
+}
+
 /// The create_profile result. A setting that failed after the profile was
 /// created is named as not applied, so the agent never takes it as set.
 fn created_profile_result(
@@ -6623,6 +6664,14 @@ impl McpServer {
       .dispatch_tool_call(caller, tool_name, &arguments)
       .await
       .map_err(|error| explain_engine_refusal(error, CLOUD_AUTH.wayfern_device_refusal()));
+    if let Err(error) = &mut result {
+      if error.message.contains("requires a paid Donut Browser plan") {
+        let profile = arguments.get("profile_id").and_then(|v| v.as_str());
+        if let Some(reason) = stale_plan_token_refusal(profile).await {
+          error.message = reason;
+        }
+      }
+    }
     let elapsed_ms = started.elapsed().as_millis();
     if human_tool {
       crate::agent_console::touch_session(caller.session);
@@ -12861,6 +12910,17 @@ mod tests {
       explain_engine_refusal(other, Some(device.to_string())).message,
       "Profile not found"
     );
+  }
+  #[test]
+  fn a_stale_plan_token_says_to_restart_and_how_long_the_browser_ran() {
+    let message = stale_plan_token_message(Some(204_189));
+    assert!(message.contains("56 h"), "{message}");
+    assert!(
+      message.contains("kill_profile, then run_profile"),
+      "{message}"
+    );
+    assert!(!message.contains("requires a paid"), "{message}");
+    assert!(!stale_plan_token_message(None).contains(" h."));
   }
 
   #[test]

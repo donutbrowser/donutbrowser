@@ -5490,6 +5490,29 @@ fn resolve_error_response(error: crate::cdp_target::ResolveError) -> (StatusCode
 /// The body is the same `{"code": ..., ...}` envelope the MCP transport puts
 /// in its error `data`, plus `message`, so a locator that matched three
 /// buttons hands a REST client the same candidate list an agent gets.
+/// An agent call's answer. A browser that refuses automation as unpaid on an
+/// account whose plan includes it gets the real reason: another desktop is the
+/// primary one, or the browser's own plan token is stale.
+async fn agent_reply<T>(
+  id: &str,
+  result: Result<T, crate::mcp_server::AgentError>,
+) -> Result<Json<T>, (StatusCode, String)> {
+  use crate::mcp_server::AgentError;
+  match result {
+    Ok(value) => Ok(Json(value)),
+    Err(AgentError::PaymentRequired(message)) => {
+      let reason = match crate::cloud_auth::CLOUD_AUTH.wayfern_device_refusal() {
+        Some(device) => Some(device),
+        None => crate::mcp_server::stale_plan_token_refusal(Some(id)).await,
+      };
+      Err(agent_error_response(AgentError::PaymentRequired(
+        reason.unwrap_or(message),
+      )))
+    }
+    Err(error) => Err(agent_error_response(error)),
+  }
+}
+
 fn agent_error_response(error: crate::mcp_server::AgentError) -> (StatusCode, String) {
   use crate::cdp_target::CdpError;
   use crate::mcp_server::AgentError;
@@ -5548,10 +5571,7 @@ async fn agent_perceive_api(
   Json(request): Json<crate::wayfern_cdp::PerceptionRequest>,
 ) -> Result<Json<crate::wayfern_cdp::PerceptionPage>, (StatusCode, String)> {
   let ctx = agent_context_for(&id).await?;
-  crate::mcp_server::agent_perceive(&ctx, &request)
-    .await
-    .map(Json)
-    .map_err(agent_error_response)
+  agent_reply(&id, crate::mcp_server::agent_perceive(&ctx, &request).await).await
 }
 
 #[utoipa::path(
@@ -5582,10 +5602,11 @@ async fn agent_resolve_locator_api(
   Json(request): Json<crate::mcp_server::AgentResolveRequest>,
 ) -> Result<Json<crate::wayfern_cdp::LocatorResolution>, (StatusCode, String)> {
   let ctx = agent_context_for(&id).await?;
-  crate::mcp_server::agent_resolve_locator(&ctx, &request)
-    .await
-    .map(Json)
-    .map_err(agent_error_response)
+  agent_reply(
+    &id,
+    crate::mcp_server::agent_resolve_locator(&ctx, &request).await,
+  )
+  .await
 }
 
 #[utoipa::path(
@@ -5616,10 +5637,11 @@ async fn agent_click_api(
   Json(request): Json<crate::mcp_server::AgentClickRequest>,
 ) -> Result<Json<crate::mcp_server::AgentClick>, (StatusCode, String)> {
   let ctx = agent_context_for(&id).await?;
-  crate::mcp_server::agent_click_locator(&ctx, &request)
-    .await
-    .map(Json)
-    .map_err(agent_error_response)
+  agent_reply(
+    &id,
+    crate::mcp_server::agent_click_locator(&ctx, &request).await,
+  )
+  .await
 }
 
 #[utoipa::path(
@@ -5650,10 +5672,12 @@ async fn agent_type_api(
   Json(request): Json<crate::mcp_server::AgentTypeRequest>,
 ) -> Result<Json<crate::mcp_server::AgentTyping>, (StatusCode, String)> {
   let ctx = agent_context_for(&id).await?;
-  crate::mcp_server::agent_type_locator(&ctx, &request, crate::mcp_server::MAX_TYPING_SECONDS)
-    .await
-    .map(Json)
-    .map_err(agent_error_response)
+  agent_reply(
+    &id,
+    crate::mcp_server::agent_type_locator(&ctx, &request, crate::mcp_server::MAX_TYPING_SECONDS)
+      .await,
+  )
+  .await
 }
 
 #[utoipa::path(
@@ -5684,10 +5708,7 @@ async fn agent_extract_api(
   Json(request): Json<crate::wayfern_cdp::ExtractionRequest>,
 ) -> Result<Json<crate::wayfern_cdp::Extraction>, (StatusCode, String)> {
   let ctx = agent_context_for(&id).await?;
-  crate::mcp_server::agent_extract(&ctx, &request)
-    .await
-    .map(Json)
-    .map_err(agent_error_response)
+  agent_reply(&id, crate::mcp_server::agent_extract(&ctx, &request).await).await
 }
 
 #[utoipa::path(
@@ -5723,10 +5744,11 @@ async fn agent_pick_api(
     .timeout_ms
     .unwrap_or(crate::mcp_server::DEFAULT_PICK_TIMEOUT_MS)
     .clamp(1_000, crate::mcp_server::MAX_PICK_TIMEOUT_MS);
-  crate::mcp_server::agent_pick_element(&ctx, timeout_ms)
-    .await
-    .map(Json)
-    .map_err(agent_error_response)
+  agent_reply(
+    &id,
+    crate::mcp_server::agent_pick_element(&ctx, timeout_ms).await,
+  )
+  .await
 }
 
 #[cfg(test)]
