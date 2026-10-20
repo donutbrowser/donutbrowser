@@ -1175,20 +1175,26 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       body: { url: `${fixtureUrl}/opened-via-api` },
     });
     assert.equal(opened.response.status, 200);
-    await app.waitFor(
+    const openedTarget = await app.waitFor(
       async () => {
         const targets = await fetch(
           `http://127.0.0.1:${launched.value.remote_debugging_port}/json`,
         ).then((response) => response.json());
-        return targets.some((target) => target.url.includes("/opened-via-api"));
+        return (
+          targets.find(
+            (target) =>
+              target.type === "page" && target.url.includes("/opened-via-api"),
+          ) ?? false
+        );
       },
       { timeoutMs: 20_000, description: "API-opened Wayfern target" },
     );
-    // The tab's own first load can start before the capture attaches to it;
-    // what the tab sends once it is open is captured.
+    // The tab's document request starts before the tab exists as a target, so
+    // the capture cannot see it; what the tab sends once it is open is
+    // captured, under the tab's own id.
     const openedTab = await CdpClient.connect(
       launched.value.remote_debugging_port,
-      { match: (target) => target.url.includes("/opened-via-api") },
+      { match: (target) => target.id === openedTarget.id },
     );
     try {
       await openedTab.evaluate(
@@ -1205,11 +1211,16 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
         assert.equal(listed.capturing, true);
         return (
           listed.requests.find((item) =>
-            item.url.includes("/opened-via-api"),
+            item.url.includes("/api/echo?from=opened-via-api"),
           ) ?? false
         );
       },
       { timeoutMs: 20_000, description: "captured API-opened request" },
+    );
+    assert.equal(
+      capturedRequest.tab,
+      openedTarget.id,
+      JSON.stringify(capturedRequest),
     );
     const capturedDetail = await app.invoke("get_network_request", {
       profileId: profile.id,
