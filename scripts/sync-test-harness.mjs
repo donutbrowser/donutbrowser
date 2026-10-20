@@ -150,6 +150,17 @@ async function startS3(bin) {
   return proc;
 }
 
+// tsrs ships binaries for macOS arm64 and Linux only. Where it cannot run
+// (Windows), tsc builds the same config.
+function donutSyncBuildCommand(syncDir) {
+  try {
+    execSync("pnpm exec tsrs --version", { cwd: syncDir, stdio: "ignore" });
+    return "pnpm build";
+  } catch {
+    return "pnpm exec tsc -p tsconfig.build.json --incremental false";
+  }
+}
+
 async function buildDonutSync() {
   log("Building donut-sync...");
   // An incremental build silently skips emit when
@@ -160,7 +171,7 @@ async function buildDonutSync() {
     force: true,
   });
   await rm(path.join(syncDir, "dist"), { recursive: true, force: true });
-  execSync("pnpm build", {
+  execSync(donutSyncBuildCommand(syncDir), {
     cwd: syncDir,
     stdio: process.env.VERBOSE ? "inherit" : "ignore",
   });
