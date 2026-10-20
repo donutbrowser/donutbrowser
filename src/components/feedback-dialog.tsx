@@ -6,9 +6,11 @@ import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  LuBot,
   LuBug,
   LuCheck,
   LuChevronRight,
+  LuCopy,
   LuFileText,
   LuHeart,
   LuLightbulb,
@@ -37,6 +39,7 @@ import { translateBackendError } from "@/lib/backend-errors";
 import { formatBytes } from "@/lib/format-bytes";
 import { MOTION_SPRING_POSITION } from "@/lib/motion";
 import { isMacOS } from "@/lib/platform";
+import { showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import { RippleButton } from "./ui/ripple";
 
@@ -44,6 +47,9 @@ import { RippleButton } from "./ui/ripple";
 const MAX_MESSAGE_CHARS = 5000;
 /** The counter shows once the message gets this close to the limit. */
 const COUNTER_FROM = MAX_MESSAGE_CHARS - 500;
+/** The playbook a connected agent follows; `get_diagnostics` names it too. */
+const TRIAGE_PLAYBOOK_URL =
+  "https://raw.githubusercontent.com/donutbrowser/donutbrowser/main/docs/TRIAGE.md";
 
 const KINDS: {
   id: FeedbackKind;
@@ -140,6 +146,23 @@ export function FeedbackDialog({
     if (!previewOpen || logs === null || !previewRef.current) return;
     previewRef.current.scrollTop = previewRef.current.scrollHeight;
   }, [logs, previewOpen]);
+
+  // A connected agent investigates, then sends the report with send_feedback.
+  const copyTriagePrompt = useCallback(async () => {
+    const problem = message.trim();
+    const prompt = [
+      t("feedback.triage.prompt", { url: TRIAGE_PLAYBOOK_URL }),
+      problem && t("feedback.triage.problem", { message: problem }),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    try {
+      await navigator.clipboard.writeText(prompt);
+      showSuccessToast(t("feedback.triage.copied"), { sound: "copy" });
+    } catch (err) {
+      console.error("Failed to copy the triage prompt:", err);
+    }
+  }, [message, t]);
 
   const handleClose = useCallback(() => {
     if (sent) {
@@ -384,6 +407,35 @@ export function FeedbackDialog({
                     </div>
                   )}
                 </div>
+
+                {kind === "bug" && (
+                  <div
+                    data-slot="feedback-agent-triage"
+                    className="flex items-start gap-3 rounded-lg bg-foreground/5 p-3"
+                  >
+                    <LuBot
+                      className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <div className="grid min-w-0 flex-1 gap-0.5">
+                      <p className="text-sm font-medium">
+                        {t("feedback.triage.label")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("feedback.triage.description")}
+                      </p>
+                    </div>
+                    <RippleButton
+                      variant="soft"
+                      size="sm"
+                      data-slot="feedback-copy-triage"
+                      onClick={() => void copyTriagePrompt()}
+                    >
+                      <LuCopy className="size-3.5" aria-hidden="true" />
+                      {t("feedback.triage.copy")}
+                    </RippleButton>
+                  </div>
+                )}
 
                 {accountEmail ? (
                   <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">

@@ -4513,6 +4513,14 @@
       "loading": "正在读取日志…",
       "empty": "暂无日志。"
     },
+    "triage": {
+      "label": "让 AI 代理查找原因",
+      "description": "复制一段提示词，交给已连接 Donut Browser 的 AI 代理。代理会读取日志、寻找解决办法，并在你同意后发送这份报告。",
+      "copy": "复制提示词",
+      "copied": "提示词已复制。请粘贴到你的代理中。",
+      "prompt": "请使用 Donut Browser 的 MCP 工具，查明 Donut Browser 为什么没有按我预期的方式工作。按照 {{url}} 上的排查手册操作：问我出了什么问题，调用 get_diagnostics，检查是否有新版本和已知问题，并帮我解决问题。用 send_feedback 发送报告之前，先给我看。",
+      "problem": "我看到的情况：{{message}}"
+    },
     "email": {
       "label": "用于回复的邮箱",
       "optional": "可选",

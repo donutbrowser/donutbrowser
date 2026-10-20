@@ -4561,6 +4561,14 @@
       "loading": "Lecture des journaux…",
       "empty": "Il n'y a pas encore de journaux."
     },
+    "triage": {
+      "label": "Laisser un agent IA trouver la cause",
+      "description": "Copiez un prompt pour un agent IA connecté à Donut Browser. L'agent lit les journaux, cherche une solution et envoie ce rapport après votre accord.",
+      "copy": "Copier le prompt",
+      "copied": "Prompt copié. Collez-le dans votre agent.",
+      "prompt": "Utilise les outils MCP de Donut Browser pour trouver pourquoi Donut Browser ne fonctionne pas comme prévu. Suis le guide de diagnostic à l'adresse {{url}} : demande-moi ce qui ne va pas, appelle get_diagnostics, cherche une version plus récente et les problèmes connus, et aide-moi à corriger le problème. Montre-moi le rapport avant de l'envoyer avec send_feedback.",
+      "problem": "Ce que j'ai vu : {{message}}"
+    },
     "email": {
       "label": "E-mail pour la réponse",
       "optional": "Facultatif",

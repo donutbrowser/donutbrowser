@@ -4561,6 +4561,14 @@
       "loading": "Leyendo registros…",
       "empty": "Todavía no hay registros."
     },
+    "triage": {
+      "label": "Deja que un agente de IA encuentre la causa",
+      "description": "Copia un prompt para un agente de IA conectado a Donut Browser. El agente lee los registros, busca una solución y envía este informe cuando des tu aprobación.",
+      "copy": "Copiar prompt",
+      "copied": "Prompt copiado. Pégalo en tu agente.",
+      "prompt": "Usa las herramientas MCP de Donut Browser para averiguar por qué Donut Browser no funciona como espero. Sigue la guía de diagnóstico en {{url}}: pregúntame qué salió mal, llama a get_diagnostics, busca una versión más nueva y problemas conocidos, y ayúdame a resolver el problema. Muéstrame el informe antes de enviarlo con send_feedback.",
+      "problem": "Lo que vi: {{message}}"
+    },
     "email": {
       "label": "Correo para responderte",
       "optional": "Opcional",

@@ -4513,6 +4513,14 @@
       "loading": "Protokolle werden gelesen…",
       "empty": "Es gibt noch keine Protokolle."
     },
+    "triage": {
+      "label": "Ursache von einem KI-Agenten finden lassen",
+      "description": "Kopiere einen Prompt für einen KI-Agenten, der mit Donut Browser verbunden ist. Der Agent liest die Protokolle, sucht nach einer Lösung und sendet diesen Bericht, wenn du zustimmst.",
+      "copy": "Prompt kopieren",
+      "copied": "Prompt kopiert. Füge ihn in deinen Agenten ein.",
+      "prompt": "Nutze die MCP-Tools von Donut Browser, um herauszufinden, warum Donut Browser nicht wie erwartet funktioniert. Folge dem Triage-Leitfaden unter {{url}}: Frag mich, was schiefgelaufen ist, rufe get_diagnostics auf, suche nach einer neueren Version und bekannten Problemen und hilf mir, das Problem zu beheben. Zeig mir den Bericht, bevor du ihn mit send_feedback sendest.",
+      "problem": "Was ich gesehen habe: {{message}}"
+    },
     "email": {
       "label": "E-Mail für eine Antwort",
       "optional": "Optional",

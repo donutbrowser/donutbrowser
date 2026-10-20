@@ -4513,6 +4513,14 @@
       "loading": "Đang đọc nhật ký…",
       "empty": "Chưa có nhật ký nào."
     },
+    "triage": {
+      "label": "Để tác nhân AI tìm nguyên nhân",
+      "description": "Sao chép một lời nhắc cho tác nhân AI đã kết nối với Donut Browser. Tác nhân đọc nhật ký, tìm cách khắc phục và gửi báo cáo này sau khi bạn đồng ý.",
+      "copy": "Sao chép lời nhắc",
+      "copied": "Đã sao chép lời nhắc. Hãy dán vào tác nhân của bạn.",
+      "prompt": "Hãy dùng các công cụ MCP của Donut Browser để tìm hiểu vì sao Donut Browser không hoạt động như tôi mong đợi. Làm theo hướng dẫn phân loại tại {{url}}: hỏi tôi chuyện gì đã xảy ra, gọi get_diagnostics, tìm phiên bản mới hơn và các sự cố đã biết, rồi giúp tôi khắc phục. Cho tôi xem báo cáo trước khi gửi bằng send_feedback.",
+      "problem": "Những gì tôi thấy: {{message}}"
+    },
     "email": {
       "label": "Email để nhận phản hồi",
       "optional": "Không bắt buộc",

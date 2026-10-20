@@ -4513,6 +4513,14 @@
       "loading": "로그를 읽는 중…",
       "empty": "아직 로그가 없습니다."
     },
+    "triage": {
+      "label": "AI 에이전트에게 원인 찾기 맡기기",
+      "description": "Donut Browser에 연결된 AI 에이전트용 프롬프트를 복사합니다. 에이전트가 로그를 읽고 해결책을 찾은 뒤, 동의하면 이 보고서를 보냅니다.",
+      "copy": "프롬프트 복사",
+      "copied": "프롬프트를 복사했습니다. 에이전트에 붙여 넣으세요.",
+      "prompt": "Donut Browser MCP 도구를 사용해 Donut Browser가 예상대로 동작하지 않는 이유를 찾아 주세요. {{url}}의 분류 가이드를 따르세요. 무엇이 잘못됐는지 저에게 묻고, get_diagnostics를 호출하고, 새 버전과 알려진 문제를 확인한 뒤 문제 해결을 도와주세요. send_feedback으로 보내기 전에 보고서를 저에게 보여 주세요.",
+      "problem": "제가 본 내용: {{message}}"
+    },
     "email": {
       "label": "답장 받을 이메일",
       "optional": "선택 사항",

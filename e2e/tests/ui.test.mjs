@@ -7166,12 +7166,30 @@ test("feedback goes from the More menu to the team, with the logs the person pre
 
         await app.capture("feedback-open");
 
-        // A bug brings the logs; an idea does not, until the person decides.
+        // A bug brings the logs and the agent triage; an idea does not,
+        // until the person decides.
         assert.equal(await feedbackLogsSwitch(app), "checked");
+        assert.ok(await app.visibleTextIncludes(en.feedback.triage.label));
+        await app.execute(
+          `window.__copied = [];
+           navigator.clipboard.writeText = async (text) => { window.__copied.push(text); };`,
+        );
+        await app.clickSelector('[data-slot="feedback-copy-triage"]');
+        await app.waitForText(en.feedback.triage.copied);
+        const [triagePrompt] = await app.execute(`return window.__copied;`);
+        assert.ok(triagePrompt.includes("/docs/TRIAGE.md"), triagePrompt);
+        assert.ok(triagePrompt.includes("get_diagnostics"), triagePrompt);
         await app.clickSelector(
           '[data-slot="feedback-kind"][data-kind="idea"]',
         );
         assert.equal(await feedbackLogsSwitch(app), "unchecked");
+        assert.equal(
+          await app.execute(
+            `return Boolean(document.querySelector('[data-slot="feedback-agent-triage"]'));`,
+          ),
+          false,
+          "an idea has no agent triage",
+        );
         assert.equal(
           await app.execute(
             `return document.querySelector('[data-slot="feedback-message"]').placeholder;`,

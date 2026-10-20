@@ -70,6 +70,7 @@ pub const TOOLSETS: &[(&str, &[&str])] = &[
       "get_human_updates",
       "report_progress",
       "send_feedback",
+      "get_diagnostics",
     ],
   ),
   (

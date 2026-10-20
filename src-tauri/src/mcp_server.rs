@@ -6394,7 +6394,7 @@ impl McpServer {
       },
       McpTool {
         name: "send_feedback".to_string(),
-        description: "Send feedback about Donut Browser to the Donut team: a tool that failed or behaved unexpectedly, a capability you needed and did not find, a confusing result, or something that worked well. Say what you tried, what happened, and what you expected. Set include_logs to attach the recent app logs, which help with bugs and never contain profile names, visited URLs or credentials. The person at this computer sees what you sent. Returns {sent: true, feedback_id}.".to_string(),
+        description: "Send feedback about Donut Browser to the Donut team: a tool that failed or behaved unexpectedly, a capability you needed and did not find, a confusing result, or something that worked well. Say what you tried, what happened, and what you expected. Set include_logs to attach what get_diagnostics returns: facts about this install and the recent app and proxy worker logs, which help with bugs and never contain profile names, visited URLs or credentials. The person at this computer sees what you sent. Returns {sent: true, feedback_id}.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -6407,6 +6407,16 @@ impl McpServer {
             "include_logs": { "type": "boolean", "description": "Attach the recent app logs (default: false)" }
           },
           "required": ["message"]
+        }),
+      },
+      McpTool {
+        name: "get_diagnostics".to_string(),
+        description: "Read what a bug report would attach, to find out why Donut Browser misbehaves: facts about this install (version, OS, install kind, account plan, sync, installed Wayfern versions, running browsers and proxy workers, one line per profile) and the newest app and proxy worker log lines. Profiles, proxies, VPNs and groups appear as aliases such as profile-3, the same in the facts and the logs; names, emails, IP addresses, web addresses and secrets are removed. Use it when the person reports a problem: follow the triage playbook at https://raw.githubusercontent.com/donutbrowser/donutbrowser/main/docs/TRIAGE.md, then report with send_feedback (include_logs: true). Returns {diagnostics}.".to_string(),
+        input_schema: serde_json::json!({
+          "type": "object",
+          "properties": {
+            "max_kb": { "type": "integer", "minimum": 8, "maximum": 512, "description": "Most kilobytes to return; the newest lines are kept (default: 64)" }
+          }
         }),
       },
     ]
@@ -6722,6 +6732,7 @@ impl McpServer {
       }
       "report_progress" => Self::handle_report_progress(caller, arguments),
       "send_feedback" => self.handle_send_feedback(caller, arguments).await,
+      "get_diagnostics" => self.handle_get_diagnostics(arguments).await,
       "list_profiles" => self.handle_list_profiles(arguments).await,
       "get_profile" => self.handle_get_profile(arguments).await,
       "run_profile" => {
@@ -12116,6 +12127,36 @@ impl McpServer {
     Self::json_content(&serde_json::json!({ "ok": true }))
   }
 
+  async fn handle_get_diagnostics(
+    &self,
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    let max_kb = match arguments.get("max_kb") {
+      None | Some(serde_json::Value::Null) => 64,
+      Some(value) => value
+        .as_u64()
+        .filter(|kb| (8..=512).contains(kb))
+        .ok_or_else(|| Self::invalid_argument("max_kb must be a whole number from 8 to 512"))?,
+    };
+    let app_handle = self.inner.lock().await.app_handle.clone();
+    let Some(handle) = app_handle else {
+      return Err(McpError {
+        code: -32001,
+        message: "MCP server is not running".to_string(),
+        data: None,
+      });
+    };
+    let diagnostics =
+      crate::diagnostics::excerpt(crate::app_dirs::log_dir(&handle), max_kb as usize * 1024)
+        .await
+        .map_err(|_| McpError {
+          code: -32000,
+          message: "The app logs could not be read.".to_string(),
+          data: Some(serde_json::json!({ "code": "FEEDBACK_LOGS_UNREADABLE" })),
+        })?;
+    Self::json_content(&serde_json::json!({ "diagnostics": diagnostics }))
+  }
+
   async fn handle_send_feedback(
     &self,
     caller: McpCaller<'_>,
@@ -13044,7 +13085,7 @@ mod tests {
     // tool was added or removed on purpose.
     assert_eq!(
       tools.len(),
-      113,
+      114,
       "the tool list is a published contract; update this number deliberately"
     );
 

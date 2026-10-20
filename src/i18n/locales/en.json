@@ -4513,6 +4513,14 @@
       "loading": "Reading logs…",
       "empty": "There are no logs yet."
     },
+    "triage": {
+      "label": "Let an AI agent find the cause",
+      "description": "Copy a prompt for an AI agent that is connected to Donut Browser. The agent reads the logs, looks for a fix and sends this report after you agree.",
+      "copy": "Copy prompt",
+      "copied": "Prompt copied. Paste it into your agent.",
+      "prompt": "Use the Donut Browser MCP tools to find out why Donut Browser does not work as I expect. Follow the triage playbook at {{url}}: ask me what went wrong, call get_diagnostics, look for a newer version and known issues, and help me fix the problem. Show me the report before you send it with send_feedback.",
+      "problem": "What I saw: {{message}}"
+    },
     "email": {
       "label": "Email for a reply",
       "optional": "Optional",

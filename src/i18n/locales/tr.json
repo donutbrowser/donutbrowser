@@ -4513,6 +4513,14 @@
       "loading": "Günlükler okunuyor…",
       "empty": "Henüz günlük yok."
     },
+    "triage": {
+      "label": "Nedeni bir yapay zekâ ajanı bulsun",
+      "description": "Donut Browser'a bağlı bir yapay zekâ ajanı için bir istem kopyalayın. Ajan günlükleri okur, bir çözüm arar ve siz onayladıktan sonra bu raporu gönderir.",
+      "copy": "İstemi kopyala",
+      "copied": "İstem kopyalandı. Ajanınıza yapıştırın.",
+      "prompt": "Donut Browser'ın neden beklediğim gibi çalışmadığını bulmak için Donut Browser MCP araçlarını kullan. {{url}} adresindeki sorun giderme kılavuzunu izle: bana neyin yanlış gittiğini sor, get_diagnostics çağır, daha yeni bir sürüm ve bilinen sorunlar ara ve sorunu çözmeme yardım et. Raporu send_feedback ile göndermeden önce bana göster.",
+      "problem": "Gördüğüm: {{message}}"
+    },
     "email": {
       "label": "Yanıt için e-posta",
       "optional": "İsteğe bağlı",

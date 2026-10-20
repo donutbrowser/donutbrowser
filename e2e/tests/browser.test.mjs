@@ -809,6 +809,21 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       profile.id,
     );
 
+    // What a bug report attaches, as an agent reads it: the running profile
+    // by alias, never by id, inside the size the agent asked for.
+    const { diagnostics } = await toolJson("get_diagnostics", { max_kb: 16 });
+    assert.ok(
+      diagnostics.startsWith("===== facts =====\n"),
+      diagnostics.slice(0, 400),
+    );
+    assert.match(diagnostics, /^profile-\d+ browser=wayfern .*running=true/m);
+    assert.ok(!diagnostics.includes(profile.id));
+    assert.ok(Buffer.byteLength(diagnostics) <= 16 * 1024);
+    assert.match(
+      (await toolError("get_diagnostics", { max_kb: 1 })).message,
+      /max_kb/,
+    );
+
     // The device the profile presents, through each way it is read: the
     // fingerprint form, REST and MCP. An identity-backed profile stores no
     // device, so every read derives it, and it is what the running page reports.
