@@ -106,10 +106,7 @@ function resolvePalette(host: HTMLElement): Palette {
   return { foreground, sprinkles, ink };
 }
 
-/**
- * The mono font stack. The `font-mono` class does not reach it: the theme
- * reads --font-geist-mono at :root, and next/font sets it on body.
- */
+/** The mono font stack: a canvas takes a font string, not a CSS class. */
 function monoFamily(host: HTMLElement) {
   return (
     getComputedStyle(host).getPropertyValue("--font-geist-mono").trim() ||

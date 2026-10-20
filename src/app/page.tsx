@@ -2946,7 +2946,7 @@ export default function Home() {
       enabled={currentPage === "profiles"}
       onAssign={handleDropProfilesToGroup}
     >
-      <div className="flex h-dvh flex-col bg-background font-(family-name:--font-geist-sans)">
+      <div className="flex h-dvh flex-col bg-background">
         <CloseConfirmDialog />
         <HomeHeader
           onCreateProfileDialogOpen={(open) =>
