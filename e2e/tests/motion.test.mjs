@@ -2097,6 +2097,15 @@ test("About shows diagnostics and hides a donut lab that takes bites inside the 
         const node = document.querySelector('[data-slot="donut-lab"]');
         return node ? { bites: Number(node.dataset.bites), state: node.dataset.state } : null;
       `);
+    // Captures show the finished donut, not the reveal out of the logo.
+    const labReady = () =>
+      app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="donut-lab"]')?.dataset.phase === "ready";`,
+          ),
+        { description: "the donut at rest after its reveal" },
+      );
 
     await openAbout();
     const system = await app.invoke("get_system_info");
@@ -2172,6 +2181,7 @@ test("About shows diagnostics and hides a donut lab that takes bites inside the 
       "the lab covers the About content",
     );
     assert.deepEqual(await lab(), { bites: 0, state: "whole" });
+    await labReady();
     await app.capture("donut-lab");
 
     await app.clickSelector(`${slot("donut-lab")} canvas`);
@@ -2227,6 +2237,7 @@ test("About shows diagnostics and hides a donut lab that takes bites inside the 
     await resize(app, 640, 400);
     await assertContained(app, '[role="dialog"]');
     await assertContained(app, slot("donut-lab"));
+    await labReady();
     await app.capture("donut-lab-small");
   });
 });

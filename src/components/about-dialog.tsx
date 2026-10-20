@@ -124,7 +124,11 @@ export function AboutDialog({
   const [licenseQuery, setLicenseQuery] = useState("");
   const [check, setCheck] = useState<CheckState>("idle");
   const [copied, setCopied] = useState(false);
-  const [lab, setLab] = useState<{ x: number; y: number } | null>(null);
+  const [lab, setLab] = useState<{
+    x: number;
+    y: number;
+    size: number;
+  } | null>(null);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const logoRef = useRef<HTMLButtonElement>(null);
@@ -245,7 +249,11 @@ export function AboutDialog({
       clicks.length = 0;
       const rect = logo.getBoundingClientRect();
       contentRef.current?.scrollTo({ top: 0 });
-      setLab({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+      setLab({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        size: rect.width,
+      });
       return;
     }
     // Each press squeezes a little harder, as if something were inside.
@@ -486,8 +494,7 @@ export function AboutDialog({
                 </nav>
               </div>
 
-              <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border pt-3 text-[11px] text-muted-foreground">
-                <p>{t("about.footer")}</p>
+              <footer className="flex items-center justify-end border-t border-border pt-3 text-[11px] text-muted-foreground">
                 <LinkButton onClick={() => void openUrl(REPOSITORY_URL)}>
                   <LuGithub aria-hidden="true" className="size-3.5" />
                   {t("about.sourceCode")}

@@ -19,24 +19,39 @@ import {
   addBite,
   type Bite,
   bakeDonut,
+  type CellMetrics,
+  CRUMB_GLYPHS,
+  type Crumb,
+  centerLens,
+  crumbAlpha,
+  DEFAULT_CELL,
   type Donut,
   type Frame,
   findBiteTarget,
+  forEachGlyph,
+  forEachRun,
+  GLYPHS,
   type Grid,
   isEaten,
   KIND_CRUMB,
   KIND_DOUGH,
-  KIND_EMPTY,
   KIND_GLAZE,
   KIND_SPRINKLE,
   layoutGrid,
+  MAX_FLICK,
   type Mat3,
+  type Momentum,
   materialAt,
+  type Pose,
+  REVEAL_MS,
+  type RevealOrigin,
   remainingShare,
   renderFrame,
+  revealPose,
   SPRINKLE_COLORS,
   START_ORIENTATION,
-  spin,
+  spinStep,
+  stepCrumbs,
   turn,
 } from "@/lib/donut-lab";
 import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
@@ -46,36 +61,15 @@ import { cn } from "@/lib/utils";
 /** Radians per pixel of drag, and per arrow key press. */
 const DRAG_TURN = 0.011;
 const KEY_TURN = 0.26;
-/** Radians per second the donut turns on its own axis when left alone. */
-const IDLE_SPIN = 0.55;
-/** How fast a flick slows down, per second. */
-const FRICTION = 2.6;
-const MAX_FLICK = 9;
-const ASSEMBLY_MS = 700;
 const CHOMP_MS = 140;
-const GRAVITY = 1100;
-const CRUMB_GLYPHS = ".,'`:;*";
-const SCRAMBLE = "@%#*+=-:.";
-const TARGET_COLS = 64;
-
-type Assembly = {
-  start: number;
-  /** "burst": out of the logo. "rings": in from rings around the view. */
-  mode: "burst" | "rings";
-  x: number;
-  y: number;
-};
-
-interface Crumb {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  char: string;
-  kind: number;
-  age: number;
-  life: number;
-}
+/** The longest step the clock takes between two frames, in seconds. */
+const MAX_STEP = 0.1;
+/** Ends the reveal when frames stop coming (a paused webview). */
+const REVEAL_FALLBACK_MS = REVEAL_MS + 400;
+/** The logo's size, when the opener does not give it. */
+const LOGO_SIZE = 56;
+const MONO_FALLBACK =
+  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace';
 
 interface Palette {
   foreground: string;
@@ -112,14 +106,46 @@ function resolvePalette(host: HTMLElement): Palette {
   return { foreground, sprinkles, ink };
 }
 
-function easeOut(t: number) {
-  return 1 - (1 - t) ** 3;
+/**
+ * The mono font stack. The `font-mono` class does not reach it: the theme
+ * reads --font-geist-mono at :root, and next/font sets it on body.
+ */
+function monoFamily(host: HTMLElement) {
+  return (
+    getComputedStyle(host).getPropertyValue("--font-geist-mono").trim() ||
+    MONO_FALLBACK
+  );
 }
 
-/** A stable pseudo-random 0..1 for a cell, changing every `tick`. */
-function flicker(index: number, tick: number) {
-  const n = Math.sin(index * 12.9898 + tick * 78.233) * 43758.5453;
-  return n - Math.floor(n);
+/**
+ * The cell of the font the canvas draws with: its widest glyph, its line, and
+ * whether every glyph has the same advance.
+ */
+function measureCell(
+  context: CanvasRenderingContext2D,
+  family: string,
+): CellMetrics {
+  context.font = `100px ${family}`;
+  let widest = 0;
+  let narrowest = Number.POSITIVE_INFINITY;
+  for (const char of GLYPHS) {
+    const width = context.measureText(char).width;
+    widest = Math.max(widest, width);
+    narrowest = Math.min(narrowest, width);
+  }
+  const metrics = context.measureText("M");
+  const line =
+    (metrics.fontBoundingBoxAscent ?? 0) +
+    (metrics.fontBoundingBoxDescent ?? 0);
+  return {
+    advance: widest / 100 || DEFAULT_CELL.advance,
+    lineHeight: line > 0 ? line / 100 : DEFAULT_CELL.lineHeight,
+    mono: widest > 0 && widest - narrowest < 0.2,
+  };
+}
+
+function easeOut(t: number) {
+  return 1 - (1 - t) ** 3;
 }
 
 const KIND_ALPHA: Record<number, number> = {
@@ -129,14 +155,15 @@ const KIND_ALPHA: Record<number, number> = {
 };
 
 interface DonutLabProps {
-  /** The logo's center in client pixels: the donut grows out of it. */
-  origin: { x: number; y: number } | null;
+  /** The logo's center (and width) in client pixels: the donut comes out of it. */
+  origin: { x: number; y: number; size?: number } | null;
   onClose: () => void;
 }
 
 /**
  * The About easter egg: a donut drawn in text, ray marched live. Drag to
  * turn it, click or press Space to bite it, bake another when it is gone.
+ * Every motion runs on one clock that advances with frame time.
  */
 export function DonutLab({ origin, onClose }: DonutLabProps) {
   const { t } = useTranslation();
@@ -149,8 +176,7 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
   const donutRef = useRef<Donut | null>(null);
   donutRef.current ??= bakeDonut();
   const orientationRef = useRef<Mat3>(START_ORIENTATION);
-  const flickRef = useRef({ x: 0, y: 0 });
-  const idleRef = useRef(1);
+  const momentumRef = useRef<Momentum>({ x: 0, y: 0, idle: 1 });
   const dragRef = useRef<{
     id: number;
     x: number;
@@ -163,17 +189,22 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
   const suppressClickRef = useRef(false);
   const crumbsRef = useRef<Crumb[]>([]);
   const chompRef = useRef<{ bite: Bite; start: number } | null>(null);
-  const assemblyRef = useRef<Assembly | null>(null);
+  /** Milliseconds of animation so far: frame time, each step clamped. */
+  const clockRef = useRef(0);
+  const lastFrameRef = useRef<number | null>(null);
+  const revealRef = useRef<{ start: number; origin: RevealOrigin } | null>(
+    null,
+  );
+  const revealTimerRef = useRef(0);
+  const poseRef = useRef<Pose | null>(null);
   const layoutRef = useRef<{
     grid: Grid;
-    fontSize: number;
     font: string;
-    dpr: number;
+    mono: boolean;
   } | null>(null);
   const frameRef = useRef<Frame | null>(null);
   const paletteRef = useRef<Palette | null>(null);
   const rafRef = useRef(0);
-  const lastTickRef = useRef(0);
   const motionRef = useRef({ reducedMotion, motionAllowed });
   motionRef.current = { reducedMotion, motionAllowed };
 
@@ -181,237 +212,202 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
   const [left, setLeft] = useState(100);
   const [eaten, setEaten] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [phase, setPhase] = useState<"reveal" | "ready">(() =>
+    origin && motionAllowed ? "reveal" : "ready",
+  );
 
-  const draw = useCallback((now: number) => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const layout = layoutRef.current;
     const palette = paletteRef.current;
-    const context = canvas?.getContext("2d");
-    if (!canvas || !layout || !palette || !context) return;
-    const { grid, font, dpr } = layout;
     const donut = donutRef.current;
-    if (!donut) return;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !layout || !palette || !donut || !context) return;
+    const { grid, font, mono } = layout;
+    const reveal = revealRef.current;
+    const pose = revealPose(
+      orientationRef.current,
+      grid,
+      reveal?.origin ?? null,
+      reveal ? clockRef.current - reveal.start : Number.POSITIVE_INFINITY,
+    );
+    poseRef.current = pose;
     const frame = renderFrame(
       donut,
-      orientationRef.current,
+      pose.orientation,
       grid,
       palette.ink,
       frameRef.current ?? undefined,
+      pose.lens,
     );
     frameRef.current = frame;
-    context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    context.clearRect(0, 0, grid.width, grid.height);
+
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.globalAlpha = 1;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.setTransform(
+      canvas.width / grid.width,
+      0,
+      0,
+      canvas.height / grid.height,
+      0,
+      0,
+    );
     context.font = font;
+    context.fontKerning = "none";
     context.textBaseline = "middle";
-    context.textAlign = "left";
     const colorOf = (kind: number) =>
       kind >= KIND_SPRINKLE
         ? palette.sprinkles[kind - KIND_SPRINKLE]
         : palette.foreground;
-    const alphaOf = (kind: number) => KIND_ALPHA[kind] ?? 1;
-
-    const assembly = assemblyRef.current;
-    const progress = assembly
-      ? Math.min(1, (now - assembly.start) / ASSEMBLY_MS)
-      : 1;
-    if (assembly && progress < 1) {
-      // Every character flies to its place: out of the logo, or in from
-      // rings around the view, still scrambled until it lands.
-      const cx = grid.width / 2;
-      const cy = grid.height / 2;
-      const reach = Math.hypot(cx, cy);
-      const tick = Math.floor(now / 45);
-      for (
-        let kind = KIND_DOUGH;
-        kind < KIND_SPRINKLE + SPRINKLE_COLORS;
-        kind++
-      ) {
-        context.fillStyle = colorOf(kind);
-        for (let i = 0; i < frame.kinds.length; i++) {
-          if (frame.kinds[i] !== kind) continue;
-          const col = i % grid.cols;
-          const row = (i - col) / grid.cols;
-          const fx = grid.offsetX + (col + 0.5) * grid.cellWidth;
-          const fy = grid.offsetY + (row + 0.5) * grid.cellHeight;
-          const distance = Math.hypot(fx - cx, fy - cy) / reach;
-          const delay =
-            (assembly.mode === "burst" ? distance : 1 - distance) * 0.35;
-          const local = easeOut(
-            Math.min(1, Math.max(0, (progress - delay) / 0.65)),
-          );
-          let x: number;
-          let y: number;
-          if (assembly.mode === "burst") {
-            const sx = assembly.x + (fx - assembly.x) * 0.15;
-            const sy = assembly.y + (fy - assembly.y) * 0.15;
-            x = sx + (fx - sx) * local;
-            y = sy + (fy - sy) * local;
-          } else {
-            const angle = Math.atan2(fy - cy, fx - cx) + 0.9 * (1 - local);
-            const radius =
-              Math.hypot(fx - cx, fy - cy) + reach * 0.6 * (1 - local);
-            x = cx + Math.cos(angle) * radius;
-            y = cy + Math.sin(angle) * radius;
-          }
-          const char =
-            local < 0.75
-              ? SCRAMBLE[Math.floor(flicker(i, tick) * SCRAMBLE.length)]
-              : frame.chars[i];
-          context.globalAlpha = alphaOf(kind) * (0.55 + 0.45 * local);
-          context.fillText(char, x - grid.cellWidth / 2, y);
-        }
-      }
-    } else {
-      if (assembly) assemblyRef.current = null;
-      // One string per row and color: spaces keep the columns.
-      const rowChars = Array.from(
-        { length: KIND_SPRINKLE + SPRINKLE_COLORS },
-        () => new Array<string>(grid.cols),
-      );
-      const used = new Array<boolean>(KIND_SPRINKLE + SPRINKLE_COLORS);
-      for (let row = 0; row < grid.rows; row++) {
-        used.fill(false);
-        for (const chars of rowChars) chars.fill(" ");
-        for (let col = 0; col < grid.cols; col++) {
-          const i = row * grid.cols + col;
-          const kind = frame.kinds[i];
-          if (kind === KIND_EMPTY) continue;
-          rowChars[kind][col] = frame.chars[i];
-          used[kind] = true;
-        }
-        const y = grid.offsetY + (row + 0.5) * grid.cellHeight;
-        for (let kind = KIND_DOUGH; kind < rowChars.length; kind++) {
-          if (!used[kind]) continue;
-          context.fillStyle = colorOf(kind);
-          context.globalAlpha = alphaOf(kind);
-          context.fillText(rowChars[kind].join(""), grid.offsetX, y);
-        }
-      }
+    // Glyphs stay in their cells: a monospace font draws runs of cells from
+    // their left edge, any other font draws each glyph at its cell's center.
+    context.textAlign = mono ? "left" : "center";
+    const fill = (text: string, x: number, y: number) => {
+      context.fillText(text, x, y);
+    };
+    for (
+      let kind = KIND_DOUGH;
+      kind < KIND_SPRINKLE + SPRINKLE_COLORS;
+      kind++
+    ) {
+      context.fillStyle = colorOf(kind);
+      context.globalAlpha = KIND_ALPHA[kind] ?? 1;
+      if (mono) forEachRun(frame, grid, fill, kind);
+      else forEachGlyph(frame, grid, fill, kind);
     }
-
+    context.textAlign = "center";
     for (const crumb of crumbsRef.current) {
       context.fillStyle = colorOf(crumb.kind);
-      context.globalAlpha =
-        alphaOf(crumb.kind) * Math.min(1, (crumb.life - crumb.age) / 0.4);
+      context.globalAlpha = (KIND_ALPHA[crumb.kind] ?? 1) * crumbAlpha(crumb);
       context.fillText(crumb.char, crumb.x, crumb.y);
     }
     context.globalAlpha = 1;
   }, []);
 
+  const finishReveal = useCallback(() => {
+    window.clearTimeout(revealTimerRef.current);
+    if (!revealRef.current) return;
+    revealRef.current = null;
+    setPhase("ready");
+  }, []);
+
   const needsFrames = useCallback(() => {
-    const flick = flickRef.current;
+    const momentum = momentumRef.current;
     return (
       !motionRef.current.reducedMotion ||
-      Math.abs(flick.x) + Math.abs(flick.y) > 0.01 ||
+      momentum.x !== 0 ||
+      momentum.y !== 0 ||
       crumbsRef.current.length > 0 ||
       chompRef.current !== null ||
-      assemblyRef.current !== null
+      revealRef.current !== null
     );
   }, []);
 
   const tick = useCallback(
     (now: number) => {
       rafRef.current = 0;
-      const dt = Math.min(
-        0.05,
-        Math.max(0, (now - lastTickRef.current) / 1000),
-      );
-      lastTickRef.current = now;
-      const { reducedMotion: reduced } = motionRef.current;
+      const last = lastFrameRef.current;
+      lastFrameRef.current = now;
+      const dt =
+        last === null
+          ? 0
+          : Math.min(MAX_STEP, Math.max(0, (now - last) / 1000));
+      clockRef.current += dt * 1000;
+      const clock = clockRef.current;
 
       if (!dragRef.current?.moved) {
-        const flick = flickRef.current;
-        let m = orientationRef.current;
-        if (Math.abs(flick.x) + Math.abs(flick.y) > 0.01) {
-          m = turn(m, flick.x * dt, flick.y * dt);
-          const decay = Math.exp(-FRICTION * dt);
-          flick.x *= decay;
-          flick.y *= decay;
-        } else {
-          flick.x = 0;
-          flick.y = 0;
-        }
-        if (!reduced) {
-          idleRef.current = Math.min(1, idleRef.current + dt * 0.8);
-          m = spin(m, IDLE_SPIN * idleRef.current * dt);
-        }
-        orientationRef.current = m;
+        orientationRef.current = spinStep(
+          orientationRef.current,
+          momentumRef.current,
+          dt,
+          !motionRef.current.reducedMotion,
+        );
       }
+
+      const reveal = revealRef.current;
+      if (reveal && clock - reveal.start >= REVEAL_MS) finishReveal();
 
       const chomp = chompRef.current;
       if (chomp) {
-        const p = Math.min(1, (now - chomp.start) / CHOMP_MS);
+        const p = Math.min(1, (clock - chomp.start) / CHOMP_MS);
         chomp.bite.grow = 0.35 + 0.65 * easeOut(p);
         if (p >= 1) chompRef.current = null;
       }
 
       const layout = layoutRef.current;
       if (layout && crumbsRef.current.length > 0) {
-        const floor = layout.grid.height - layout.grid.cellHeight * 0.6;
-        crumbsRef.current = crumbsRef.current.filter((crumb) => {
-          crumb.age += dt;
-          crumb.vy += GRAVITY * dt;
-          crumb.x += crumb.vx * dt;
-          crumb.y += crumb.vy * dt;
-          if (crumb.y > floor) {
-            crumb.y = floor;
-            crumb.vy = Math.abs(crumb.vy) < 60 ? 0 : -crumb.vy * 0.3;
-            crumb.vx *= 0.55;
-          }
-          return crumb.age < crumb.life;
-        });
+        crumbsRef.current = stepCrumbs(
+          crumbsRef.current,
+          dt,
+          layout.grid.height - layout.grid.cellHeight * 0.6,
+        );
       }
 
-      draw(now);
+      draw();
       if (document.visibilityState === "visible" && needsFrames()) {
         rafRef.current = requestAnimationFrame(tick);
       }
     },
-    [draw, needsFrames],
+    [draw, finishReveal, needsFrames],
   );
 
   /** Draws now, and keeps drawing while something moves. */
   const wake = useCallback(() => {
-    const now = performance.now();
-    draw(now);
+    draw();
     if (
       !rafRef.current &&
       document.visibilityState === "visible" &&
       needsFrames()
     ) {
-      lastTickRef.current = now;
+      lastFrameRef.current = null;
       rafRef.current = requestAnimationFrame(tick);
     }
   }, [draw, needsFrames, tick]);
 
-  // Size the canvas to its box and lay the character grid over it.
+  /** Starts the donut at `start` (canvas pixels), or at rest when motion is off. */
+  const startReveal = useCallback(
+    (start: RevealOrigin | null) => {
+      window.clearTimeout(revealTimerRef.current);
+      if (!start || !motionRef.current.motionAllowed) {
+        revealRef.current = null;
+        setPhase("ready");
+        return;
+      }
+      revealRef.current = { start: clockRef.current, origin: start };
+      setPhase("reveal");
+      revealTimerRef.current = window.setTimeout(() => {
+        finishReveal();
+        draw();
+      }, REVEAL_FALLBACK_MS);
+    },
+    [draw, finishReveal],
+  );
+
+  // Size the canvas to its box, in device pixels, and lay the grid over it
+  // again whenever the box, the pixel ratio or the font changes.
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const host = hostRef.current;
-    if (!canvas || !host) return;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !host || !context) return;
     paletteRef.current = resolvePalette(host);
-    const family = getComputedStyle(canvas).fontFamily || "monospace";
-    const measure = canvas.getContext("2d");
-    if (measure) measure.font = `100px ${family}`;
-    let advance = (measure?.measureText("M").width ?? 60) / 100;
+    const family = monoFamily(host);
+    let cell = measureCell(context, family);
     const resize = () => {
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
       if (width === 0 || height === 0) return;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      const { grid, fontSize } = layoutGrid(
-        width,
-        height,
-        advance,
-        TARGET_COLS,
-      );
+      const backingWidth = Math.max(1, Math.round(width * dpr));
+      const backingHeight = Math.max(1, Math.round(height * dpr));
+      if (canvas.width !== backingWidth) canvas.width = backingWidth;
+      if (canvas.height !== backingHeight) canvas.height = backingHeight;
+      const { grid, fontSize } = layoutGrid(width, height, cell);
       layoutRef.current = {
         grid,
-        fontSize,
         font: `${fontSize}px ${family}`,
-        dpr,
+        mono: cell.mono === true,
       };
       frameRef.current = null;
       wake();
@@ -419,33 +415,59 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
-    // Measure again once the mono font is in, if it was not yet.
-    let alive = true;
-    void document.fonts?.load(`16px ${family}`).then(() => {
-      if (!alive || !measure) return;
-      measure.font = `100px ${family}`;
-      advance = measure.measureText("M").width / 100 || advance;
+
+    let media: MediaQueryList | null = null;
+    const onPixelRatio = () => {
+      watchPixelRatio();
       resize();
-    });
+    };
+    const watchPixelRatio = () => {
+      media?.removeEventListener("change", onPixelRatio);
+      media =
+        window.matchMedia?.(
+          `(resolution: ${window.devicePixelRatio || 1}dppx)`,
+        ) ?? null;
+      media?.addEventListener("change", onPixelRatio);
+    };
+    watchPixelRatio();
+
+    // The mono font may load after the first frame: measure it again then.
+    let alive = true;
+    const remeasure = () => {
+      if (!alive) return;
+      cell = measureCell(context, family);
+      resize();
+    };
+    void document.fonts?.load(`16px ${family}`, GLYPHS).then(remeasure);
+    document.fonts?.addEventListener("loadingdone", remeasure);
     return () => {
       alive = false;
       observer.disconnect();
+      media?.removeEventListener("change", onPixelRatio);
+      document.fonts?.removeEventListener("loadingdone", remeasure);
     };
   }, [wake]);
 
-  // The donut takes the keys, and grows out of the logo the first time.
+  // The donut takes the keys, and comes out of the logo the first time.
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, on open
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     canvas?.focus({ preventScroll: true });
-    if (!canvas || !origin || !motionRef.current.motionAllowed) return;
+    if (!canvas || !origin) {
+      startReveal(null);
+      wake();
+      return;
+    }
+    // The box may be scaled by an entry animation: map client pixels to its own.
     const rect = canvas.getBoundingClientRect();
-    assemblyRef.current = {
-      start: performance.now(),
-      mode: "burst",
-      x: origin.x - rect.left,
-      y: origin.y - rect.top,
-    };
+    const scale = rect.width > 0 ? canvas.clientWidth / rect.width : 1;
+    const clamp = (value: number, max: number) =>
+      Math.min(max, Math.max(0, value));
+    startReveal({
+      x: clamp((origin.x - rect.left) * scale, canvas.clientWidth),
+      y: clamp((origin.y - rect.top) * scale, canvas.clientHeight),
+      size: (origin.size ?? LOGO_SIZE) * scale,
+    });
     wake();
   }, []);
 
@@ -462,30 +484,43 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
       document.removeEventListener("visibilitychange", onVisibility);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
+      window.clearTimeout(revealTimerRef.current);
     };
   }, [wake]);
 
   // Reduced motion stops the idle spin; a change of setting restarts frames.
   useEffect(() => {
     if (reducedMotion) {
-      flickRef.current = { x: 0, y: 0 };
+      momentumRef.current = { x: 0, y: 0, idle: 0 };
       crumbsRef.current = [];
     }
     wake();
   }, [reducedMotion, wake]);
+
+  /** Where the donut is drawn now, so a press bites what it is on. */
+  const currentPose = useCallback((grid: Grid): Pose => {
+    return (
+      poseRef.current ?? {
+        orientation: orientationRef.current,
+        lens: centerLens(grid),
+      }
+    );
+  }, []);
 
   const takeBite = useCallback(
     (x: number, y: number, reach: number) => {
       const layout = layoutRef.current;
       const donut = donutRef.current;
       if (!layout || !donut || isEaten(donut)) return;
+      const pose = currentPose(layout.grid);
       const target = findBiteTarget(
         donut,
-        orientationRef.current,
+        pose.orientation,
         layout.grid,
         x,
         y,
         reach,
+        pose.lens,
       );
       if (!target) return;
       const { material, sprinkle } = materialAt(donut, target.point);
@@ -498,7 +533,7 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
       );
       playUiSound("crunch");
       if (animate) {
-        chompRef.current = { bite, start: performance.now() };
+        chompRef.current = { bite, start: clockRef.current };
         const kind =
           material === "glaze"
             ? KIND_GLAZE
@@ -524,8 +559,8 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
           });
         }
         // The donut rocks a little under the bite.
-        flickRef.current.x += (Math.random() - 0.5) * 1.2;
-        flickRef.current.y += (Math.random() - 0.5) * 1.2;
+        momentumRef.current.x += (Math.random() - 0.5) * 1.2;
+        momentumRef.current.y += (Math.random() - 0.5) * 1.2;
       }
       const share = remainingShare(donut);
       setBites(donut.bites.length);
@@ -533,34 +568,42 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
       setEaten(isEaten(donut, share));
       wake();
     },
-    [wake],
+    [currentPose, wake],
   );
 
   const biteNearCenter = useCallback(() => {
     const layout = layoutRef.current;
     if (!layout) return;
+    const { lens } = currentPose(layout.grid);
     const { width, height } = layout.grid;
-    takeBite(width / 2, height / 2, Math.max(width, height));
-  }, [takeBite]);
+    takeBite(lens.x, lens.y, Math.max(width, height));
+  }, [currentPose, takeBite]);
 
   const bakeAnother = useCallback(() => {
     donutRef.current = bakeDonut();
     chompRef.current = null;
+    crumbsRef.current = [];
     setBites(0);
     setLeft(100);
     setEaten(false);
     const layout = layoutRef.current;
-    if (layout && motionRef.current.motionAllowed) {
-      assemblyRef.current = {
-        start: performance.now(),
-        mode: "rings",
-        x: layout.grid.width / 2,
-        y: layout.grid.height / 2,
-      };
-    }
+    // The new donut grows out of the middle.
+    startReveal(
+      layout
+        ? { x: layout.grid.width / 2, y: layout.grid.height / 2, size: 0 }
+        : null,
+    );
     canvasRef.current?.focus();
     wake();
-  }, [wake]);
+  }, [startReveal, wake]);
+
+  /** A pointer position in the canvas's own pixels, whatever its transform. */
+  const canvasPoint = (canvas: HTMLCanvasElement, x: number, y: number) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width > 0 ? canvas.clientWidth / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.clientHeight / rect.height : 1;
+    return { x: (x - rect.left) * scaleX, y: (y - rect.top) * scaleY };
+  };
 
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     if (event.button !== 0 || dragRef.current) return;
@@ -579,7 +622,6 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
       moved: false,
     };
     suppressClickRef.current = false;
-    flickRef.current = { x: 0, y: 0 };
   };
 
   const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -591,9 +633,14 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
     ) {
       return;
     }
+    const momentum = momentumRef.current;
     if (!drag.moved) {
       drag.moved = true;
       setDragging(true);
+      // The hand holds the donut: no flick, no idle spin, until it lets go.
+      momentum.x = 0;
+      momentum.y = 0;
+      momentum.idle = 0;
     }
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
@@ -607,9 +654,8 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
       dx * DRAG_TURN,
     );
     // The flick is the drag's recent speed, smoothed.
-    const flick = flickRef.current;
-    flick.x = flick.x * 0.6 + ((dy * DRAG_TURN) / dt) * 0.4;
-    flick.y = flick.y * 0.6 + ((dx * DRAG_TURN) / dt) * 0.4;
+    momentum.x = momentum.x * 0.6 + ((dy * DRAG_TURN) / dt) * 0.4;
+    momentum.y = momentum.y * 0.6 + ((dx * DRAG_TURN) / dt) * 0.4;
     wake();
   };
 
@@ -620,16 +666,15 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
     if (!drag.moved) return;
     suppressClickRef.current = true;
     setDragging(false);
-    idleRef.current = 0;
-    const flick = flickRef.current;
+    const momentum = momentumRef.current;
     // A drag that stopped before release does not fling.
     const still = event.timeStamp - drag.at > 80;
     if (motionRef.current.reducedMotion || still) {
-      flick.x = 0;
-      flick.y = 0;
+      momentum.x = 0;
+      momentum.y = 0;
     } else {
-      flick.x = Math.max(-MAX_FLICK, Math.min(MAX_FLICK, flick.x));
-      flick.y = Math.max(-MAX_FLICK, Math.min(MAX_FLICK, flick.y));
+      momentum.x = Math.max(-MAX_FLICK, Math.min(MAX_FLICK, momentum.x));
+      momentum.y = Math.max(-MAX_FLICK, Math.min(MAX_FLICK, momentum.y));
     }
     wake();
   };
@@ -644,8 +689,7 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
     const step = turns[event.key];
     if (step) {
       event.preventDefault();
-      flickRef.current = { x: 0, y: 0 };
-      idleRef.current = 0;
+      momentumRef.current = { x: 0, y: 0, idle: 0 };
       orientationRef.current = turn(orientationRef.current, ...step);
       wake();
       return;
@@ -667,11 +711,12 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
       data-slot="donut-lab"
       data-bites={bites}
       data-state={eaten ? "eaten" : "whole"}
+      data-phase={phase}
       // Readable from the first frame: the entry only settles its scale.
       initial={motionAllowed ? { scale: 0.985 } : false}
       animate={{ scale: 1 }}
       transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE_OUT }}
-      className="absolute inset-0 z-20 overflow-hidden rounded-[inherit] bg-background bg-[radial-gradient(circle_at_50%_48%,color-mix(in_oklab,var(--foreground)_7%,transparent),transparent_62%)]"
+      className="absolute inset-0 z-20 overflow-hidden rounded-[inherit] bg-background bg-[radial-gradient(circle_at_50%_50%,color-mix(in_oklab,var(--foreground)_7%,transparent),transparent_62%)]"
     >
       <canvas
         ref={canvasRef}
@@ -694,16 +739,20 @@ export function DonutLab({ origin, onClose }: DonutLabProps) {
             biteNearCenter();
             return;
           }
-          const rect = event.currentTarget.getBoundingClientRect();
+          const point = canvasPoint(
+            event.currentTarget,
+            event.clientX,
+            event.clientY,
+          );
           takeBite(
-            event.clientX - rect.left,
-            event.clientY - rect.top,
+            point.x,
+            point.y,
             Math.min(layout.grid.width, layout.grid.height) * 0.22,
           );
         }}
         onKeyDown={onKeyDown}
         className={cn(
-          "absolute inset-0 size-full touch-none font-mono outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+          "absolute inset-0 size-full touch-none outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           dragging ? "cursor-grabbing" : "cursor-grab",
         )}
       />

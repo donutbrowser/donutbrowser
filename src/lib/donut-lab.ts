@@ -1,11 +1,15 @@
 /**
  * The donut of the About easter egg: a signed distance field, a ray marcher,
- * bites carved out of the field, a mass estimate, and text shading. Pure math,
- * so it runs in node tests; the canvas lives in `donut-lab.tsx`.
+ * bites carved out of the field, a mass estimate, text shading, the character
+ * grid, and the motion (reveal, idle spin, flick, crumbs) as functions of
+ * time. Pure math, so it runs in node tests; the canvas lives in
+ * `donut-lab.tsx` and only paints what this module computes.
  *
  * Object space: the ring lies in the XZ plane around the Y axis, and +Y is the
  * glazed top. View space: +X right, +Y up, the camera on +Z looking at the
  * origin. A row-major rotation matrix turns object space into view space.
+ * Rays go through canvas pixels with one scale on both axes, so the donut is
+ * round whatever the shape of a character cell.
  */
 
 export type Vec3 = [number, number, number];
@@ -26,7 +30,7 @@ export const MINOR_RADIUS = 0.45;
 export const GLAZE_THICKNESS = 0.06;
 /** Every point of the donut, sprinkles included, lies inside this sphere. */
 export const BOUNDS_RADIUS = 1.62;
-export const MAX_STEPS = 28;
+export const MAX_STEPS = 56;
 const SLAB_BOTTOM = -MINOR_RADIUS - 0.02;
 const SLAB_TOP = MINOR_RADIUS + GLAZE_THICKNESS + 0.08;
 const HIT_DISTANCE = 0.01;
@@ -38,13 +42,24 @@ const BITE_SMOOTHING = 0.06;
 /** The donut is gone when this share of it is eaten, or after this many bites. */
 export const EATEN_SHARE = 0.85;
 export const MAX_BITES = 30;
-const CAMERA_DISTANCE = 5;
+const CAMERA_DISTANCE = 7;
 /** Half the side of the view, in object units, at the smaller canvas side. */
 const FRAME_RADIUS = 1.72;
 
 export const DOUGH_RAMP = " .:-=+*#%@";
 export const GLAZE_RAMP = " .,~;oO08@";
 export const CRUMB_RAMP = " .,:;io0&@";
+export const SPRINKLE_GLYPHS = "-/|\\o";
+/** The glyphs of the crumbs that fly off a bite. */
+export const CRUMB_GLYPHS = ".,'`:;*";
+/** Every glyph the lab draws: the widest sets the width of a cell. */
+export const GLYPHS = [
+  ...new Set(
+    DOUGH_RAMP + GLAZE_RAMP + CRUMB_RAMP + SPRINKLE_GLYPHS + CRUMB_GLYPHS,
+  ),
+]
+  .filter((char) => char !== " ")
+  .join("");
 export const SPRINKLE_COLORS = 5;
 
 export type Material = "dough" | "glaze" | "crumb" | "sprinkle";
@@ -505,6 +520,12 @@ export function rotationY(angle: number): Mat3 {
   return [c, 0, s, 0, 1, 0, -s, 0, c];
 }
 
+export function rotationZ(angle: number): Mat3 {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return [c, -s, 0, s, c, 0, 0, 0, 1];
+}
+
 /** Keeps a matrix a rotation after many small turns. */
 export function orthonormalize(m: Mat3): Mat3 {
   const x: Vec3 = [m[0], m[1], m[2]];
@@ -530,10 +551,34 @@ export function orthonormalize(m: Mat3): Mat3 {
   return [...x, ...y, ...z] as Mat3;
 }
 
-/** Turns the donut about the screen's axes: a drag, or an arrow key. */
+/** A rotation by `angle` about a unit axis. */
+export function rotationAbout(axis: Vec3, angle: number): Mat3 {
+  const [x, y, z] = axis;
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const t = 1 - c;
+  return [
+    t * x * x + c,
+    t * x * y - s * z,
+    t * x * z + s * y,
+    t * x * y + s * z,
+    t * y * y + c,
+    t * y * z - s * x,
+    t * x * z - s * y,
+    t * y * z + s * x,
+    t * z * z + c,
+  ];
+}
+
+/**
+ * Turns the donut about the screen's axes, as one turn about their sum: a
+ * drag, an arrow key, or a flick.
+ */
 export function turn(m: Mat3, aroundX: number, aroundY: number): Mat3 {
+  const angle = Math.hypot(aroundX, aroundY);
+  if (angle === 0) return m;
   return orthonormalize(
-    multiply(multiply(rotationY(aroundY), rotationX(aroundX)), m),
+    multiply(rotationAbout([aroundX / angle, aroundY / angle, 0], angle), m),
   );
 }
 
@@ -567,12 +612,36 @@ export interface View {
   height: number;
 }
 
+/** Where the donut sits on a canvas: its center in CSS pixels, and its scale. */
+export interface Lens {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/** The donut at rest: in the middle of the canvas, at full size. */
+export function centerLens(view: View): Lens {
+  return { x: view.width / 2, y: view.height / 2, zoom: 1 };
+}
+
+/** Object units per canvas pixel, the same on both axes. */
+function unitsPerPixel(view: View, lens: Lens) {
+  return (
+    (2 * FRAME_RADIUS) /
+    (Math.max(1, Math.min(view.width, view.height)) * lens.zoom)
+  );
+}
+
 /** The ray through a canvas point, in view space. */
-export function viewRay(view: View, px: number, py: number) {
-  const scale =
-    (2 * FRAME_RADIUS) / Math.max(1, Math.min(view.width, view.height));
-  const x = (px - view.width / 2) * scale;
-  const y = (view.height / 2 - py) * scale;
+export function viewRay(
+  view: View,
+  px: number,
+  py: number,
+  lens = centerLens(view),
+) {
+  const scale = unitsPerPixel(view, lens);
+  const x = (px - lens.x) * scale;
+  const y = (lens.y - py) * scale;
   const length = Math.sqrt(x * x + y * y + CAMERA_DISTANCE * CAMERA_DISTANCE);
   return {
     origin: [0, 0, CAMERA_DISTANCE] as Vec3,
@@ -581,14 +650,13 @@ export function viewRay(view: View, px: number, py: number) {
 }
 
 /** Where an object-space point lands on the canvas. */
-export function project(view: View, m: Mat3, p: Vec3) {
+export function project(view: View, m: Mat3, p: Vec3, lens = centerLens(view)) {
   const [x, y, z] = toView(m, p);
-  const scale =
-    (2 * FRAME_RADIUS) / Math.max(1, Math.min(view.width, view.height));
+  const scale = unitsPerPixel(view, lens);
   const perspective = CAMERA_DISTANCE / (CAMERA_DISTANCE - z);
   return {
-    x: view.width / 2 + (x * perspective) / scale,
-    y: view.height / 2 - (y * perspective) / scale,
+    x: lens.x + (x * perspective) / scale,
+    y: lens.y - (y * perspective) / scale,
   };
 }
 
@@ -607,8 +675,9 @@ export function surfaceAt(
   view: View,
   px: number,
   py: number,
+  lens = centerLens(view),
 ): SurfacePoint | null {
-  const ray = viewRay(view, px, py);
+  const ray = viewRay(view, px, py, lens);
   const hit = castRay(donut, toObject(m, ray.origin), toObject(m, ray.dir));
   if (!hit) return null;
   const normal = normalAt(donut, hit.point);
@@ -631,9 +700,10 @@ export function findBiteTarget(
   px: number,
   py: number,
   reach: number,
+  lens = centerLens(view),
   step = 6,
 ): (SurfacePoint & { x: number; y: number }) | null {
-  const direct = surfaceAt(donut, m, view, px, py);
+  const direct = surfaceAt(donut, m, view, px, py, lens);
   if (direct) return { ...direct, x: px, y: py };
   for (let radius = step; radius <= reach; radius += step) {
     const count = Math.max(8, Math.ceil((TAU * radius) / step));
@@ -642,12 +712,37 @@ export function findBiteTarget(
       const x = px + Math.cos(angle) * radius;
       const y = py + Math.sin(angle) * radius;
       if (x < 0 || y < 0 || x > view.width || y > view.height) continue;
-      const surface = surfaceAt(donut, m, view, x, y);
+      const surface = surfaceAt(donut, m, view, x, y, lens);
       if (surface) return { ...surface, x, y };
     }
   }
   return null;
 }
+
+/**
+ * The shape of a character cell, per pixel of font size, measured from the
+ * font the canvas draws with.
+ */
+export interface CellMetrics {
+  /** The advance of the widest glyph the lab draws. */
+  advance: number;
+  /** Ascent plus descent. */
+  lineHeight: number;
+  /** Every glyph has the same advance: a run of cells can be one string. */
+  mono?: boolean;
+}
+
+/** Geist Mono: every glyph 0.6 wide, ascent 1.005, descent 0.295. */
+export const DEFAULT_CELL: CellMetrics = { advance: 0.6, lineHeight: 1.3 };
+/** Rows sit closer than lines of text: the ink of a glyph is shorter than its line. */
+const ROW_PITCH = 0.72;
+export const MIN_FONT_SIZE = 9;
+export const MAX_FONT_SIZE = 24;
+/** Columns across the donut, when the font size allows it. */
+export const COLUMNS_ACROSS = 48;
+/** The donut's width at rest, as a share of the canvas's smaller side. */
+export const DONUT_SPAN =
+  (MAJOR_RADIUS + MINOR_RADIUS + GLAZE_THICKNESS) / FRAME_RADIUS;
 
 /** The character grid laid over a canvas. */
 export interface Grid extends View {
@@ -665,21 +760,34 @@ export interface Frame {
 }
 
 /**
- * Lays a grid of about `targetCols` columns over a canvas. `advance` is the
- * width of one character per pixel of font size; rows are a little shorter
- * than the font, so the grid is denser than plain text.
+ * Lays a grid of whole cells over a canvas, centered on it, so the donut is
+ * about `across` columns wide. The cell is as wide as the font's widest glyph,
+ * and each glyph is drawn at the center of its cell, so the font never moves
+ * a glyph.
  */
 export function layoutGrid(
   width: number,
   height: number,
-  advance = 0.6,
-  targetCols = 64,
+  cell: CellMetrics = DEFAULT_CELL,
+  across = COLUMNS_ACROSS,
 ) {
-  const cols = Math.max(24, Math.min(96, targetCols));
-  const cellWidth = width / cols;
-  const fontSize = cellWidth / advance;
-  const cellHeight = fontSize * 0.92;
-  const rows = Math.max(8, Math.floor(height / cellHeight));
+  const advance =
+    cell.advance >= 0.3 && cell.advance <= 1.5
+      ? cell.advance
+      : DEFAULT_CELL.advance;
+  const lineHeight =
+    cell.lineHeight >= 0.8 && cell.lineHeight <= 2.5
+      ? cell.lineHeight
+      : DEFAULT_CELL.lineHeight;
+  const span = DONUT_SPAN * Math.max(1, Math.min(width, height));
+  const fontSize = Math.min(
+    MAX_FONT_SIZE,
+    Math.max(MIN_FONT_SIZE, span / across / advance),
+  );
+  const cellWidth = fontSize * advance;
+  const cellHeight = fontSize * lineHeight * ROW_PITCH;
+  const cols = Math.max(1, Math.floor(width / cellWidth));
+  const rows = Math.max(1, Math.floor(height / cellHeight));
   const grid: Grid = {
     width,
     height,
@@ -687,7 +795,7 @@ export function layoutGrid(
     rows,
     cellWidth,
     cellHeight,
-    offsetX: 0,
+    offsetX: (width - cols * cellWidth) / 2,
     offsetY: (height - rows * cellHeight) / 2,
   };
   return { grid, fontSize };
@@ -704,17 +812,23 @@ export function renderFrame(
   m: Mat3,
   grid: Grid,
   ink: boolean,
-  frame: Frame = {
-    chars: new Array(grid.cols * grid.rows).fill(" "),
-    kinds: new Uint8Array(grid.cols * grid.rows),
-  },
+  reuse?: Frame,
+  lens = centerLens(grid),
 ): Frame {
+  const size = grid.cols * grid.rows;
+  const frame =
+    reuse && reuse.kinds.length === size
+      ? reuse
+      : {
+          chars: new Array<string>(size).fill(" "),
+          kinds: new Uint8Array(size),
+        };
   for (let row = 0; row < grid.rows; row++) {
     const py = grid.offsetY + (row + 0.5) * grid.cellHeight;
     for (let col = 0; col < grid.cols; col++) {
       const index = row * grid.cols + col;
       const px = grid.offsetX + (col + 0.5) * grid.cellWidth;
-      const surface = surfaceAt(donut, m, grid, px, py);
+      const surface = surfaceAt(donut, m, grid, px, py, lens);
       if (!surface) {
         frame.chars[index] = " ";
         frame.kinds[index] = KIND_EMPTY;
@@ -745,4 +859,243 @@ export function renderFrame(
     }
   }
   return frame;
+}
+
+/**
+ * Calls `draw` for every drawn cell (only those of `kind`, when given) with
+ * the center of its cell in canvas pixels. The canvas draws each glyph there,
+ * centered, so glyphs of every kind and width stay on the grid.
+ */
+export function forEachGlyph(
+  frame: Frame,
+  grid: Grid,
+  draw: (char: string, x: number, y: number, kind: number) => void,
+  kind?: number,
+) {
+  for (let i = 0; i < frame.kinds.length; i++) {
+    const k = frame.kinds[i];
+    if (k === KIND_EMPTY || (kind !== undefined && k !== kind)) continue;
+    const col = i % grid.cols;
+    const row = (i - col) / grid.cols;
+    draw(
+      frame.chars[i],
+      grid.offsetX + (col + 0.5) * grid.cellWidth,
+      grid.offsetY + (row + 0.5) * grid.cellHeight,
+      k,
+    );
+  }
+}
+
+/**
+ * Calls `draw` for every run of adjacent cells of one kind (only `kind`, when
+ * given) in a row, with the run's text, the left edge of its first cell and
+ * the middle of its row. With a monospace font whose advance is the cell
+ * width, a run drawn from its left edge puts each glyph in its own cell, in
+ * far fewer draw calls than one per glyph. Spaces are never drawn, so glyphs
+ * of other kinds never shift a run.
+ */
+export function forEachRun(
+  frame: Frame,
+  grid: Grid,
+  draw: (text: string, x: number, y: number, kind: number) => void,
+  kind?: number,
+) {
+  for (let row = 0; row < grid.rows; row++) {
+    const start = row * grid.cols;
+    const y = grid.offsetY + (row + 0.5) * grid.cellHeight;
+    let col = 0;
+    while (col < grid.cols) {
+      const k = frame.kinds[start + col];
+      if (k === KIND_EMPTY || (kind !== undefined && k !== kind)) {
+        col++;
+        continue;
+      }
+      let end = col + 1;
+      while (end < grid.cols && frame.kinds[start + end] === k) end++;
+      draw(
+        frame.chars.slice(start + col, start + end).join(""),
+        grid.offsetX + col * grid.cellWidth,
+        y,
+        k,
+      );
+      col = end;
+    }
+  }
+}
+
+/** The frame as plain text, one line per row. */
+export function frameToText(frame: Frame, grid: Grid) {
+  const lines: string[] = [];
+  for (let row = 0; row < grid.rows; row++) {
+    lines.push(
+      frame.chars.slice(row * grid.cols, (row + 1) * grid.cols).join(""),
+    );
+  }
+  return lines.join("\n");
+}
+
+/**
+ * The idle spin, in radians per second: the classic two-axis turn. The donut
+ * tumbles about its own X axis while the picture rolls about the line of
+ * sight. One turn acts in object space and the other in view space, so they
+ * commute: the spin after t seconds is the same at any frame rate.
+ */
+export const IDLE_TUMBLE = 0.9;
+export const IDLE_ROLL = 0.42;
+
+/** Turns the donut by `seconds` of the idle spin at full speed. */
+export function idleStep(m: Mat3, seconds: number): Mat3 {
+  if (seconds === 0) return m;
+  return orthonormalize(
+    multiply(
+      multiply(rotationZ(IDLE_ROLL * seconds), m),
+      rotationX(IDLE_TUMBLE * seconds),
+    ),
+  );
+}
+
+/** The donut `seconds` into the idle spin from `start`. */
+export function idleOrientation(seconds: number, start = START_ORIENTATION) {
+  return idleStep(start, seconds);
+}
+
+/** How fast a flick fades into the idle spin, per second. */
+export const SETTLE_RATE = 2.6;
+/** The fastest flick, in radians per second. */
+export const MAX_FLICK = 9;
+
+/**
+ * A flick's speed about the screen's X and Y axes, in radians per second, and
+ * the share of the idle spin that runs (0 while a hand holds the donut).
+ */
+export interface Momentum {
+  x: number;
+  y: number;
+  idle: number;
+}
+
+/**
+ * Moves the donut `dt` seconds on. The flick fades and the idle spin comes
+ * back at the same rate, so a flick hands over to the idle spin with no jump.
+ * Each is integrated exactly, and the flick sits between two halves of the
+ * idle step, so the turn hardly depends on the frame rate.
+ */
+export function spinStep(
+  m: Mat3,
+  momentum: Momentum,
+  dt: number,
+  idle = true,
+): Mat3 {
+  if (!(dt > 0)) return m;
+  const fade = Math.exp(-SETTLE_RATE * dt);
+  const halfFade = Math.exp((-SETTLE_RATE * dt) / 2);
+  // Integrals of e^(-k s) over the step and over half of it.
+  const share = (1 - fade) / SETTLE_RATE;
+  const halfShare = (1 - halfFade) / SETTLE_RATE;
+  // The idle share is 1 - (1 - w0) e^(-k s); its integral over each half:
+  const lag = idle ? 1 - momentum.idle : 1;
+  const firstHalf = idle ? dt / 2 - lag * halfShare : 0;
+  const secondHalf = idle ? dt / 2 - lag * halfFade * halfShare : 0;
+  let next = idleStep(m, firstHalf);
+  if (momentum.x !== 0 || momentum.y !== 0) {
+    next = turn(next, momentum.x * share, momentum.y * share);
+    momentum.x *= fade;
+    momentum.y *= fade;
+    if (Math.abs(momentum.x) + Math.abs(momentum.y) < 1e-3) {
+      momentum.x = 0;
+      momentum.y = 0;
+    }
+  }
+  momentum.idle = idle ? 1 - lag * fade : 0;
+  return idleStep(next, secondHalf);
+}
+
+/** How long the donut takes to come out of the logo. */
+export const REVEAL_MS = 560;
+/** The extra tumble of the reveal: the donut flips over once as it lands. */
+const REVEAL_TWIST = Math.PI;
+/** The smallest scale a reveal starts at, so its first frame is a donut already. */
+const REVEAL_MIN_ZOOM = 0.22;
+
+/** Where a reveal starts: the logo's center and size, in canvas pixels. */
+export interface RevealOrigin {
+  x: number;
+  y: number;
+  size: number;
+}
+
+export interface Pose {
+  orientation: Mat3;
+  lens: Lens;
+}
+
+/**
+ * The donut `elapsedMs` into its reveal: it comes out of the logo at the
+ * logo's size, moves to the middle as it grows, and flips over once, fast at
+ * first. From REVEAL_MS on, and with no origin, it is exactly the pose at rest.
+ */
+export function revealPose(
+  m: Mat3,
+  view: View,
+  origin: RevealOrigin | null,
+  elapsedMs: number,
+): Pose {
+  const rest = centerLens(view);
+  if (!origin || !(elapsedMs < REVEAL_MS))
+    return { orientation: m, lens: rest };
+  const p = Math.max(0, elapsedMs) / REVEAL_MS;
+  const eased = 1 - (1 - p) ** 3;
+  const span = DONUT_SPAN * Math.max(1, Math.min(view.width, view.height));
+  const startZoom = Math.min(1, Math.max(REVEAL_MIN_ZOOM, origin.size / span));
+  return {
+    orientation: orthonormalize(
+      multiply(m, rotationX(-REVEAL_TWIST * (1 - eased))),
+    ),
+    lens: {
+      x: origin.x + (rest.x - origin.x) * eased,
+      y: origin.y + (rest.y - origin.y) * eased,
+      zoom: startZoom + (1 - startZoom) * eased,
+    },
+  };
+}
+
+/** A crumb that flies off a bite, in canvas pixels. */
+export interface Crumb {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  char: string;
+  kind: number;
+  /** Seconds since the bite, and seconds the crumb lasts. */
+  age: number;
+  life: number;
+}
+
+/** Pixels per second, per second. */
+export const CRUMB_GRAVITY = 1100;
+/** Seconds a crumb takes to fade out at the end of its life. */
+const CRUMB_FADE = 0.4;
+
+/**
+ * Moves the crumbs `dt` seconds on, bouncing on `floor`, and returns the ones
+ * whose life is not over.
+ */
+export function stepCrumbs(crumbs: Crumb[], dt: number, floor: number) {
+  return crumbs.filter((crumb) => {
+    crumb.age += dt;
+    crumb.vy += CRUMB_GRAVITY * dt;
+    crumb.x += crumb.vx * dt;
+    crumb.y += crumb.vy * dt;
+    if (crumb.y > floor) {
+      crumb.y = floor;
+      crumb.vy = Math.abs(crumb.vy) < 60 ? 0 : -crumb.vy * 0.3;
+      crumb.vx *= 0.55;
+    }
+    return crumb.age < crumb.life;
+  });
+}
+
+export function crumbAlpha(crumb: Crumb) {
+  return Math.min(1, Math.max(0, (crumb.life - crumb.age) / CRUMB_FADE));
 }
