@@ -1605,7 +1605,7 @@
   },
   "warnings": {
     "windowResizeTitle": "自定义窗口尺寸",
-    "windowResizeDescription": "更改浏览器窗口尺寸可能会增加网站检测到浏览器信息被伪装的概率。",
+    "windowResizeDescription": "更改浏览器窗口尺寸可能会向网站暴露您显示器的真实尺寸，并增加网站检测到浏览器信息被伪装的概率。",
     "dontShowAgain": "不再显示",
     "continue": "继续",
     "cancel": "取消"

@@ -1605,7 +1605,7 @@
   },
   "warnings": {
     "windowResizeTitle": "사용자 지정 창 크기",
-    "windowResizeDescription": "브라우저 창 크기를 변경하면 브라우저 정보가 스푸핑된 것으로 웹사이트에서 감지될 가능성이 높아질 수 있습니다.",
+    "windowResizeDescription": "브라우저 창 크기를 변경하면 실제 모니터 크기가 웹사이트에 노출되고, 브라우저 정보가 스푸핑된 것으로 감지될 가능성이 높아질 수 있습니다.",
     "dontShowAgain": "다시 표시하지 않음",
     "continue": "계속",
     "cancel": "취소"

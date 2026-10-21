@@ -1616,7 +1616,7 @@
   },
   "warnings": {
     "windowResizeTitle": "Dimensions de fenêtre personnalisées",
-    "windowResizeDescription": "Modifier les dimensions de la fenêtre du navigateur peut augmenter les chances de détection par les sites web que les informations du navigateur sont falsifiées.",
+    "windowResizeDescription": "Modifier les dimensions de la fenêtre du navigateur peut révéler aux sites web la taille réelle de votre écran et augmenter les chances qu'ils détectent que les informations du navigateur sont falsifiées.",
     "dontShowAgain": "Ne plus afficher",
     "continue": "Continuer",
     "cancel": "Annuler"

@@ -1605,7 +1605,7 @@
   },
   "warnings": {
     "windowResizeTitle": "Kích thước cửa sổ tùy chỉnh",
-    "windowResizeDescription": "Thay đổi kích thước cửa sổ trình duyệt có thể tăng khả năng bị trang web phát hiện thông tin trình duyệt bị giả mạo.",
+    "windowResizeDescription": "Thay đổi kích thước cửa sổ trình duyệt có thể để lộ kích thước màn hình thật của bạn cho các trang web và tăng khả năng bị phát hiện thông tin trình duyệt bị giả mạo.",
     "dontShowAgain": "Không hiển thị lại",
     "continue": "Tiếp tục",
     "cancel": "Hủy"

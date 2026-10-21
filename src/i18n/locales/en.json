@@ -1605,7 +1605,7 @@
   },
   "warnings": {
     "windowResizeTitle": "Custom Window Dimensions",
-    "windowResizeDescription": "Changing browser window dimensions may increase the chance of website detection that browser information is spoofed.",
+    "windowResizeDescription": "Resizing the browser window can reveal your real monitor size to websites and make it more likely that they detect spoofed browser information.",
     "dontShowAgain": "Don't show this again",
     "continue": "Continue",
     "cancel": "Cancel"

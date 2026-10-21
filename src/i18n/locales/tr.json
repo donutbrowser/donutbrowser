@@ -1605,7 +1605,7 @@
   },
   "warnings": {
     "windowResizeTitle": "Özel Pencere Boyutları",
-    "windowResizeDescription": "Tarayıcı pencere boyutlarını değiştirmek, web sitelerinin tarayıcı bilgilerinin taklit edildiğini tespit etme olasılığını artırabilir.",
+    "windowResizeDescription": "Tarayıcı pencere boyutlarını değiştirmek, gerçek monitör boyutunuzu web sitelerine gösterebilir ve tarayıcı bilgilerinin taklit edildiğinin tespit edilme olasılığını artırabilir.",
     "dontShowAgain": "Bunu bir daha gösterme",
     "continue": "Devam",
     "cancel": "İptal"

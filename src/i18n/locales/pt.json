@@ -1616,7 +1616,7 @@
   },
   "warnings": {
     "windowResizeTitle": "Dimensões de janela personalizadas",
-    "windowResizeDescription": "Alterar as dimensões da janela do navegador pode aumentar a chance de detecção pelos sites de que as informações do navegador estão falsificadas.",
+    "windowResizeDescription": "Alterar as dimensões da janela do navegador pode revelar aos sites o tamanho real do seu monitor e aumentar a chance de detecção de que as informações do navegador estão falsificadas.",
     "dontShowAgain": "Não mostrar novamente",
     "continue": "Continuar",
     "cancel": "Cancelar"

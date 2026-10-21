@@ -1605,7 +1605,7 @@
   },
   "warnings": {
     "windowResizeTitle": "Benutzerdefinierte Fenstergröße",
-    "windowResizeDescription": "Wenn Sie die Größe des Browserfensters ändern, steigt eventuell die Wahrscheinlichkeit, dass Websites die gefälschten Browserinformationen erkennen.",
+    "windowResizeDescription": "Wenn Sie die Größe des Browserfensters ändern, können Websites die tatsächliche Größe Ihres Monitors erkennen, und gefälschte Browserinformationen werden leichter entdeckt.",
     "dontShowAgain": "Nicht mehr anzeigen",
     "continue": "Fortfahren",
     "cancel": "Abbrechen"
