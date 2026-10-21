@@ -166,7 +166,7 @@ The app is free, with unlimited local profiles. Paid plans add cloud features an
 <!-- install-links-start -->
 ### macOS
 
-[Download DMG (Apple Silicon)](https://github.com/donutbrowser/donutbrowser/releases/download/v0.34.0/Donut_0.34.0_aarch64.dmg)
+[Download DMG (Apple Silicon)](https://github.com/donutbrowser/donutbrowser/releases/download/v0.35.0/Donut_0.35.0_aarch64.dmg)
 
 Or install via Homebrew:
 
@@ -176,15 +176,15 @@ brew install --cask donut
 
 ### Windows
 
-[Download Windows Installer (x64)](https://github.com/donutbrowser/donutbrowser/releases/download/v0.34.0/Donut_0.34.0_x64-setup.exe) · [Portable (x64)](https://github.com/donutbrowser/donutbrowser/releases/download/v0.34.0/Donut_0.34.0_x64-portable.zip)
+[Download Windows Installer (x64)](https://github.com/donutbrowser/donutbrowser/releases/download/v0.35.0/Donut_0.35.0_x64-setup.exe) · [Portable (x64)](https://github.com/donutbrowser/donutbrowser/releases/download/v0.35.0/Donut_0.35.0_x64-portable.zip)
 
 ### Linux
 
 | Format | x86_64 | ARM64 |
 |---|---|---|
-| **deb** | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.34.0/Donut_0.34.0_amd64.deb) | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.34.0/Donut_0.34.0_arm64.deb) |
-| **rpm** | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.34.0/Donut-0.34.0-1.x86_64.rpm) | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.34.0/Donut-0.34.0-1.aarch64.rpm) |
-| **AppImage** | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.34.0/Donut_0.34.0_amd64.AppImage) | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.34.0/Donut_0.34.0_aarch64.AppImage) |
+| **deb** | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.35.0/Donut_0.35.0_amd64.deb) | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.35.0/Donut_0.35.0_arm64.deb) |
+| **rpm** | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.35.0/Donut-0.35.0-1.x86_64.rpm) | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.35.0/Donut-0.35.0-1.aarch64.rpm) |
+| **AppImage** | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.35.0/Donut_0.35.0_amd64.AppImage) | [Download](https://github.com/donutbrowser/donutbrowser/releases/download/v0.35.0/Donut_0.35.0_aarch64.AppImage) |
 <!-- install-links-end -->
 
 On 64-bit Linux, the install script adds the Donut apt or rpm repository, so updates come through your package manager. For a per-user AppImage, end the command with `sh -s -- --appimage`.
