@@ -1,6 +1,95 @@
 # Changelog
 
 
+## v0.35.0 (2026-10-21)
+
+### Features
+
+- agent triage
+- facts and worker logs
+- update notice for all
+- anchored sync clicks
+- new About and egg
+- send account plan
+- Windows RAM profiles
+- audit UI and trash
+- MCP forms and capture
+- coach-mark tips
+- browser-side migration
+- ux rework
+- settings and sounds
+
+### Bug Fixes
+
+- feedback logs wording
+- rustls-webpki 0.103.16
+- 60 s sidecar limit
+- re-pin deep-link 2.6.1
+- sync build on Windows
+- one font app-wide
+- parallel proxy dialing
+- tip returns to its row
+- MCP key copy and refresh
+- explain stale plan token
+- smooth donut lab
+- real monospace font
+- tips follow scroll
+- longer Xray start wait
+- pick exact locator match
+- opaque donut lab
+- verify MCP typing
+- stop wait on helper exit
+- launch waits time out
+- short session id in log
+- stale translations
+- pin deep-link 2.6.1
+- e2e sidecar copy
+- popup exit and capture
+- ephemeral CDP attach
+- refuse before spawn
+- cross-OS message
+- plan check without token
+- profile data and launch
+- Pro fingerprint view
+- e2e sidecar copy
+- locator and perception
+- key files, linux routing
+
+### Performance
+
+- faster backend
+
+### Documentation
+
+- README visuals
+- remote platform wording
+
+### Maintenance
+
+- chore: version bump
+- ci(deps): bump the github-actions group with 3 updates (#671)
+- build: switch to tsrs
+- ci: free model for AI jobs
+- ci: check model findings
+- test: capture the tab fetch
+- ci: free i18n review model
+- chore: drop Widevine switch
+- test: opened-tab capture
+- chore: update dependencies
+- build: designed macOS DMG
+- ci(deps): bump the github-actions group with 7 updates
+- chore: move repo to org
+- chore: update flake.nix for v0.34.0 [skip ci] (#666)
+
+### Other
+
+- deps(rust)(deps): bump tauri-plugin-deep-link (#672)
+- style: format font fallback
+- revert: capture attach wait
+- deps(rust)(deps): bump the rust-dependencies group
+- deps(deps): bump the frontend-dependencies group with 109 updates (#668)
+
+
 ## v0.34.0 (2026-10-15)
 
 ### Features
