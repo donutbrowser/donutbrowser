@@ -59,11 +59,6 @@
       "rpm": {
         "desktopTemplate": "donutbrowser.desktop",
         "depends": ["xdg-utils", "libxdo", "libayatana-appindicator-gtk3"]
-      },
-      "appimage": {
-        "files": {
-          "usr/share/applications/donutbrowser.desktop": "donutbrowser.desktop"
-        }
       }
     },
     "windows": {
