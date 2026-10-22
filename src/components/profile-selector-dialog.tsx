@@ -1,39 +1,51 @@
 "use client";
 
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "motion/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  LuArrowRight,
+  LuFlame,
+  LuFolder,
+  LuGlobe,
+  LuLock,
+  LuSearchX,
+  LuShieldCheck,
+} from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
-import { Badge } from "@/components/ui/badge";
+import { ProfileGlyph } from "@/components/profile-glyph";
+import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGlide,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { CopyToClipboard } from "@/components/ui/copy-to-clipboard";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { StatusLight } from "@/components/ui/settings-panel";
 import { useBrowserState } from "@/hooks/use-browser-state";
+import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { useProfileEvents } from "@/hooks/use-profile-events";
 import { useProxyEvents } from "@/hooks/use-proxy-events";
+import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { translateBackendError } from "@/lib/backend-errors";
-import { getBrowserDisplayName, getBrowserIcon } from "@/lib/browser-utils";
+import { getOSDisplayName, getOSIcon } from "@/lib/browser-utils";
+import { MOTION_SPRING } from "@/lib/motion";
+import { paletteScore } from "@/lib/palette-search";
 import { showErrorToast } from "@/lib/toast-utils";
 import type { BrowserProfile } from "@/types";
-import { CopyToClipboard } from "./ui/copy-to-clipboard";
-import { RippleButton } from "./ui/ripple";
 
 interface ProfileSelectorDialogProps {
   isOpen: boolean;
@@ -41,6 +53,29 @@ interface ProfileSelectorDialogProps {
   isUpdating: (browser: string) => boolean;
   url?: string;
   runningProfiles?: Set<string>;
+}
+
+/** The search field shows only when the list is longer than this. */
+const SEARCH_FROM = 6;
+/** Rows past this one appear at once: a long list does not wait to show. */
+const STAGGERED_ROWS = 8;
+const NO_IDS = new Set<string>();
+const META_ICON = "size-3 shrink-0 text-muted-foreground";
+
+// The glide draws the selection, so a selected row stays transparent.
+const ROW_CLASS =
+  "gap-3 rounded-lg px-2.5 py-2 data-[selected=true]:bg-transparent data-[selected=true]:text-foreground";
+
+/** The link's host, and the rest of it, to show apart. */
+function splitUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.host) return { host: url, rest: "" };
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return { host: parsed.host, rest: `${path}${parsed.search}${parsed.hash}` };
+  } catch {
+    return { host: url, rest: "" };
+  }
 }
 
 export function ProfileSelectorDialog({
@@ -51,9 +86,12 @@ export function ProfileSelectorDialog({
   isUpdating,
 }: ProfileSelectorDialogProps) {
   const { t } = useTranslation();
-  // Use the centralized profile events hook
-  const { profiles: rawProfiles, runningProfiles: hookRunningProfiles } =
-    useProfileEvents();
+  const motionAllowed = useMotionAllowed();
+  const {
+    profiles: rawProfiles,
+    groups,
+    runningProfiles: hookRunningProfiles,
+  } = useProfileEvents();
   const profiles = useMemo(
     () =>
       [...rawProfiles].sort((a, b) =>
@@ -61,260 +99,387 @@ export function ProfileSelectorDialog({
       ),
     [rawProfiles],
   );
-
-  // Use external runningProfiles if provided, otherwise use hook's runningProfiles
   const runningProfiles = externalRunningProfiles ?? hookRunningProfiles;
-
   const { storedProxies } = useProxyEvents();
+  const { vpnConfigs } = useVpnEvents();
+  const [selectedId, setSelectedId] = useState("");
+  const [launchingId, setLaunchingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [entered, setEntered] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const picked = useRef(false);
 
-  const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
-  const [isLaunching, setIsLaunching] = useState(false);
-  const [launchingProfiles, setLaunchingProfiles] = useState<Set<string>>(
-    new Set(),
-  );
-  const [stoppingProfiles] = useState<Set<string>>(new Set());
-
-  // Use shared browser state hook
   const browserState = useBrowserState(
     profiles,
     runningProfiles,
     isUpdating,
-    launchingProfiles,
-    stoppingProfiles,
+    NO_IDS,
+    NO_IDS,
   );
 
-  // Helper function to check if a profile has a proxy
-  const hasProxy = useCallback(
-    (profile: BrowserProfile): boolean => {
-      if (!profile.proxy_id) return false;
-      const proxy = storedProxies.find((p) => p.id === profile.proxy_id);
-      return proxy !== undefined;
-    },
-    [storedProxies],
-  );
+  const selected = profiles.find((profile) => profile.id === selectedId);
+  const searching = profiles.length >= SEARCH_FROM;
+  const canOpen =
+    !!url &&
+    !!selected &&
+    launchingId === null &&
+    browserState.canUseProfileForLinks(selected);
 
-  // Helper function to get tooltip content for profiles - now uses shared hook
-  const getProfileTooltipContent = (profile: BrowserProfile): string | null => {
-    return browserState.getProfileTooltipContent(profile);
-  };
-
-  const handleOpenUrl = useCallback(async () => {
-    if (!selectedProfile || !url) return;
-
-    setIsLaunching(true);
-    const selected = profiles.find((p) => p.name === selectedProfile);
-    if (!selected) return;
-
-    setLaunchingProfiles((prev) => new Set(prev).add(selected.id));
-    try {
-      await invoke("open_url_with_profile", {
-        profileId: selected.id,
-        url,
-        consentToken: null,
-      });
-      onClose();
-    } catch (error) {
-      console.error("Failed to open URL with profile:", error);
-      // This path reaches the browser without going through page.tsx's gate,
-      // so a launch the gate blocks surfaces here. Without a toast the deep
-      // link would simply appear to do nothing.
-      showErrorToast(translateBackendError(t, error));
-    } finally {
-      setIsLaunching(false);
-      if (selected) {
-        setLaunchingProfiles((prev) => {
-          const next = new Set(prev);
-          next.delete(selected.id);
-          return next;
-        });
-      }
-    }
-  }, [selectedProfile, url, onClose, profiles, t]);
-
-  const handleCancel = useCallback(() => {
-    setSelectedProfile(null);
-    onClose();
-  }, [onClose]);
-
-  const selectedProfileData = profiles.find((p) => p.name === selectedProfile);
-
-  // Check if the selected profile can be used for opening links
-  const canOpenWithSelectedProfile = () => {
-    if (!selectedProfileData) return false;
-    return browserState.canUseProfileForLinks(selectedProfileData);
-  };
-
-  // Get tooltip content for disabled profiles
-  const getTooltipContent = () => {
-    if (!selectedProfileData) return null;
-    return getProfileTooltipContent(selectedProfileData);
-  };
-
-  // Auto-select first available profile when dialog opens and profiles are loaded
+  // Select the running profile that can take the link, or else the first one
+  // that can, once the list and its states are known; again only when the
+  // selected profile goes away.
   useEffect(() => {
-    if (isOpen && profiles.length > 0 && !selectedProfile) {
-      // First, try to find a running profile that can be used for opening links
-      const runningAvailableProfile = profiles.find((profile) => {
-        const isRunning = runningProfiles.has(profile.id);
-        // Simple check without browserState dependency
-        return isRunning;
-      });
-
-      if (runningAvailableProfile) {
-        setSelectedProfile(runningAvailableProfile.name);
-      } else {
-        setSelectedProfile(profiles[0].name);
-      }
+    if (!isOpen || !browserState.isClient || profiles.length === 0) return;
+    if (
+      picked.current &&
+      profiles.some((profile) => profile.id === selectedId)
+    ) {
+      return;
     }
-  }, [isOpen, profiles, selectedProfile, runningProfiles]);
+    picked.current = true;
+    const usable = profiles.filter((profile) =>
+      browserState.canUseProfileForLinks(profile),
+    );
+    const pick =
+      usable.find((profile) => runningProfiles.has(profile.id)) ??
+      usable[0] ??
+      profiles[0];
+    setSelectedId(pick.id);
+  }, [isOpen, browserState, profiles, runningProfiles, selectedId]);
+
+  // The rows rise in once, as the dialog opens; rows that a search brings
+  // back appear in place.
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = window.setTimeout(() => setEntered(true), 600);
+    return () => window.clearTimeout(timer);
+  }, [isOpen]);
+
+  // The chosen row may sit below the fold of a long list. Without a search
+  // field the list holds the focus, so it names the chosen row itself.
+  useEffect(() => {
+    const list = listRef.current;
+    const item = selectedId
+      ? list?.querySelector('[cmdk-item][data-selected="true"]')
+      : null;
+    item?.scrollIntoView({ block: "nearest" });
+    if (list && !searching) {
+      if (item?.id) list.setAttribute("aria-activedescendant", item.id);
+      else list.removeAttribute("aria-activedescendant");
+    }
+  }, [selectedId, searching]);
+
+  const open = useCallback(
+    async (profileId: string) => {
+      const profile = profiles.find((p) => p.id === profileId);
+      if (!url || !profile || launchingId !== null) return;
+      if (!browserState.canUseProfileForLinks(profile)) return;
+      setLaunchingId(profile.id);
+      try {
+        await invoke("open_url_with_profile", {
+          profileId: profile.id,
+          url,
+          consentToken: null,
+        });
+        onClose();
+      } catch (error) {
+        console.error("Failed to open URL with profile:", error);
+        // This path reaches the browser without going through page.tsx's gate,
+        // so a launch the gate blocks surfaces here. Without a toast the deep
+        // link would simply appear to do nothing.
+        showErrorToast(translateBackendError(t, error));
+      } finally {
+        setLaunchingId(null);
+      }
+    },
+    [profiles, url, launchingId, browserState, onClose, t],
+  );
+
+  const routeOf = (profile: BrowserProfile) => {
+    if (profile.vpn_id) {
+      const vpn = vpnConfigs.find((v) => v.id === profile.vpn_id);
+      return vpn ? { vpn: true, name: vpn.name } : null;
+    }
+    const proxy = storedProxies.find((p) => p.id === profile.proxy_id);
+    return proxy ? { vpn: false, name: proxy.name } : null;
+  };
+  const groupOf = (profile: BrowserProfile) =>
+    groups.find((group) => group.id === profile.group_id)?.name;
+
+  const link = url ? splitUrl(url) : null;
+  const busy = launchingId !== null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("profileSelector.chooseProfileTitle")}</DialogTitle>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(next) => {
+        if (!next && !busy) onClose();
+      }}
+    >
+      <DialogContent
+        className="flex max-h-[calc(100dvh-3rem)] max-w-md flex-col gap-4 overflow-hidden rounded-2xl border-0 p-5 shadow-2xl ring-1 ring-foreground/10"
+        dismissible={!busy}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (searchRef.current ?? listRef.current)?.focus();
+        }}
+      >
+        <DialogHeader className="shrink-0 space-y-0">
+          <DialogTitle className="text-base">
+            {t("profileSelector.openLink")}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t("profileSelector.description")}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          {url && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">
-                  {t("profileSelector.openingUrl")}
-                </Label>
-                <CopyToClipboard
-                  text={url}
-                  successMessage={t("profileSelector.urlCopied")}
+        {link && url && (
+          <div
+            data-slot="profile-selector-link"
+            className="flex shrink-0 items-center gap-2.5 rounded-xl bg-foreground/4 p-2"
+          >
+            <ProfileGlyph
+              seed={selected?.name ?? ""}
+              routed={!!selected && !!routeOf(selected)}
+              locked={!!selected?.password_protected}
+              ephemeral={!!selected?.ephemeral}
+              busy={busy}
+              className="size-10"
+            />
+            <motion.span
+              aria-hidden="true"
+              className="shrink-0 text-muted-foreground [&_svg]:size-3.5"
+              animate={busy && motionAllowed ? { x: [0, 3, 0] } : { x: 0 }}
+              transition={
+                busy && motionAllowed
+                  ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" }
+                  : MOTION_SPRING.snappy
+              }
+            >
+              <LuArrowRight />
+            </motion.span>
+            <div className="min-w-0 flex-1" title={url}>
+              <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                <LuGlobe
+                  className="size-3.5 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
                 />
-              </div>
-              <div className="max-h-24 overflow-y-auto rounded bg-muted p-2 text-sm break-all">
-                {url}
-              </div>
+                <span className="truncate">{link.host}</span>
+              </p>
+              {link.rest && (
+                <p className="truncate pl-5 font-mono text-xs text-muted-foreground">
+                  {link.rest}
+                </p>
+              )}
             </div>
-          )}
+            <CopyToClipboard
+              text={url}
+              variant="subtle"
+              className="size-8 shrink-0 rounded-lg text-muted-foreground"
+              successMessage={t("profileSelector.urlCopied")}
+            />
+          </div>
+        )}
 
-          <div className="space-y-2">
-            <Label htmlFor="profile-select">
-              {t("profileSelector.selectProfileLabel")}
-            </Label>
-            {profiles.length === 0 ? (
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">
-                  {t("profileSelector.noneAvailableShort")}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {t("profileSelector.noneAvailableLong")}
-                </div>
-              </div>
-            ) : (
-              <Select
-                value={selectedProfile ?? undefined}
-                onValueChange={setSelectedProfile}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={t("profileSelector.chooseAProfile")}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles.map((profile) => {
-                    const isRunning = runningProfiles.has(profile.id);
-                    const canUseForLinks =
-                      browserState.canUseProfileForLinks(profile);
-                    const tooltipContent = getProfileTooltipContent(profile);
-
+        {profiles.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-6 py-6 text-center">
+            <ProfileGlyph
+              seed=""
+              routed={false}
+              locked={false}
+              ephemeral={false}
+            />
+            <p className="text-sm font-medium">
+              {t("profileSelector.noneAvailableShort")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t("profileSelector.noneAvailableLong")}
+            </p>
+          </div>
+        ) : (
+          <Command
+            label={t("profileSelector.title")}
+            value={selectedId}
+            onValueChange={setSelectedId}
+            disablePointerSelection
+            loop
+            filter={(_value, query, keywords = []) =>
+              paletteScore(keywords[0] ?? "", keywords.slice(1), query)
+            }
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                void open(selectedId);
+              }
+            }}
+            className="min-h-0 bg-transparent **:data-[slot=command-input-wrapper]:mb-2 **:data-[slot=command-input-wrapper]:h-8 **:data-[slot=command-input-wrapper]:rounded-lg **:data-[slot=command-input-wrapper]:border-0 **:data-[slot=command-input-wrapper]:bg-foreground/5 **:data-[slot=command-input-wrapper]:px-2.5 **:data-[slot=command-input-wrapper]:transition-[background-color,box-shadow] **:data-[slot=command-input-wrapper]:focus-within:bg-foreground/6 **:data-[slot=command-input-wrapper]:focus-within:ring-2 **:data-[slot=command-input-wrapper]:focus-within:ring-foreground/10 [&_[data-slot=command-input-wrapper]_svg]:size-3.5"
+          >
+            {searching ? (
+              <CommandInput
+                ref={searchRef}
+                value={search}
+                onValueChange={setSearch}
+                placeholder={t("profileSelector.searchPlaceholder")}
+                disabled={busy}
+                className="h-8 py-0"
+              />
+            ) : null}
+            <CommandList
+              ref={listRef}
+              data-slot="profile-selector-list"
+              className="-mx-1 max-h-72 px-1"
+              // Without a search field, the list takes the keys.
+              tabIndex={searching ? undefined : 0}
+            >
+              <div className="relative">
+                <CommandGlide className="rounded-lg" />
+                <CommandEmpty>
+                  <span className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                    <LuSearchX className="size-5" aria-hidden="true" />
+                    {t("profileSelector.noResults")}
+                  </span>
+                </CommandEmpty>
+                {/* cmdk orders the matches of a search inside a group. */}
+                <CommandGroup className="p-0">
+                  {profiles.map((profile, index) => {
+                    const running = runningProfiles.has(profile.id);
+                    const usable = browserState.canUseProfileForLinks(profile);
+                    const reason = usable
+                      ? null
+                      : browserState.getProfileTooltipContent(profile);
+                    const route = routeOf(profile);
+                    const group = groupOf(profile);
+                    const os = profile.wayfern_config?.os ?? profile.host_os;
+                    const OsIcon = os ? getOSIcon(os) : null;
                     return (
-                      <Tooltip key={profile.name}>
-                        <TooltipTrigger asChild>
-                          <div>
-                            <SelectItem
-                              value={profile.name}
-                              disabled={!canUseForLinks}
-                              className="cursor-pointer"
-                            >
-                              <div
-                                className={`flex items-center gap-2 ${
-                                  !canUseForLinks ? "opacity-50" : ""
-                                }`}
-                              >
-                                <div className="flex items-center gap-3 rounded-lg px-2 py-1">
-                                  <div className="flex items-center gap-2">
-                                    {(() => {
-                                      const IconComponent = getBrowserIcon(
-                                        profile.browser,
-                                      );
-                                      return IconComponent ? (
-                                        <IconComponent className="size-4" />
-                                      ) : null;
-                                    })()}
-                                  </div>
-                                  <div className="flex-1 text-right">
-                                    <div className="font-medium">
-                                      {profile.name}
-                                    </div>
-                                  </div>
-                                </div>
-                                <Badge variant="secondary" className="text-xs">
-                                  {getBrowserDisplayName(profile.browser)}
-                                </Badge>
-                                {hasProxy(profile) && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {t("profileSelector.badgeProxy")}
-                                  </Badge>
+                      <CommandItem
+                        key={profile.id}
+                        value={profile.id}
+                        keywords={[
+                          profile.name,
+                          route?.name ?? "",
+                          group ?? "",
+                        ]}
+                        disabled={!usable || busy}
+                        data-slot="profile-selector-option"
+                        data-running={running || undefined}
+                        onDoubleClick={() => void open(profile.id)}
+                        className={ROW_CLASS}
+                      >
+                        <motion.span
+                          className="flex min-w-0 flex-1 items-center gap-3"
+                          initial={
+                            motionAllowed && !entered && index < STAGGERED_ROWS
+                              ? { y: 6 }
+                              : false
+                          }
+                          animate={{ y: 0 }}
+                          transition={{
+                            ...MOTION_SPRING.page,
+                            delay: index * 0.03,
+                          }}
+                        >
+                          <ProfileGlyph
+                            seed={profile.name}
+                            routed={false}
+                            locked={false}
+                            ephemeral={false}
+                            busy={launchingId === profile.id}
+                            className="size-8"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className="truncate text-sm font-medium">
+                                {profile.name}
+                              </span>
+                              {profile.password_protected && (
+                                <LuLock
+                                  className={META_ICON}
+                                  aria-hidden="true"
+                                />
+                              )}
+                              {profile.ephemeral && (
+                                <LuFlame
+                                  className={META_ICON}
+                                  aria-hidden="true"
+                                />
+                              )}
+                            </span>
+                            {reason ? (
+                              <span className="block truncate text-xs text-warning-text">
+                                {reason}
+                              </span>
+                            ) : (
+                              <span className="flex min-w-0 items-center gap-2.5 text-xs text-muted-foreground">
+                                {os && OsIcon && (
+                                  <span className="flex shrink-0 items-center gap-1">
+                                    <OsIcon
+                                      className={META_ICON}
+                                      aria-hidden="true"
+                                    />
+                                    {getOSDisplayName(os)}
+                                  </span>
                                 )}
-                                {isRunning && (
-                                  <Badge variant="default" className="text-xs">
-                                    {t("profileSelector.badgeRunning")}
-                                  </Badge>
+                                {route && (
+                                  <span className="flex min-w-0 items-center gap-1">
+                                    {route.vpn ? (
+                                      <LuShieldCheck
+                                        className={META_ICON}
+                                        aria-hidden="true"
+                                      />
+                                    ) : (
+                                      <LuGlobe
+                                        className={META_ICON}
+                                        aria-hidden="true"
+                                      />
+                                    )}
+                                    <span className="truncate">
+                                      {route.name}
+                                    </span>
+                                  </span>
                                 )}
-                                {!canUseForLinks && (
-                                  <Badge
-                                    variant="destructive"
-                                    className="text-xs"
-                                  >
-                                    {t("profileSelector.badgeUnavailable")}
-                                  </Badge>
+                                {group && (
+                                  <span className="flex min-w-0 items-center gap-1">
+                                    <LuFolder
+                                      className={META_ICON}
+                                      aria-hidden="true"
+                                    />
+                                    <span className="truncate">{group}</span>
+                                  </span>
                                 )}
-                              </div>
-                            </SelectItem>
-                          </div>
-                        </TooltipTrigger>
-                        {tooltipContent && (
-                          <TooltipContent>{tooltipContent}</TooltipContent>
-                        )}
-                      </Tooltip>
+                              </span>
+                            )}
+                          </span>
+                          {running && (
+                            <span className="flex shrink-0 items-center gap-1.5 text-xs text-success-text">
+                              <StatusLight tone="success" live />
+                              {t("profileSelector.badgeRunning")}
+                            </span>
+                          )}
+                        </motion.span>
+                      </CommandItem>
                     );
                   })}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
+                </CommandGroup>
+              </div>
+            </CommandList>
+          </Command>
+        )}
 
-        <DialogFooter>
-          <RippleButton variant="outline" onClick={handleCancel}>
+        <DialogFooter className="shrink-0">
+          <Button variant="subtle" onClick={onClose} disabled={busy}>
             {t("common.buttons.cancel")}
-          </RippleButton>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <LoadingButton
-                  isLoading={isLaunching}
-                  onClick={() => void handleOpenUrl()}
-                  disabled={
-                    !selectedProfile ||
-                    profiles.length === 0 ||
-                    !canOpenWithSelectedProfile()
-                  }
-                >
-                  {t("profileSelector.openButton")}
-                </LoadingButton>
-              </span>
-            </TooltipTrigger>
-            {getTooltipContent() && (
-              <TooltipContent>{getTooltipContent()}</TooltipContent>
-            )}
-          </Tooltip>
+          </Button>
+          <LoadingButton
+            data-slot="profile-selector-open"
+            isLoading={busy}
+            onClick={() => void open(selectedId)}
+            disabled={!canOpen}
+            className="h-9 rounded-md px-4"
+          >
+            {t("profileSelector.openButton")}
+          </LoadingButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -12,6 +12,7 @@ import {
   LuChevronDown,
   LuChevronRight,
   LuClock,
+  LuEllipsis,
   LuFlame,
   LuFolder,
   LuGlobe,
@@ -164,13 +165,12 @@ export function CreateProfileDialog({
   const advancedOptionsId = useId();
   const motionAllowed = useMotionAllowed();
   const groupListboxId = useId();
-  const groupLabelId = useId();
   const groupValueId = useId();
   const [profileName, setProfileName] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedProxyId, setSelectedProxyId] = useState<string>();
   const [proxyPopoverOpen, setProxyPopoverOpen] = useState(false);
-  const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
+  const [morePopoverOpen, setMorePopoverOpen] = useState(false);
   // Where the new profiles go: the group the list shows, until changed.
   const [destinationGroupId, setDestinationGroupId] = useState<string | null>(
     null,
@@ -372,7 +372,6 @@ export function CreateProfileDialog({
     : isLoadingGroups
       ? destinationGroupId
       : null;
-  const groupLabel = destinationGroup?.name ?? t("groups.noGroup");
   const hostOs = getCurrentOS();
   const selectedOs = wayfernConfig.os ?? hostOs;
   const crossOs = selectedOs !== hostOs;
@@ -391,7 +390,7 @@ export function CreateProfileDialog({
     setAdvancedOpen(false);
     setSelectedProxyId(undefined);
     setProxyPopoverOpen(false);
-    setGroupPopoverOpen(false);
+    setMorePopoverOpen(false);
     setOsPopoverOpen(false);
     setShowProxyForm(false);
     setDnsBlocklist("");
@@ -821,10 +820,7 @@ export function CreateProfileDialog({
             </Popover>
           </motion.div>
 
-          <motion.div
-            className="flex flex-wrap items-center gap-1.5"
-            {...rise(0.04)}
-          >
+          <motion.div className="flex items-center gap-1.5" {...rise(0.04)}>
             <span id={proxyLabelId} className="sr-only">
               {t("createProfile.proxy.title")}
             </span>
@@ -965,96 +961,6 @@ export function CreateProfileDialog({
               </PopoverContent>
             </Popover>
 
-            <span id={groupLabelId} className="sr-only">
-              {t("profiles.table.group")}
-            </span>
-            <Popover open={groupPopoverOpen} onOpenChange={setGroupPopoverOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  id="profile-group"
-                  type="button"
-                  role="combobox"
-                  data-slot="profile-create-group"
-                  aria-expanded={groupPopoverOpen}
-                  aria-controls={groupListboxId}
-                  aria-labelledby={`${groupLabelId} ${groupValueId}`}
-                  className={optionPill(!!destinationGroup)}
-                  disabled={isCreating}
-                >
-                  <PillIcon on={!!destinationGroup} animate={animateEntry}>
-                    <LuFolder />
-                  </PillIcon>
-                  <PillLabel
-                    id={groupValueId}
-                    label={groupLabel}
-                    animate={animateEntry}
-                  />
-                  <LuChevronDown
-                    className={cn(
-                      "-mr-0.5 opacity-60 transition-transform duration-200 motion-reduce:transition-none",
-                      groupPopoverOpen && "rotate-180",
-                    )}
-                    aria-hidden="true"
-                  />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-0" align="start" sideOffset={6}>
-                <Command>
-                  {groups.length > 6 && (
-                    <CommandInput
-                      placeholder={t("commandPalette.pages.group.placeholder")}
-                    />
-                  )}
-                  <CommandList id={groupListboxId}>
-                    <CommandEmpty>
-                      {t("createProfile.group.notFound")}
-                    </CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="__no_group__"
-                        keywords={[t("groups.noGroup")]}
-                        onSelect={() => {
-                          setDestinationGroupId(null);
-                          setGroupPopoverOpen(false);
-                        }}
-                      >
-                        <LuCheck
-                          className={cn(
-                            "size-4 shrink-0",
-                            !destinationGroup ? "opacity-100" : "opacity-0",
-                          )}
-                          aria-hidden="true"
-                        />
-                        {t("groups.noGroup")}
-                      </CommandItem>
-                      {groups.map((group) => (
-                        <CommandItem
-                          key={group.id}
-                          value={group.id}
-                          keywords={[group.name]}
-                          onSelect={() => {
-                            setDestinationGroupId(group.id);
-                            setGroupPopoverOpen(false);
-                          }}
-                        >
-                          <LuCheck
-                            className={cn(
-                              "size-4 shrink-0",
-                              destinationGroup?.id === group.id
-                                ? "opacity-100"
-                                : "opacity-0",
-                            )}
-                            aria-hidden="true"
-                          />
-                          <span className="truncate">{group.name}</span>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-
             <OptionToggle
               id="enable-password"
               checked={enablePassword}
@@ -1067,7 +973,7 @@ export function CreateProfileDialog({
               disabled={isCreating || many}
               animate={animateEntry}
               icon={enablePassword ? <LuLock /> : <LuLockOpen />}
-              label={t("profiles.passwordProtectedBadge")}
+              label={t("profilePassword.fields.password")}
               hint={
                 many
                   ? t("templates.passwordOneOnly")
@@ -1087,6 +993,110 @@ export function CreateProfileDialog({
               label={t("profiles.ephemeral")}
               hint={t("profiles.ephemeralDescription")}
             />
+            <Popover open={morePopoverOpen} onOpenChange={setMorePopoverOpen}>
+              <Tooltip delayDuration={600}>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <button
+                      id="profile-more-options"
+                      type="button"
+                      data-slot="profile-create-more"
+                      aria-label={t("createProfile.moreOptions")}
+                      aria-haspopup="dialog"
+                      aria-expanded={morePopoverOpen}
+                      aria-describedby={
+                        destinationGroup ? groupValueId : undefined
+                      }
+                      className={cn(
+                        optionPill(!!destinationGroup),
+                        "w-8 shrink-0 justify-center px-0",
+                      )}
+                      disabled={isCreating}
+                    >
+                      <PillIcon on={!!destinationGroup} animate={animateEntry}>
+                        <LuEllipsis />
+                      </PillIcon>
+                      {destinationGroup && (
+                        <span id={groupValueId} className="sr-only">
+                          {destinationGroup.name}
+                        </span>
+                      )}
+                    </button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className="max-w-72">
+                  <p>{t("createProfile.moreOptions")}</p>
+                  {destinationGroup && (
+                    <p className="flex items-center gap-1 opacity-70">
+                      <LuFolder
+                        className="size-3 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{destinationGroup.name}</span>
+                    </p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+              <PopoverContent className="w-64 p-0" align="start" sideOffset={6}>
+                <Command>
+                  {groups.length > 6 && (
+                    <CommandInput
+                      placeholder={t("commandPalette.pages.group.placeholder")}
+                    />
+                  )}
+                  <CommandList id={groupListboxId}>
+                    <CommandEmpty>
+                      {t("createProfile.group.notFound")}
+                    </CommandEmpty>
+                    <CommandGroup heading={t("profiles.table.group")}>
+                      <CommandItem
+                        value="__no_group__"
+                        keywords={[t("groups.noGroup")]}
+                        onSelect={() => {
+                          setDestinationGroupId(null);
+                          setMorePopoverOpen(false);
+                        }}
+                      >
+                        <LuCheck
+                          className={cn(
+                            "size-4 shrink-0",
+                            !destinationGroup ? "opacity-100" : "opacity-0",
+                          )}
+                          aria-hidden="true"
+                        />
+                        {t("groups.noGroup")}
+                      </CommandItem>
+                      {groups.map((group) => (
+                        <CommandItem
+                          key={group.id}
+                          value={group.id}
+                          keywords={[group.name]}
+                          onSelect={() => {
+                            setDestinationGroupId(group.id);
+                            setMorePopoverOpen(false);
+                          }}
+                        >
+                          <LuCheck
+                            className={cn(
+                              "size-4 shrink-0",
+                              destinationGroup?.id === group.id
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                            aria-hidden="true"
+                          />
+                          <LuFolder
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">{group.name}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </motion.div>
 
           {(ephemeral || enablePassword) && <EphemeralStorageNotice />}
@@ -1697,7 +1707,7 @@ function OptionToggle({
           checked={checked}
           onCheckedChange={(state) => onCheckedChange(state === true)}
           disabled={disabled}
-          className={optionPill(checked)}
+          className={cn(optionPill(checked), "shrink-0")}
         >
           <PillIcon on={checked} animate={animate}>
             {icon}

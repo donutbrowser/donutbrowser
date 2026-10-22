@@ -190,8 +190,10 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
         options: [...dialog.querySelectorAll('#profile-proxy, [role="checkbox"]')].map(border),
         proxyName: document.querySelector('#profile-proxy').getAttribute('aria-labelledby')
           .split(' ').map((id) => document.getElementById(id)?.textContent.trim()),
-        groupName: document.querySelector('#profile-group').getAttribute('aria-labelledby')
-          .split(' ').map((id) => document.getElementById(id)?.textContent.trim()),
+        more: document.querySelector('#profile-more-options').getAttribute('aria-label'),
+        moreDescribed: document.querySelector('#profile-more-options').getAttribute('aria-describedby'),
+        rowTops: [...dialog.querySelectorAll('#profile-proxy, [role="checkbox"], #profile-more-options')]
+          .map((node) => Math.round(node.getBoundingClientRect().top)),
       };
     `);
       assert.equal(chrome.name, "0px", "the name field has no box");
@@ -200,11 +202,36 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
         en.createProfile.proxy.title,
         en.createProfile.proxy.noProxy,
       ]);
-      // The destination group shows as a pill: none while the list shows all.
-      assert.deepEqual(chrome.groupName, [
+      // The options sit on one row; the destination group is behind More
+      // options: none while the list shows all.
+      assert.equal(chrome.rowTops.length, 4, JSON.stringify(chrome));
+      assert.equal(new Set(chrome.rowTops).size, 1, JSON.stringify(chrome));
+      assert.equal(chrome.more, en.createProfile.moreOptions);
+      assert.equal(chrome.moreDescribed, null);
+      await app.clickSelector("#profile-more-options");
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[cmdk-item]').length > 0;`,
+          ),
+        { description: "group options" },
+      );
+      const groupOptions = await app.execute(`
+      return [...document.querySelectorAll('[cmdk-group-heading], [cmdk-item]')]
+        .map((node) => node.textContent.trim());
+    `);
+      assert.deepEqual(groupOptions, [
         en.profiles.table.group,
         en.groups.noGroup,
       ]);
+      await app.pressShortcut({ key: "Escape" });
+      await app.waitFor(
+        async () =>
+          (await app.execute(
+            `return document.querySelector('#profile-more-options').getAttribute('aria-expanded');`,
+          )) === "false",
+        { description: "More options closes" },
+      );
       await app.capture("profile-create-compact-wide");
       // The device's operating system is chosen on the dialog itself. Without
       // a plan that includes cross-OS fingerprints, only this computer's
@@ -564,6 +591,108 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
     },
     { seedDownloadedBrowser: true },
   );
+});
+
+test("the open-link dialog names the link, lists the profiles, and opens the chosen one", async () => {
+  await withApp("ui-open-link", async (app) => {
+    const beta = await createUiProfile(app, "Link Beta");
+    await createUiProfile(app, "Link Alpha");
+    const link = "https://example.com/pricing?plan=pro";
+    const rows = () =>
+      app.execute(`
+      return [...document.querySelectorAll('[data-slot="profile-selector-option"]')]
+        .map((row) => ({
+          name: row.querySelector('.font-medium')?.textContent.trim(),
+          selected: row.getAttribute('data-selected') === 'true',
+        }));
+    `);
+    try {
+      await stubCommand(app, "open_url_with_profile", null);
+      await app.invoke("plugin:event|emit", {
+        event: "show-profile-selector",
+        payload: link,
+      });
+      await app.waitFor(async () => (await rows()).length === 2, {
+        description: "profile rows",
+      });
+      const view = await app.execute(`
+      const card = document.querySelector('[data-slot="profile-selector-link"]');
+      const dialog = card.closest('[role="dialog"]');
+      return {
+        title: dialog.querySelector('h2')?.textContent.trim(),
+        card: card.innerText,
+        search: dialog.querySelectorAll('input').length,
+        focused: dialog.contains(document.activeElement),
+        width: dialog.getBoundingClientRect().width,
+      };
+    `);
+      assert.equal(view.title, en.profileSelector.openLink);
+      assert.match(view.card, /example\.com/);
+      assert.match(view.card, /\/pricing\?plan=pro/);
+      // A short list has no search field, and the list takes the keys.
+      assert.equal(view.search, 0);
+      assert.equal(view.focused, true);
+      assert.ok(view.width <= 448, JSON.stringify(view));
+      assert.deepEqual(await rows(), [
+        { name: "Link Alpha", selected: true },
+        { name: "Link Beta", selected: false },
+      ]);
+      await app.capture("open-link-dialog");
+
+      await app.pressShortcut({ key: "\uE015" });
+      await app.waitFor(async () => (await rows())[1]?.selected === true, {
+        description: "ArrowDown selects the next profile",
+      });
+      await app.pressShortcut({ key: "\uE007" });
+      await app.waitFor(
+        async () =>
+          !(await app.execute(
+            `return Boolean(document.querySelector('[data-slot="profile-selector-link"]'));`,
+          )),
+        { description: "the dialog closes once the link is opened" },
+      );
+      const calls = await app.execute(
+        `return (window.__donutStubbedCalls ?? []).filter((call) => call.command === 'open_url_with_profile');`,
+      );
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].payload.profileId, beta.id);
+      assert.equal(calls[0].payload.url, link);
+
+      // A long list adds a search field that filters by name.
+      for (const name of [
+        "Link Gamma",
+        "Link Delta",
+        "Link Epsilon",
+        "Link Zeta",
+      ]) {
+        await createUiProfile(app, name);
+      }
+      await app.invoke("plugin:event|emit", {
+        event: "show-profile-selector",
+        payload: "https://example.org/",
+      });
+      await app.waitFor(async () => (await rows()).length === 6, {
+        description: "six profile rows",
+      });
+      assert.equal(
+        await app.execute(
+          `return document.activeElement === document.querySelector('[data-slot="profile-selector-link"]').closest('[role="dialog"]').querySelector('[cmdk-input]');`,
+        ),
+        true,
+      );
+      await app.fillSelector("[cmdk-input]", "eps");
+      await app.waitFor(
+        async () => {
+          const shown = await rows();
+          return shown.length === 1 && shown[0].name === "Link Epsilon";
+        },
+        { description: "search filters the list" },
+      );
+      await app.capture("open-link-dialog-search");
+    } finally {
+      await restoreStubs(app);
+    }
+  });
 });
 
 test("profile table filters, range selection, view settings, and keyboard edits work together", async () => {
