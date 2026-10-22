@@ -853,7 +853,10 @@ mod linux {
   use crate::app_dirs::{linux_sandbox, LinuxSandbox};
   use std::process::Command;
 
-  const APP_DESKTOP_NAME: &str = "donutbrowser.desktop";
+  /// The desktop entry the deb and rpm install, then the name the snap gives
+  /// that entry.
+  const APP_DESKTOP_NAMES: [&str; 2] = ["Donut.desktop", SNAP_DESKTOP_NAME];
+  const SNAP_DESKTOP_NAME: &str = "donutbrowser.desktop";
 
   pub fn is_default_browser() -> Result<bool, String> {
     match linux_sandbox() {
@@ -888,7 +891,7 @@ mod linux {
       let current_handler = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
       // Check if our app is the default handler
-      if current_handler != APP_DESKTOP_NAME {
+      if !APP_DESKTOP_NAMES.contains(&current_handler.as_str()) {
         return Ok(false);
       }
     }
@@ -915,13 +918,12 @@ mod linux {
       return Err("xdg-mime utility not found. Please install xdg-utils package.".to_string());
     }
 
-    // Check if the desktop file exists in common locations
-    if !check_desktop_file_exists() {
+    let Some(desktop_name) = installed_desktop_name(&application_dirs()) else {
       return Err(format!(
         "Desktop file '{}' not found in standard locations. Please ensure the application is properly installed. You can manually set Donut Browser as the default browser in your system settings.",
-        APP_DESKTOP_NAME
+        APP_DESKTOP_NAMES[0]
       ));
-    }
+    };
 
     let schemes = ["http", "https"];
     let mut all_succeeded = true;
@@ -932,7 +934,7 @@ mod linux {
 
       // Set our app as the default handler for this scheme
       let output = Command::new("xdg-mime")
-        .args(["default", APP_DESKTOP_NAME, &mime_type])
+        .args(["default", desktop_name, &mime_type])
         .output()
         .map_err(|e| format!("Failed to set default handler for {}: {}", scheme, e))?;
 
@@ -960,7 +962,7 @@ mod linux {
         // This is the common case where commands succeed but verification fails
         Err(format!(
           "The xdg-mime commands completed successfully, but Donut Browser is not yet set as the default. This is common on some Linux distributions. Please try one of these options:\n\n1. Restart your desktop session and try again\n2. Log out and log back in\n3. Manually set Donut Browser as the default in your system settings:\n   - GNOME: Settings > Default Applications > Web\n   - KDE: System Settings > Applications > Default Applications > Web Browser\n   - XFCE: Settings > Preferred Applications > Web Browser\n   - Or run: xdg-settings set default-web-browser {}\n\nThe changes may take effect automatically after a desktop restart.",
-          APP_DESKTOP_NAME
+          desktop_name
         ))
       }
       Err(e) => Err(format!(
@@ -978,33 +980,34 @@ mod linux {
       .unwrap_or(false)
   }
 
-  fn check_desktop_file_exists() -> bool {
-    let desktop_locations = [
-      "~/.local/share/applications/",
-      "/usr/share/applications/",
-      "/usr/local/share/applications/",
-      "/var/lib/flatpak/exports/share/applications/",
-      "~/.local/share/flatpak/exports/share/applications/",
-    ];
-
-    for location in &desktop_locations {
-      let path = if location.starts_with('~') {
-        if let Ok(home) = std::env::var("HOME") {
-          location.replace('~', &home)
-        } else {
-          continue;
-        }
-      } else {
-        location.to_string()
-      };
-
-      let full_path = format!("{}{}", path, APP_DESKTOP_NAME);
-      if std::path::Path::new(&full_path).exists() {
-        return true;
-      }
+  /// Where desktop entries are installed, the person's own first.
+  fn application_dirs() -> Vec<std::path::PathBuf> {
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let mut dirs = Vec::new();
+    if let Some(home) = &home {
+      dirs.push(home.join(".local/share/applications"));
     }
+    dirs.extend(
+      [
+        "/usr/share/applications",
+        "/usr/local/share/applications",
+        "/var/lib/flatpak/exports/share/applications",
+      ]
+      .map(std::path::PathBuf::from),
+    );
+    if let Some(home) = &home {
+      dirs.push(home.join(".local/share/flatpak/exports/share/applications"));
+    }
+    dirs
+  }
 
-    false
+  /// The name of Donut's desktop entry in the first of `dirs` that has one.
+  fn installed_desktop_name(dirs: &[std::path::PathBuf]) -> Option<&'static str> {
+    dirs.iter().find_map(|dir| {
+      APP_DESKTOP_NAMES
+        .into_iter()
+        .find(|name| dir.join(name).exists())
+    })
   }
 
   /// Inside a snap, `xdg-settings` is snapd's client for its
@@ -1028,7 +1031,7 @@ mod linux {
   /// snapd installs the snap's desktop file as `<snap>_donutbrowser.desktop`
   /// and adds that prefix to the name it is given, so the name goes in bare.
   fn snap_settings_args(action: &str) -> [&str; 3] {
-    [action, "default-web-browser", APP_DESKTOP_NAME]
+    [action, "default-web-browser", SNAP_DESKTOP_NAME]
   }
 
   /// No portal lets a Flatpak app read or change the default browser, and
@@ -1044,6 +1047,16 @@ mod linux {
   #[cfg(test)]
   mod tests {
     use super::*;
+
+    #[test]
+    fn the_installed_desktop_entry_is_found_by_its_real_name() {
+      let empty = tempfile::tempdir().unwrap();
+      let packaged = tempfile::tempdir().unwrap();
+      std::fs::write(packaged.path().join("Donut.desktop"), "").unwrap();
+      let dirs = [empty.path().to_path_buf(), packaged.path().to_path_buf()];
+      assert_eq!(installed_desktop_name(&dirs), Some("Donut.desktop"));
+      assert_eq!(installed_desktop_name(&dirs[..1]), None);
+    }
 
     #[test]
     fn snapd_gets_the_desktop_name_without_its_snap_prefix() {
