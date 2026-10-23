@@ -739,7 +739,7 @@ impl BrowserRunner {
       let proxy_url = wayfern_config.proxy.as_deref();
 
       emit_launch_stage(profile, "starting", None);
-      let wayfern_result = self
+      let mut launched = self
         .wayfern_manager
         .launch_wayfern(
           &app_handle,
@@ -754,14 +754,47 @@ impl BrowserRunner {
           headless,
           kind,
         )
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-          // A refused apply reports itself as a structured error so the dialog
-          // can name the cause. Prefixing it would put English in front of the
-          // JSON the frontend parses, and the whole thing would reach the user
-          // as raw machine output.
-          crate::wrap_backend_error(e, "Failed to launch Wayfern").into()
-        })?;
+        .await;
+      // The server drops a token on a plan change and after a day, and the
+      // engine then reads a paid account as one without a plan. One new token,
+      // one more try.
+      let refused_for_plan = launched
+        .as_ref()
+        .is_err_and(|e| e.to_string().contains("\"WAYFERN_CROSS_OS_REQUIRES_PLAN\""));
+      if refused_for_plan
+        && crate::cloud_auth::CLOUD_AUTH
+          .wayfern_token_after_refusal(None)
+          .await
+          .is_some()
+      {
+        log::info!(
+          "Browser launch retried with a new Wayfern token profile={}",
+          profile.id
+        );
+        launched = self
+          .wayfern_manager
+          .launch_wayfern(
+            &app_handle,
+            &updated_profile,
+            &profile_path_str,
+            &wayfern_config,
+            url.as_deref(),
+            proxy_url,
+            profile.ephemeral,
+            &extension_paths,
+            remote_debugging_port,
+            headless,
+            kind,
+          )
+          .await;
+      }
+      let wayfern_result = launched.map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+        // A refused apply reports itself as a structured error so the dialog
+        // can name the cause. Prefixing it would put English in front of the
+        // JSON the frontend parses, and the whole thing would reach the user
+        // as raw machine output.
+        crate::wrap_backend_error(e, "Failed to launch Wayfern").into()
+      })?;
 
       // Get the process ID from launch result
       let Some(process_id) = wayfern_result.processId.filter(|pid| *pid != 0) else {

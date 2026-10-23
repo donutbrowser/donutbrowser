@@ -424,6 +424,9 @@ pub struct CloudAuthManager {
   refresh_lock: tokio::sync::Mutex<()>,
   refresh_deferred_until: std::sync::Mutex<Option<Instant>>,
   wayfern_token: Mutex<Option<String>>,
+  /// When the cached Wayfern token was minted, unix seconds. The server keeps a
+  /// token for a day of wall-clock time, sleep included.
+  wayfern_token_minted_at: std::sync::Mutex<Option<u64>>,
   /// The server's reason for refusing this desktop a Wayfern token under a
   /// device rule, until a token is acquired again. The engine reports a
   /// missing token as a plan problem; this is what lets MCP say the real one.
@@ -457,6 +460,7 @@ impl CloudAuthManager {
       refresh_lock: tokio::sync::Mutex::new(()),
       refresh_deferred_until: std::sync::Mutex::new(None),
       wayfern_token: Mutex::new(None),
+      wayfern_token_minted_at: std::sync::Mutex::new(None),
       wayfern_device_refusal: std::sync::Mutex::new(None),
     }
   }
@@ -1733,6 +1737,7 @@ impl CloudAuthManager {
 
     let mut wt = self.wayfern_token.lock().await;
     *wt = Some(token);
+    self.set_wayfern_token_minted_at(Some(crate::proxy_manager::now_secs()));
     self.set_wayfern_device_refusal(None);
     WAYFERN_TOKEN.succeeded();
     log::info!("Wayfern token acquired");
@@ -1759,6 +1764,42 @@ impl CloudAuthManager {
   pub async fn clear_wayfern_token(&self) {
     let mut wt = self.wayfern_token.lock().await;
     *wt = None;
+    self.set_wayfern_token_minted_at(None);
+  }
+
+  fn set_wayfern_token_minted_at(&self, at: Option<u64>) {
+    if let Ok(mut minted_at) = self.wayfern_token_minted_at.lock() {
+      *minted_at = at;
+    }
+  }
+
+  /// Whether the cached Wayfern token is old enough to replace, by the clock on
+  /// the wall: a computer that slept through the night kept the app's timers
+  /// still while the server's day ran out.
+  fn wayfern_token_due(&self, now: u64) -> bool {
+    self
+      .wayfern_token_minted_at
+      .lock()
+      .ok()
+      .and_then(|minted_at| *minted_at)
+      .is_some_and(|minted_at| wayfern_token_stale(minted_at, now))
+  }
+
+  /// A fresh Wayfern token after the engine refused the cached one for a
+  /// feature this plan includes. The server drops a token on a plan change
+  /// and after a day; the cached copy does not know.
+  pub async fn wayfern_token_after_refusal(&self, refused: Option<&str>) -> Option<String> {
+    if !self.can_use_cross_os_fingerprints().await {
+      return None;
+    }
+    if let Err(e) = self.request_wayfern_token().await {
+      log::warn!("Wayfern token not replaced after a refusal err=\"{e}\"");
+      return None;
+    }
+    self
+      .get_wayfern_token()
+      .await
+      .filter(|token| Some(token.as_str()) != refused)
   }
 
   fn set_wayfern_device_refusal(&self, refusal: Option<String>) {
@@ -1777,15 +1818,12 @@ impl CloudAuthManager {
 
   /// Background loop that refreshes the sync token periodically
   pub async fn start_sync_token_refresh_loop(app_handle: tauri::AppHandle) {
-    let mut wayfern_refresh_counter: u32 = 0;
     loop {
       tokio::time::sleep(std::time::Duration::from_secs(600)).await; // 10 minutes
 
       if !CLOUD_AUTH.is_logged_in().await {
         continue;
       }
-
-      wayfern_refresh_counter += 1;
 
       // Proactively refresh the access token if it's expired or expiring soon.
       // This runs first so subsequent API calls use a fresh token.
@@ -1840,7 +1878,7 @@ impl CloudAuthManager {
       // Sync cloud proxy credentials
       CLOUD_AUTH.sync_cloud_proxy().await;
 
-      // Refresh wayfern token every 10 hours (60 iterations of 10-minute loop).
+      // Refresh the wayfern token once it is ten hours old by the wall clock.
       // request_wayfern_token owns the entitlement check and clears the cached
       // token when the plan doesn't include automation.
       //
@@ -1848,10 +1886,14 @@ impl CloudAuthManager {
       // above picks up an upgrade within ten minutes, but nothing watched that
       // transition, so a session that signed in before upgrading stayed
       // tokenless for up to ten hours while reporting the feature as unlocked.
+      // A plan change revokes the server's tokens, so it mints one too.
       let missing_entitled_token = CLOUD_AUTH.is_entitled_to_wayfern_token().await
         && CLOUD_AUTH.get_wayfern_token().await.is_none();
-      if wayfern_refresh_counter >= 60 || missing_entitled_token {
-        wayfern_refresh_counter = 0;
+      let plan_changed = CLOUD_AUTH.plan_marker().await != plan_before;
+      if CLOUD_AUTH.wayfern_token_due(crate::proxy_manager::now_secs())
+        || missing_entitled_token
+        || plan_changed
+      {
         let _ = CLOUD_AUTH.request_wayfern_token().await;
       }
 
@@ -2093,6 +2135,14 @@ pub async fn cloud_has_active_subscription() -> Result<bool, String> {
 #[tauri::command]
 pub async fn cloud_get_wayfern_token() -> Result<Option<String>, String> {
   Ok(CLOUD_AUTH.get_wayfern_token().await)
+}
+
+/// How old a Wayfern token may get before it is replaced; the server keeps one
+/// for a day.
+const WAYFERN_TOKEN_REFRESH_SECS: u64 = 10 * 60 * 60;
+
+fn wayfern_token_stale(minted_at: u64, now: u64) -> bool {
+  now.saturating_sub(minted_at) >= WAYFERN_TOKEN_REFRESH_SECS
 }
 
 #[tauri::command]
@@ -2601,6 +2651,22 @@ mod tests {
       .find("sync::resume_subscription(app_handle.clone()).await;")
       .expect("a changed plan resumes the subscription");
     assert!(before < fetch && fetch < resume);
+  }
+
+  #[test]
+  fn a_wayfern_token_is_replaced_by_its_wall_clock_age() {
+    let minted = 1_800_000_000;
+    assert!(!wayfern_token_stale(minted, minted + 60));
+    assert!(!wayfern_token_stale(
+      minted,
+      minted + WAYFERN_TOKEN_REFRESH_SECS - 1
+    ));
+    assert!(wayfern_token_stale(
+      minted,
+      minted + WAYFERN_TOKEN_REFRESH_SECS
+    ));
+    // A night asleep counts: the server's day ran on.
+    assert!(wayfern_token_stale(minted, minted + 20 * 60 * 60));
   }
 
   #[test]

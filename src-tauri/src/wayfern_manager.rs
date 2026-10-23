@@ -2631,6 +2631,27 @@ impl WayfernManager {
     }
   }
 
+  /// Ask the engine for a device: the identity API returns it from one call,
+  /// the legacy pair mints it with refresh and reads it back with get.
+  async fn generate_device(
+    &self,
+    ws_url: &str,
+    use_identity_api: bool,
+    params: serde_json::Value,
+  ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+    if use_identity_api {
+      return self
+        .send_cdp_command(ws_url, "Wayfern.createIdentity", params)
+        .await;
+    }
+    self
+      .send_cdp_command(ws_url, "Wayfern.refreshFingerprint", params)
+      .await?;
+    self
+      .send_cdp_command(ws_url, "Wayfern.getFingerprint", json!({}))
+      .await
+  }
+
   /// Generate a device for `config` on a headless Wayfern.
   ///
   /// On a browser that ships the identity API this mints an identity and
@@ -2680,25 +2701,29 @@ impl WayfernManager {
     // No geolocation override is passed here. Donut resolves the exit's
     // location itself, below, through the profile's own proxy, because the
     // browser cannot resolve it through an authenticated upstream.
-    let generate_result = if use_identity_api {
-      self
-        .send_cdp_command(&ws_url, "Wayfern.createIdentity", generate_params)
-        .await
-    } else {
-      match self
-        .send_cdp_command(&ws_url, "Wayfern.refreshFingerprint", generate_params)
+    let mut generate_result = self
+      .generate_device(&ws_url, use_identity_api, generate_params.clone())
+      .await;
+    // The server drops a token on a plan change and after a day, and the engine
+    // then reads a paid account as one without a plan. One new token, one try.
+    let refused_for_plan = generate_result.as_ref().is_err_and(|e| {
+      wayfern_failure(&e.to_string(), "", Some(os)).contains("\"WAYFERN_CROSS_OS_REQUIRES_PLAN\"")
+    });
+    if refused_for_plan {
+      if let Some(fresh) = crate::cloud_auth::CLOUD_AUTH
+        .wayfern_token_after_refusal(wayfern_token.as_deref())
         .await
       {
-        // The legacy pair is two commands: refresh mints the device, get reads
-        // it back. Only the identity API returns the device from one call.
-        Ok(_) => {
-          self
-            .send_cdp_command(&ws_url, "Wayfern.getFingerprint", json!({}))
-            .await
-        }
-        Err(e) => Err(e),
+        log::info!(
+          "Fingerprint generation retried with a new Wayfern token profile={}",
+          profile.id
+        );
+        generate_params["wayfernToken"] = json!(fresh);
+        generate_result = self
+          .generate_device(&ws_url, use_identity_api, generate_params)
+          .await;
       }
-    };
+    }
 
     let (fingerprint, identity_id, geolocation_applied) = match generate_result {
       Ok(result) => {
