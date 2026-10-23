@@ -343,11 +343,8 @@ jobs:
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
           rm -f $RUNNER_TEMP/build_certificate.p12 || true
 
-  # Runs after every matrix leg (including the portable ZIP upload) so the
-  # sums cover the complete, final asset set. The app self-updater refuses to
-  # install a release it cannot verify against this file.
   # The Flatpak and the Snap, repackaged from this release's .deb and attached
-  # to it before the checksums are taken, so SHA256SUMS.txt covers them.
+  # to it; checksums-with-packages then adds them to SHA256SUMS.txt.
   linux-packages:
     if: github.repository == 'donutbrowser/donutbrowser'
     needs: [release]
@@ -357,26 +354,37 @@ jobs:
     with:
       release-tag: ${{ github.ref_name }}
 
+  # Runs after every matrix leg (including the portable ZIP upload), so the
+  # app updater, which refuses a release it cannot verify against
+  # SHA256SUMS.txt, can install the release without waiting for the Flatpak
+  # and the Snap.
   checksums:
-    # A failed Flatpak or Snap never holds back the checksums.
-    if: ${{ !cancelled() && github.repository == 'donutbrowser/donutbrowser' && needs.release.result == 'success' }}
-    needs: [release, linux-packages]
+    if: github.repository == 'donutbrowser/donutbrowser'
+    needs: [release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
       - name: Generate and upload SHA256SUMS.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          ASSETS_DIR="/tmp/release-assets"
-          mkdir -p "$ASSETS_DIR"
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$ASSETS_DIR"
-          cd "$ASSETS_DIR"
-          sha256sum Donut* > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-          gh release upload "$TAG" SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+        run: bash .github/scripts/release-checksums.sh "${{ github.ref_name }}"
+
+  # The same sums again, now with whatever Linux packages were attached. A
+  # failed Flatpak or Snap never holds them back.
+  checksums-with-packages:
+    if: ${{ !cancelled() && github.repository == 'donutbrowser/donutbrowser' && needs.checksums.result == 'success' }}
+    needs: [checksums, linux-packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+      - name: Generate and upload SHA256SUMS.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/release-checksums.sh "${{ github.ref_name }}"
 
   changelog:
     if: github.repository == 'donutbrowser/donutbrowser'

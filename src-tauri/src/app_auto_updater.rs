@@ -38,7 +38,7 @@ The updater automatically detects how the application was installed:
 
 ## Update Process
 
-1. **Check**: Fetches releases from GitHub API
+1. **Check**: Fetches releases from GitHub and from Donut's copy on donutbrowser.com, every hour
 2. **Filter**: Filters releases based on build type (stable vs nightly)
 3. **Compare**: Compares versions using semantic versioning or commit hashes
 4. **Download**: Downloads appropriate asset with progress tracking
@@ -96,12 +96,38 @@ pub struct AppReleaseAsset {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppRelease {
   pub tag_name: String,
+  /// GitHub sends `null` for a release with no name, notes or date yet.
+  #[serde(default, deserialize_with = "null_as_empty")]
   pub name: String,
+  #[serde(default, deserialize_with = "null_as_empty")]
   pub body: String,
+  #[serde(default, deserialize_with = "null_as_empty")]
   pub published_at: String,
+  #[serde(default)]
   pub prerelease: bool,
+  #[serde(default)]
   pub assets: Vec<AppReleaseAsset>,
 }
+
+fn null_as_empty<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+  Ok(Option::<String>::deserialize(deserializer)?.unwrap_or_default())
+}
+
+/// GitHub's API for this repository.
+const GITHUB_REPO_API: &str = "https://api.github.com/repos/donutbrowser/donutbrowser";
+/// Donut's copy of the newest stable and nightly releases, which the cloud
+/// reads from GitHub with a token. It still answers when GitHub refuses an
+/// address that many installs share (60 unauthenticated requests an hour).
+const DONUT_RELEASES_URL: &str = "https://api.donutbrowser.com/api/app-releases";
+/// One release list is small; a source slower than this is skipped.
+const SOURCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+/// How long after a check the next one runs.
+const CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+/// The next check after one that found the newest release still missing
+/// SHA256SUMS.txt, which the release workflow uploads minutes after the builds.
+const NOT_READY_RECHECK: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+/// The next check after one that reached no source.
+const FAILED_RECHECK: std::time::Duration = std::time::Duration::from_secs(15 * 60);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppUpdateInfo {
@@ -239,17 +265,23 @@ impl AppAutoUpdater {
     } else {
       "stable"
     };
-    let releases = match self.fetch_app_releases().await {
+    let releases = match self.fetch_app_releases(channel == "nightly").await {
       Ok(releases) => {
         APP_UPDATE_CHECK_STREAK.succeeded();
         releases
       }
       Err(e) => {
         APP_UPDATE_CHECK_STREAK.failed(&e);
+        schedule_next_check(FAILED_RECHECK);
         return Err(e);
       }
     };
     let (update, latest, result) = self.evaluate_releases(&releases, current_version.clone());
+    schedule_next_check(if result.starts_with("not_ready") {
+      NOT_READY_RECHECK
+    } else {
+      CHECK_INTERVAL
+    });
 
     let outcome = format!("{latest} {result}");
     let changed = APP_UPDATE_LAST_OUTCOME
@@ -396,24 +428,90 @@ impl AppAutoUpdater {
     }
   }
 
-  /// Fetch app releases from GitHub
+  /// The releases of this build's channel from every source that answers,
+  /// newest first: GitHub and Donut's copy, asked at the same time. Fails
+  /// only when neither answers.
   async fn fetch_app_releases(
     &self,
+    nightly: bool,
   ) -> Result<Vec<AppRelease>, Box<dyn std::error::Error + Send + Sync>> {
-    let url = "https://api.github.com/repos/donutbrowser/donutbrowser/releases?per_page=100";
+    let (github, donut) = tokio::join!(
+      self.fetch_github_releases(nightly),
+      self.fetch_donut_releases()
+    );
+    let mut lists = Vec::new();
+    let mut failures = Vec::new();
+    for (source, fetched) in [("github", github), ("donutbrowser.com", donut)] {
+      match fetched {
+        Ok(releases) => lists.push((source, releases)),
+        Err(e) => failures.push((source, e.to_string())),
+      }
+    }
+    if lists.is_empty() {
+      let all = failures
+        .iter()
+        .map(|(source, e)| format!("{source}: {e}"))
+        .collect::<Vec<_>>()
+        .join("; ");
+      return Err(all.into());
+    }
+    for (source, _) in &lists {
+      APP_UPDATE_SOURCE_STREAK.succeeded(source);
+    }
+    for (source, e) in &failures {
+      APP_UPDATE_SOURCE_STREAK.failed(source, e);
+    }
+    Ok(merge_releases(
+      lists.into_iter().map(|(_, releases)| releases),
+    ))
+  }
+
+  /// The latest stable release alone (a few kilobytes), or the newest ten
+  /// for a nightly build, whose tags GitHub does not mark as latest.
+  async fn fetch_github_releases(
+    &self,
+    nightly: bool,
+  ) -> Result<Vec<AppRelease>, Box<dyn std::error::Error + Send + Sync>> {
+    let url = if nightly {
+      format!("{GITHUB_REPO_API}/releases?per_page=10")
+    } else {
+      format!("{GITHUB_REPO_API}/releases/latest")
+    };
     let response = self
       .client
-      .get(url)
+      .get(&url)
       .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36")
+      .header("Accept", "application/vnd.github+json")
+      .timeout(SOURCE_TIMEOUT)
       .send()
       .await?;
-
     if !response.status().is_success() {
       return Err(format!("GitHub API request failed: {}", response.status()).into());
     }
+    if nightly {
+      Ok(response.json().await?)
+    } else {
+      Ok(vec![response.json().await?])
+    }
+  }
 
-    let releases: Vec<AppRelease> = response.json().await?;
-    Ok(releases)
+  async fn fetch_donut_releases(
+    &self,
+  ) -> Result<Vec<AppRelease>, Box<dyn std::error::Error + Send + Sync>> {
+    let response = self
+      .client
+      .get(DONUT_RELEASES_URL)
+      .header(
+        "User-Agent",
+        format!("DonutBrowser/{}", Self::get_current_version()),
+      )
+      .timeout(SOURCE_TIMEOUT)
+      .send()
+      .await?;
+    if !response.status().is_success() {
+      return Err(format!("Donut releases request failed: {}", response.status()).into());
+    }
+    Ok(response.json().await?)
   }
 
   /// Determine if an update should be performed
@@ -2168,8 +2266,67 @@ static APP_AUTO_UPDATER: std::sync::LazyLock<AppAutoUpdater> =
   std::sync::LazyLock::new(AppAutoUpdater::new);
 static APP_UPDATE_CHECK_STREAK: crate::log_streak::Streak =
   crate::log_streak::Streak::new(module_path!(), "App update check");
+/// One source failing while the other answers; keyed by source.
+static APP_UPDATE_SOURCE_STREAK: crate::log_streak::KeyedStreak =
+  crate::log_streak::KeyedStreak::new(module_path!(), "App update source");
 /// `<latest> <result>` of the previous check, so an unchanged outcome logs at debug.
 static APP_UPDATE_LAST_OUTCOME: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+/// When the periodic check runs next; any check, also one the window asked
+/// for, moves it.
+static NEXT_CHECK_AT: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+fn schedule_next_check(after: std::time::Duration) {
+  if let Ok(mut next) = NEXT_CHECK_AT.lock() {
+    *next = Some(std::time::Instant::now() + after);
+  }
+}
+
+/// Every release the sources listed, once, newest first. When both list a
+/// release, the copy that already carries SHA256SUMS.txt wins, so the source
+/// that saw it first is not held back by the other.
+fn merge_releases(lists: impl IntoIterator<Item = Vec<AppRelease>>) -> Vec<AppRelease> {
+  let mut merged: Vec<AppRelease> = Vec::new();
+  for release in lists.into_iter().flatten() {
+    match merged.iter_mut().find(|r| r.tag_name == release.tag_name) {
+      Some(known) => {
+        let has_sums = |r: &AppRelease| AppAutoUpdater::find_checksums_url(&r.assets).is_some();
+        if !has_sums(known) && has_sums(&release) {
+          *known = release;
+        }
+      }
+      None => merged.push(release),
+    }
+  }
+  // RFC 3339 times of one format sort as text.
+  merged.sort_by(|a, b| b.published_at.cmp(&a.published_at));
+  merged
+}
+
+/// Checks for an update once an hour, or sooner after a check that found
+/// the newest release not ready yet or reached no source, and tells the
+/// window about an update it finds. The window's own check at startup
+/// counts, so the two do not ask twice.
+pub async fn run_periodic_checks() {
+  const TICK: std::time::Duration = std::time::Duration::from_secs(60);
+  // The window checks at startup; this check runs only if it has not.
+  schedule_next_check(std::time::Duration::from_secs(2 * 60));
+  loop {
+    tokio::time::sleep(TICK).await;
+    let due = NEXT_CHECK_AT
+      .lock()
+      .map(|next| next.is_none_or(|at| std::time::Instant::now() >= at))
+      .unwrap_or(true);
+    if !due {
+      continue;
+    }
+    // Moves the schedule itself; the line after a failure is the check's.
+    if let Ok(Some(update_info)) = check_for_app_updates().await {
+      if let Err(e) = events::emit("app-update-available", &update_info) {
+        log::error!("Emit app-update-available failed err=\"{e}\"");
+      }
+    }
+  }
+}
 
 fn exit_code(status: &std::process::ExitStatus) -> String {
   status
@@ -2696,5 +2853,55 @@ mod tests {
   fn a_manual_update_never_installs_by_itself() {
     let info = update_info(true).with_install_policy(false, false);
     assert!(!info.auto_install);
+  }
+
+  fn listed(tag: &str, published_at: &str, with_sums: bool) -> AppRelease {
+    let mut assets = vec![AppReleaseAsset {
+      name: "Donut_aarch64.dmg".to_string(),
+      browser_download_url: format!("https://example.com/{tag}/Donut_aarch64.dmg"),
+      size: 1,
+      digest: None,
+    }];
+    if with_sums {
+      assets.push(AppReleaseAsset {
+        name: "SHA256SUMS.txt".to_string(),
+        browser_download_url: format!("https://example.com/{tag}/SHA256SUMS.txt"),
+        size: 1,
+        digest: None,
+      });
+    }
+    AppRelease {
+      tag_name: tag.to_string(),
+      name: tag.to_string(),
+      body: String::new(),
+      published_at: published_at.to_string(),
+      prerelease: tag.starts_with("nightly-"),
+      assets,
+    }
+  }
+
+  #[test]
+  fn releases_from_both_sources_are_merged_newest_first() {
+    let github = vec![
+      listed("v0.35.2", "2026-10-24T10:00:00Z", false),
+      listed("v0.35.1", "2026-10-23T04:39:59Z", true),
+    ];
+    let donut = vec![
+      listed("nightly-2026-10-24-abc1234", "2026-10-24T12:00:00Z", true),
+      listed("v0.35.2", "2026-10-24T10:00:00Z", true),
+    ];
+    let merged = merge_releases([github, donut]);
+    let tags: Vec<&str> = merged.iter().map(|r| r.tag_name.as_str()).collect();
+    assert_eq!(tags, ["nightly-2026-10-24-abc1234", "v0.35.2", "v0.35.1"]);
+    // The source that already lists SHA256SUMS.txt wins for v0.35.2.
+    assert!(AppAutoUpdater::find_checksums_url(&merged[1].assets).is_some());
+  }
+
+  #[test]
+  fn a_release_github_lists_without_notes_still_parses() {
+    let json = r#"{"tag_name":"v0.35.2","name":null,"body":null,"published_at":null,"prerelease":false,"assets":[]}"#;
+    let release: AppRelease = serde_json::from_str(json).unwrap();
+    assert_eq!(release.tag_name, "v0.35.2");
+    assert!(release.body.is_empty() && release.name.is_empty());
   }
 }

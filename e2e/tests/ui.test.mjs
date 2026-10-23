@@ -593,6 +593,74 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
   );
 });
 
+test("a found update waits while automatic updates are off; on, it downloads by itself and offers a restart", async () => {
+  await withApp("ui-app-update", async (app) => {
+    const update = (version, autoInstall) => ({
+      current_version: "v0.35.1",
+      new_version: version,
+      release_notes: "",
+      download_url: `https://github.com/donutbrowser/donutbrowser/releases/download/${version}/Donut_aarch64.dmg`,
+      is_nightly: false,
+      published_at: "2026-10-24T10:00:00Z",
+      manual_update_required: false,
+      release_page_url: `https://github.com/donutbrowser/donutbrowser/releases/tag/${version}`,
+      repo_update: false,
+      checksums_url: `https://github.com/donutbrowser/donutbrowser/releases/download/${version}/SHA256SUMS.txt`,
+      asset_digest: null,
+      auto_install: autoInstall,
+    });
+    const calls = (command) =>
+      app.execute(
+        `return (window.__donutStubbedCalls ?? []).filter((call) => call.command === arguments[0]);`,
+        [command],
+      );
+    try {
+      await stubCommand(app, "download_and_prepare_app_update", null);
+      await stubCommand(app, "restart_application", null);
+
+      // Automatic updates off: the toast asks, and nothing downloads.
+      await app.invoke("plugin:event|emit", {
+        event: "app-update-available",
+        payload: update("v99.0.0", false),
+      });
+      await app.waitForText(
+        en.about.update.available.replace("{{version}}", "v99.0.0"),
+      );
+      assert.equal((await calls("download_and_prepare_app_update")).length, 0);
+
+      // On: it downloads at once, and the toast offers the restart when the
+      // update is ready.
+      await app.invoke("plugin:event|emit", {
+        event: "app-update-available",
+        payload: update("v99.0.1", true),
+      });
+      await app.waitFor(
+        async () =>
+          (await calls("download_and_prepare_app_update")).length === 1,
+        { description: "the update downloads without a question" },
+      );
+      const [download] = await calls("download_and_prepare_app_update");
+      assert.equal(download.payload.updateInfo.new_version, "v99.0.1");
+
+      await app.invoke("plugin:event|emit", {
+        event: "app-update-ready",
+        payload: "v99.0.1",
+      });
+      await app.waitForText(en.appUpdate.toast.updateReady);
+      await app.capture("app-update-ready");
+      await app.clickText(en.appUpdate.toast.restartNow, {
+        roles: ["button"],
+      });
+      await app.waitFor(
+        async () => (await calls("restart_application")).length === 1,
+        { description: "Restart Now restarts the app" },
+      );
+    } finally {
+      await restoreStubs(app);
+    }
+  });
+});
+
 test("the open-link dialog names the link, lists the profiles, and opens the chosen one", async () => {
   await withApp("ui-open-link", async (app) => {
     const beta = await createUiProfile(app, "Link Beta");

@@ -3143,18 +3143,7 @@ pub fn run_with_builder(
           }
         });
 
-        tauri::async_runtime::spawn(async move {
-          let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(3 * 60 * 60));
-          loop {
-            interval.tick().await;
-            // check_for_app_updates logs its own result and failure streak.
-            if let Ok(Some(update_info)) = app_auto_updater::check_for_app_updates().await {
-              if let Err(e) = events::emit("app-update-available", &update_info) {
-                log::error!("Emit app-update-available failed err=\"{e}\"");
-              }
-            }
-          }
-        });
+        tauri::async_runtime::spawn(app_auto_updater::run_periodic_checks());
 
         let app_handle_geoip = app.handle().clone();
         tauri::async_runtime::spawn(async move {
