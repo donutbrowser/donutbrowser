@@ -661,6 +661,7 @@ export const OUTCOME_KEYS: Record<string, string> = {
   // never learned it, so the one refusal whose fix is "use a public proxy"
   // printed as `proxy_local_only`.
   proxy_local_only: "cookieBot.outcome.proxyLocalOnly",
+  proxy_dead: "cookieBot.outcome.proxyDead",
   touch_fingerprint: "cookieBot.outcome.touchFingerprint",
   platform_unsupported: "cookieBot.outcome.platformUnsupported",
   no_sites: "cookieBot.outcome.noSites",
@@ -1194,16 +1195,45 @@ export function scheduleSortKey(schedule: CookieBotSchedule): number {
  */
 export function scheduleTone(schedule: CookieBotSchedule): StatusTone {
   if (!schedule.enabled) return "muted";
-  return schedule.blocked_by ? "warning" : "success";
+  return schedule.blocked_by || exitCheckFailed(schedule)
+    ? "warning"
+    : "success";
 }
 
-/** Why this enrolment cannot run next, translated, or null. */
+function exitCheckFailed(schedule: CookieBotSchedule): boolean {
+  return schedule.exit_check?.ok === false;
+}
+
+function checkedAt(schedule: CookieBotSchedule): string {
+  const at = schedule.exit_check?.checked_at;
+  return at == null
+    ? ""
+    : (formatShortDateTime(new Date(at * 1000).toISOString()) ?? "");
+}
+
+/**
+ * Why this enrolment cannot run next, translated, or null. A failed check of
+ * the exit from this computer counts before the server holds the schedule.
+ */
 export function scheduleBlockedReason(
   t: TFunction,
   schedule: CookieBotSchedule,
 ): string | null {
   if (!schedule.enabled) return null;
-  return outcomeLabel(t, schedule.blocked_by);
+  if (schedule.blocked_by) return outcomeLabel(t, schedule.blocked_by);
+  return exitCheckFailed(schedule)
+    ? t("cookieBot.exitCheck.failed", { time: checkedAt(schedule) })
+    : null;
+}
+
+/** When this computer last reached the enrolment's exit, or null. */
+export function exitCheckPassed(
+  t: TFunction,
+  schedule: CookieBotSchedule,
+): string | null {
+  return schedule.exit_check?.ok
+    ? t("cookieBot.exitCheck.passed", { time: checkedAt(schedule) })
+    : null;
 }
 
 /** Seconds a session has been alive, or null when the backend has not said. */

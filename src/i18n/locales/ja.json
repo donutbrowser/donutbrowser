@@ -2706,6 +2706,7 @@
     "cookieBotUnsupportedPlatform": "Cookie Bot は {{platform}} のプロファイルを実行できません。対応しているのは Windows、macOS、Linux のプロファイルのみです。",
     "cookieBotRequiresExitNode": "先にプロキシまたは VPN を設定してください。設定しないと通信がデータセンターのアドレスから出て、プロファイルの信頼性を損ないます。",
     "cookieBotRequiresRemoteExitNode": "このプロファイルのプロキシはこのコンピューター上でのみ有効です（127.0.0.1 やローカルネットワークのアドレスなど）。Cookie Bot は当社のホスト上で実行されるため、公開アドレスを持つプロキシが必要です。",
+    "cookieBotExitCheckFailed": "前回のチェックでこのプロファイルのプロキシまたは VPN に接続できませんでした。確認してからもう一度お試しください。",
     "cookieBotProxyKindUnsupported": "このプロファイルは {{kind}} プロキシを使用していますが、これには当社のホストが実行していない Xray サイドカーが必要です。Cookie Bot は当社のホスト上で実行されるため、HTTP、HTTPS、SOCKS または WireGuard の出口に変更してください。",
     "unknownCode": "エラーが発生しました: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "このプロファイルはタッチ端末を名乗っており、ボットは操作できません。デスクトップのフィンガープリントをお使いください。",
@@ -2744,6 +2745,7 @@
     "wayfernCrossOsRequiresPlan": "このプロファイルは {{detail}} として動作し、このコンピューターでは別のオペレーティングシステムが動作しています。ここで開くには Pro または Team プランが必要です。",
     "wayfernIdentityRefused": "ブラウザーがこのプロファイルのアイデンティティで起動しなかったため、終了しました。{{detail}}",
     "wayfernInstanceLimitReached": "ご利用のプランでは、開いているブラウザーが多すぎます。ブラウザーを1つ閉じてからもう一度お試しください。",
+    "tooManyBrowsersRunning": "続行するには、ブラウザーのウィンドウを1つ閉じてください。",
     "wayfernPlanCheckUnavailable": "現在、ご利用のプランを確認できません。しばらくしてからもう一度お試しください。",
     "wayfernCustomFingerprintRequiresPlan": "ご利用のプランにはカスタムフィンガープリントが含まれていません。",
     "wayfernGenerationUnavailable": "現在、フィンガープリントを作成できません。しばらくしてから再度お試しください。",
@@ -3643,6 +3645,7 @@
       "encryptedSync": "エンドツーエンド暗号化された同期には対応していません",
       "proxyRequired": "プロキシまたは VPN が設定されていません",
       "proxyLocalOnly": "プロキシはこのコンピューター上でのみ有効です。公開アドレスのものを設定してください",
+      "proxyDead": "前回のチェックでプロキシまたは VPN に接続できませんでした。設定を確認してください。",
       "touchFingerprint": "タッチ端末のフィンガープリントには対応していません",
       "platformUnsupported": "このプロファイルの OS を実行できるマシンがありません",
       "noSites": "訪問するサイトがありません",
@@ -3657,6 +3660,10 @@
       "profileOsMismatch": "プロファイルは実行したホストとは別のオペレーティングシステムのものです",
       "cancelledByUser": "手動で停止しました",
       "unknown": "不明な理由 ({{code}})"
+    },
+    "exitCheck": {
+      "failed": "前回のチェック（{{time}}）でプロキシまたは VPN に接続できませんでした。設定を確認してください。",
+      "passed": "プロキシまたは VPN に接続済み: {{time}}"
     },
     "next": {
       "label": "次回の実行",

@@ -236,7 +236,10 @@ pub async fn set_e2e_password(password: String) -> Result<(), String> {
     return Err("Password must be at least 8 characters".to_string());
   }
   enforce_team_owner_for_encryption_change().await?;
-  store_e2e_password(&password)
+  store_e2e_password(&password)?;
+  // The password seals every synced profile, so the cookie bot must hear it.
+  tauri::async_runtime::spawn(crate::cookie_bot::report_enrolled_profiles());
+  Ok(())
 }
 
 #[tauri::command]
@@ -255,7 +258,9 @@ pub fn verify_e2e_password(password: String) -> Result<bool, String> {
 #[tauri::command]
 pub async fn delete_e2e_password() -> Result<(), String> {
   enforce_team_owner_for_encryption_change().await?;
-  remove_e2e_password()
+  remove_e2e_password()?;
+  tauri::async_runtime::spawn(crate::cookie_bot::report_enrolled_profiles());
+  Ok(())
 }
 
 /// Only the team owner may flip the E2E password state — otherwise members

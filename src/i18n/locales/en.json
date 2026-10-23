@@ -2706,6 +2706,7 @@
     "cookieBotUnsupportedPlatform": "The cookie bot cannot run {{platform}} profiles. Only Windows, macOS and Linux profiles are supported.",
     "cookieBotRequiresExitNode": "Attach a proxy or VPN first. Without one the run would come from a datacenter address, which damages the profile's identity.",
     "cookieBotRequiresRemoteExitNode": "This profile's proxy only works on this computer (for example 127.0.0.1 or a home network address). Cookie Bot runs on our hosts, so it needs a proxy with a public address.",
+    "cookieBotExitCheckFailed": "The last check could not reach this profile's proxy or VPN. Check it, then try again.",
     "cookieBotProxyKindUnsupported": "This profile uses a {{kind}} proxy, which needs the Xray sidecar our hosts do not run. Cookie Bot runs on our hosts, so attach an HTTP, HTTPS, SOCKS or WireGuard exit instead.",
     "unknownCode": "Something went wrong: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "This profile claims a touch device, which the bot cannot drive. Use a desktop fingerprint.",
@@ -2744,6 +2745,7 @@
     "wayfernCrossOsRequiresPlan": "This profile runs as {{detail}}, and this computer runs another operating system. Opening it here needs a Pro or Team plan.",
     "wayfernIdentityRefused": "The browser did not start on this profile's identity, so it was closed. {{detail}}",
     "wayfernInstanceLimitReached": "Too many browsers are open for your plan. Close a browser and try again.",
+    "tooManyBrowsersRunning": "Close one browser window to continue.",
     "wayfernPlanCheckUnavailable": "Could not check your plan right now. Try again in a moment.",
     "wayfernCustomFingerprintRequiresPlan": "Your plan does not include custom fingerprints.",
     "wayfernGenerationUnavailable": "Could not create a fingerprint right now. Try again later.",
@@ -3643,6 +3645,7 @@
       "encryptedSync": "End-to-end encrypted sync is not supported",
       "proxyRequired": "No proxy or VPN attached",
       "proxyLocalOnly": "The proxy only works on this computer, so attach one with a public address",
+      "proxyDead": "The last check could not reach the proxy or VPN, so check it",
       "touchFingerprint": "Touch fingerprints are not supported",
       "platformUnsupported": "No machine runs this profile's system",
       "noSites": "No sites to visit",
@@ -3657,6 +3660,10 @@
       "profileOsMismatch": "The profile came from a different operating system than the host that ran it",
       "cancelledByUser": "Stopped by hand",
       "unknown": "Unknown reason ({{code}})"
+    },
+    "exitCheck": {
+      "failed": "The last check ({{time}}) could not reach the proxy or VPN, so check it",
+      "passed": "Proxy or VPN reached {{time}}"
     },
     "next": {
       "label": "Next run",

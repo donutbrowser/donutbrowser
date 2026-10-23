@@ -2706,6 +2706,7 @@
     "cookieBotUnsupportedPlatform": "Cookie Bot, {{platform}} profillerini çalıştıramaz. Yalnızca Windows, macOS ve Linux profilleri desteklenir.",
     "cookieBotRequiresExitNode": "Önce bir proxy veya VPN ekleyin. Aksi hâlde çalışma bir veri merkezi adresinden çıkar ve bu, profilin kimliğine zarar verir.",
     "cookieBotRequiresRemoteExitNode": "Bu profilin proxy'si yalnızca bu bilgisayarda çalışır (örneğin 127.0.0.1 veya yerel ağ adresi). Cookie Bot bizim sunucularımızda çalıştığı için genel bir adrese sahip bir proxy gerekir.",
+    "cookieBotExitCheckFailed": "Son kontrol bu profilin proxy'sine veya VPN'ine ulaşamadı. Kontrol edip tekrar deneyin.",
     "cookieBotProxyKindUnsupported": "Bu profil {{kind}} proxy kullanıyor; bunun için sunucularımızda çalışmayan Xray bileşeni gerekiyor. Cookie Bot bizim sunucularımızda çalıştığı için HTTP, HTTPS, SOCKS veya WireGuard çıkışı bağlayın.",
     "unknownCode": "Bir sorun oluştu: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "Bu profil dokunmatik bir cihaz olduğunu bildiriyor ve bot bunu süremez. Masaüstü parmak izi kullanın.",
@@ -2744,6 +2745,7 @@
     "wayfernCrossOsRequiresPlan": "Bu profil {{detail}} olarak çalışıyor ve bu bilgisayarda başka bir işletim sistemi var. Burada açmak için Pro veya Team planı gerekir.",
     "wayfernIdentityRefused": "Tarayıcı bu profilin kimliğiyle başlamadığı için kapatıldı. {{detail}}",
     "wayfernInstanceLimitReached": "Planınız için çok fazla tarayıcı açık. Bir tarayıcıyı kapatıp tekrar deneyin.",
+    "tooManyBrowsersRunning": "Devam etmek için bir tarayıcı penceresini kapatın.",
     "wayfernPlanCheckUnavailable": "Planınız şu anda kontrol edilemedi. Kısa süre sonra yeniden deneyin.",
     "wayfernCustomFingerprintRequiresPlan": "Planınız özel parmak izlerini içermiyor.",
     "wayfernGenerationUnavailable": "Şu anda parmak izi oluşturulamadı. Daha sonra tekrar deneyin.",
@@ -3643,6 +3645,7 @@
       "encryptedSync": "Uçtan uca şifreli eşitleme desteklenmiyor",
       "proxyRequired": "Bağlı proxy veya VPN yok",
       "proxyLocalOnly": "Proxy yalnızca bu bilgisayarda çalışıyor, genel adresli bir proxy bağlayın",
+      "proxyDead": "Son kontrol proxy'ye veya VPN'e ulaşamadı. Lütfen kontrol edin.",
       "touchFingerprint": "Dokunmatik parmak izleri desteklenmiyor",
       "platformUnsupported": "Bu profilin sistemini çalıştıran makine yok",
       "noSites": "Ziyaret edilecek site yok",
@@ -3657,6 +3660,10 @@
       "profileOsMismatch": "Profil, onu çalıştıran sunucudan farklı bir işletim sisteminde oluşturulmuş",
       "cancelledByUser": "Elle durduruldu",
       "unknown": "Bilinmeyen neden ({{code}})"
+    },
+    "exitCheck": {
+      "failed": "Son kontrol ({{time}}) proxy'ye veya VPN'e ulaşamadı. Lütfen kontrol edin.",
+      "passed": "Proxy veya VPN'e ulaşıldı: {{time}}"
     },
     "next": {
       "label": "Sonraki çalışma",

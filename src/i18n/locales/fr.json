@@ -2725,6 +2725,7 @@
     "cookieBotUnsupportedPlatform": "Cookie Bot ne peut pas exécuter de profils {{platform}}. Seuls les profils Windows, macOS et Linux sont pris en charge.",
     "cookieBotRequiresExitNode": "Associez d'abord un proxy ou un VPN. Sans cela, l'exécution proviendrait d'une adresse de centre de données, ce qui abîme l'identité du profil.",
     "cookieBotRequiresRemoteExitNode": "Le proxy de ce profil ne fonctionne que sur cet ordinateur (par exemple 127.0.0.1 ou une adresse de réseau local). Cookie Bot s'exécute sur nos hôtes et a donc besoin d'un proxy avec une adresse publique.",
+    "cookieBotExitCheckFailed": "La dernière vérification n'a pas pu joindre le proxy ou le VPN de ce profil. Vérifiez-le, puis réessayez.",
     "cookieBotProxyKindUnsupported": "Ce profil utilise un proxy {{kind}}, qui nécessite le module Xray que nos hôtes n'exécutent pas. Cookie Bot s'exécute sur nos hôtes : attachez plutôt une sortie HTTP, HTTPS, SOCKS ou WireGuard.",
     "unknownCode": "Une erreur est survenue : {{code}}",
     "cookieBotTouchFingerprintUnsupported": "Ce profil déclare un appareil tactile, que le bot ne peut pas piloter. Utilisez une empreinte de bureau.",
@@ -2763,6 +2764,7 @@
     "wayfernCrossOsRequiresPlan": "Ce profil s'exécute en tant que {{detail}}, et cet ordinateur utilise un autre système d'exploitation. Pour l'ouvrir ici, il faut une formule Pro ou Team.",
     "wayfernIdentityRefused": "Le navigateur n'a pas démarré avec l'identité de ce profil, il a donc été fermé. {{detail}}",
     "wayfernInstanceLimitReached": "Trop de navigateurs sont ouverts pour votre forfait. Fermez un navigateur et réessayez.",
+    "tooManyBrowsersRunning": "Fermez une fenêtre de navigateur pour continuer.",
     "wayfernPlanCheckUnavailable": "Impossible de vérifier votre forfait pour le moment. Réessayez dans un instant.",
     "wayfernCustomFingerprintRequiresPlan": "Votre forfait n'inclut pas les empreintes personnalisées.",
     "wayfernGenerationUnavailable": "Impossible de créer une empreinte pour le moment. Réessayez plus tard.",
@@ -3681,6 +3683,7 @@
       "encryptedSync": "La synchronisation chiffrée de bout en bout n'est pas prise en charge",
       "proxyRequired": "Aucun proxy ni VPN attaché",
       "proxyLocalOnly": "Le proxy ne fonctionne que sur cet ordinateur ; attachez-en un avec une adresse publique",
+      "proxyDead": "La dernière vérification n'a pas pu joindre le proxy ou le VPN. Vérifiez-le.",
       "touchFingerprint": "Les empreintes tactiles ne sont pas prises en charge",
       "platformUnsupported": "Aucune machine n'exécute le système de ce profil",
       "noSites": "Aucun site à visiter",
@@ -3695,6 +3698,10 @@
       "profileOsMismatch": "Le profil vient d'un autre système d'exploitation que l'hôte qui l'a exécuté",
       "cancelledByUser": "Arrêté à la main",
       "unknown": "Raison inconnue ({{code}})"
+    },
+    "exitCheck": {
+      "failed": "La dernière vérification ({{time}}) n'a pas pu joindre le proxy ou le VPN. Vérifiez-le.",
+      "passed": "Proxy ou VPN joignable : {{time}}"
     },
     "next": {
       "label": "Prochaine exécution",

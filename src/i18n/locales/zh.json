@@ -2706,6 +2706,7 @@
     "cookieBotUnsupportedPlatform": "Cookie Bot 无法运行 {{platform}} 配置文件。仅支持 Windows、macOS 和 Linux 配置文件。",
     "cookieBotRequiresExitNode": "请先绑定代理或 VPN。否则运行会从数据中心地址发出，损害配置文件的身份。",
     "cookieBotRequiresRemoteExitNode": "此配置文件的代理仅在本机可用（例如 127.0.0.1 或局域网地址）。Cookie Bot 在我们的主机上运行，因此需要具有公网地址的代理。",
+    "cookieBotExitCheckFailed": "上次检查无法连接到此配置文件的代理或 VPN。请检查后重试。",
     "cookieBotProxyKindUnsupported": "此配置文件使用 {{kind}} 代理，它需要我们主机未运行的 Xray 组件。Cookie Bot 在我们的主机上运行，请改用 HTTP、HTTPS、SOCKS 或 WireGuard 出口。",
     "unknownCode": "出现问题: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "该配置文件声称是触摸设备，机器人无法操作。请使用桌面端指纹。",
@@ -2744,6 +2745,7 @@
     "wayfernCrossOsRequiresPlan": "此配置文件以 {{detail}} 身份运行，而这台电脑使用其他操作系统。要在此处打开，需要 Pro 或 Team 套餐。",
     "wayfernIdentityRefused": "浏览器未以此配置文件的身份启动，因此已被关闭。{{detail}}",
     "wayfernInstanceLimitReached": "当前套餐下打开的浏览器过多。请关闭一个浏览器后重试。",
+    "tooManyBrowsersRunning": "请关闭一个浏览器窗口以继续。",
     "wayfernPlanCheckUnavailable": "目前无法检查你的套餐。请稍后再试。",
     "wayfernCustomFingerprintRequiresPlan": "你的套餐不包含自定义指纹。",
     "wayfernGenerationUnavailable": "目前无法创建指纹。请稍后再试。",
@@ -3643,6 +3645,7 @@
       "encryptedSync": "不支持端到端加密同步",
       "proxyRequired": "未绑定代理或 VPN",
       "proxyLocalOnly": "代理仅在本机可用，请改用具有公网地址的代理",
+      "proxyDead": "上次检查无法连接到代理或 VPN。请检查。",
       "touchFingerprint": "不支持触摸设备指纹",
       "platformUnsupported": "没有机器可运行该配置文件的系统",
       "noSites": "没有要访问的网站",
@@ -3657,6 +3660,10 @@
       "profileOsMismatch": "配置文件来自与运行它的主机不同的操作系统",
       "cancelledByUser": "已手动停止",
       "unknown": "未知原因（{{code}}）"
+    },
+    "exitCheck": {
+      "failed": "上次检查（{{time}}）无法连接到代理或 VPN。请检查。",
+      "passed": "已连接代理或 VPN：{{time}}"
     },
     "next": {
       "label": "下次运行",

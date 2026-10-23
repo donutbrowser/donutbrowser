@@ -927,6 +927,7 @@ struct ImportProxiesResponse {
     StartCookieBotRunRequest,
     crate::remote_session::RemoteSessionState,
     crate::cookie_bot::CookieBotSchedule,
+    crate::cookie_bot_exit::ExitCheckView,
     crate::cookie_bot::CookieBotScheduleList,
     crate::cookie_bot::CookieBotScheduleSaved,
     crate::cookie_bot::CookieBotScheduleDeleted,
@@ -1571,6 +1572,7 @@ fn manager_error_response(err: impl std::fmt::Display) -> (StatusCode, String) {
         // being re-implemented in each handler to get the status right.
         StatusCode::PAYMENT_REQUIRED
       } else if code == "WAYFERN_INSTANCE_LIMIT_REACHED"
+        || code == "TOO_MANY_BROWSERS_RUNNING"
         || code == "WAYFERN_GENERATION_LIMIT_REACHED"
         || code == "PROFILE_GENERATION_LIMIT_REACHED"
       {
@@ -6627,6 +6629,21 @@ mod tests {
   }
 
   #[test]
+  fn openapi_documents_the_exit_check_of_an_enrolment() {
+    let spec = serde_json::to_value(ApiDoc::openapi()).expect("spec serializes");
+    let view = &spec["components"]["schemas"]["ExitCheckView"];
+    for field in ["checked_at", "ok", "alive"] {
+      assert!(view["properties"].get(field).is_some(), "{field}: {view}");
+    }
+    assert!(
+      !schema_required(&spec, "CookieBotSchedule")
+        .iter()
+        .any(|f| f == "exit_check"),
+      "a schedule read elsewhere has no exit check"
+    );
+  }
+
+  #[test]
   fn openapi_optional_fields_are_not_required() {
     let spec = serde_json::to_value(ApiDoc::openapi()).expect("spec serializes");
 
@@ -7059,6 +7076,7 @@ mod tests {
         "WAYFERN_INSTANCE_LIMIT_REACHED",
         StatusCode::TOO_MANY_REQUESTS,
       ),
+      ("TOO_MANY_BROWSERS_RUNNING", StatusCode::TOO_MANY_REQUESTS),
       (
         "WAYFERN_GENERATION_LIMIT_REACHED",
         StatusCode::TOO_MANY_REQUESTS,

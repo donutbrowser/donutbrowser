@@ -51,6 +51,7 @@ const SERVER_OUTCOME_CODES = [
   "profile_locked",
   "profile_not_synced",
   "profile_os_mismatch",
+  "proxy_dead",
   "proxy_local_only",
   "proxy_required",
   "proxy_unsupported",

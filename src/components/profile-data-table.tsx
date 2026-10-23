@@ -57,6 +57,7 @@ import {
   preflightReason,
   runStatusLabel,
   StatusDot,
+  scheduleBlockedReason,
   sessionPhaseLabel,
   sessionTone,
 } from "@/components/cookie-bot-shared";
@@ -1760,10 +1761,7 @@ const BotCell = React.memo<{
   // so a detached proxy is visible in the afternoon rather than announcing
   // itself as a skipped run at 02:00. Dropping it left a broken enrolment
   // showing a healthy dot and a next-run time it could never keep.
-  const blockedReason =
-    schedule?.enabled && schedule.blocked_by
-      ? outcomeLabel(t, schedule.blocked_by)
-      : null;
+  const blockedReason = schedule ? scheduleBlockedReason(t, schedule) : null;
 
   // `provisioning` is a transfer in progress — the one meaning the app already
   // reserves a pulsing dot for. Nothing else pulses.

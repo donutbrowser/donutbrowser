@@ -2706,6 +2706,7 @@
     "cookieBotUnsupportedPlatform": "Cookie Bot은 {{platform}} 프로필을 실행할 수 없습니다. Windows, macOS, Linux 프로필만 지원합니다.",
     "cookieBotRequiresExitNode": "먼저 프록시나 VPN을 연결하세요. 없으면 실행 트래픽이 데이터센터 주소에서 나가 프로필 신뢰도를 해칩니다.",
     "cookieBotRequiresRemoteExitNode": "이 프로필의 프록시는 이 컴퓨터에서만 작동합니다(예: 127.0.0.1 또는 사설망 주소). Cookie Bot은 당사 호스트에서 실행되므로 공용 주소를 가진 프록시가 필요합니다.",
+    "cookieBotExitCheckFailed": "마지막 확인에서 이 프로필의 프록시 또는 VPN에 연결하지 못했습니다. 확인한 후 다시 시도하세요.",
     "cookieBotProxyKindUnsupported": "이 프로필은 {{kind}} 프록시를 사용하는데, 여기에는 당사 호스트가 실행하지 않는 Xray 사이드카가 필요합니다. Cookie Bot은 당사 호스트에서 실행되므로 HTTP, HTTPS, SOCKS 또는 WireGuard 출구를 연결하세요.",
     "unknownCode": "문제가 발생했습니다: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "이 프로필은 터치 기기를 표방하며, 봇이 조작할 수 없습니다. 데스크톱 지문을 사용하세요.",
@@ -2744,6 +2745,7 @@
     "wayfernCrossOsRequiresPlan": "이 프로필은 {{detail}}(으)로 실행되며, 이 컴퓨터는 다른 운영체제를 사용합니다. 여기에서 열려면 Pro 또는 Team 플랜이 필요합니다.",
     "wayfernIdentityRefused": "브라우저가 이 프로필의 아이덴티티로 시작되지 않아 종료되었습니다. {{detail}}",
     "wayfernInstanceLimitReached": "현재 요금제 기준으로 열려 있는 브라우저가 너무 많습니다. 브라우저를 하나 닫고 다시 시도하세요.",
+    "tooManyBrowsersRunning": "계속하려면 브라우저 창을 하나 닫으세요.",
     "wayfernPlanCheckUnavailable": "지금은 요금제를 확인할 수 없습니다. 잠시 후 다시 시도하세요.",
     "wayfernCustomFingerprintRequiresPlan": "현재 요금제에는 사용자 지정 지문이 포함되어 있지 않습니다.",
     "wayfernGenerationUnavailable": "지금은 지문을 만들 수 없습니다. 나중에 다시 시도하세요.",
@@ -3643,6 +3645,7 @@
       "encryptedSync": "종단 간 암호화 동기화는 지원되지 않습니다",
       "proxyRequired": "프록시나 VPN이 연결되어 있지 않습니다",
       "proxyLocalOnly": "프록시가 이 컴퓨터에서만 작동하니 공용 주소를 가진 프록시를 연결하세요",
+      "proxyDead": "마지막 확인에서 프록시 또는 VPN에 연결하지 못했습니다. 확인해 주세요.",
       "touchFingerprint": "터치 기기 지문은 지원되지 않습니다",
       "platformUnsupported": "이 프로필의 운영체제를 실행할 머신이 없습니다",
       "noSites": "방문할 사이트가 없습니다",
@@ -3657,6 +3660,10 @@
       "profileOsMismatch": "프로필이 실행한 호스트와 다른 운영체제에서 만들어졌습니다",
       "cancelledByUser": "직접 중지했습니다",
       "unknown": "알 수 없는 이유 ({{code}})"
+    },
+    "exitCheck": {
+      "failed": "마지막 확인({{time}})에서 프록시 또는 VPN에 연결하지 못했습니다. 확인해 주세요.",
+      "passed": "프록시 또는 VPN 연결됨: {{time}}"
     },
     "next": {
       "label": "다음 실행",

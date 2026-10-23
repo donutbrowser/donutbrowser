@@ -179,6 +179,10 @@ pub struct CookieBotSchedule {
   /// When those facts were last refreshed.
   #[serde(default)]
   pub profile_state_at: Option<String>,
+  /// The last check of the profile's proxy or VPN from this computer. Never
+  /// sent by the server; filled in from local state.
+  #[serde(default)]
+  pub exit_check: Option<crate::cookie_bot_exit::ExitCheckView>,
 
   /// Why tonight would be refused, or `None`.
   ///
@@ -268,6 +272,8 @@ pub struct CookieBotScheduleInput {
   pub touch_fingerprint: bool,
   #[serde(default)]
   pub sticky_exit: bool,
+  #[serde(default)]
+  pub exit_alive: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -609,7 +615,17 @@ pub fn run_precondition(profile: &BrowserProfile) -> Result<(), String> {
   if let Some(refusal) = crate::sync::account_server::cloud_run_refusal() {
     return Err(refusal);
   }
+  if sync_sealed(profile, crate::sync::encryption::has_e2e_password()) {
+    return Err(error("COOKIE_BOT_ENCRYPTED_SYNC_UNSUPPORTED", &[]));
+  }
   bot_precondition(profile, &exit_reachability(profile))
+}
+
+/// Whether the profile's synced copy is sealed with a key only the user's
+/// machines hold. A sync password seals every synced file of the account,
+/// including the metadata and the proxy of a profile on regular sync.
+fn sync_sealed(profile: &BrowserProfile, sync_password_stored: bool) -> bool {
+  profile.is_encrypted_sync() || (profile.is_sync_enabled() && sync_password_stored)
 }
 
 /// Whether this profile could ever be warmed by the bot.
@@ -688,9 +704,22 @@ pub fn bot_precondition(
 /// Derived in one place so the Tauri, REST and MCP call sites cannot drift into
 /// three different answers about the same profile.
 pub fn profile_state(profile: &BrowserProfile) -> ProfileState {
+  profile_state_from(
+    profile,
+    crate::sync::encryption::has_e2e_password(),
+    crate::cookie_bot_exit::exit_alive(profile),
+  )
+}
+
+/// [`profile_state`] with the facts of this computer handed in.
+fn profile_state_from(
+  profile: &BrowserProfile,
+  sync_password_stored: bool,
+  exit_alive: bool,
+) -> ProfileState {
   ProfileState {
     sync_enabled: profile.is_sync_enabled(),
-    encrypted_sync: profile.is_encrypted_sync(),
+    encrypted_sync: sync_sealed(profile, sync_password_stored),
     // A VPN is an exit node just as much as a proxy is; the server only asks
     // whether the traffic leaves through something the user brought.
     has_proxy: profile.proxy_id.is_some() || profile.vpn_id.is_some(),
@@ -711,6 +740,7 @@ pub fn profile_state(profile: &BrowserProfile) -> ProfileState {
     // guarantee is worse than declining it, so the conservative answer is the
     // safe one either way.
     sticky_exit: profile.vpn_id.is_some(),
+    exit_alive,
   }
 }
 
@@ -725,6 +755,8 @@ pub struct ProfileState {
   pub proxy_remote_reachable: bool,
   pub touch_fingerprint: bool,
   pub sticky_exit: bool,
+  /// False once checks from this computer confirm the exit cannot be reached.
+  pub exit_alive: bool,
 }
 
 /// Whether this profile's exit could be used from a host that is not this one.
@@ -787,6 +819,7 @@ impl CookieBotScheduleInput {
     self.proxy_remote_reachable = state.proxy_remote_reachable;
     self.touch_fingerprint = state.touch_fingerprint;
     self.sticky_exit = state.sticky_exit;
+    self.exit_alive = state.exit_alive;
     self
   }
 }
@@ -834,6 +867,8 @@ pub async fn list_schedules(scope: Option<&str>) -> Result<CookieBotScheduleList
   if scope.is_none_or(|requested| requested == "mine") {
     record_own_schedules(&mut enrolled_profiles(), &list);
   }
+  let mut list = list;
+  crate::cookie_bot_exit::attach_views(&mut list.schedules);
   Ok(list)
 }
 
@@ -854,7 +889,9 @@ pub async fn get_schedule(profile_id: &str) -> Result<Option<CookieBotSchedule>,
   match result {
     Ok(envelope) => {
       record_enrolment(&mut enrolled_profiles(), profile_id, true);
-      Ok(Some(envelope.schedule))
+      let mut schedule = envelope.schedule;
+      crate::cookie_bot_exit::attach_views(std::slice::from_mut(&mut schedule));
+      Ok(Some(schedule))
     }
     Err(e) if e.code() == "COOKIE_BOT_NOT_ENROLLED" => {
       record_enrolment(&mut enrolled_profiles(), profile_id, false);
@@ -901,6 +938,7 @@ pub async fn save_schedule(
   )
   .await?;
   record_enrolment(&mut enrolled_profiles(), profile_id, true);
+  crate::cookie_bot_exit::check_after_enrolment(profile_id);
   Ok(saved)
 }
 
@@ -953,6 +991,17 @@ pub fn report_profile_state(profile: &BrowserProfile) {
   tauri::async_runtime::spawn(async move {
     send_profile_state(profile_id, state, identity).await;
   });
+}
+
+/// Re-declare the profile's facts now, even when they did not change, which
+/// moves `profile_state_at` and so lifts a block the server holds until then.
+pub async fn declare_profile_state(profile: &BrowserProfile) {
+  send_profile_state(
+    profile.id.to_string(),
+    profile_state(profile),
+    profile_identity(profile),
+  )
+  .await;
 }
 
 async fn send_profile_state(profile_id: String, state: ProfileState, identity: ProfileIdentity) {
@@ -1069,6 +1118,7 @@ fn profile_state_body(state: ProfileState, identity: &ProfileIdentity) -> serde_
     state.touch_fingerprint.into(),
   );
   body.insert("sticky_exit".to_string(), state.sticky_exit.into());
+  body.insert("exit_alive".to_string(), state.exit_alive.into());
   if let Some(zone) = &identity.timezone {
     body.insert("timezone".to_string(), zone.as_str().into());
   }
@@ -1578,7 +1628,10 @@ mod tests {
       }
     );
 
-    let body = profile_state_body(profile_state(&eligible_profile()), &identity);
+    let body = profile_state_body(
+      profile_state_from(&eligible_profile(), false, true),
+      &identity,
+    );
     assert_eq!(body["timezone"], "Europe/Berlin");
     assert_eq!(body["platform"], "linux");
     assert_eq!(body["profile_name"], "warm me");
@@ -1594,7 +1647,7 @@ mod tests {
     let identity = profile_identity(&profile);
     assert_eq!(identity, ProfileIdentity::default());
 
-    let body = profile_state_body(profile_state(&profile), &identity);
+    let body = profile_state_body(profile_state_from(&profile, false, true), &identity);
     for key in ["timezone", "platform", "profile_name"] {
       assert!(body.get(key).is_none(), "{key} must be omitted");
     }
@@ -1719,7 +1772,7 @@ mod tests {
 
   #[test]
   fn the_profile_facts_the_server_requires_are_derived_from_the_profile() {
-    let state = profile_state(&eligible_profile());
+    let state = profile_state_from(&eligible_profile(), false, true);
 
     assert!(state.sync_enabled);
     assert!(!state.encrypted_sync);
@@ -1740,7 +1793,7 @@ mod tests {
       ..eligible_profile()
     };
 
-    let state = profile_state(&profile);
+    let state = profile_state_from(&profile, false, true);
 
     assert!(state.has_proxy);
     assert!(state.sticky_exit);
@@ -1754,7 +1807,7 @@ mod tests {
       ..eligible_profile()
     };
 
-    assert!(!profile_state(&profile).has_proxy);
+    assert!(!profile_state_from(&profile, false, true).has_proxy);
   }
 
   fn code_of(err: &str) -> String {
@@ -1786,6 +1839,32 @@ mod tests {
     let err = bot_precondition(&profile, &ExitReachability::Remote)
       .expect_err("encrypted sync must be refused");
     assert_eq!(code_of(&err), "COOKIE_BOT_ENCRYPTED_SYNC_UNSUPPORTED");
+  }
+
+  #[test]
+  fn a_sync_password_seals_a_profile_on_regular_sync_too() {
+    // The password seals the metadata and the proxy of every synced profile,
+    // so a host could read neither, whatever the profile's own sync mode.
+    let profile = eligible_profile();
+    assert!(profile_state_from(&profile, true, true).encrypted_sync);
+    assert!(!profile_state_from(&profile, false, true).encrypted_sync);
+    assert!(sync_sealed(&profile, true));
+
+    let mut local = eligible_profile();
+    local.sync_mode = SyncMode::Disabled;
+    assert!(!sync_sealed(&local, true), "nothing of it is uploaded");
+  }
+
+  #[test]
+  fn a_confirmed_dead_exit_is_declared() {
+    let state = profile_state_from(&eligible_profile(), false, false);
+    assert!(!state.exit_alive);
+    let input = CookieBotScheduleInput::default().with_profile_state(state);
+    assert!(!input.exit_alive);
+    assert_eq!(
+      profile_state_body(state, &ProfileIdentity::default())["exit_alive"],
+      false
+    );
   }
 
   #[test]
@@ -2166,20 +2245,16 @@ mod tests {
     // The narrow re-declaration route. `has_proxy` false is `proxy_required`
     // server-side, so an omitted field silently keeps the stale value and the
     // night runs unproxied.
-    let state = profile_state(&eligible_profile());
-    let body = serde_json::json!({
-      "sync_enabled": state.sync_enabled,
-      "encrypted_sync": state.encrypted_sync,
-      "has_proxy": state.has_proxy,
-      "touch_fingerprint": state.touch_fingerprint,
-      "sticky_exit": state.sticky_exit,
-    });
+    let state = profile_state_from(&eligible_profile(), false, true);
+    let body = profile_state_body(state, &ProfileIdentity::default());
     for key in [
       "sync_enabled",
       "encrypted_sync",
       "has_proxy",
+      "proxy_remote_reachable",
       "touch_fingerprint",
       "sticky_exit",
+      "exit_alive",
     ] {
       assert!(
         body.get(key).is_some_and(serde_json::Value::is_boolean),
@@ -2208,7 +2283,7 @@ mod tests {
     assert!(!input.sync_enabled);
     assert!(!input.has_proxy);
 
-    let stamped = input.with_profile_state(profile_state(&eligible_profile()));
+    let stamped = input.with_profile_state(profile_state_from(&eligible_profile(), false, true));
     assert!(stamped.sync_enabled);
     assert!(stamped.has_proxy);
   }

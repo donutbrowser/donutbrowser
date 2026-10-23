@@ -15,6 +15,7 @@ import type { RunFilter } from "@/components/cookie-bot-activity";
 import {
   clockInZone,
   describeCadence,
+  exitCheckPassed,
   formatDate,
   formatDateTime,
   formatDuration,
@@ -793,6 +794,7 @@ function EnrolledRow({
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
   const blocked = scheduleBlockedReason(t, schedule);
+  const exitChecked = exitCheckPassed(t, schedule);
   const slots = scheduleSlots(schedule);
   const times = [...new Set(slots.map((slot) => slot.run_at_minute))]
     .sort((a, b) => a - b)
@@ -834,6 +836,14 @@ function EnrolledRow({
             {!mine && schedule.owner_email && (
               <span className="truncate text-[11px] text-muted-foreground">
                 {schedule.owner_email}
+              </span>
+            )}
+            {exitChecked && (
+              <span
+                data-slot="cookie-bot-exit-check"
+                className="truncate text-[11px] text-muted-foreground"
+              >
+                {exitChecked}
               </span>
             )}
           </span>

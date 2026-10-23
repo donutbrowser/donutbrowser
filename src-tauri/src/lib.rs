@@ -205,6 +205,7 @@ pub mod cloud_auth;
 mod cloud_errors;
 mod commercial_license;
 mod cookie_bot;
+mod cookie_bot_exit;
 mod cookie_manager;
 mod cookie_paste;
 pub mod events;
@@ -3445,6 +3446,11 @@ pub fn run_with_builder(
         sync::start_pipeline(app_handle_sync).await;
       });
 
+      tauri::async_runtime::spawn(cookie_bot_exit::run_checks());
+      // Launches wait briefly for the first look at remote work done while
+      // the app was shut; the session stream's connect ends that wait.
+      remote_handoff::begin_startup_check();
+
       // Start cloud auth background refresh loop
       let app_handle_cloud = app.handle().clone();
       tauri::async_runtime::spawn(async move {
@@ -3482,6 +3488,8 @@ pub fn run_with_builder(
           remote_handoff::resume_pending_pulls(&app_handle_cloud);
 
           tauri::async_runtime::spawn(cookie_bot::report_enrolled_profiles());
+        } else {
+          remote_handoff::finish_startup_check();
         }
         cloud_auth::CloudAuthManager::start_sync_token_refresh_loop(app_handle_cloud).await;
       });

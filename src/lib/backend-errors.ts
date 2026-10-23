@@ -253,6 +253,7 @@ export type BackendErrorCode =
   // "attach a proxy" is unactionable advice for someone whose proxy is plainly
   // attached.
   | "COOKIE_BOT_REQUIRES_REMOTE_EXIT_NODE"
+  | "COOKIE_BOT_EXIT_CHECK_FAILED"
   // ...and its twin for an exit whose PROTOCOL no host can speak. Kept apart
   // from the address refusal because a VLESS server is publicly routable: the
   // user is not being asked for a different address, they are being asked for a
@@ -299,6 +300,7 @@ export type BackendErrorCode =
   | "WAYFERN_CROSS_OS_REQUIRES_PLAN"
   | "WAYFERN_IDENTITY_REFUSED"
   | "WAYFERN_INSTANCE_LIMIT_REACHED"
+  | "TOO_MANY_BROWSERS_RUNNING"
   | "WAYFERN_PLAN_CHECK_UNAVAILABLE"
   | "WAYFERN_CUSTOM_FINGERPRINT_REQUIRES_PLAN"
   | "WAYFERN_GENERATION_UNAVAILABLE"
@@ -1010,6 +1012,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.cookieBotRequiresExitNode");
     case "COOKIE_BOT_REQUIRES_REMOTE_EXIT_NODE":
       return t("backendErrors.cookieBotRequiresRemoteExitNode");
+    case "COOKIE_BOT_EXIT_CHECK_FAILED":
+      return t("backendErrors.cookieBotExitCheckFailed");
     case "COOKIE_BOT_PROXY_KIND_UNSUPPORTED":
       return t("backendErrors.cookieBotProxyKindUnsupported", {
         kind: parsed.params?.kind ?? "",
@@ -1085,6 +1089,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       });
     case "WAYFERN_INSTANCE_LIMIT_REACHED":
       return t("backendErrors.wayfernInstanceLimitReached");
+    case "TOO_MANY_BROWSERS_RUNNING":
+      return t("backendErrors.tooManyBrowsersRunning");
     case "WAYFERN_PLAN_CHECK_UNAVAILABLE":
       return t("backendErrors.wayfernPlanCheckUnavailable");
     case "WAYFERN_CUSTOM_FINGERPRINT_REQUIRES_PLAN":

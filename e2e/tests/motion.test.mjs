@@ -1633,6 +1633,17 @@ test("schedule displays every timezone and slot, and skipped run details work by
       ]),
       schedule(other, "Asia/Yerevan", [{ days_mask: 127, run_at_minute: 120 }]),
     ];
+    // The last check of each profile's exit from this computer.
+    schedules[0].exit_check = {
+      checked_at: 1_788_000_000,
+      ok: true,
+      alive: true,
+    };
+    schedules[1].exit_check = {
+      checked_at: 1_788_000_000,
+      ok: false,
+      alive: true,
+    };
     await app.execute(
       `
       const schedules = arguments[0], id = arguments[1];
@@ -1673,6 +1684,20 @@ test("schedule displays every timezone and slot, and skipped run details work by
     assert.equal(
       await app.visibleTextIncludes(en.cookieBot.enrol.cadenceNightly),
       true,
+    );
+    // A passed check is a quiet line; a failed one warns on its row.
+    const [passedRow, failedRow] = await app.execute(
+      `const row = (id) => document.querySelector('[data-slot="cookie-bot-enrolled-row"][data-profile-id="' + id + '"]')?.innerText ?? "";
+       return [row(arguments[0]), row(arguments[1])];`,
+      [profile.id, other.id],
+    );
+    assert.ok(
+      passedRow.includes(en.cookieBot.exitCheck.passed.split("{{time}}")[0]),
+      passedRow,
+    );
+    assert.ok(
+      failedRow.includes(en.cookieBot.exitCheck.failed.split("{{time}}")[0]),
+      failedRow,
     );
     await app.clickText(en.cookieBot.tabs.schedule, { roles: ["tab"] });
     await waitForSelector(app, slot("schedule-lane"));

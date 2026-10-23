@@ -109,6 +109,8 @@ export interface CookieBotSchedule {
   sticky_exit: boolean;
   /** When those facts were last refreshed. */
   profile_state_at?: string | null;
+  /** The last check of the profile's proxy or VPN from this computer. */
+  exit_check?: CookieBotExitCheck | null;
 
   /**
    * Why the next run would be refused, or null. One of the run outcome codes.
@@ -124,6 +126,15 @@ export interface CookieBotSchedule {
   owner_user_id?: string | null;
   owner_email?: string | null;
   updated_at?: string | null;
+}
+
+/** Mirror of `cookie_bot_exit::ExitCheckView`. */
+export interface CookieBotExitCheck {
+  /** Unix seconds. */
+  checked_at: number;
+  ok: boolean;
+  /** False once the failures are confirmed and declared to the server. */
+  alive: boolean;
 }
 
 /**

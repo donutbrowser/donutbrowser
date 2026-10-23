@@ -2725,6 +2725,7 @@
     "cookieBotUnsupportedPlatform": "Cookie Bot no puede ejecutar perfiles de {{platform}}. Solo se admiten perfiles de Windows, macOS y Linux.",
     "cookieBotRequiresExitNode": "Asigna primero un proxy o una VPN. Sin ninguno, la ejecución saldría desde una dirección de centro de datos, lo que daña la identidad del perfil.",
     "cookieBotRequiresRemoteExitNode": "El proxy de este perfil solo funciona en este ordenador (por ejemplo 127.0.0.1 o una dirección de red local). Cookie Bot se ejecuta en nuestros servidores, así que necesita un proxy con dirección pública.",
+    "cookieBotExitCheckFailed": "La última comprobación no pudo llegar al proxy o la VPN de este perfil. Revísalo e inténtalo de nuevo.",
     "cookieBotProxyKindUnsupported": "Este perfil usa un proxy {{kind}}, que necesita el componente Xray que nuestros servidores no ejecutan. Cookie Bot se ejecuta en nuestros servidores, así que asigna una salida HTTP, HTTPS, SOCKS o WireGuard.",
     "unknownCode": "Algo salió mal: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "Este perfil declara un dispositivo táctil, que el bot no puede controlar. Usa una huella de escritorio.",
@@ -2763,6 +2764,7 @@
     "wayfernCrossOsRequiresPlan": "Este perfil se ejecuta como {{detail}} y este equipo usa otro sistema operativo. Para abrirlo aquí se necesita un plan Pro o Team.",
     "wayfernIdentityRefused": "El navegador no se inició con la identidad de este perfil, así que se cerró. {{detail}}",
     "wayfernInstanceLimitReached": "Hay demasiados navegadores abiertos para tu plan. Cierra un navegador e inténtalo de nuevo.",
+    "tooManyBrowsersRunning": "Cierra una ventana del navegador para continuar.",
     "wayfernPlanCheckUnavailable": "No se pudo comprobar tu plan ahora mismo. Inténtalo de nuevo en un momento.",
     "wayfernCustomFingerprintRequiresPlan": "Tu plan no incluye huellas digitales personalizadas.",
     "wayfernGenerationUnavailable": "No se pudo crear una huella digital ahora mismo. Inténtalo de nuevo más tarde.",
@@ -3681,6 +3683,7 @@
       "encryptedSync": "La sincronización cifrada de extremo a extremo no es compatible",
       "proxyRequired": "Sin proxy ni VPN asignado",
       "proxyLocalOnly": "El proxy solo funciona en este ordenador; asigna uno con dirección pública",
+      "proxyDead": "La última comprobación no pudo llegar al proxy o la VPN. Revísalo.",
       "touchFingerprint": "Las huellas táctiles no son compatibles",
       "platformUnsupported": "Ninguna máquina ejecuta el sistema de este perfil",
       "noSites": "No hay sitios que visitar",
@@ -3695,6 +3698,10 @@
       "profileOsMismatch": "El perfil viene de un sistema operativo distinto al del servidor que lo ejecutó",
       "cancelledByUser": "Detenido a mano",
       "unknown": "Motivo desconocido ({{code}})"
+    },
+    "exitCheck": {
+      "failed": "La última comprobación ({{time}}) no pudo llegar al proxy o la VPN. Revísalo.",
+      "passed": "Proxy o VPN accesible: {{time}}"
     },
     "next": {
       "label": "Próxima ejecución",

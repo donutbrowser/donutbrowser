@@ -2706,6 +2706,7 @@
     "cookieBotUnsupportedPlatform": "Cookie Bot không chạy được hồ sơ {{platform}}. Chỉ hỗ trợ hồ sơ Windows, macOS và Linux.",
     "cookieBotRequiresExitNode": "Hãy gán proxy hoặc VPN trước. Nếu không, lần chạy sẽ đi ra từ địa chỉ trung tâm dữ liệu, gây hại cho danh tính hồ sơ.",
     "cookieBotRequiresRemoteExitNode": "Proxy của hồ sơ này chỉ hoạt động trên máy tính này (ví dụ 127.0.0.1 hoặc địa chỉ mạng nội bộ). Cookie Bot chạy trên máy chủ của chúng tôi nên cần proxy có địa chỉ công khai.",
+    "cookieBotExitCheckFailed": "Lần kiểm tra gần nhất không kết nối được tới proxy hoặc VPN của hồ sơ này. Hãy kiểm tra rồi thử lại.",
     "cookieBotProxyKindUnsupported": "Hồ sơ này dùng proxy {{kind}}, vốn cần thành phần Xray mà máy chủ của chúng tôi không chạy. Cookie Bot chạy trên máy chủ của chúng tôi nên hãy gắn lối ra HTTP, HTTPS, SOCKS hoặc WireGuard.",
     "unknownCode": "Đã xảy ra lỗi: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "Hồ sơ này khai báo là thiết bị cảm ứng, bot không điều khiển được. Hãy dùng vân tay máy tính để bàn.",
@@ -2744,6 +2745,7 @@
     "wayfernCrossOsRequiresPlan": "Hồ sơ này chạy dưới dạng {{detail}}, còn máy tính này dùng hệ điều hành khác. Để mở hồ sơ ở đây, bạn cần gói Pro hoặc Team.",
     "wayfernIdentityRefused": "Trình duyệt không khởi động với danh tính của hồ sơ này nên đã bị đóng. {{detail}}",
     "wayfernInstanceLimitReached": "Có quá nhiều trình duyệt đang mở so với gói của bạn. Hãy đóng một trình duyệt rồi thử lại.",
+    "tooManyBrowsersRunning": "Hãy đóng một cửa sổ trình duyệt để tiếp tục.",
     "wayfernPlanCheckUnavailable": "Hiện không thể kiểm tra gói của bạn. Hãy thử lại sau giây lát.",
     "wayfernCustomFingerprintRequiresPlan": "Gói của bạn không bao gồm dấu vân tay tùy chỉnh.",
     "wayfernGenerationUnavailable": "Hiện không thể tạo dấu vân tay. Vui lòng thử lại sau.",
@@ -3643,6 +3645,7 @@
       "encryptedSync": "Không hỗ trợ đồng bộ mã hoá đầu cuối",
       "proxyRequired": "Chưa gắn proxy hoặc VPN",
       "proxyLocalOnly": "Proxy chỉ hoạt động trên máy tính này, hãy gắn một proxy có địa chỉ công khai",
+      "proxyDead": "Lần kiểm tra gần nhất không kết nối được tới proxy hoặc VPN. Hãy kiểm tra lại.",
       "touchFingerprint": "Không hỗ trợ vân tay thiết bị cảm ứng",
       "platformUnsupported": "Không có máy nào chạy hệ điều hành của hồ sơ này",
       "noSites": "Không có trang nào để truy cập",
@@ -3657,6 +3660,10 @@
       "profileOsMismatch": "Hồ sơ đến từ hệ điều hành khác với máy chủ đã chạy nó",
       "cancelledByUser": "Đã dừng thủ công",
       "unknown": "Lý do không xác định ({{code}})"
+    },
+    "exitCheck": {
+      "failed": "Lần kiểm tra gần nhất ({{time}}) không kết nối được tới proxy hoặc VPN. Hãy kiểm tra lại.",
+      "passed": "Đã kết nối proxy hoặc VPN: {{time}}"
     },
     "next": {
       "label": "Lần chạy tới",

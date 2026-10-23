@@ -2706,6 +2706,7 @@
     "cookieBotUnsupportedPlatform": "Der Cookie Bot kann keine {{platform}}-Profile ausführen. Nur Windows-, macOS- und Linux-Profile werden unterstützt.",
     "cookieBotRequiresExitNode": "Verknüpfen Sie zuerst einen Proxy oder ein VPN. Ohne diese käme der Durchlauf von einer Rechenzentrumsadresse, was der Identität des Profils schadet.",
     "cookieBotRequiresRemoteExitNode": "Der Proxy dieses Profils funktioniert nur auf diesem Computer (zum Beispiel 127.0.0.1 oder eine Adresse im Heimnetz). Der Cookie Bot läuft auf unseren Hosts und benötigt daher einen Proxy mit öffentlicher Adresse.",
+    "cookieBotExitCheckFailed": "Die letzte Prüfung hat den Proxy oder das VPN dieses Profils nicht erreicht. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
     "cookieBotProxyKindUnsupported": "Dieses Profil verwendet einen {{kind}}-Proxy, der den Xray-Sidecar benötigt, den unsere Hosts nicht ausführen. Der Cookie Bot läuft auf unseren Hosts, verwenden Sie daher stattdessen einen HTTP-, HTTPS-, SOCKS- oder WireGuard-Exit.",
     "unknownCode": "Etwas ist schiefgelaufen: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "Dieses Profil gibt sich als Touch-Gerät aus, das der Bot nicht steuern kann. Verwenden Sie einen Desktop-Fingerprint.",
@@ -2744,6 +2745,7 @@
     "wayfernCrossOsRequiresPlan": "Dieses Profil läuft als {{detail}}, und dieser Computer nutzt ein anderes Betriebssystem. Um es hier zu öffnen, ist ein Pro- oder Team-Tarif nötig.",
     "wayfernIdentityRefused": "Der Browser ist nicht mit der Identität dieses Profils gestartet und wurde daher geschlossen. {{detail}}",
     "wayfernInstanceLimitReached": "Für Ihren Tarif sind zu viele Browser geöffnet. Schließen Sie einen Browser und versuchen Sie es erneut.",
+    "tooManyBrowsersRunning": "Schließen Sie ein Browserfenster, um fortzufahren.",
     "wayfernPlanCheckUnavailable": "Ihr Tarif kann gerade nicht geprüft werden. Versuchen Sie es gleich noch einmal.",
     "wayfernCustomFingerprintRequiresPlan": "Ihr Tarif umfasst keine benutzerdefinierten Fingerprints.",
     "wayfernGenerationUnavailable": "Derzeit kann kein Fingerprint erstellt werden. Versuchen Sie es später erneut.",
@@ -3643,6 +3645,7 @@
       "encryptedSync": "Ende-zu-Ende-verschlüsselte Synchronisierung wird nicht unterstützt",
       "proxyRequired": "Kein Proxy oder VPN verknüpft",
       "proxyLocalOnly": "Der Proxy funktioniert nur auf diesem Computer, verknüpfen Sie daher einen mit öffentlicher Adresse",
+      "proxyDead": "Die letzte Prüfung hat den Proxy oder das VPN nicht erreicht. Prüfen Sie die Verbindung.",
       "touchFingerprint": "Touch-Fingerprints werden nicht unterstützt",
       "platformUnsupported": "Kein Rechner führt das System dieses Profils aus",
       "noSites": "Keine Websites zum Besuchen",
@@ -3657,6 +3660,10 @@
       "profileOsMismatch": "Das Profil stammt von einem anderen Betriebssystem als der Host, der es ausgeführt hat",
       "cancelledByUser": "Manuell gestoppt",
       "unknown": "Unbekannter Grund ({{code}})"
+    },
+    "exitCheck": {
+      "failed": "Die letzte Prüfung ({{time}}) hat den Proxy oder das VPN nicht erreicht. Prüfen Sie die Verbindung.",
+      "passed": "Proxy oder VPN erreicht: {{time}}"
     },
     "next": {
       "label": "Nächster Durchlauf",
