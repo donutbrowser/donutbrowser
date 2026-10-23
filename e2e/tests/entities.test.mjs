@@ -2795,7 +2795,29 @@ test("the hourly profile allowance counts from a window that survives a restart"
       used: 0,
       retry_after_secs: null,
       remaining: 8,
+      close_a_browser: false,
     });
+
+    // A generation that makes no fingerprint gives its slot back: this suite
+    // has no Wayfern binary, so the generation itself fails.
+    await app.invokeError("create_browser_profile_new", {
+      name: "Not generated",
+      browserStr: "wayfern",
+      version: "150.0.7871.100",
+      releaseType: "stable",
+      proxyId: null,
+      vpnId: null,
+      wayfernConfig: {},
+      groupId: null,
+      ephemeral: false,
+      dnsBlocklist: null,
+      launchHook: null,
+    });
+    assert.equal(
+      (await app.invoke("get_profile_creation_allowance")).used,
+      0,
+      "a failed generation is not counted",
+    );
 
     const now = Math.floor(Date.now() / 1000);
     await app.close();

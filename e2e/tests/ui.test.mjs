@@ -194,6 +194,20 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
         moreDescribed: document.querySelector('#profile-more-options').getAttribute('aria-describedby'),
         rowTops: [...dialog.querySelectorAll('#profile-proxy, [role="checkbox"], #profile-more-options')]
           .map((node) => Math.round(node.getBoundingClientRect().top)),
+        edges: [
+          '[data-slot="profile-name-field"]',
+          '#profile-more-options',
+          '[data-slot="profile-create-close"]',
+        ].map((selector) => Math.round(dialog.querySelector(selector).getBoundingClientRect().right)),
+        headerMiddles: [
+          '#' + dialog.getAttribute('aria-labelledby'),
+          '[data-slot="template-picker"]',
+          '[data-slot="profile-create-close"]',
+        ].map((selector) => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return Math.round(rect.top + rect.height / 2);
+        }),
+        cornerCloses: dialog.querySelectorAll(':scope > button:not([data-slot])').length,
       };
     `);
       assert.equal(chrome.name, "0px", "the name field has no box");
@@ -206,6 +220,15 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
       // options: none while the list shows all.
       assert.equal(chrome.rowTops.length, 4, JSON.stringify(chrome));
       assert.equal(new Set(chrome.rowTops).size, 1, JSON.stringify(chrome));
+      // The options fill the row, and the close button ends the header row at
+      // the same edge, centred on the title and the template picker.
+      assert.equal(new Set(chrome.edges).size, 1, JSON.stringify(chrome));
+      assert.ok(
+        Math.max(...chrome.headerMiddles) - Math.min(...chrome.headerMiddles) <=
+          1,
+        JSON.stringify(chrome),
+      );
+      assert.equal(chrome.cornerCloses, 0, JSON.stringify(chrome));
       assert.equal(chrome.more, en.createProfile.moreOptions);
       assert.equal(chrome.moreDescribed, null);
       await app.clickSelector("#profile-more-options");
@@ -7116,6 +7139,29 @@ test("the create dialog warns a free user who creates quickly, holds a capped pl
       await app.fillSelector("#profile-name", "Quick profile");
       assert.equal(await createDisabled(), false);
       assert.equal((await stepper()).more, true, "no batch past the allowance");
+      await closeDialog();
+
+      // Every browser seat taken: Create waits for a browser to close, and
+      // its tooltip says so without naming a number.
+      await stubCommand(app, "get_profile_creation_allowance", {
+        enforcement: "soft",
+        per_hour: 8,
+        used: 0,
+        retry_after_secs: null,
+        remaining: 8,
+        close_a_browser: true,
+      });
+      await openProfileCreation(app);
+      await app.fillSelector("#profile-name", "Seat profile");
+      await app.waitFor(async () => (await createDisabled()) === true, {
+        description: "Create disabled while no browser seat is free",
+      });
+      await app.execute(
+        `document.querySelector('[data-slot="profile-create-close-a-browser"]')
+           .dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse' }));`,
+      );
+      await app.waitForText(en.backendErrors.tooManyBrowsersRunning);
+      assert.doesNotMatch(en.backendErrors.tooManyBrowsersRunning, /\d/);
       await closeDialog();
 
       // Solo at its cap: Create is disabled and the dialog says why and when.

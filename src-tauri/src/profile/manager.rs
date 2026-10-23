@@ -442,27 +442,29 @@ impl ProfileManager {
       // Generate a device if the profile has neither a legacy payload nor an
       // identity.
       if config.fingerprint.is_none() && config.identity_id.is_none() {
-        if let crate::profile_generation_limiter::GenerationOutcome::Limited {
-          per_hour,
-          retry_after_secs,
-        } = crate::profile_generation_limiter::record_profile_generation().await
-        {
-          let _ = std::fs::remove_dir_all(&profile_uuid_dir);
-          log::warn!(
-            "Profile creation refused: fingerprint generation limit reached per_hour={per_hour} retry_after_s={retry_after_secs}"
-          );
-          return Err(
-            serde_json::json!({
-              "code": "PROFILE_GENERATION_LIMIT_REACHED",
-              "params": {
-                "limit": per_hour.to_string(),
-                "retryAfterSeconds": retry_after_secs.to_string(),
-              }
-            })
-            .to_string()
-            .into(),
-          );
-        }
+        let recorded = match crate::profile_generation_limiter::record_profile_generation().await {
+          crate::profile_generation_limiter::GenerationOutcome::Allowed(recorded) => recorded,
+          crate::profile_generation_limiter::GenerationOutcome::Limited {
+            per_hour,
+            retry_after_secs,
+          } => {
+            let _ = std::fs::remove_dir_all(&profile_uuid_dir);
+            log::warn!(
+              "Profile creation refused: fingerprint generation limit reached per_hour={per_hour} retry_after_s={retry_after_secs}"
+            );
+            return Err(
+              serde_json::json!({
+                "code": "PROFILE_GENERATION_LIMIT_REACHED",
+                "params": {
+                  "limit": per_hour.to_string(),
+                  "retryAfterSeconds": retry_after_secs.to_string(),
+                }
+              })
+              .to_string()
+              .into(),
+            );
+          }
+        };
 
         // A stand-in for fingerprint generation. It carries the new profile's
         // id so the generation's log lines name the profile being created.
@@ -537,6 +539,7 @@ impl ProfileManager {
               config.os.as_deref(),
             );
             let _ = std::fs::remove_dir_all(&profile_uuid_dir);
+            crate::profile_generation_limiter::forget_profile_generation(recorded);
             log::error!(
               "Profile creation failed step=fingerprint profile={profile_id} elapsed_ms={} err=\"{coded}\"",
               started.elapsed().as_millis()

@@ -760,6 +760,22 @@ pub fn wayfern_failure(detail: &str, fallback_code: &str, claimed_os: Option<&st
     .unwrap_or_else(|| crate::backend_error_with_detail(fallback_code, cdp_error_message(detail)))
 }
 
+/// The last lines a browser printed before it quit, redacted, for one log
+/// line.
+fn last_said(lines: &[String]) -> String {
+  let start = lines.len().saturating_sub(2);
+  lines[start..]
+    .iter()
+    .map(|line| {
+      crate::log_redaction::text(line)
+        .chars()
+        .take(300)
+        .collect::<String>()
+    })
+    .collect::<Vec<_>>()
+    .join(" | ")
+}
+
 fn early_exit_error(said: &str, status: &std::process::ExitStatus) -> String {
   known_wayfern_failure(said, None).unwrap_or_else(|| {
     crate::backend_error_with_detail("WAYFERN_BROWSER_EXITED", status.to_string())
@@ -773,6 +789,7 @@ pub fn is_temporary_wayfern_failure(coded: &str) -> bool {
     "WAYFERN_GENERATION_UNAVAILABLE",
     "WAYFERN_BROWSER_BUSY",
     "WAYFERN_GENERATION_LIMIT_REACHED",
+    "TOO_MANY_BROWSERS_RUNNING",
   ]
   .iter()
   .any(|code| coded.contains(&format!("\"{code}\"")))
@@ -983,7 +1000,13 @@ fn tap_browser_stderr(stderr: tokio::process::ChildStderr, tap: BrowserLogTap, o
     use tokio::io::{AsyncBufReadExt, BufReader};
     let mut lines = BufReader::new(stderr).lines();
     while let Ok(Some(line)) = lines.next_line().await {
-      if line.contains("Wayfern") || line.contains("wayfern_") {
+      // Chromium's own errors are kept too: a browser that quits before its
+      // control port opens says why only there.
+      if line.contains("Wayfern")
+        || line.contains("wayfern_")
+        || line.contains(":ERROR:")
+        || line.contains(":FATAL:")
+      {
         // What the browser did with the identity explains a profile that
         // launched without one; the rest is detail.
         let level = if line.contains("Wayfern launch identity") {
@@ -1029,6 +1052,10 @@ impl HeadlessWayfern {
     token: Option<&str>,
     label: &str,
   ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    if crate::profile_generation_limiter::headless_browser_refused().await {
+      log::debug!("Headless browser not started, no browser seat left {label}");
+      return Err(crate::backend_error("TOO_MANY_BROWSERS_RUNNING").into());
+    }
     let started = std::time::Instant::now();
     let executable_path = BrowserRunner::instance()
       .get_browser_executable_path(profile)
@@ -2055,9 +2082,11 @@ impl WayfernManager {
       attempt += 1;
       if let Ok(Some(status)) = child.try_wait() {
         tokio::time::sleep(Duration::from_millis(300)).await;
-        let said = log.lines().join("\n");
+        let lines = log.lines();
+        let said = lines.join("\n");
         log::warn!(
-          "Browser exited before CDP was ready pid={pid} cdp_port={port} status=\"{status}\""
+          "Browser exited before CDP was ready pid={pid} cdp_port={port} status=\"{status}\" said=\"{}\"",
+          crate::log_redaction::Plain(&last_said(&lines))
         );
         return Err(early_exit_error(&said, &status).into());
       }
@@ -4266,6 +4295,27 @@ fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (u8, u8, u8) {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn an_early_exit_names_the_last_lines_the_browser_printed_redacted() {
+    let lines = vec![
+      "first".to_string(),
+      "[1:2:1023/171839.224:ERROR:chrome_browser_main.cc(1)] Cannot open C:\\Users\\PC\\AppData"
+        .to_string(),
+      "[1:2:1023/171839.225:FATAL:x.cc(2)] gone".to_string(),
+    ];
+    let said = last_said(&lines);
+    assert!(!said.contains("first"), "{said}");
+    assert!(
+      said.contains(":ERROR:") && said.contains(":FATAL:"),
+      "{said}"
+    );
+    assert!(
+      !said.contains("PC"),
+      "a user folder must not reach the log: {said}"
+    );
+    assert_eq!(last_said(&[]), "");
+  }
 
   #[test]
   fn launch_args_default_and_round_trip() {

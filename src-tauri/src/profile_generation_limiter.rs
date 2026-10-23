@@ -21,6 +21,10 @@ const SOLO_PER_HOUR: u64 = 10;
 /// The free allowance per hour while the profile count is below each bound.
 const FREE_TIERS: [(usize, u64); 3] = [(40, 8), (80, 6), (120, 4)];
 const FREE_FLOOR_PER_HOUR: u64 = 2;
+/// How many browsers may run while a headless one starts beside them; the
+/// headless browser takes a seat of its own. Plans not named have no limit.
+const FREE_RUNNING_BROWSERS: usize = 3;
+const SOLO_RUNNING_BROWSERS: usize = 9;
 /// The identity generations are counted under while nobody is signed in.
 const SIGNED_OUT: &str = "local";
 
@@ -44,15 +48,24 @@ pub struct Allowance {
   pub retry_after_secs: Option<u64>,
   /// How many profiles one batch makes before it stops at the allowance.
   pub remaining: u64,
+  /// No fingerprint can be generated until a running browser is closed.
+  pub close_a_browser: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GenerationOutcome {
-  Allowed,
+  Allowed(Recorded),
   Limited {
     per_hour: u64,
     retry_after_secs: u64,
   },
+}
+
+/// A generation counted in the window, to take back when it fails.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Recorded {
+  identity: String,
+  at: u64,
 }
 
 fn free_per_hour(profiles: usize) -> u64 {
@@ -104,6 +117,7 @@ impl GenerationLog {
       used,
       retry_after_secs,
       remaining: per_hour.saturating_sub(used),
+      close_a_browser: false,
     }
   }
 
@@ -114,6 +128,14 @@ impl GenerationLog {
       .or_default()
       .push(now);
   }
+
+  fn forget(&mut self, identity: &str, at: u64) {
+    if let Some(seen) = self.generations.get_mut(identity) {
+      if let Some(index) = seen.iter().rposition(|seen_at| *seen_at == at) {
+        seen.remove(index);
+      }
+    }
+  }
 }
 
 struct Policy {
@@ -122,21 +144,22 @@ struct Policy {
   per_hour: u64,
   /// The profile count a free allowance was read at.
   profiles: Option<usize>,
+  running_browsers: Option<usize>,
 }
 
 async fn policy() -> Policy {
   match CLOUD_AUTH.get_user().await {
     // A team member's effective plan is the owner's, so Team is capped as Pro.
-    Some(state) if state.user.entitlements().active => Policy {
-      enforcement: Enforcement::Hard,
-      per_hour: if state.user.effective_plan() == "solo" {
-        SOLO_PER_HOUR
-      } else {
-        PRO_PER_HOUR
-      },
-      identity: state.user.id,
-      profiles: None,
-    },
+    Some(state) if state.user.entitlements().active => {
+      let solo = state.user.effective_plan() == "solo";
+      Policy {
+        enforcement: Enforcement::Hard,
+        per_hour: if solo { SOLO_PER_HOUR } else { PRO_PER_HOUR },
+        identity: state.user.id,
+        profiles: None,
+        running_browsers: solo.then_some(SOLO_RUNNING_BROWSERS),
+      }
+    }
     signed_in => {
       let profiles = crate::profile::ProfileManager::instance()
         .list_profiles()
@@ -146,9 +169,33 @@ async fn policy() -> Policy {
         enforcement: Enforcement::Soft,
         per_hour: free_per_hour(profiles),
         profiles: Some(profiles),
+        running_browsers: Some(FREE_RUNNING_BROWSERS),
       }
     }
   }
+}
+
+fn running_wayfern_browsers() -> usize {
+  crate::profile::ProfileManager::instance()
+    .list_profiles()
+    .unwrap_or_default()
+    .iter()
+    .filter(|profile| {
+      profile.browser == "wayfern"
+        && profile
+          .process_id
+          .is_some_and(crate::proxy_storage::is_process_running)
+    })
+    .count()
+}
+
+fn no_seat_left(running_browsers: Option<usize>, running: usize) -> bool {
+  running_browsers.is_some_and(|allowed| running > allowed)
+}
+
+/// Whether the browsers running now leave no seat for a headless one.
+pub async fn headless_browser_refused() -> bool {
+  no_seat_left(policy().await.running_browsers, running_wayfern_browsers())
 }
 
 fn log_path() -> PathBuf {
@@ -198,7 +245,19 @@ pub async fn record_profile_generation() -> GenerationOutcome {
   }
   log.record(&policy.identity, now);
   save(&log);
-  GenerationOutcome::Allowed
+  GenerationOutcome::Allowed(Recorded {
+    identity: policy.identity,
+    at: now,
+  })
+}
+
+/// Take back a generation that produced no fingerprint.
+pub fn forget_profile_generation(recorded: Recorded) {
+  let mut log = GENERATION_LOG
+    .lock()
+    .unwrap_or_else(|poisoned| poisoned.into_inner());
+  log.forget(&recorded.identity, recorded.at);
+  save(&log);
 }
 
 #[tauri::command]
@@ -216,6 +275,7 @@ pub async fn get_profile_creation_allowance() -> Allowance {
   if let Some(profiles) = policy.profiles {
     allowance.remaining = free_batch_room(profiles, allowance.used);
   }
+  allowance.close_a_browser = no_seat_left(policy.running_browsers, running_wayfern_browsers());
   allowance
 }
 
@@ -340,6 +400,41 @@ mod tests {
         .remaining,
       0
     );
+  }
+
+  #[test]
+  fn a_failed_generation_gives_its_slot_back() {
+    let mut log = GenerationLog::default();
+    log.record("user-a", NOW);
+    log.record("user-a", NOW + 5);
+    log.forget("user-a", NOW + 5);
+    log.forget("user-b", NOW);
+    assert_eq!(
+      log.allowance("user-a", Enforcement::Soft, 8, NOW + 10).used,
+      1
+    );
+  }
+
+  #[test]
+  fn a_headless_browser_needs_a_seat_of_its_own() {
+    assert!(!no_seat_left(Some(FREE_RUNNING_BROWSERS), 0));
+    assert!(!no_seat_left(
+      Some(FREE_RUNNING_BROWSERS),
+      FREE_RUNNING_BROWSERS
+    ));
+    assert!(no_seat_left(
+      Some(FREE_RUNNING_BROWSERS),
+      FREE_RUNNING_BROWSERS + 1
+    ));
+    assert!(!no_seat_left(
+      Some(SOLO_RUNNING_BROWSERS),
+      SOLO_RUNNING_BROWSERS
+    ));
+    assert!(no_seat_left(
+      Some(SOLO_RUNNING_BROWSERS),
+      SOLO_RUNNING_BROWSERS + 1
+    ));
+    assert!(!no_seat_left(None, 500));
   }
 
   #[test]

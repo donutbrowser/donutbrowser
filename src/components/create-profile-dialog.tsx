@@ -25,6 +25,7 @@ import {
   LuShieldCheck,
   LuTrash2,
   LuTriangleAlert,
+  LuX,
 } from "react-icons/lu";
 import { DnsServerField } from "@/components/dns-server-field";
 import { EphemeralStorageNotice } from "@/components/ephemeral-storage-notice";
@@ -48,6 +49,7 @@ import {
 } from "@/components/ui/command";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -216,6 +218,23 @@ export function CreateProfileDialog({
     if (isOpen) void loadAllowance();
   }, [isOpen, loadAllowance]);
 
+  // A browser that starts or stops changes whether a fingerprint can be made.
+  useEffect(() => {
+    if (!isOpen) return;
+    let closed = false;
+    let unlisten: (() => void) | undefined;
+    void listen("profile-running-changed", () => void loadAllowance()).then(
+      (stop) => {
+        if (closed) stop();
+        else unlisten = stop;
+      },
+    );
+    return () => {
+      closed = true;
+      unlisten?.();
+    };
+  }, [isOpen, loadAllowance]);
+
   // The window frees a slot by itself, so look again once it should have.
   useEffect(() => {
     const wait = allowance?.retry_after_secs;
@@ -231,6 +250,7 @@ export function CreateProfileDialog({
     allowance !== null && allowance.used >= allowance.per_hour;
   const hourlyCapReached = overAllowance && allowance.enforcement === "hard";
   const creatingQuickly = overAllowance && allowance.enforcement === "soft";
+  const closeABrowser = allowance?.close_a_browser === true;
 
   // The wait in the hourly-limit notice counts down by the minute.
   useEffect(() => {
@@ -351,6 +371,7 @@ export function CreateProfileDialog({
     downloading ||
     isCreating ||
     hourlyCapReached ||
+    closeABrowser ||
     batchRefused ||
     !dnsServerValid;
   const selectedVpn = selectedProxyId?.startsWith("vpn-")
@@ -670,6 +691,18 @@ export function CreateProfileDialog({
       }
     : {};
 
+  const createButton = (
+    <LoadingButton
+      data-slot="profile-create-submit"
+      onClick={handleCreate}
+      isLoading={isCreating}
+      disabled={isCreateDisabled}
+      className="h-9 rounded-md px-4 transition-[opacity,box-shadow,transform] duration-200"
+    >
+      {t("common.buttons.create")}
+    </LoadingButton>
+  );
+
   return (
     <Dialog
       open={isOpen}
@@ -689,21 +722,32 @@ export function CreateProfileDialog({
         }
         aria-describedby={undefined}
         dismissible={!isCreating}
+        hideClose
       >
-        <DialogHeader className="shrink-0 flex-row items-center justify-between gap-2 space-y-0">
+        <DialogHeader className="shrink-0 flex-row items-center justify-between gap-2 space-y-0 pr-0">
           <DialogTitle className="text-base">
             {t("createProfile.title")}
           </DialogTitle>
-          <TemplatePicker
-            templates={templates}
-            applied={appliedTemplate}
-            onApply={applyTemplate}
-            onSave={saveTemplate}
-            onDelete={deleteTemplate}
-            onDeleteNow={deleteTemplateNow}
-            disabled={isCreating}
-            animate={animateEntry}
-          />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <TemplatePicker
+              templates={templates}
+              applied={appliedTemplate}
+              onApply={applyTemplate}
+              onSave={saveTemplate}
+              onDelete={deleteTemplate}
+              onDeleteNow={deleteTemplateNow}
+              disabled={isCreating}
+              animate={animateEntry}
+            />
+            <DialogClose
+              data-slot="profile-create-close"
+              aria-label={t("common.buttons.close")}
+              className={cn(optionPill(false), "size-7 justify-center px-0")}
+              disabled={isCreating}
+            >
+              <LuX />
+            </DialogClose>
+          </div>
         </DialogHeader>
 
         <div
@@ -833,7 +877,10 @@ export function CreateProfileDialog({
                   aria-expanded={proxyPopoverOpen}
                   aria-controls={proxyListboxId}
                   aria-labelledby={`${proxyLabelId} ${proxyValueId}`}
-                  className={optionPill(!!selectedProxyId)}
+                  className={cn(
+                    optionPill(!!selectedProxyId),
+                    "grow justify-center",
+                  )}
                   disabled={isCreating}
                 >
                   <PillIcon on={!!selectedProxyId} animate={animateEntry}>
@@ -1561,15 +1608,25 @@ export function CreateProfileDialog({
               disabled={isCreating}
               hint={countHint}
             />
-            <LoadingButton
-              data-slot="profile-create-submit"
-              onClick={handleCreate}
-              isLoading={isCreating}
-              disabled={isCreateDisabled}
-              className="h-9 rounded-md px-4 transition-[opacity,box-shadow,transform] duration-200"
-            >
-              {t("common.buttons.create")}
-            </LoadingButton>
+            {closeABrowser ? (
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <span
+                    data-slot="profile-create-close-a-browser"
+                    // A disabled button takes no pointer events, so the
+                    // reason lives on its wrapper.
+                    className="inline-flex rounded-md"
+                  >
+                    {createButton}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className="max-w-72">
+                  {t("backendErrors.tooManyBrowsersRunning")}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              createButton
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
@@ -1593,6 +1650,7 @@ interface ProfileCreationAllowance {
   used: number;
   retry_after_secs: number | null;
   remaining: number;
+  close_a_browser: boolean;
 }
 
 const STATUS_CLASS =
@@ -1707,7 +1765,7 @@ function OptionToggle({
           checked={checked}
           onCheckedChange={(state) => onCheckedChange(state === true)}
           disabled={disabled}
-          className={cn(optionPill(checked), "shrink-0")}
+          className={cn(optionPill(checked), "grow shrink-0 justify-center")}
         >
           <PillIcon on={checked} animate={animate}>
             {icon}
