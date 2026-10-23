@@ -215,7 +215,7 @@ function sprinkleDistance(
     const py = y - s.a[1];
     const pz = z - s.a[2];
     let h = (px * s.ab[0] + py * s.ab[1] + pz * s.ab[2]) / s.abLengthSquared;
-    h = h < 0 ? 0 : h > 1 ? 1 : h;
+    h = h < 0 ? 0 : Math.min(h, 1);
     const dx = px - s.ab[0] * h;
     const dy = py - s.ab[1] * h;
     const dz = pz - s.ab[2] * h;
@@ -238,7 +238,7 @@ function baseDistance(donut: Donut, x: number, y: number, z: number) {
     tube - MINOR_RADIUS - GLAZE_THICKNESS,
     glazeEdge(theta) - y,
   );
-  let d = dough < glaze ? dough : glaze;
+  let d = Math.min(dough, glaze);
   if (glaze < 0.25) {
     const sprinkle = sprinkleDistance(donut, x, y, z, theta).distance;
     if (sprinkle < d) d = sprinkle;

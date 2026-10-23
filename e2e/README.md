@@ -71,7 +71,6 @@ asserts their persisted settings and rendered CSS variables across rail navigati
 
 Each app session receives a unique root under the operating-system test temp directory. The
 runner redirects:
-
 - Donut data, cache, and logs with `DONUTBROWSER_DATA_ROOT`;
 - `HOME`, `USERPROFILE`, `CFFIXED_USER_HOME`, XDG paths, `APPDATA`, and `LOCALAPPDATA`;
 - `TMPDIR`, `TMP`, and `TEMP`;

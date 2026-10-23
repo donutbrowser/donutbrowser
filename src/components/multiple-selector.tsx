@@ -302,7 +302,7 @@ const MultipleSelector = React.forwardRef<
       void exec();
     }, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearch]);
 
-    const CreatableItem = () => {
+    const creatableItem = () => {
       if (!creatable) return undefined;
       if (
         isOptionsExist(options, [{ value: inputValue, label: inputValue }]) ||
@@ -544,7 +544,7 @@ const MultipleSelector = React.forwardRef<
               ) : (
                 <>
                   {EmptyItem()}
-                  {CreatableItem()}
+                  {creatableItem()}
                   {!selectFirstItem && (
                     <CommandItem value="-" className="hidden" />
                   )}

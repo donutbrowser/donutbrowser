@@ -14,6 +14,7 @@ function getStrictContext<T>(
 ] {
   const Context = React.createContext<T | undefined>(undefined);
 
+  // biome-ignore lint/correctness/noComponentHookFactories: called once per context at module scope, so each context has one stable Provider.
   const Provider = ({
     value,
     children,
@@ -22,6 +23,7 @@ function getStrictContext<T>(
     children?: React.ReactNode;
   }) => <Context.Provider value={value}>{children}</Context.Provider>;
 
+  // biome-ignore lint/correctness/noComponentHookFactories: made once with its Provider, at module scope.
   const useSafeContext = () => {
     const ctx = React.useContext(Context);
     if (ctx === undefined) {
