@@ -1535,6 +1535,7 @@ impl BrowserRunner {
     // notice of the fleet. A remote session whose state could not be read (a
     // dropped event stream plus an unreachable backend) fell straight through
     // to a local launch on a profile a host was writing to.
+    crate::remote_handoff::await_startup_check().await;
     crate::remote_handoff::ensure_local_launch_allowed(&profile.id.to_string())?;
     let acquired_team_lock = crate::team_lock::acquire_team_lock_if_needed(&profile).await?;
     if let Err(e) = crate::sync::download_before_first_launch(&app_handle, &profile).await {
@@ -1811,6 +1812,7 @@ async fn launch_browser_profile_tracked(
   // back yet. Checked before the profile lock because it answers without a
   // round trip and because it stays true after the session's lock is released:
   // the lock protects the browser, this protects the bytes it wrote.
+  crate::remote_handoff::await_startup_check().await;
   crate::remote_handoff::ensure_local_launch_allowed(&profile.id.to_string())?;
 
   // Team lock check: if profile is sync-enabled and user is on a team, acquire lock

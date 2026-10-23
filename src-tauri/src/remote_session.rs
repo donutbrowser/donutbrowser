@@ -679,7 +679,10 @@ fn index_session(app: Option<&AppHandle>, session: &RemoteSessionState) {
   // the only frames that exist. It is deliberately keyed off `is_terminal`
   // rather than `is_drivable`: a provisioning host already owns the profile.
   if is_terminal(session) {
-    crate::remote_handoff::note_ended(&profile_id, &session.session_id);
+    if !crate::remote_handoff::note_ended(&profile_id, &session.session_id) {
+      // Not a session this machine watched start: its work may still be owed.
+      crate::remote_handoff::gate_unpulled(&finished(std::slice::from_ref(session)));
+    }
     if crate::remote_handoff::pending_session_for(&profile_id).as_deref()
       == Some(session.session_id.as_str())
     {
@@ -704,6 +707,51 @@ fn index_session(app: Option<&AppHandle>, session: &RemoteSessionState) {
       map.remove(&profile_id);
     }
   });
+}
+
+/// The terminal sessions among `sessions`, as `(profile, session, ended)`
+/// with unix seconds. A session with no end time counts from its start.
+fn finished(sessions: &[RemoteSessionState]) -> Vec<(String, String, u64)> {
+  sessions
+    .iter()
+    .filter(|session| is_terminal(session))
+    .filter_map(|session| {
+      let profile_id = session.profile_id.clone()?;
+      let at = session
+        .ended_at
+        .as_deref()
+        .or(session.started_at.as_deref())?;
+      let at = chrono::DateTime::parse_from_rfc3339(at).ok()?.timestamp();
+      Some((
+        profile_id,
+        session.session_id.clone(),
+        u64::try_from(at).ok()?,
+      ))
+    })
+    .collect()
+}
+
+/// How many recent sessions a connect reads to find work finished while the
+/// app was shut. The stream's own snapshot carries fewer than one night of a
+/// busy cookie bot account.
+const CATCH_UP_SESSIONS: u32 = 100;
+
+/// Gate and pull every profile whose remote session ended while nothing here
+/// was watching, then let the launches waiting on that look go ahead.
+async fn catch_up_finished_sessions(app: AppHandle) {
+  let endpoint = format!(
+    "{}/api/remote-sessions?limit={CATCH_UP_SESSIONS}",
+    crate::cloud_auth::CLOUD_API_URL
+  );
+  match get_json::<RemoteSessionListResponse>(endpoint).await {
+    Ok(listing) => {
+      for profile_id in crate::remote_handoff::gate_unpulled(&finished(&listing.sessions)) {
+        crate::remote_handoff::schedule_pull(app.clone(), profile_id);
+      }
+    }
+    Err(e) => log::debug!("Remote sessions not listed for catch-up err=\"{e}\""),
+  }
+  crate::remote_handoff::finish_startup_check();
 }
 
 /// Replace the whole index from a full listing, and reconcile the launch gate.
@@ -1028,6 +1076,7 @@ pub fn stop_session_events() {
   // left marked authoritative would keep answering from state nothing is
   // maintaining any more.
   INDEX_AUTHORITATIVE.store(false, Ordering::SeqCst);
+  crate::remote_handoff::finish_startup_check();
   if !STREAM_RUNNING.swap(false, Ordering::SeqCst) {
     return;
   }
@@ -1060,6 +1109,7 @@ async fn run_session_events(app: AppHandle) {
         attempt = 0;
         STREAM_CONNECT.succeeded();
         emit_stream_status(&app, true, None);
+        tauri::async_runtime::spawn(catch_up_finished_sessions(app.clone()));
         match consume_session_events(&app, response, &mut last_event_id).await {
           Ok(()) => {
             STREAM_DROP.succeeded();
@@ -1080,6 +1130,7 @@ async fn run_session_events(app: AppHandle) {
         }
         STREAM_CONNECT.failed(&reason);
         emit_stream_status(&app, false, Some(&reason));
+        crate::remote_handoff::finish_startup_check();
       }
     }
 
