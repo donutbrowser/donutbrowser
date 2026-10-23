@@ -3863,7 +3863,7 @@ impl McpServer {
     if !allowed {
       let summary = match CLOUD_AUTH.get_user().await {
         Some(state) => format!(
-          "logged_in=true plan={} status={} period={:?}",
+          "logged_in=true plan={} subscription_status={} plan_period={:?}",
           state.user.plan, state.user.subscription_status, state.user.plan_period,
         ),
         None => "logged_in=false".to_string(),
@@ -6394,7 +6394,7 @@ impl McpServer {
       },
       McpTool {
         name: "send_feedback".to_string(),
-        description: "Send feedback about Donut Browser to the Donut team: a tool that failed or behaved unexpectedly, a capability you needed and did not find, a confusing result, or something that worked well. Say what you tried, what happened, and what you expected. Set include_logs to attach what get_diagnostics returns: facts about this install and the recent app and proxy worker logs, which help with bugs and never contain profile names, visited URLs or credentials. The person at this computer sees what you sent. Returns {sent: true, feedback_id}.".to_string(),
+        description: "Send feedback about Donut Browser to the Donut team: a tool that failed or behaved unexpectedly, a capability you needed and did not find, a confusing result, or something that worked well. Say what you tried, what happened, and what you expected. Set include_logs to attach what get_diagnostics returns: facts about this install and the recent app and proxy worker logs, which help with bugs and never contain profile names, visited URLs or credentials. The feedback is anonymous: it carries nothing about the person's account. The person at this computer sees what you sent. Returns {sent: true, feedback_id}.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -6411,7 +6411,7 @@ impl McpServer {
       },
       McpTool {
         name: "get_diagnostics".to_string(),
-        description: "Read what a bug report would attach, to find out why Donut Browser misbehaves: facts about this install (version, OS, install kind, account plan, sync, installed Wayfern versions, running browsers and proxy workers, one line per profile) and the newest app and proxy worker log lines. Profiles, proxies, VPNs and groups appear as aliases such as profile-3, the same in the facts and the logs; names, emails, IP addresses, web addresses and secrets are removed. Use it when the person reports a problem: follow the triage playbook at https://raw.githubusercontent.com/donutbrowser/donutbrowser/main/docs/TRIAGE.md, then report with send_feedback (include_logs: true). Returns {diagnostics}.".to_string(),
+        description: "Read what a bug report would attach, to find out why Donut Browser misbehaves: facts about this install (version, OS, install kind, sync, installed Wayfern versions, running browsers and proxy workers, one line per profile) and the newest app and proxy worker log lines. Profiles, proxies, VPNs and groups appear as aliases such as profile-3, the same in the facts and the logs; names, emails, account details, IP addresses, web addresses and secrets are removed. Use it when the person reports a problem: follow the triage playbook at https://raw.githubusercontent.com/donutbrowser/donutbrowser/main/docs/TRIAGE.md, then report with send_feedback (include_logs: true). Returns {diagnostics}.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -12146,14 +12146,17 @@ impl McpServer {
         data: None,
       });
     };
-    let diagnostics =
-      crate::diagnostics::excerpt(crate::app_dirs::log_dir(&handle), max_kb as usize * 1024)
-        .await
-        .map_err(|_| McpError {
-          code: -32000,
-          message: "The app logs could not be read.".to_string(),
-          data: Some(serde_json::json!({ "code": "FEEDBACK_LOGS_UNREADABLE" })),
-        })?;
+    let diagnostics = crate::diagnostics::excerpt(
+      crate::app_dirs::log_dir(&handle),
+      max_kb as usize * 1024,
+      crate::diagnostics::Reader::Agent,
+    )
+    .await
+    .map_err(|_| McpError {
+      code: -32000,
+      message: "The app logs could not be read.".to_string(),
+      data: Some(serde_json::json!({ "code": "FEEDBACK_LOGS_UNREADABLE" })),
+    })?;
     Self::json_content(&serde_json::json!({ "diagnostics": diagnostics }))
   }
 
@@ -12199,14 +12202,17 @@ impl McpServer {
       let app_handle = self.inner.lock().await.app_handle.clone();
       match app_handle {
         Some(handle) => Some(
-          crate::feedback::log_excerpt(crate::app_dirs::log_dir(&handle))
-            .await
-            .map_err(|_| McpError {
-              code: -32000,
-              message: "The app logs could not be read. Send the feedback without include_logs."
-                .to_string(),
-              data: Some(serde_json::json!({ "code": "FEEDBACK_LOGS_UNREADABLE" })),
-            })?,
+          crate::feedback::log_excerpt(
+            crate::app_dirs::log_dir(&handle),
+            crate::diagnostics::Reader::Agent,
+          )
+          .await
+          .map_err(|_| McpError {
+            code: -32000,
+            message: "The app logs could not be read. Send the feedback without include_logs."
+              .to_string(),
+            data: Some(serde_json::json!({ "code": "FEEDBACK_LOGS_UNREADABLE" })),
+          })?,
         ),
         None => None,
       }

@@ -3,7 +3,7 @@
 //! and groups appear by alias (`profile-3`), the same alias in the facts and
 //! in every log line, so one profile's lines can be followed without its name
 //! or id. Feedback attaches it, `read_diagnostics` hands it to an agent, and
-//! the log export copies it.
+//! the log export copies it. An agent's copy says nothing about the account.
 
 use regex_lite::Regex;
 use std::collections::HashMap;
@@ -21,17 +21,46 @@ static ANY_UUID_RE: LazyLock<Regex> = LazyLock::new(|| {
     .expect("valid UUID regex")
 });
 
-/// Account facts, read before the blocking part.
+/// Log keys whose values describe the account.
+static ACCOUNT_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
+  Regex::new(
+    r"\b(plan|effective_plan|plan_period|subscription_status|has_active_subscription|proxy_bandwidth_limit_mb)=[^\s,]+",
+  )
+  .expect("valid account key regex")
+});
+
+/// Who the excerpt is for. The person sees their own account; an agent's
+/// copy, which it may send on, carries no account facts and no account
+/// values in the log lines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reader {
+  Person,
+  Agent,
+}
+
+/// Account facts, read before the blocking part; an agent's excerpt has none.
 struct Account {
   signed_in: bool,
   plan: Option<String>,
-  sync: &'static str,
 }
 
 /// The excerpt, at most `max_bytes`. Facts first, then the app logs and the
 /// worker logs, each file under a `===== name =====` header.
-pub async fn excerpt(log_dir: PathBuf, max_bytes: usize) -> std::io::Result<String> {
-  let user = crate::cloud_auth::CLOUD_AUTH.get_user().await;
+pub async fn excerpt(
+  log_dir: PathBuf,
+  max_bytes: usize,
+  reader: Reader,
+) -> std::io::Result<String> {
+  let account = match reader {
+    Reader::Person => {
+      let user = crate::cloud_auth::CLOUD_AUTH.get_user().await;
+      Some(Account {
+        signed_in: user.is_some(),
+        plan: user.map(|state| state.user.plan),
+      })
+    }
+    Reader::Agent => None,
+  };
   let sync = match crate::sync::account_server::current().await {
     None => "off",
     Some(source) => match source.kind() {
@@ -40,17 +69,17 @@ pub async fn excerpt(log_dir: PathBuf, max_bytes: usize) -> std::io::Result<Stri
       crate::sync::account_server::SyncSourceKind::SelfHosted => "self_hosted",
     },
   };
-  let account = Account {
-    signed_in: user.is_some(),
-    plan: user.map(|state| state.user.plan),
-    sync,
-  };
-  tokio::task::spawn_blocking(move || build(&log_dir, max_bytes, &account))
+  tokio::task::spawn_blocking(move || build(&log_dir, max_bytes, account.as_ref(), sync))
     .await
     .map_err(std::io::Error::other)?
 }
 
-fn build(log_dir: &Path, max_bytes: usize, account: &Account) -> std::io::Result<String> {
+fn build(
+  log_dir: &Path,
+  max_bytes: usize,
+  account: Option<&Account>,
+  sync: &str,
+) -> std::io::Result<String> {
   let profiles = crate::profile::ProfileManager::instance()
     .list_profiles()
     .unwrap_or_default();
@@ -84,10 +113,18 @@ fn build(log_dir: &Path, max_bytes: usize, account: &Account) -> std::io::Result
     vpns.len(),
     groups.len(),
     account,
+    sync,
     &aliases,
   );
 
-  let prepare = |raw: &str| crate::log_redaction::text(&aliases.apply(raw));
+  let prepare = |raw: &str| {
+    let line = crate::log_redaction::text(&aliases.apply(raw));
+    if account.is_some() {
+      line
+    } else {
+      without_account_values(&line)
+    }
+  };
   let mut out = format!("===== facts =====\n{facts}");
   let worker_budget = max_bytes.saturating_sub(out.len()) / WORKER_LOG_SHARE;
   let workers = crate::settings_manager::recent_log_files(
@@ -106,6 +143,29 @@ fn build(log_dir: &Path, max_bytes: usize, account: &Account) -> std::io::Result
   out.push_str(&app);
   out.push_str(&workers);
   Ok(out)
+}
+
+/// The facts line on the account and sync; only sync for an agent.
+fn account_line(account: Option<&Account>, sync: &str) -> String {
+  match account {
+    Some(account) => format!(
+      "account={} plan={} sync={sync}",
+      if account.signed_in {
+        "signed_in"
+      } else {
+        "signed_out"
+      },
+      account.plan.as_deref().unwrap_or("-"),
+    ),
+    None => format!("sync={sync}"),
+  }
+}
+
+/// `line` with the value of every account key replaced.
+fn without_account_values(line: &str) -> String {
+  ACCOUNT_KEY_RE
+    .replace_all(line, "${1}=<redacted>")
+    .into_owned()
 }
 
 fn sorted(ids: impl Iterator<Item = String>) -> Vec<String> {
@@ -128,7 +188,8 @@ fn facts(
   proxy_types: &HashMap<&str, &str>,
   vpn_count: usize,
   group_count: usize,
-  account: &Account,
+  account: Option<&Account>,
+  sync: &str,
   aliases: &Aliases,
 ) -> String {
   let info = crate::settings_manager::get_system_info();
@@ -153,17 +214,7 @@ fn facts(
     crate::app_auto_updater::AppAutoUpdater::install_kind(),
     if auto_updates_disabled { "off" } else { "on" },
   );
-  let _ = writeln!(
-    out,
-    "account={} plan={} sync={}",
-    if account.signed_in {
-      "signed_in"
-    } else {
-      "signed_out"
-    },
-    account.plan.as_deref().unwrap_or("-"),
-    account.sync,
-  );
+  let _ = writeln!(out, "{}", account_line(account, sync));
   let _ = writeln!(out, "wayfern_installed=[{}]", wayfern.join(" "));
   let _ = writeln!(
     out,
@@ -288,6 +339,43 @@ mod tests {
       aliases.apply("vpn=AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE"),
       "vpn=vpn-1"
     );
+  }
+
+  #[test]
+  fn an_agent_gets_no_account_facts() {
+    let account = Account {
+      signed_in: true,
+      plan: Some("pro".to_string()),
+    };
+    assert_eq!(
+      account_line(Some(&account), "cloud"),
+      "account=signed_in plan=pro sync=cloud"
+    );
+    assert_eq!(account_line(None, "cloud"), "sync=cloud");
+  }
+
+  #[test]
+  fn an_agent_gets_no_account_values_in_log_lines() {
+    assert_eq!(
+      without_account_values(
+        "[cloud_auth][INFO] Signed in plan=pro subscription_status=active proxy_bandwidth_limit_mb=5000"
+      ),
+      "[cloud_auth][INFO] Signed in plan=<redacted> subscription_status=<redacted> proxy_bandwidth_limit_mb=<redacted>"
+    );
+    assert_eq!(
+      without_account_values(
+        "Post-login plan resolved plan=team, effective_plan=pro has_active_subscription=true"
+      ),
+      "Post-login plan resolved plan=<redacted>, effective_plan=<redacted> has_active_subscription=<redacted>"
+    );
+    assert_eq!(
+      without_account_values(
+        "MCP tool refused: plan lacks feature feature=\"x\" logged_in=true plan=free subscription_status=none plan_period=Some(\"monthly\")"
+      ),
+      "MCP tool refused: plan lacks feature feature=\"x\" logged_in=true plan=<redacted> subscription_status=<redacted> plan_period=<redacted>"
+    );
+    let other = "Profile synced profile=profile-1 explain=plan files=12";
+    assert_eq!(without_account_values(other), other);
   }
 
   #[test]

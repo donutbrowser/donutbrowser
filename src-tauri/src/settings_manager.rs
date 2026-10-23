@@ -1075,7 +1075,7 @@ pub async fn read_log_files(app_handle: tauri::AppHandle) -> Result<String, Stri
   if !dir.exists() {
     return Err("Log directory does not exist yet".to_string());
   }
-  crate::diagnostics::excerpt(dir, 5 * 1024 * 1024)
+  crate::diagnostics::excerpt(dir, 5 * 1024 * 1024, crate::diagnostics::Reader::Person)
     .await
     .map_err(|e| format!("Failed to read log dir: {e}"))
 }

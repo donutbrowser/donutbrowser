@@ -1,7 +1,8 @@
 //! Feedback to the Donut team, from the person (the feedback dialog) or from an
 //! agent (the `send_feedback` MCP tool). The cloud stores it; anyone may send
-//! it, signed in or not. A signed-in sender is named by their access token, so
-//! a reply can reach them.
+//! it, signed in or not. A signed-in person is named by their access token, so
+//! a reply can reach them. An agent's feedback is anonymous: it carries no
+//! token, no reply address and no account facts.
 
 use crate::cloud_errors;
 use serde::{Deserialize, Serialize};
@@ -106,7 +107,10 @@ impl<'a> Payload<'a> {
       kind: feedback.kind,
       source: feedback.source,
       message: &feedback.message,
-      email: feedback.email.as_deref(),
+      email: feedback
+        .email
+        .as_deref()
+        .filter(|_| carries_account(feedback.source)),
       logs: feedback.logs.as_deref().filter(|logs| !logs.is_empty()),
       app_version: info.app_version,
       os: info.os,
@@ -116,6 +120,12 @@ impl<'a> Payload<'a> {
       context: feedback.context.as_ref(),
     }
   }
+}
+
+/// Whether feedback from `source` may name the account: the person's may, an
+/// agent's never does.
+fn carries_account(source: FeedbackSource) -> bool {
+  source == FeedbackSource::Person
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,8 +175,11 @@ pub fn validate_email(email: Option<&str>) -> Result<Option<String>, String> {
 /// The log excerpt feedback carries: anonymous facts, then the newest app and
 /// proxy worker log lines, redacted, at most `MAX_LOG_BYTES`
 /// (`diagnostics::excerpt`).
-pub async fn log_excerpt(dir: PathBuf) -> Result<String, String> {
-  crate::diagnostics::excerpt(dir, MAX_LOG_BYTES)
+pub async fn log_excerpt(
+  dir: PathBuf,
+  reader: crate::diagnostics::Reader,
+) -> Result<String, String> {
+  crate::diagnostics::excerpt(dir, MAX_LOG_BYTES, reader)
     .await
     .map_err(|e| crate::backend_error_with_detail("FEEDBACK_LOGS_UNREADABLE", e))
 }
@@ -196,9 +209,9 @@ fn allow_send(sends: &mut VecDeque<Instant>, now: Instant, per_hour: usize) -> b
   true
 }
 
-/// Send feedback to the cloud. A signed-in sender's access token goes with it;
+/// Send feedback to the cloud. A signed-in person's access token goes with it;
 /// when the session cannot be used, the feedback is sent without one rather
-/// than lost.
+/// than lost. An agent's feedback never carries the token.
 pub async fn send(feedback: Feedback) -> Result<FeedbackReceipt, String> {
   let body = serde_json::to_vec(&Payload::of(&feedback))
     .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
@@ -207,7 +220,7 @@ pub async fn send(feedback: Feedback) -> Result<FeedbackReceipt, String> {
   let started = Instant::now();
 
   let auth = &crate::cloud_auth::CLOUD_AUTH;
-  let result = if auth.is_logged_in().await {
+  let result = if carries_account(feedback.source) && auth.is_logged_in().await {
     match auth
       .api_call_with_retry(|token| post(url.clone(), body.clone(), Some(token)))
       .await
@@ -336,7 +349,13 @@ pub async fn send_feedback(
   let message = validate_message(&message)?;
   let email = validate_email(email.as_deref())?;
   let logs = if include_logs {
-    Some(log_excerpt(crate::app_dirs::log_dir(&app_handle)).await?)
+    Some(
+      log_excerpt(
+        crate::app_dirs::log_dir(&app_handle),
+        crate::diagnostics::Reader::Person,
+      )
+      .await?,
+    )
   } else {
     None
   };
@@ -359,7 +378,11 @@ pub async fn send_feedback(
 /// it before sending.
 #[tauri::command]
 pub async fn preview_feedback_logs(app_handle: tauri::AppHandle) -> Result<String, String> {
-  log_excerpt(crate::app_dirs::log_dir(&app_handle)).await
+  log_excerpt(
+    crate::app_dirs::log_dir(&app_handle),
+    crate::diagnostics::Reader::Person,
+  )
+  .await
 }
 
 #[cfg(test)]
@@ -482,13 +505,13 @@ mod tests {
       .await;
     let feedback = Feedback {
       kind: FeedbackKind::Bug,
-      source: FeedbackSource::Agent,
+      source: FeedbackSource::Person,
       message: "navigate times out".to_string(),
       email: None,
       locale: Some("en".to_string()),
       logs: Some("line\n".to_string()),
-      agent_client: Some("Claude Code 2.1.0".to_string()),
-      context: Some(serde_json::json!({ "recentCalls": [] })),
+      agent_client: None,
+      context: None,
     };
     let body = serde_json::to_vec(&Payload::of(&feedback)).unwrap();
     let receipt = post(
@@ -503,11 +526,30 @@ mod tests {
     let sent: serde_json::Value =
       serde_json::from_slice(&server.received_requests().await.unwrap()[0].body).unwrap();
     assert_eq!(sent["kind"], "bug");
-    assert_eq!(sent["source"], "agent");
+    assert_eq!(sent["source"], "person");
     assert_eq!(sent["logs"], "line\n");
-    assert_eq!(sent["agentClient"], "Claude Code 2.1.0");
     assert_eq!(sent["locale"], "en");
     assert!(sent["appVersion"].is_string() && sent["os"].is_string() && sent["arch"].is_string());
+    assert!(sent.get("email").is_none(), "{sent}");
+  }
+
+  #[test]
+  fn an_agents_feedback_never_names_the_account() {
+    assert!(carries_account(FeedbackSource::Person));
+    assert!(!carries_account(FeedbackSource::Agent));
+    let feedback = Feedback {
+      kind: FeedbackKind::Bug,
+      source: FeedbackSource::Agent,
+      message: "navigate times out".to_string(),
+      email: Some("me@example.com".to_string()),
+      locale: None,
+      logs: None,
+      agent_client: Some("Claude Code 2.1.0".to_string()),
+      context: Some(serde_json::json!({ "recentCalls": [] })),
+    };
+    let sent = serde_json::to_value(Payload::of(&feedback)).unwrap();
+    assert_eq!(sent["source"], "agent");
+    assert_eq!(sent["agentClient"], "Claude Code 2.1.0");
     assert!(sent.get("email").is_none(), "{sent}");
   }
 
