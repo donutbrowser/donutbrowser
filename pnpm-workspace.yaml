@@ -22,6 +22,8 @@ overrides:
   # js-yaml 3 pulls sprintf-js through argparse 1; no sprintf-js release fixes
   # GHSA-hp3w-g68c-fv3c. load-nyc-config only calls load(), which js-yaml 4 keeps.
   '@istanbuljs/load-nyc-config>js-yaml': ^4.3.2
+  # @nestjs/platform-express 12.2.0 pins multer 2.4.0; 2.5.0 fixes GHSA-q7qp-rjg7-q26m.
+  multer@<2.5.0: 2.5.0
 
 allowBuilds:
   '@nestjs/core': true
