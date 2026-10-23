@@ -329,6 +329,21 @@ async function ask(lines, codes) {
     `</${fence}>`,
   ].join("\n");
 
+  // Each model in turn, one request each: a model that is gone or down
+  // upstream does not cost the review.
+  const models = [env("AI_MODEL"), ...env("AI_FALLBACK_MODELS").split(",")]
+    .map((model) => model.trim())
+    .filter(Boolean);
+  let reason = "no model is configured";
+  for (const model of models) {
+    const result = await askModel(model, user);
+    if (result.findings) return result;
+    reason = `${model}: ${result.reason}`;
+  }
+  return { reason };
+}
+
+async function askModel(model, user) {
   let res;
   let body = null;
   try {
@@ -339,14 +354,7 @@ async function ask(lines, codes) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: env("AI_MODEL"),
-        models: [
-          env("AI_MODEL"),
-          ...env("AI_FALLBACK_MODELS")
-            .split(",")
-            .map((model) => model.trim())
-            .filter(Boolean),
-        ],
+        model,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: user },

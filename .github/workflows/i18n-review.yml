@@ -38,11 +38,11 @@ env:
   # Free models allow 20 requests a minute and 50 a day per account (1000
   # with credits bought), and the free list changes: when this model goes,
   # pick another `:free` id from https://openrouter.ai/models. A free model is
-  # often rate-limited upstream, so OpenRouter tries the fallbacks in order.
+  # often down or rate-limited upstream, so each model is asked in turn.
   AI_API_URL: https://openrouter.ai/api/v1/chat/completions
-  AI_MODEL: nvidia/nemotron-3-super-120b-a12b:free
-  AI_FALLBACK_MODELS: minimax/minimax-m3.1-flash:free,google/gemma-4-31b-it:free
-  # At most 3 requests of 48 KB of strings each per run. Keys whose English
+  AI_MODEL: google/gemma-4-31b-it:free
+  AI_FALLBACK_MODELS: nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-super-120b-a12b:free
+  # At most 3 batches of 48 KB of strings each per run. Keys whose English
   # is new or changed go first; the rest are reported as not reviewed.
   AI_MAX_REQUESTS: "3"
   AI_BATCH_BYTES: "48000"

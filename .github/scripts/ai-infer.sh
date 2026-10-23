@@ -10,8 +10,10 @@
 # Free models allow 20 requests a minute and 1000 a day (the account has
 # bought credits), and the free list changes: when a model goes, pick another
 # `:free` id from https://openrouter.ai/models (i18n-review.yml has the same
-# list). A free model is often rate-limited upstream, so OpenRouter tries the
-# fallbacks in order. AI_MODEL and AI_FALLBACK_MODELS override them.
+# list). A free model is often down or rate-limited upstream, so each model
+# is asked in turn, one request each, until one answers: a model that is gone
+# or down does not fail the request. AI_MODEL and AI_FALLBACK_MODELS override
+# them.
 #
 # The user prompt is cut to AI_PROMPT_MAX_BYTES, so put the least important
 # context at its end.
@@ -31,8 +33,8 @@ system_file=$1
 user_file=$2
 out_file=$3
 api_url=${AI_API_URL:-https://openrouter.ai/api/v1/chat/completions}
-model=${AI_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}
-fallbacks=${AI_FALLBACK_MODELS:-minimax/minimax-m3.1-flash:free,google/gemma-4-31b-it:free}
+model=${AI_MODEL:-google/gemma-4-31b-it:free}
+fallbacks=${AI_FALLBACK_MODELS:-nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-super-120b-a12b:free}
 max_bytes=${AI_PROMPT_MAX_BYTES:-120000}
 timeout_seconds=${AI_TIMEOUT_SECONDS:-300}
 
@@ -64,52 +66,69 @@ fi
 head -c "$max_bytes" "$user_file" | tr -d '\000' |
   { iconv -f UTF-8 -t UTF-8 -c 2> /dev/null || true; } > "$scratch/user.txt"
 
-jq -n \
-  --rawfile system "$system_file" \
-  --rawfile user "$scratch/user.txt" \
-  --arg model "$model" \
-  --arg fallbacks "$fallbacks" \
-  '{
-    model: $model,
-    models: ([$model] + ($fallbacks | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)))),
-    messages: [
-      {role: "system", content: $system},
-      {role: "user", content: $user}
-    ],
-    temperature: 0,
-    max_tokens: 8192
-  }' > "$scratch/request.json"
+models=()
+IFS=',' read -r -a listed <<< "$model,$fallbacks"
+for listed_model in "${listed[@]}"; do
+  listed_model=$(printf '%s' "$listed_model" | tr -d '[:space:]')
+  if [ -n "$listed_model" ]; then
+    models+=("$listed_model")
+  fi
+done
 
 # The key goes to curl on stdin, so it is not in the process list. curl
 # retries 429 and 5xx answers and honours Retry-After.
-status=0
-http_code=$(
-  printf 'header = "Authorization: Bearer %s"\n' "$AI_API_KEY" |
-    curl -sS --config - \
-      --max-time "$timeout_seconds" \
-      --retry 2 --retry-max-time 120 \
-      -H "Content-Type: application/json" \
-      --data-binary "@$scratch/request.json" \
-      -o "$scratch/response.json" \
-      -w '%{http_code}' \
-      "$api_url"
-) || status=$?
+answered=""
+for try_model in "${models[@]}"; do
+  jq -n \
+    --rawfile system "$system_file" \
+    --rawfile user "$scratch/user.txt" \
+    --arg model "$try_model" \
+    '{
+      model: $model,
+      messages: [
+        {role: "system", content: $system},
+        {role: "user", content: $user}
+      ],
+      temperature: 0,
+      max_tokens: 8192
+    }' > "$scratch/request.json"
 
-if [ "$status" -ne 0 ]; then
-  if [ "$status" -eq 28 ]; then
-    echo "::error::The model API did not answer in ${timeout_seconds}s"
-  else
-    echo "::error::The model API could not be reached (curl exit $status)"
-  fi
-  exit 1
-fi
+  status=0
+  http_code=$(
+    printf 'header = "Authorization: Bearer %s"\n' "$AI_API_KEY" |
+      curl -sS --config - \
+        --max-time "$timeout_seconds" \
+        --retry 2 --retry-max-time 120 \
+        -H "Content-Type: application/json" \
+        --data-binary "@$scratch/request.json" \
+        -o "$scratch/response.json" \
+        -w '%{http_code}' \
+        "$api_url"
+  ) || status=$?
 
-error=$(jq -r '.error.message // empty' "$scratch/response.json" 2> /dev/null || true)
-if [ "$http_code" != "200" ] || [ -n "$error" ]; then
-  echo "::error::The model API answered HTTP $http_code"
-  if [ -n "$error" ]; then
-    quote_log "${error:0:500}"
+  if [ "$status" -ne 0 ]; then
+    if [ "$status" -eq 28 ]; then
+      echo "::warning::$try_model did not answer in ${timeout_seconds}s"
+    else
+      echo "::warning::The model API could not be reached for $try_model (curl exit $status)"
+    fi
+    continue
   fi
+
+  error=$(jq -r '.error.message // empty' "$scratch/response.json" 2> /dev/null || true)
+  if [ "$http_code" != "200" ] || [ -n "$error" ]; then
+    echo "::warning::The model API answered HTTP $http_code for $try_model"
+    if [ -n "$error" ]; then
+      quote_log "${error:0:500}"
+    fi
+    continue
+  fi
+  answered=$try_model
+  break
+done
+
+if [ -z "$answered" ]; then
+  echo "::error::No model answered: ${models[*]}"
   exit 1
 fi
 
