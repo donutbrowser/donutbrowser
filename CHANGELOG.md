@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v0.35.3 (2026-10-23)
+
+### Features
+
+- cookie bot exit check
+
+### Bug Fixes
+
+- pull remote work
+- generation browser seat
+
+### Maintenance
+
+- chore: version bump
+- chore: update flake.nix for v0.35.2 [skip ci] (#680)
+
+
 ## v0.35.2 (2026-10-23)
 
 ### Features
