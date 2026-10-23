@@ -1,6 +1,25 @@
 # Changelog
 
 
+## v0.35.2 (2026-10-23)
+
+### Features
+
+- hourly update check
+
+### Bug Fixes
+
+- bump ctutils
+- legacy daemon cleanup
+- AI model fallback
+- AppImage metadata
+
+### Maintenance
+
+- chore: version bump
+- chore: update flake.nix for v0.35.1 [skip ci] (#677)
+
+
 ## v0.35.1 (2026-10-23)
 
 ### Features
