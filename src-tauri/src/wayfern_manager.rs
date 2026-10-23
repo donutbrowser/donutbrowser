@@ -1037,6 +1037,31 @@ fn profile_id_in_path(path: &str) -> String {
     .to_string()
 }
 
+/// How long a headless profile left behind by a crash is kept.
+const STALE_HEADLESS_PROFILE: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// Where a headless browser keeps its throwaway profile: Donut's own cache,
+/// not the system temp folder. Wayfern refuses to generate when that profile
+/// is on a volume it cannot resolve, such as a RAM disk the temp folder was
+/// moved to.
+fn headless_profiles_root() -> PathBuf {
+  let root = crate::app_dirs::cache_dir().join("headless");
+  if let Ok(entries) = std::fs::read_dir(&root) {
+    for entry in entries.flatten() {
+      let stale = entry
+        .metadata()
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .and_then(|modified| modified.elapsed().ok())
+        .is_some_and(|age| age > STALE_HEADLESS_PROFILE);
+      if stale {
+        let _ = std::fs::remove_dir_all(entry.path());
+      }
+    }
+  }
+  root
+}
+
 pub(crate) struct HeadlessWayfern {
   child: tokio::process::Child,
   user_data_dir: PathBuf,
@@ -1063,8 +1088,7 @@ impl HeadlessWayfern {
 
     let port = WayfernManager::find_free_port().await?;
 
-    let user_data_dir =
-      std::env::temp_dir().join(format!("wayfern_fingerprint_{}", uuid::Uuid::new_v4()));
+    let user_data_dir = headless_profiles_root().join(uuid::Uuid::new_v4().to_string());
     std::fs::create_dir_all(&user_data_dir)?;
 
     let mut cmd = TokioCommand::new(&executable_path);
