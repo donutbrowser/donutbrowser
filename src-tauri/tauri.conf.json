@@ -7,6 +7,7 @@
     "beforeDevCommand": "pnpm copy-proxy-binary && pnpm dev",
     "devUrl": "http://localhost:12341",
     "beforeBuildCommand": "pnpm copy-proxy-binary:release && pnpm build",
+    "beforeBundleCommand": "node scripts/appimage-metainfo.mjs",
     "frontendDist": "../dist"
   },
   "app": {
@@ -59,6 +60,11 @@
       "rpm": {
         "desktopTemplate": "donutbrowser.desktop",
         "depends": ["xdg-utils", "libxdo", "libayatana-appindicator-gtk3"]
+      },
+      "appimage": {
+        "files": {
+          "usr/share/metainfo/com.donutbrowser.DonutBrowser.appdata.xml": "target/appimage/com.donutbrowser.DonutBrowser.appdata.xml"
+        }
       }
     },
     "windows": {

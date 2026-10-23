@@ -83,11 +83,13 @@ jobs:
             arch: "x86_64"
             target: "x86_64-unknown-linux-gnu"
             pkg_target: "latest-linux-x64"
+            appimage_arch: "amd64"
           - platform: "ubuntu-22.04-arm"
             args: "--target aarch64-unknown-linux-gnu --verbose"
             arch: "aarch64"
             target: "aarch64-unknown-linux-gnu"
             pkg_target: "latest-linux-arm64"
+            appimage_arch: "aarch64"
           - platform: "windows-latest"
             args: "--target x86_64-pc-windows-msvc --verbose"
             arch: "x86_64"
@@ -95,6 +97,11 @@ jobs:
             pkg_target: "latest-win-x64"
 
     runs-on: ${{ matrix.platform }}
+    env:
+      # linuxdeploy's AppImage plugin embeds this, so AppImageUpdate and
+      # similar tools update the AppImage from the latest release, and writes
+      # the .zsync file they read next to it.
+      LDAI_UPDATE_INFORMATION: ${{ matrix.appimage_arch && format('gh-releases-zsync|{0}|{1}|latest|Donut_*_{2}.AppImage.zsync', github.repository_owner, github.event.repository.name, matrix.appimage_arch) || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
 
@@ -235,6 +242,31 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload the AppImage's .zsync file
+        if: matrix.appimage_arch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          DIR="src-tauri/target/${{ matrix.target }}/release/bundle/appimage"
+          shopt -s nullglob
+          APPIMAGES=("$DIR"/*.AppImage)
+          # appimagetool writes the .zsync file into the folder it runs in.
+          ZSYNCS=(src-tauri/*.AppImage.zsync "$DIR"/*.AppImage.zsync)
+          if [ "${#APPIMAGES[@]}" -ne 1 ] || [ "${#ZSYNCS[@]}" -ne 1 ]; then
+            echo "Expected one AppImage and one .zsync file"
+            ls -la src-tauri "$DIR"
+            exit 1
+          fi
+          chmod +x "${APPIMAGES[0]}"
+          INFO=$("${APPIMAGES[0]}" --appimage-updateinformation)
+          if [ "$INFO" != "$LDAI_UPDATE_INFORMATION" ]; then
+            echo "The AppImage carries update information '$INFO'"
+            exit 1
+          fi
+          gh release upload "$TAG" "${ZSYNCS[0]}" --clobber --repo "$GITHUB_REPOSITORY"
 
       # Tauri's DMG has no layout in CI: its Finder script needs a desktop
       # session. Rebuild the DMG from the notarized app with a layout written
