@@ -710,6 +710,8 @@ export interface PerceptionStats {
   framesVisited: number;
   /** Frames whose renderer did not answer within the budget. */
   framesFailed: number;
+  /** Frames whose renderer stopped at the node ceiling or its time; older Wayfern builds report 0. */
+  framesTruncated: number;
 }
 
 export interface PerceptionPage {

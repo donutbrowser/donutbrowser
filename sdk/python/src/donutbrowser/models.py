@@ -846,6 +846,7 @@ class PerceptionStats(TypedDict):
     elapsedMs: int
     framesVisited: int
     framesFailed: int
+    framesTruncated: int
 
 
 class _PerceptionPageRequired(TypedDict):

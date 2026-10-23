@@ -1231,6 +1231,47 @@ fn parse_json_script_result(result: &serde_json::Value) -> Result<serde_json::Va
     .map_err(|e| AgentError::Malformed(format!("the page script returned invalid JSON: {e}")))
 }
 
+/// A page function that reads an element's rendered text as `innerText` does,
+/// but over the flat tree: into open shadow roots and the nodes a slot shows.
+/// `innerText` stops at both, so the text of a web component (a profile's
+/// stats, a nav link that slots its label) reads as nothing.
+const FLAT_TEXT_JS: &str = r#"(root) => {
+  if (root.nodeType === 1 && !root.getClientRects().length && getComputedStyle(root).display !== 'contents') return root.textContent;
+  const SKIP = new Set(['script', 'style', 'noscript', 'template', 'head', 'meta', 'link', 'title']);
+  const out = [];
+  const last = () => (out.length ? out[out.length - 1] : '\n');
+  const brk = () => { if (!/\n$/.test(last())) out.push('\n'); };
+  const kids = (n) => { if (n.shadowRoot) return n.shadowRoot.childNodes; if (n.localName === 'slot') { const shown = n.assignedNodes(); if (shown.length) return shown; } return n.childNodes; };
+  const walk = (n, pre, shown) => {
+    if (n.nodeType === 3) {
+      if (!shown) return;
+      let t = pre ? n.nodeValue : n.nodeValue.replace(/[ \t\n\r\f]+/g, ' ');
+      if (!pre && t[0] === ' ' && /[ \t\n]$/.test(last())) t = t.slice(1);
+      if (t) out.push(t);
+      return;
+    }
+    if (n.nodeType !== 1 || SKIP.has(n.localName)) return;
+    if (n.localName === 'br') { if (shown) out.push('\n'); return; }
+    const s = getComputedStyle(n);
+    if (s.display === 'none') return;
+    const block = !/^(inline|contents|table-cell|ruby)/.test(s.display);
+    if (block) brk();
+    for (const c of kids(n)) walk(c, /^pre/.test(s.whiteSpace), s.visibility === 'visible');
+    if (block) brk(); else if (s.display === 'table-cell') out.push('\t');
+  };
+  walk(root, false, true);
+  return out.join('').replace(/ +\n/g, '\n').trim();
+}"#;
+
+/// A page expression for the rendered text of the element `element` names:
+/// its `innerText`, or the flat-tree reading of [`FLAT_TEXT_JS`] when it or
+/// anything inside it holds an open shadow root.
+fn rendered_text_js(element: &str) -> String {
+  format!(
+    "((el) => {{ if (!el) return null; const flat = {FLAT_TEXT_JS}; if (el.shadowRoot) return flat(el); for (const n of el.querySelectorAll('*')) {{ if (n.shadowRoot) return flat(el); }} return el.innerText; }})({element})"
+  )
+}
+
 /// The pre-152 stand-in for the browser's perception and locator domains, and
 /// the page side of the 152 locator path.
 ///
@@ -1263,7 +1304,6 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
   const ATTRS = ['id', 'name', 'type', 'role', 'href', 'src', 'placeholder', 'aria-label', 'title', 'alt', 'data-testid', 'data-test', 'data-id', 'for', 'value'];
   const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'META', 'LINK', 'TITLE', 'BR', 'WBR']);
   const vw = window.innerWidth, vh = window.innerHeight;
-  const sx = window.scrollX || 0, sy = window.scrollY || 0;
   const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return ('00000000' + h.toString(16)).slice(-8); };
   const tagOf = (el) => String(el.tagName || '').toLowerCase();
   // Parents and containment cross shadow boundaries: the browser's accessibility
@@ -1282,7 +1322,9 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
     return TAG_ROLES[tag] || 'genericContainer';
   };
   const isProtected = (el) => tagOf(el) === 'input' && ((el.getAttribute('type') || '').toLowerCase() === 'password' || /(^|\s)(cc-|password|one-time-code)/i.test(el.getAttribute('autocomplete') || ''));
-  const contentText = (el) => norm(el.innerText != null ? el.innerText : el.textContent);
+  // innerText misses what a shadow root or a slot shows.
+  const flatText = __FLAT_TEXT__;
+  const contentText = (el) => norm(el.shadowRoot || el.getElementsByTagName('slot').length ? flatText(el) : el.innerText != null ? el.innerText : el.textContent);
   // The browser's name from content also reads image alt text, which
   // innerText leaves out ("User Avatar Expand user menu").
   const altText = (el) => { const parts = []; const walk = (n) => { for (const c of n.childNodes) { if (c.nodeType === 3) parts.push(c.nodeValue); else if (c.nodeType === 1 && !SKIP.has(String(c.tagName).toUpperCase()) && c.getAttribute('aria-hidden') !== 'true') { const t = tagOf(c); if (t === 'img' || t === 'area' || t === 'svg') { const a = c.getAttribute('aria-label') || c.getAttribute('alt'); if (a) parts.push(a); } else walk(c); } } }; walk(el); return norm(parts.join(' ')).slice(0, 300); };
@@ -1315,7 +1357,7 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
   const signatureOf = (el) => { const role = roleOf(el); return 'js-' + fnv(tagOf(el) + '|' + role + '|' + nameOf(el, role) + '|' + pathOf(el)); };
   const describe = (el, r) => {
     const role = roleOf(el); const name = nameOf(el, role);
-    const out = { role, name, text: contentText(el).slice(0, 2000), signature: signatureOf(el), attributes: attrsOf(el), bounds: { x: r.left + sx, y: r.top + sy, width: r.width, height: r.height } };
+    const out = { role, name, text: contentText(el).slice(0, 2000), signature: signatureOf(el), attributes: attrsOf(el), bounds: { x: r.left, y: r.top, width: r.width, height: r.height } };
     if (!isProtected(el)) { const v = liveValue(el); if (v !== null) out.value = v; }
     const u = urlOf(el); if (u) out.url = u;
     return out;
@@ -1410,7 +1452,7 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
     if (nodes.length >= maxNodes) { truncated = true; break; }
     const id = 'n' + nodes.length;
     ids.set(el, id);
-    const node = { id, frameId: 'f0', role, x: r.left + sx, y: r.top + sy, width: r.width, height: r.height, inViewport, visible: true, focused: document.activeElement === el, disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true' };
+    const node = { id, frameId: 'f0', role, x: r.left, y: r.top, width: r.width, height: r.height, inViewport, visible: true, focused: document.activeElement === el, disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true' };
     for (let p = parentOf(el); p; p = parentOf(p)) { const pid = ids.get(p); if (pid) { node.parentId = pid; if (scrollables.has(pid)) node.scrollContainerId = pid; break; } }
     if (!node.scrollContainerId) { for (let p = parentOf(el); p; p = parentOf(p)) { const pid = ids.get(p); if (pid && scrollables.has(pid)) { node.scrollContainerId = pid; break; } } }
     const name = nameOf(el, role); if (name) node.name = name;
@@ -1425,7 +1467,11 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
     if (((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 1) || ((ox === 'auto' || ox === 'scroll') && el.scrollWidth > el.clientWidth + 1)) { node.scrollable = true; scrollables.add(id); }
     nodes.push(node);
   }
-  let text = includeText ? norm(document.body ? document.body.innerText : '') : '';
+  // The browser's text covers exactly the nodes it returns: for a window, or
+  // a capture cut at maxNodes, that is theirs, not the whole page's.
+  const body = document.body;
+  const pageText = () => (opts.viewportOnly || truncated ? nodes.map((n) => n.text || '').join(' ') : all.some((el) => el.shadowRoot) ? flatText(body) : body.innerText);
+  let text = includeText && body ? norm(pageText()) : '';
   let bytes = JSON.stringify(nodes).length + text.length;
   if (bytes > maxBytes) {
     truncated = true;
@@ -1441,7 +1487,9 @@ const AGENT_FALLBACK_JS: &str = r#"(() => {
 
 /// The fallback script with its options substituted.
 fn fallback_script(opts: &serde_json::Value) -> String {
-  AGENT_FALLBACK_JS.replace("__OPTS__", &opts.to_string())
+  AGENT_FALLBACK_JS
+    .replace("__FLAT_TEXT__", FLAT_TEXT_JS)
+    .replace("__OPTS__", &opts.to_string())
 }
 
 /// What the fallback perception script answers with, before it is wrapped.
@@ -1888,6 +1936,18 @@ async fn wayfern_locate(
         .and_then(|index| ambiguity_candidate(&candidates[index]));
       match preferred {
         Some(matched) => Some(matched),
+        // The browser's ambiguity reply lists no boxes, so neither the
+        // visible nor the innermost candidate can stand out in it: a feed
+        // card's full-card link and its title link, both named by the title,
+        // were refused. The page's resolver has the boxes. When it cannot
+        // settle either, the browser's refusal stands: its candidates carry
+        // every attribute to refine with.
+        None if candidates.iter().all(|c| c.get("bounds").is_none()) => {
+          return match page_locate(session, locator, candidate_limit).await {
+            Ok(located) => Ok(located),
+            Err(_) => Err(ambiguity(match_count, candidates, candidate_limit)),
+          };
+        }
         None => return Err(ambiguity(match_count, candidates, candidate_limit)),
       }
     }
@@ -2667,23 +2727,59 @@ pub(crate) async fn agent_perceive(
   }
   let continuation = request.cursor.as_deref().is_some_and(|c| !c.is_empty());
   if ctx.engine.is_wayfern() {
+    // The browser applies max_nodes to its tree in document order, before the
+    // viewport filter: after a scroll, a small ceiling held only the sticky
+    // header and never marked the result truncated. A viewport capture is
+    // taken without it, and the ceiling bounds the nodes returned instead.
+    let viewport_cap = request
+      .max_nodes
+      .filter(|&cap| cap > 0 && request.viewport_only == Some(true) && !continuation);
+    let uncapped = PerceptionRequest {
+      max_nodes: None,
+      ..request.clone()
+    };
+    let browser_request = if viewport_cap.is_some() {
+      &uncapped
+    } else {
+      request
+    };
     let mut session = WayfernSession::open(&ctx.target).await?;
-    let page = wayfern_cdp::capture_page_perception(&mut session, request).await;
+    let page = wayfern_cdp::capture_page_perception(&mut session, browser_request).await;
     session.close().await;
     let page = page?;
     // Wayfern 152 to 155 start the budget clock before the accessibility
     // snapshot, and stop the walk when it runs out without marking the result
     // truncated: a heavy page came back as its header and no text. A capture
-    // that used its whole budget is not trusted; the DOM answers instead.
+    // that used its whole budget is not trusted, nor one whose tree the
+    // renderer cut short with no ceiling from the caller; the DOM answers.
     let budget = request.budget_ms.unwrap_or(5_000).clamp(100, 60_000);
-    if continuation || page.stats.elapsed_ms < budget {
+    let caller_ceiling = browser_request.max_nodes.is_some_and(|cap| cap > 0);
+    let reason = if continuation {
+      None
+    } else if page.stats.elapsed_ms >= budget {
+      Some("budget")
+    } else if page.stats.frames_truncated > 0 && !caller_ceiling {
+      Some("frame_cut")
+    } else if viewport_cap.is_some_and(|cap| page.nodes.len() as u64 > cap) {
+      Some("max_nodes")
+    } else {
+      None
+    };
+    let Some(reason) = reason else {
       return Ok(page);
-    }
-    log::info!(
-      "Perception used its budget, answering from the page profile={} budget_ms={budget} elapsed_ms={} nodes={}",
+    };
+    let level = if reason == "max_nodes" {
+      log::Level::Debug
+    } else {
+      log::Level::Info
+    };
+    log::log!(
+      level,
+      "Perception incomplete, answering from the page profile={} reason={reason} budget_ms={budget} elapsed_ms={} nodes={} frames_truncated={}",
       ctx.profile.id,
       page.stats.elapsed_ms,
-      page.nodes.len()
+      page.nodes.len(),
+      page.stats.frames_truncated
     );
   } else if continuation {
     return Err(AgentError::InvalidArgument(
@@ -3789,7 +3885,8 @@ const SCROLL_SETTLE: Duration = Duration::from_millis(300);
 fn wait_for_script(text: Option<&str>, selector: Option<&str>) -> Option<String> {
   match (text, selector) {
     (Some(text), None) => Some(format!(
-      "(() => (document.body ? document.body.innerText : '').includes({}))()",
+      "(() => ({} || '').includes({}))()",
+      rendered_text_js("document.body"),
       serde_json::to_string(text).ok()?
     )),
     (None, Some(selector)) => Some(format!(
@@ -6018,7 +6115,7 @@ impl McpServer {
       },
       McpTool {
         name: "perceive_page".to_string(),
-        description: "Read the page the way an agent needs it: every visible element with its role, accessible name, text, value, state and page-coordinate bounds, plus the readable text, in one call and with no script injected on Wayfern 152. A capture that uses its whole budget is answered from the DOM instead (engine: \"fallback\"). Far more complete than get_interactive_elements. On a profile older than Wayfern 152 the same shape is synthesised from the DOM (engine: \"fallback\"). A truncated result carries a cursor; pass it back to continue.".to_string(),
+        description: "Read the page the way an agent needs it: every visible element with its role, accessible name, text, value, state and bounds in viewport coordinates (y is negative above the window), plus the readable text, in one call and with no script injected on Wayfern 152. A capture that uses its whole budget, or that the browser cut short, is answered from the DOM instead (engine: \"fallback\"). Far more complete than get_interactive_elements. On a profile older than Wayfern 152 the same shape is synthesised from the DOM (engine: \"fallback\"). A truncated result carries a cursor; pass it back to continue.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -6036,7 +6133,7 @@ impl McpServer {
             },
             "max_nodes": {
               "type": "integer",
-              "description": "Per-frame node ceiling (default: 100000; 0 for no limit)"
+              "description": "Per-frame node ceiling, counted in document order (default: 100000; 0 for no limit). With viewport_only it bounds the nodes returned instead; a viewport with more is answered from the DOM, cut there, with truncated true"
             },
             "include_text": {
               "type": "boolean",
@@ -11237,18 +11334,12 @@ impl McpServer {
           sel_escaped
         )
       } else {
-        format!(
-          r#"(() => {{
-            const el = document.querySelector('{}');
-            return el ? el.innerText : null;
-          }})()"#,
-          sel_escaped
-        )
+        rendered_text_js(&format!("document.querySelector('{sel_escaped}')"))
       }
     } else if format == "html" {
       "document.documentElement.outerHTML".to_string()
     } else {
-      "document.body.innerText".to_string()
+      rendered_text_js("document.body")
     };
 
     let result = self
@@ -12924,6 +13015,10 @@ impl McpServer {
 }
 
 static MCP_SERVER: std::sync::LazyLock<McpServer> = std::sync::LazyLock::new(McpServer::new);
+
+#[cfg(test)]
+#[path = "mcp_server_browser_tests.rs"]
+mod browser_tests;
 
 #[cfg(test)]
 mod tests {
@@ -15470,6 +15565,30 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn a_native_ambiguity_with_no_boxes_is_ranked_by_the_page() {
+    use crate::wayfern_cdp::test_support::{fake_browser, methods, Fake};
+
+    let request: AgentResolveRequest = serde_json::from_value(serde_json::json!({
+      "locator": { "role": "link", "name": "Save" }
+    }))
+    .unwrap();
+    let (target, frames) = fake_browser(Fake::AmbiguousForTheBrowser).await;
+    let ctx = agent_context_for("155.0.8059.79", target);
+    let resolved = agent_resolve_locator(&ctx, &request).await.unwrap();
+    assert_eq!(resolved.engine, Engine::Fallback);
+    assert_eq!(resolved.backend_node_id, Some(353));
+    let sent = methods(&frames);
+    let native = sent
+      .iter()
+      .position(|m| m == "Wayfern.resolveLocator")
+      .unwrap();
+    assert!(
+      sent[native..].iter().any(|m| m == "Runtime.evaluate"),
+      "{sent:?}"
+    );
+  }
+
+  #[tokio::test]
   async fn the_152_only_tools_refuse_an_older_profile_before_touching_the_browser() {
     use crate::wayfern_cdp::test_support::{fake_browser, methods, Fake};
 
@@ -15767,6 +15886,99 @@ mod tests {
     let page = agent_perceive(&ctx, &continuation).await.unwrap();
     assert_eq!(page.engine, Engine::Wayfern);
     assert_eq!(methods(&frames), vec!["Wayfern.capturePagePerception"]);
+  }
+
+  /// The `params` of every recorded call to `method`.
+  fn sent_params(
+    frames: &crate::wayfern_cdp::test_support::Frames,
+    method: &str,
+  ) -> Vec<serde_json::Value> {
+    frames
+      .lock()
+      .unwrap()
+      .iter()
+      .filter(|f| f["method"] == method)
+      .map(|f| f["params"].clone())
+      .collect()
+  }
+
+  #[tokio::test]
+  async fn a_capture_the_browser_cut_short_is_answered_from_the_page() {
+    use crate::wayfern_cdp::test_support::{fake_browser, methods, Fake};
+
+    let (target, frames) = fake_browser(Fake::CutPerception).await;
+    let ctx = agent_context_for("155.0.8059.79", target);
+    let page = agent_perceive(&ctx, &PerceptionRequest::default())
+      .await
+      .unwrap();
+    assert_eq!(page.engine, Engine::Fallback);
+    assert_eq!(
+      methods(&frames),
+      vec!["Wayfern.capturePagePerception", "Runtime.evaluate"]
+    );
+
+    // The caller's own ceiling cut it: the browser's answer stands, and says so.
+    let capped: PerceptionRequest =
+      serde_json::from_value(serde_json::json!({ "max_nodes": 50 })).unwrap();
+    let (target, frames) = fake_browser(Fake::CutPerception).await;
+    let ctx = agent_context_for("155.0.8059.79", target);
+    let page = agent_perceive(&ctx, &capped).await.unwrap();
+    assert_eq!(page.engine, Engine::Wayfern);
+    assert_eq!(page.stats.frames_truncated, 1);
+    assert_eq!(
+      sent_params(&frames, "Wayfern.capturePagePerception")[0]["maxNodes"],
+      50
+    );
+    let wire = serde_json::to_value(&page).unwrap();
+    assert_eq!(wire["stats"]["framesTruncated"], 1);
+  }
+
+  #[tokio::test]
+  async fn a_viewport_capture_bounds_the_nodes_it_returns() {
+    use crate::wayfern_cdp::test_support::{fake_browser, methods, Fake};
+
+    // The browser counts its ceiling in document order, before the viewport
+    // filter, so it is never given one: after a scroll it kept only the header.
+    let roomy: PerceptionRequest =
+      serde_json::from_value(serde_json::json!({ "viewport_only": true, "max_nodes": 3 })).unwrap();
+    let (target, frames) = fake_browser(Fake::CrowdedPerception).await;
+    let ctx = agent_context_for("152.0.7977.64", target);
+    let page = agent_perceive(&ctx, &roomy).await.unwrap();
+    assert_eq!(page.engine, Engine::Wayfern);
+    assert_eq!(page.nodes.len(), 3);
+    let sent = sent_params(&frames, "Wayfern.capturePagePerception");
+    assert_eq!(sent[0]["viewportOnly"], true);
+    assert!(sent[0].get("maxNodes").is_none(), "{}", sent[0]);
+
+    // More nodes than the bound: the page answers, cut at the bound.
+    let tight: PerceptionRequest =
+      serde_json::from_value(serde_json::json!({ "viewport_only": true, "max_nodes": 2 })).unwrap();
+    let (target, frames) = fake_browser(Fake::CrowdedPerception).await;
+    let ctx = agent_context_for("152.0.7977.64", target);
+    let page = agent_perceive(&ctx, &tight).await.unwrap();
+    assert_eq!(page.engine, Engine::Fallback);
+    assert_eq!(
+      methods(&frames),
+      vec!["Wayfern.capturePagePerception", "Runtime.evaluate"]
+    );
+    let script = sent_params(&frames, "Runtime.evaluate")[0]["expression"]
+      .as_str()
+      .unwrap()
+      .to_string();
+    assert!(script.contains("\"maxNodes\":2"), "{script}");
+    assert!(script.contains("\"viewportOnly\":true"), "{script}");
+  }
+
+  #[test]
+  fn the_fallback_script_reads_text_through_shadow_roots_and_slots() {
+    let script = fallback_script(&serde_json::json!({ "mode": "perceive" }));
+    assert!(!script.contains("__FLAT_TEXT__"));
+    assert!(script.contains("assignedNodes()"));
+    // Bounds are the browser's: viewport coordinates, with no scroll added.
+    assert!(!script.contains("scrollY"), "{script}");
+    let page_text = rendered_text_js("document.body");
+    assert!(page_text.contains("assignedNodes()"));
+    assert!(page_text.ends_with("(document.body)"), "{page_text}");
   }
 
   #[test]

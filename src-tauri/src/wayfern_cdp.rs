@@ -251,7 +251,8 @@ impl LocatorDescription {
   }
 }
 
-/// Where a matched node is, in root-document CSS pixels.
+/// Where a matched node was when it was matched, in root-document viewport
+/// CSS pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct LocatorBounds {
   pub x: f64,
@@ -325,7 +326,8 @@ pub struct PerceptionRequest {
   /// Capture budget in milliseconds. Default 5000, clamped to [100, 60000].
   #[serde(default, alias = "budgetMs")]
   pub budget_ms: Option<u64>,
-  /// Per-frame node ceiling. Default 100000; 0 for no limit.
+  /// Per-frame node ceiling, counted in document order. Default 100000; 0 for
+  /// no limit. With `viewport_only` it bounds the nodes returned instead.
   #[serde(default, alias = "maxNodes")]
   pub max_nodes: Option<u64>,
   /// Include readable text. Default true.
@@ -383,7 +385,8 @@ pub struct PerceptionNode {
   pub id: String,
   pub frame_id: String,
   pub role: String,
-  /// Root-document page coordinates in CSS pixels, unclipped.
+  /// Root-document viewport coordinates in CSS pixels, unclipped: after a
+  /// scroll, what is above the window has a negative `y`.
   pub x: f64,
   pub y: f64,
   pub width: f64,
@@ -435,6 +438,10 @@ pub struct PerceptionStats {
   pub frames_visited: u64,
   /// Frames whose renderer did not answer within the budget.
   pub frames_failed: u64,
+  /// Frames whose renderer stopped at the node ceiling or its time, so their
+  /// trees end there. Older Wayfern builds do not count them and report 0.
+  #[serde(default)]
+  pub frames_truncated: u64,
 }
 
 /// A perception snapshot, or as much of one as the byte cap allowed.
@@ -816,6 +823,10 @@ pub async fn capture_page_perception(
         whole.stats.elapsed_ms += page.stats.elapsed_ms;
         whole.stats.frames_visited = whole.stats.frames_visited.max(page.stats.frames_visited);
         whole.stats.frames_failed = whole.stats.frames_failed.max(page.stats.frames_failed);
+        whole.stats.frames_truncated = whole
+          .stats
+          .frames_truncated
+          .max(page.stats.frames_truncated);
         whole.truncated = page.truncated;
         whole.cursor = page.cursor;
         whole
@@ -979,10 +990,11 @@ pub async fn pick_element(
 /// Where to put the pointer for a node, in viewport CSS pixels.
 ///
 /// `Vellum` takes the coordinates `Input.dispatchMouseEvent` takes, which are
-/// relative to the viewport, while locator bounds are page coordinates. The
-/// node is scrolled into view first, and the point is the centre of the part
-/// of it that is actually visible, so an element taller than the window is
-/// still struck somewhere on screen.
+/// relative to the viewport, as locator bounds are; but those bounds are read
+/// before the node is scrolled into view. The node is scrolled into view
+/// first, and the point is the centre of the part of it that is actually
+/// visible, so an element taller than the window is still struck somewhere on
+/// screen.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ViewportTarget {
   pub x: f64,
@@ -1387,6 +1399,10 @@ pub(crate) mod test_support {
     NativeNoMatch,
     /// Every perception capture reports it ran past the default budget.
     SlowPerception,
+    /// Every perception capture reports a frame its renderer cut short.
+    CutPerception,
+    /// Every perception capture answers three nodes.
+    CrowdedPerception,
     /// The page resets the field after typing: it reads back empty.
     TypingLost,
     /// The field never takes the focus.
@@ -1397,6 +1413,9 @@ pub(crate) mod test_support {
     FramedNode,
     /// `resolveLocator` matches "First Name (optional)" and "First Name".
     AmbiguousByName,
+    /// `resolveLocator` answers the ambiguity error, which lists no boxes, and
+    /// the page's own resolver settles on node 353.
+    AmbiguousForTheBrowser,
   }
 
   pub(crate) type Frames = Arc<Mutex<Vec<Value>>>;
@@ -1561,21 +1580,28 @@ pub(crate) mod test_support {
               "Wayfern.capturePagePerception" => {
                 perception_page += 1;
                 let endless = behaviour == Fake::EndlessPerception;
+                let count = if behaviour == Fake::CrowdedPerception { 3 } else { 1 };
+                let nodes: Vec<Value> = (0..count)
+                  .map(|n| {
+                    serde_json::json!({
+                      "id": format!("n{perception_page}-{n}"), "frameId": "f0", "role": "button",
+                      "x": 1.0, "y": 2.0, "width": 3.0, "height": 4.0,
+                      "inViewport": true, "visible": true, "focused": false, "disabled": false,
+                      "name": "Save"
+                    })
+                  })
+                  .collect();
                 let mut result = serde_json::json!({
                   "snapshotId": "snap-1",
-                  "nodes": [{
-                    "id": format!("n{perception_page}"), "frameId": "f0", "role": "button",
-                    "x": 1.0, "y": 2.0, "width": 3.0, "height": 4.0,
-                    "inViewport": true, "visible": true, "focused": false, "disabled": false,
-                    "name": "Save"
-                  }],
+                  "nodes": nodes,
                   "frames": [{ "frameId": "f0", "url": "https://example.com/", "crossOrigin": false }],
                   "text": format!("page {perception_page} "),
                   "truncated": endless,
                   "stats": {
                     "totalNodes": 999, "returnedNodes": 1, "bytes": 600,
                     "elapsedMs": if behaviour == Fake::SlowPerception { 5_200 } else { 5 },
-                    "framesVisited": 1, "framesFailed": 0
+                    "framesVisited": 1, "framesFailed": 0,
+                    "framesTruncated": u64::from(behaviour == Fake::CutPerception)
                   }
                 });
                 if endless {
@@ -1583,9 +1609,13 @@ pub(crate) mod test_support {
                 }
                 ok(result)
               }
-              "Wayfern.resolveLocator" if behaviour == Fake::AmbiguousLocator => error(
+              "Wayfern.resolveLocator"
+                if matches!(behaviour, Fake::AmbiguousLocator | Fake::AmbiguousForTheBrowser) =>
+              {
+                error(
                 "Ambiguous locator: 2 nodes match. Refine it with a role, a stable attribute, or more exact text. Candidates: [{\"backendNodeId\":7,\"role\":\"button\",\"name\":\"Save\",\"text\":\"Save\",\"signature\":\"s7\",\"attributes\":[]},{\"backendNodeId\":8,\"role\":\"button\",\"name\":\"Save\",\"text\":\"Save\",\"signature\":\"s8\",\"attributes\":[]}]",
-              ),
+                )
+              }
               "Wayfern.resolveLocator" if behaviour == Fake::AmbiguousByName => {
                 let named = |name: &str, signature: &str| {
                   let mut candidate = canned_candidate();
@@ -2208,7 +2238,7 @@ mod tests {
     assert_eq!(wire["matchCount"], 1);
 
     // The strike point is scrolled to and read from the DOM, in viewport
-    // pixels, never from the page-coordinate bounds.
+    // pixels, never from the bounds read before the scroll.
     let point = viewport_target(&mut session, 7).await.unwrap();
     assert_eq!((point.x, point.y), (140.0, 215.0));
     assert_eq!((point.width, point.height), (80.0, 30.0));
