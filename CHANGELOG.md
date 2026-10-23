@@ -1,6 +1,31 @@
 # Changelog
 
 
+## v0.35.1 (2026-10-23)
+
+### Features
+
+- link and create dialogs
+
+### Bug Fixes
+
+- close_tab waits for tab
+- agent page perception
+- anonymous agent feedback
+- Linux default browser
+- AppImage desktop file
+- resize warning text
+
+### Documentation
+
+- revert README visuals
+
+### Maintenance
+
+- chore: version bump
+- chore: update flake.nix for v0.35.0 [skip ci] (#675)
+
+
 ## v0.35.0 (2026-10-21)
 
 ### Features
