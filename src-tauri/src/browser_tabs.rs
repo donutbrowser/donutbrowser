@@ -16,6 +16,9 @@ use serde_json::Value;
 use crate::profile::BrowserProfile;
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(5);
+/// How long `close` waits for the closed tab to leave the browser's list.
+const CLOSE_SETTLE: Duration = Duration::from_secs(2);
+const CLOSE_POLL: Duration = Duration::from_millis(50);
 
 /// The tab each profile's tools act on, by profile id.
 static SELECTED: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
@@ -201,7 +204,23 @@ pub async fn close(profile: &BrowserProfile, tab_id: &str) -> Result<(), String>
   if selected_for(&profile.id.to_string()).as_deref() == Some(tab_id) {
     select(&profile.id.to_string(), None);
   }
+  // The browser answers `/json/close` before the tab is gone, so a list
+  // taken right after would still show it.
+  let deadline = tokio::time::Instant::now() + CLOSE_SETTLE;
+  while tokio::time::Instant::now() < deadline {
+    match targets(port).await {
+      Ok(listed) if lists(&listed, tab_id) => tokio::time::sleep(CLOSE_POLL).await,
+      _ => break,
+    }
+  }
   Ok(())
+}
+
+/// Whether the browser's target list still holds `tab_id`.
+fn lists(targets: &[Value], tab_id: &str) -> bool {
+  targets
+    .iter()
+    .any(|target| target.get("id").and_then(Value::as_str) == Some(tab_id))
 }
 
 #[cfg(test)]
@@ -226,6 +245,13 @@ mod tests {
       ["A", "B"]
     );
     assert!(tabs[1].selected && !tabs[0].selected);
+  }
+
+  #[test]
+  fn a_tab_is_listed_by_its_target_id() {
+    assert!(lists(&listing(), "B"));
+    assert!(lists(&listing(), "S"));
+    assert!(!lists(&listing(), "gone"));
   }
 
   #[test]
