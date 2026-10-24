@@ -14,30 +14,30 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const XRAY_VERSION = "v26.3.27";
+export const XRAY_VERSION = "v26.10.21";
 export const XRAY_SOURCE_URL = `https://github.com/XTLS/Xray-core/tree/${XRAY_VERSION}`;
 export const XRAY_LICENSE_FILE = "xray-LICENSE.txt";
 
 export const XRAY_ASSETS = {
   "aarch64-apple-darwin": {
     name: "Xray-macos-arm64-v8a.zip",
-    sha256: "2e93a67e8aa1936ecefb307e120830fcbd4c643ab9b1c46a2d0838d5f8409eaf",
+    sha256: "926cc55fda2a8757dabe4f22dc98772f218ace025f101bd0b68aee232e59d5dc",
   },
   "x86_64-apple-darwin": {
     name: "Xray-macos-64.zip",
-    sha256: "f5b0471d3459eff1b82e48af0aeac186abcc3298210070afbbbd8437a4e8b203",
+    sha256: "8e5169b429e76ce5f550c8294db465bc259f30c158ba900aa40802b76ad2f66e",
   },
   "x86_64-unknown-linux-gnu": {
     name: "Xray-linux-64.zip",
-    sha256: "23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae",
+    sha256: "0eec3ed4163c273d8c8bf821f7d219e257921cf584aa3fb970715e458e631978",
   },
   "aarch64-unknown-linux-gnu": {
     name: "Xray-linux-arm64-v8a.zip",
-    sha256: "4d30283ae614e3057f730f67cd088a42be6fdf91f8639d82cb69e48cde80413c",
+    sha256: "d1304946c486d98e6b886e9b931eaaaebb23835b30e217638037b7f2721d4e9c",
   },
   "x86_64-pc-windows-msvc": {
     name: "Xray-windows-64.zip",
-    sha256: "d004c39288ce9ada487c6f398c7c545f7d749e44bdfdd59dbc9f865afba4e1ad",
+    sha256: "fc58c39ee2f2717b4c54d28d374362389e5319b20ae44aea76ea45a5243ec827",
   },
 };
 

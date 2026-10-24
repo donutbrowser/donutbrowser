@@ -80,7 +80,7 @@ flate2 = "1"
 lzma-rust2 = { version = "0.23", default-features = false, features = ["std", "optimization", "xz"] }
 msi-extract = "0"
 
-uuid = { version = "1.28", features = ["v4", "serde"] }
+uuid = { version = "1.29", features = ["v4", "serde"] }
 url = "2.5"
 blake3 = "1"
 globset = "0.4"
@@ -115,7 +115,7 @@ async-socks5 = "0.6"
 
 # Wayfern CDP integration
 tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 yaml-rust2 = { version = "0.13", default-features = false }
 thiserror = "2.0"
 regex-lite = "0.1"
