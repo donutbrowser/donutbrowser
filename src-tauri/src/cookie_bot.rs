@@ -12,6 +12,7 @@
 
 use crate::cloud_errors::{self, BackendFailure, FailureCodes};
 use crate::profile::types::BrowserProfile;
+use crate::sync::encryption::{remote_seal, RemoteSeal};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -615,17 +616,11 @@ pub fn run_precondition(profile: &BrowserProfile) -> Result<(), String> {
   if let Some(refusal) = crate::sync::account_server::cloud_run_refusal() {
     return Err(refusal);
   }
-  if sync_sealed(profile, crate::sync::encryption::has_e2e_password()) {
-    return Err(error("COOKIE_BOT_ENCRYPTED_SYNC_UNSUPPORTED", &[]));
+  let seal = remote_seal(profile, crate::sync::encryption::has_e2e_password());
+  if seal == Some(RemoteSeal::SyncPassword) {
+    return Err(error("SYNC_PASSWORD_BLOCKS_REMOTE_RUN", &[]));
   }
   bot_precondition(profile, &exit_reachability(profile))
-}
-
-/// Whether the profile's synced copy is sealed with a key only the user's
-/// machines hold. A sync password seals every synced file of the account,
-/// including the metadata and the proxy of a profile on regular sync.
-fn sync_sealed(profile: &BrowserProfile, sync_password_stored: bool) -> bool {
-  profile.is_encrypted_sync() || (profile.is_sync_enabled() && sync_password_stored)
 }
 
 /// Whether this profile could ever be warmed by the bot.
@@ -719,7 +714,7 @@ fn profile_state_from(
 ) -> ProfileState {
   ProfileState {
     sync_enabled: profile.is_sync_enabled(),
-    encrypted_sync: sync_sealed(profile, sync_password_stored),
+    encrypted_sync: remote_seal(profile, sync_password_stored).is_some(),
     // A VPN is an exit node just as much as a proxy is; the server only asks
     // whether the traffic leaves through something the user brought.
     has_proxy: profile.proxy_id.is_some() || profile.vpn_id.is_some(),
@@ -1848,11 +1843,12 @@ mod tests {
     let profile = eligible_profile();
     assert!(profile_state_from(&profile, true, true).encrypted_sync);
     assert!(!profile_state_from(&profile, false, true).encrypted_sync);
-    assert!(sync_sealed(&profile, true));
+    assert_eq!(remote_seal(&profile, true), Some(RemoteSeal::SyncPassword));
+    assert_eq!(remote_seal(&profile, false), None);
 
     let mut local = eligible_profile();
     local.sync_mode = SyncMode::Disabled;
-    assert!(!sync_sealed(&local, true), "nothing of it is uploaded");
+    assert_eq!(remote_seal(&local, true), None, "nothing of it is uploaded");
   }
 
   #[test]

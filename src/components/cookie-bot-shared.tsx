@@ -431,6 +431,7 @@ export function TickingNumber({
 export type PreflightCode =
   | "syncOff"
   | "encrypted"
+  | "syncPassword"
   | "unknownPlatform"
   | "unsupportedPlatform"
   | "noExitNode";
@@ -460,12 +461,15 @@ export function resolvedOs(profile: BrowserProfile): string | null {
 }
 
 /**
- * The exact refusals `cookie_bot::bot_precondition` applies, evaluated here so
+ * The exact refusals `cookie_bot::run_precondition` applies, evaluated here so
  * a user finds out at enrolment rather than at the first run. Keeping the
  * two in step matters: a profile this says is fine but the backend refuses
  * would burn a schedule row and a run.
  */
-export function preflight(profile: BrowserProfile): PreflightResult {
+export function preflight(
+  profile: BrowserProfile,
+  syncPasswordSet: boolean,
+): PreflightResult {
   const syncMode = profile.sync_mode ?? "Disabled";
   if (syncMode === "Disabled") {
     return { eligible: false, code: "syncOff", params: {}, fix: "sync" };
@@ -477,6 +481,9 @@ export function preflight(profile: BrowserProfile): PreflightResult {
       params: {},
       fix: "syncSettings",
     };
+  }
+  if (syncPasswordSet) {
+    return { eligible: false, code: "syncPassword", params: {}, fix: null };
   }
   const os = resolvedOs(profile);
   if (!os) {
@@ -501,30 +508,14 @@ export function preflight(profile: BrowserProfile): PreflightResult {
   return ELIGIBLE;
 }
 
-/**
- * Whether this profile could be launched on a remote host.
- *
- * A strict subset of {@link preflight}: a remote session needs the profile to
- * exist in cloud storage in a form a host can read, and nothing more. The bot's
- * extra requirement — an exit node — exists because a night of unattended
- * traffic from a datacenter address is worse for the profile than not warming
- * it, and that reasoning does not apply to a session the user is driving.
- *
- * Mirrors `remote_launch_profile_rules` in `api_server.rs`, which is
- * authoritative; this only avoids offering an action that would be refused.
- */
-export function canLaunchRemotely(profile: BrowserProfile): boolean {
-  const syncMode = profile.sync_mode ?? "Disabled";
-  if (syncMode === "Disabled" || syncMode === "Encrypted") return false;
-  return resolvedOs(profile) !== null;
-}
-
 export function preflightReason(t: TFunction, result: PreflightResult): string {
   switch (result.code) {
     case "syncOff":
       return t("cookieBot.preflight.reasonSync");
     case "encrypted":
       return t("cookieBot.preflight.reasonEncrypted");
+    case "syncPassword":
+      return t("cookieBot.preflight.reasonSyncPassword");
     case "unknownPlatform":
       return t("cookieBot.preflight.reasonNoFingerprint");
     case "unsupportedPlatform":

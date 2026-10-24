@@ -2935,7 +2935,8 @@
     "proxyUpstreamTimeout": "Proxy yanıt vermiyor.",
     "proxyAuthFailed": "Proxy kullanıcı adını veya parolayı reddetti.",
     "vpnUnreachable": "VPN sunucusu yanıt vermiyor.",
-    "entityInUse": "{{count}} profil tarafından kullanılıyor. Önce onları başka bir proxy'ye veya VPN'e geçirin."
+    "entityInUse": "{{count}} profil tarafından kullanılıyor. Önce onları başka bir proxy'ye veya VPN'e geçirin.",
+    "syncPasswordBlocksRemoteRun": "Eşitleme şifrelemesi parolası bu profilin eşitlenen ayarlarını şifreler ve uzak sunucu bunları çözemez. Uzakta çalıştırmak için Eşitleme şifrelemesi ayarlarından parolayı kaldırın."
   },
   "rail": {
     "profiles": "Profiller",
@@ -3586,7 +3587,8 @@
       "fixEncrypted": "Eşitleme ayarlarını aç",
       "fixProxy": "Bir proxy ata",
       "fixFailed": "Bu düzeltme uygulanamadı.",
-      "exitNodeHint": "Proxy veya VPN olmadan çalışma, filonun kendi veri merkezi adresinden çıkar. Bir barındırma ağından saatlerce gelen trafik, profilin kimliğine hiç ısıtmamaktan daha çok zarar verir."
+      "exitNodeHint": "Proxy veya VPN olmadan çalışma, filonun kendi veri merkezi adresinden çıkar. Bir barındırma ağından saatlerce gelen trafik, profilin kimliğine hiç ısıtmamaktan daha çok zarar verir.",
+      "reasonSyncPassword": "Eşitleme şifrelemesi parolası ayarlı"
     },
     "conflict": {
       "title": "{{email}} bu profili zaten {{time}} saatinde ısıtıyor",

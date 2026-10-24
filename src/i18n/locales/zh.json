@@ -2935,7 +2935,8 @@
     "proxyUpstreamTimeout": "代理没有响应。",
     "proxyAuthFailed": "代理拒绝了用户名或密码。",
     "vpnUnreachable": "VPN 服务器没有响应。",
-    "entityInUse": "有 {{count}} 个配置文件正在使用。请先将它们改用其他代理或 VPN。"
+    "entityInUse": "有 {{count}} 个配置文件正在使用。请先将它们改用其他代理或 VPN。",
+    "syncPasswordBlocksRemoteRun": "同步加密密码加密了此配置文件已同步的设置，远程主机无法解密。要远程运行，请在同步加密设置中删除密码。"
   },
   "rail": {
     "profiles": "配置文件",
@@ -3586,7 +3587,8 @@
       "fixEncrypted": "打开同步设置",
       "fixProxy": "绑定代理",
       "fixFailed": "无法应用该修复。",
-      "exitNodeHint": "没有代理或 VPN 时，流量会从机器集群自己的数据中心地址发出。来自托管网络的长时间流量对配置文件身份的损害，比完全不养号还要大。"
+      "exitNodeHint": "没有代理或 VPN 时，流量会从机器集群自己的数据中心地址发出。来自托管网络的长时间流量对配置文件身份的损害，比完全不养号还要大。",
+      "reasonSyncPassword": "已设置同步加密密码"
     },
     "conflict": {
       "title": "{{email}} 已在 {{time}} 养这个配置文件",

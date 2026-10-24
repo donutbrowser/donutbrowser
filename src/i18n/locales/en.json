@@ -2935,7 +2935,8 @@
     "proxyUpstreamTimeout": "The proxy does not answer.",
     "proxyAuthFailed": "The proxy refused the username or password.",
     "vpnUnreachable": "The VPN server does not answer.",
-    "entityInUse": "In use by {{count}} profiles. Move them to another proxy or VPN first."
+    "entityInUse": "In use by {{count}} profiles. Move them to another proxy or VPN first.",
+    "syncPasswordBlocksRemoteRun": "The sync encryption password encrypts this profile's synced settings, and a remote host cannot decrypt them. To run it remotely, remove the password in the Sync encryption settings."
   },
   "rail": {
     "profiles": "Profiles",
@@ -3586,7 +3587,8 @@
       "fixEncrypted": "Open sync settings",
       "fixProxy": "Attach a proxy",
       "fixFailed": "Could not apply that fix.",
-      "exitNodeHint": "Without a proxy or VPN the run leaves from the fleet's own datacenter address. Hours of traffic from a hosting network damages the profile's identity more than not warming it at all."
+      "exitNodeHint": "Without a proxy or VPN the run leaves from the fleet's own datacenter address. Hours of traffic from a hosting network damages the profile's identity more than not warming it at all.",
+      "reasonSyncPassword": "Sync encryption password is set"
     },
     "conflict": {
       "title": "{{email}} already warms this profile at {{time}}",

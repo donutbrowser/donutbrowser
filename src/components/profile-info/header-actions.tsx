@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import { useSyncPasswordSet } from "@/hooks/use-sync-password";
 import { translateBackendError } from "@/lib/backend-errors";
 import { getEntitlements } from "@/lib/entitlements";
 import { MOTION_SPRING } from "@/lib/motion";
@@ -107,6 +108,7 @@ export function useCanRunRemote(
 ): boolean {
   const { user } = useCloudAuth();
   const entitlements = getEntitlements(user);
+  const syncPasswordSet = useSyncPasswordSet();
   return (
     Boolean(user) &&
     entitlements.active &&
@@ -114,6 +116,7 @@ export function useCanRunRemote(
     profile.browser === "wayfern" &&
     profile.ephemeral !== true &&
     profile.sync_mode === "Regular" &&
+    !syncPasswordSet &&
     !isRunning &&
     !handoffState
   );

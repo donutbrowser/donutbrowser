@@ -3837,7 +3837,7 @@ pub async fn remote_launch_precondition(
   if let Some(refusal) = crate::sync::account_server::cloud_run_refusal() {
     return Err(refusal);
   }
-  remote_launch_profile_rules(profile)?;
+  remote_launch_profile_rules(profile, crate::sync::encryption::has_e2e_password())?;
 
   // The manifest is written last, so a host pulling mid-upload gets files
   // that are about to be replaced and a manifest that does not describe them.
@@ -3861,6 +3861,7 @@ pub async fn remote_launch_precondition(
 /// scheduler, and so the live check above cannot be reached without them.
 pub fn remote_launch_profile_rules(
   profile: &crate::profile::types::BrowserProfile,
+  sync_password_stored: bool,
 ) -> Result<(), String> {
   if !profile.is_sync_enabled() {
     return Err(
@@ -3876,6 +3877,16 @@ pub fn remote_launch_profile_rules(
     return Err(
       "profile uses end-to-end encrypted sync; a remote host cannot decrypt \
        it. Switch the profile to Regular sync to run it remotely."
+        .to_string(),
+    );
+  }
+  if crate::sync::encryption::remote_seal(profile, sync_password_stored)
+    == Some(crate::sync::encryption::RemoteSeal::SyncPassword)
+  {
+    return Err(
+      "the account's sync password seals the profile's synced settings, its \
+       proxy included; a remote host cannot decrypt them. Remove the sync \
+       password to run the profile remotely."
         .to_string(),
     );
   }
@@ -5849,12 +5860,12 @@ mod tests {
   // would launch an empty browser and push that emptiness over the real one.
   #[test]
   fn remote_launch_requires_cloud_sync() {
-    let err = remote_launch_profile_rules(&profile_with(SyncMode::Disabled, Some("macos")))
+    let err = remote_launch_profile_rules(&profile_with(SyncMode::Disabled, Some("macos")), false)
       .expect_err("a non-synced profile must be refused");
     assert!(err.contains("cloud sync"), "unhelpful message: {err}");
 
     assert!(
-      remote_launch_profile_rules(&profile_with(SyncMode::Regular, Some("macos"))).is_ok(),
+      remote_launch_profile_rules(&profile_with(SyncMode::Regular, Some("macos")), false).is_ok(),
       "a synced profile must be allowed"
     );
   }
@@ -5866,7 +5877,7 @@ mod tests {
     // the corruption back over the user's real profile. Refusing here also
     // saves taking the profile lock and a slot on leased hardware for a
     // session that cannot possibly work.
-    let err = remote_launch_profile_rules(&profile_with(SyncMode::Encrypted, Some("macos")))
+    let err = remote_launch_profile_rules(&profile_with(SyncMode::Encrypted, Some("macos")), false)
       .expect_err("an encrypted profile must be refused");
     assert!(
       err.contains("encrypted") && err.contains("Regular"),
@@ -5875,10 +5886,21 @@ mod tests {
   }
 
   #[test]
+  fn remote_launch_refuses_a_profile_sealed_by_the_sync_password() {
+    // The password seals the profile's metadata and proxy even on Regular
+    // sync: a host would launch it without its proxy, or not at all.
+    let profile = profile_with(SyncMode::Regular, Some("macos"));
+    let err = remote_launch_profile_rules(&profile, true)
+      .expect_err("a profile sealed by the sync password must be refused");
+    assert!(err.contains("sync password"), "unhelpful message: {err}");
+    assert!(remote_launch_profile_rules(&profile, false).is_ok());
+  }
+
+  #[test]
   fn remote_launch_requires_a_known_operating_system() {
     // Without one a Linux host has no OS to present the profile as, and a
     // guess would change the OS the profile reports to sites.
-    assert!(remote_launch_profile_rules(&profile_with(SyncMode::Regular, None)).is_err());
+    assert!(remote_launch_profile_rules(&profile_with(SyncMode::Regular, None), false).is_err());
   }
 
   #[test]
@@ -5892,14 +5914,14 @@ mod tests {
     let foreign = profile_with(SyncMode::Regular, Some(other));
     // A Wayfern profile from another OS runs locally too, and remotely.
     assert!(!foreign.is_cross_os());
-    assert!(remote_launch_profile_rules(&foreign).is_ok());
+    assert!(remote_launch_profile_rules(&foreign, false).is_ok());
 
     let mut bound = foreign.clone();
     bound.browser = "camoufox".to_string();
     assert!(bound.is_cross_os(), "test setup: profile should be foreign");
     // Local /run refuses this; running it remotely on a host of its own OS is
     // exactly what /run-remote is for.
-    assert!(remote_launch_profile_rules(&bound).is_ok());
+    assert!(remote_launch_profile_rules(&bound, false).is_ok());
   }
 
   #[tokio::test]
@@ -5910,6 +5932,8 @@ mod tests {
     // over the real profile.
     let scheduler = std::sync::Arc::new(crate::sync::SyncScheduler::new());
     crate::sync::set_global_scheduler(scheduler.clone());
+    let data = tempfile::tempdir().unwrap();
+    let _data = crate::app_dirs::set_test_data_dir(data.path().to_path_buf());
 
     let mut profile = profile_with(SyncMode::Regular, Some("macos"));
     profile.id = uuid::Uuid::new_v4();

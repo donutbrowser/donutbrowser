@@ -2935,7 +2935,8 @@
     "proxyUpstreamTimeout": "Der Proxy antwortet nicht.",
     "proxyAuthFailed": "Der Proxy hat Benutzername oder Passwort abgelehnt.",
     "vpnUnreachable": "Der VPN-Server antwortet nicht.",
-    "entityInUse": "Wird von {{count}} Profilen verwendet. Weisen Sie ihnen zuerst einen anderen Proxy oder ein anderes VPN zu."
+    "entityInUse": "Wird von {{count}} Profilen verwendet. Weisen Sie ihnen zuerst einen anderen Proxy oder ein anderes VPN zu.",
+    "syncPasswordBlocksRemoteRun": "Das Passwort der Sync-Verschlüsselung verschlüsselt die synchronisierten Einstellungen dieses Profils, und ein Remote-Host kann sie nicht entschlüsseln. Um es remote auszuführen, entfernen Sie das Passwort in den Einstellungen der Sync-Verschlüsselung."
   },
   "rail": {
     "profiles": "Profile",
@@ -3586,7 +3587,8 @@
       "fixEncrypted": "Sync-Einstellungen öffnen",
       "fixProxy": "Proxy verknüpfen",
       "fixFailed": "Diese Korrektur konnte nicht angewendet werden.",
-      "exitNodeHint": "Ohne Proxy oder VPN geht der Durchlauf von der eigenen Rechenzentrumsadresse der Remote-Rechner aus. Stundenlanger Datenverkehr aus einem Hosting-Netz schadet der Identität des Profils mehr, als es gar nicht aufzuwärmen."
+      "exitNodeHint": "Ohne Proxy oder VPN geht der Durchlauf von der eigenen Rechenzentrumsadresse der Remote-Rechner aus. Stundenlanger Datenverkehr aus einem Hosting-Netz schadet der Identität des Profils mehr, als es gar nicht aufzuwärmen.",
+      "reasonSyncPassword": "Passwort der Sync-Verschlüsselung ist festgelegt"
     },
     "conflict": {
       "title": "{{email}} wärmt dieses Profil bereits um {{time}} auf",

@@ -2955,7 +2955,8 @@
     "proxyUpstreamTimeout": "El proxy no responde.",
     "proxyAuthFailed": "El proxy rechazó el usuario o la contraseña.",
     "vpnUnreachable": "El servidor VPN no responde.",
-    "entityInUse": "Lo usan {{count}} perfiles. Asígnales primero otro proxy o VPN."
+    "entityInUse": "Lo usan {{count}} perfiles. Asígnales primero otro proxy o VPN.",
+    "syncPasswordBlocksRemoteRun": "La contraseña del cifrado de sincronización cifra los ajustes sincronizados de este perfil, y un host remoto no puede descifrarlos. Para ejecutarlo en remoto, elimina la contraseña en los ajustes de Cifrado de sincronización."
   },
   "rail": {
     "profiles": "Perfiles",
@@ -3623,7 +3624,8 @@
       "fixEncrypted": "Abrir los ajustes de sincronización",
       "fixProxy": "Asignar un proxy",
       "fixFailed": "No se pudo aplicar esa corrección.",
-      "exitNodeHint": "Sin proxy ni VPN, la ejecución sale por la propia dirección del centro de datos de la flota. Horas de tráfico desde una red de alojamiento dañan la identidad del perfil más que no calentarlo en absoluto."
+      "exitNodeHint": "Sin proxy ni VPN, la ejecución sale por la propia dirección del centro de datos de la flota. Horas de tráfico desde una red de alojamiento dañan la identidad del perfil más que no calentarlo en absoluto.",
+      "reasonSyncPassword": "Hay una contraseña de cifrado de sincronización"
     },
     "conflict": {
       "title": "{{email}} ya calienta este perfil a las {{time}}",

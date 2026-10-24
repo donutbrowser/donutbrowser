@@ -2935,7 +2935,8 @@
     "proxyUpstreamTimeout": "Proxy không phản hồi.",
     "proxyAuthFailed": "Proxy đã từ chối tên người dùng hoặc mật khẩu.",
     "vpnUnreachable": "Máy chủ VPN không phản hồi.",
-    "entityInUse": "Đang được {{count}} hồ sơ sử dụng. Hãy chuyển chúng sang proxy hoặc VPN khác trước."
+    "entityInUse": "Đang được {{count}} hồ sơ sử dụng. Hãy chuyển chúng sang proxy hoặc VPN khác trước.",
+    "syncPasswordBlocksRemoteRun": "Mật khẩu mã hóa đồng bộ mã hóa các cài đặt đã đồng bộ của hồ sơ này, và máy chủ từ xa không thể giải mã chúng. Để chạy từ xa, hãy xóa mật khẩu trong cài đặt Mã hóa đồng bộ."
   },
   "rail": {
     "profiles": "Profile",
@@ -3586,7 +3587,8 @@
       "fixEncrypted": "Mở cài đặt đồng bộ",
       "fixProxy": "Gán một proxy",
       "fixFailed": "Không áp dụng được cách khắc phục đó.",
-      "exitNodeHint": "Không có proxy hoặc VPN, lần chạy sẽ đi ra từ chính địa chỉ trung tâm dữ liệu của hệ thống máy. Nhiều giờ lưu lượng từ một mạng lưu trữ gây hại cho danh tính hồ sơ hơn cả việc không làm ấm."
+      "exitNodeHint": "Không có proxy hoặc VPN, lần chạy sẽ đi ra từ chính địa chỉ trung tâm dữ liệu của hệ thống máy. Nhiều giờ lưu lượng từ một mạng lưu trữ gây hại cho danh tính hồ sơ hơn cả việc không làm ấm.",
+      "reasonSyncPassword": "Đã đặt mật khẩu mã hóa đồng bộ"
     },
     "conflict": {
       "title": "{{email}} đã làm ấm hồ sơ này lúc {{time}}",

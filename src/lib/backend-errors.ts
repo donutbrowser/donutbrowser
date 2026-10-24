@@ -226,6 +226,7 @@ export type BackendErrorCode =
   | "REMOTE_HOURS_EXHAUSTED"
   | "REMOTE_REQUIRES_CLOUD_SYNC"
   | "REMOTE_ENCRYPTED_SYNC_UNSUPPORTED"
+  | "SYNC_PASSWORD_BLOCKS_REMOTE_RUN"
   | "REMOTE_UNKNOWN_PLATFORM"
   | "PROFILE_RUNNING_REMOTELY"
   | "PROFILE_REMOTE_SYNC_PENDING"
@@ -947,6 +948,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.remoteRequiresCloudSync");
     case "REMOTE_ENCRYPTED_SYNC_UNSUPPORTED":
       return t("backendErrors.remoteEncryptedSyncUnsupported");
+    case "SYNC_PASSWORD_BLOCKS_REMOTE_RUN":
+      return t("backendErrors.syncPasswordBlocksRemoteRun");
     case "REMOTE_UNKNOWN_PLATFORM":
       return t("backendErrors.remoteUnknownPlatform");
     case "PROFILE_RUNNING_REMOTELY":

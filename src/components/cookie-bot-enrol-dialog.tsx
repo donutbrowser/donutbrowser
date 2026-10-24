@@ -71,6 +71,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { cookieBotScopeFor, useCookieBot } from "@/hooks/use-cookie-bot";
+import { useSyncPasswordSet } from "@/hooks/use-sync-password";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
 import {
   type CookieBotConflict,
@@ -422,9 +423,14 @@ export function CookieBotEnrolDialog({
     if (chosen?.typical_minutes) setMaxMinutes(chosen.typical_minutes);
   }, [preset, presetList, maxMinutesTouched]);
 
+  const syncPasswordSet = useSyncPasswordSet();
   const targets: EnrolTarget[] = useMemo(
-    () => profiles.map((profile) => ({ profile, check: preflight(profile) })),
-    [profiles],
+    () =>
+      profiles.map((profile) => ({
+        profile,
+        check: preflight(profile, syncPasswordSet),
+      })),
+    [profiles, syncPasswordSet],
   );
   const eligible = useMemo(
     () => targets.filter((target) => target.check.eligible),

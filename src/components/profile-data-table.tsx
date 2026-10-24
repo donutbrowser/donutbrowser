@@ -153,6 +153,7 @@ import { useProxyEvents } from "@/hooks/use-proxy-events";
 import { type ProxyHealth, useProxyHealth } from "@/hooks/use-proxy-health";
 import { useRemoteHandoff } from "@/hooks/use-remote-handoff";
 import { useScrollFade } from "@/hooks/use-scroll-fade";
+import { useSyncPasswordSet } from "@/hooks/use-sync-password";
 import { useTablePreferences } from "@/hooks/use-table-preferences";
 import { useTableKeyboard } from "@/hooks/use-table-tools";
 import { useTeamLocks } from "@/hooks/use-team-locks";
@@ -184,6 +185,7 @@ import {
 } from "@/lib/motion";
 import { isMacOS } from "@/lib/platform";
 import type { RemoteHandoffState } from "@/lib/remote-sessions";
+import { isKey } from "@/lib/shortcuts";
 import { resolveTableVisibility } from "@/lib/table-tools";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
@@ -373,6 +375,8 @@ interface TableMeta {
   getProfileBotState: (profileId: string) => ProfileBotState;
   /** A run this desktop has just asked for, before the stream confirms it. */
   botPendingProfiles: Set<string>;
+  /** A sync encryption password seals every synced profile for remote hosts. */
+  syncPasswordSet: boolean;
   onBotEnrol: (profile: BrowserProfile) => void;
   onBotEdit: (profile: BrowserProfile, schedule: CookieBotSchedule) => void;
   onBotRunNow: (profile: BrowserProfile) => void;
@@ -1752,7 +1756,7 @@ const BotCell = React.memo<{
   // `TFunction`, and every other cell in this file resolves it the same way.
   const { t } = useTranslation();
   const { schedule, liveSession } = meta.getProfileBotState(profile.id);
-  const check = preflight(profile);
+  const check = preflight(profile, meta.syncPasswordSet);
   const isPending = meta.botPendingProfiles.has(profile.id);
   const isLive = liveSession !== null;
   const nextRun = schedule ? formatNextRun(schedule) : null;
@@ -2308,6 +2312,7 @@ export function ProfilesDataTable({
   const [botPendingProfiles, setBotPendingProfiles] = React.useState<
     Set<string>
   >(new Set());
+  const syncPasswordSet = useSyncPasswordSet();
   const [botScheduleDialog, setBotScheduleDialog] = React.useState<{
     profiles: BrowserProfile[];
     existing: CookieBotSchedule | null;
@@ -2583,7 +2588,9 @@ export function ProfilesDataTable({
   const handleBulkCookieBotEnrol = React.useCallback(() => {
     const targets = profiles.filter((p) => selectedProfiles.includes(p.id));
     if (targets.length === 0) return;
-    const eligible = targets.filter((p) => preflight(p).eligible);
+    const eligible = targets.filter(
+      (p) => preflight(p, syncPasswordSet).eligible,
+    );
     // Same guard as bulk run: an action that can touch nothing says so instead
     // of opening a dialog whose only outcome is a refusal.
     if (eligible.length === 0) {
@@ -2598,7 +2605,7 @@ export function ProfilesDataTable({
       return;
     }
     setBotScheduleDialog({ profiles: targets, existing: null });
-  }, [profiles, selectedProfiles, t]);
+  }, [profiles, selectedProfiles, syncPasswordSet, t]);
 
   // Use shared browser state hook
   const browserState = useBrowserState(
@@ -3061,6 +3068,7 @@ export function ProfilesDataTable({
       cookieBotCompact,
       getProfileBotState,
       botPendingProfiles,
+      syncPasswordSet,
       onBotEnrol: handleBotEnrol,
       onBotEdit: handleBotEdit,
       onBotRunNow: (profile: BrowserProfile) => {
@@ -3135,6 +3143,7 @@ export function ProfilesDataTable({
       cookieBotCompact,
       getProfileBotState,
       botPendingProfiles,
+      syncPasswordSet,
       handleBotEnrol,
       handleBotEdit,
       handleBotRunNow,
@@ -4139,7 +4148,12 @@ export function ProfilesDataTable({
       );
       return;
     }
-    if (mod && !event.shiftKey && event.key.toLowerCase() === "a") {
+    if (
+      mod &&
+      !event.shiftKey &&
+      isKey(event) &&
+      event.key.toLowerCase() === "a"
+    ) {
       event.preventDefault();
       onSelectedProfilesChange(sortedRows.map((row) => row.id));
       return;
@@ -4944,19 +4958,25 @@ export function ProfilesDataTable({
         }}
         title={t("cookieBot.enrol.confirmBulkTitle", {
           count:
-            pendingBulkEnrol?.filter((p) => preflight(p).eligible).length ?? 0,
+            pendingBulkEnrol?.filter(
+              (p) => preflight(p, syncPasswordSet).eligible,
+            ).length ?? 0,
         })}
         description={t("cookieBot.enrol.confirmBulkDescription", {
           count:
-            pendingBulkEnrol?.filter((p) => preflight(p).eligible).length ?? 0,
+            pendingBulkEnrol?.filter(
+              (p) => preflight(p, syncPasswordSet).eligible,
+            ).length ?? 0,
         })}
         confirmButtonText={t("cookieBot.enrol.confirmBulkButton", {
           count:
-            pendingBulkEnrol?.filter((p) => preflight(p).eligible).length ?? 0,
+            pendingBulkEnrol?.filter(
+              (p) => preflight(p, syncPasswordSet).eligible,
+            ).length ?? 0,
         })}
         confirmButtonVariant="default"
         profileIds={pendingBulkEnrol
-          ?.filter((p) => preflight(p).eligible)
+          ?.filter((p) => preflight(p, syncPasswordSet).eligible)
           .map((p) => p.id)}
         profiles={pendingBulkEnrol?.map((p) => ({ id: p.id, name: p.name }))}
       />

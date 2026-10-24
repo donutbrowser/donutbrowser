@@ -2955,7 +2955,8 @@
     "proxyUpstreamTimeout": "Le proxy ne répond pas.",
     "proxyAuthFailed": "Le proxy a refusé le nom d'utilisateur ou le mot de passe.",
     "vpnUnreachable": "Le serveur VPN ne répond pas.",
-    "entityInUse": "Utilisé par {{count}} profils. Attribuez-leur d'abord un autre proxy ou VPN."
+    "entityInUse": "Utilisé par {{count}} profils. Attribuez-leur d'abord un autre proxy ou VPN.",
+    "syncPasswordBlocksRemoteRun": "Le mot de passe du chiffrement de synchronisation chiffre les réglages synchronisés de ce profil, et un hôte distant ne peut pas les déchiffrer. Pour l'exécuter à distance, supprimez le mot de passe dans les réglages Chiffrement de synchronisation."
   },
   "rail": {
     "profiles": "Profils",
@@ -3623,7 +3624,8 @@
       "fixEncrypted": "Ouvrir les réglages de synchronisation",
       "fixProxy": "Associer un proxy",
       "fixFailed": "Impossible d'appliquer ce correctif.",
-      "exitNodeHint": "Sans proxy ni VPN, l'exécution sort par l'adresse du centre de données de la flotte. Des heures de trafic depuis un réseau d'hébergement abîment l'identité du profil plus que de ne pas le chauffer du tout."
+      "exitNodeHint": "Sans proxy ni VPN, l'exécution sort par l'adresse du centre de données de la flotte. Des heures de trafic depuis un réseau d'hébergement abîment l'identité du profil plus que de ne pas le chauffer du tout.",
+      "reasonSyncPassword": "Mot de passe de chiffrement de synchronisation défini"
     },
     "conflict": {
       "title": "{{email}} chauffe déjà ce profil à {{time}}",

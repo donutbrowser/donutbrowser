@@ -45,6 +45,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cookieBotScopeFor, useCookieBot } from "@/hooks/use-cookie-bot";
+import { useSyncPasswordSet } from "@/hooks/use-sync-password";
 import { translateBackendError } from "@/lib/backend-errors";
 import {
   type CookieBotRun,
@@ -499,13 +500,14 @@ function EnrolPickerDialog({
     setSelected(new Set());
   }, [isOpen]);
 
+  const syncPasswordSet = useSyncPasswordSet();
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return profiles
       .filter((profile) => profile.name.toLowerCase().includes(needle))
       .map((profile) => ({
         profile,
-        check: preflight(profile),
+        check: preflight(profile, syncPasswordSet),
         enrolled: enrolledIds.has(profile.id),
       }))
       .sort((a, b) => {
@@ -514,7 +516,7 @@ function EnrolPickerDialog({
         }
         return a.profile.name.localeCompare(b.profile.name);
       });
-  }, [profiles, search, enrolledIds]);
+  }, [profiles, search, enrolledIds, syncPasswordSet]);
 
   const chosen = useMemo(
     () => profiles.filter((profile) => selected.has(profile.id)),
