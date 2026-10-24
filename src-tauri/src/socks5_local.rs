@@ -562,7 +562,7 @@ async fn associate_upstream(
   upstream_url: &str,
 ) -> Result<SocksDatagram<TcpStream>, Box<dyn std::error::Error + Send + Sync>> {
   let upstream = Url::parse(upstream_url)?;
-  let host = upstream.host_str().unwrap_or("127.0.0.1");
+  let host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
   let port = upstream.port().unwrap_or(1080);
   let auth = if !upstream.username().is_empty() {
     Some(Auth {

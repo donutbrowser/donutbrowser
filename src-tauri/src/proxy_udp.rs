@@ -109,7 +109,8 @@ pub async fn probe_udp_support(settings: &ProxySettings) -> UdpSupport {
 }
 
 async fn socks5_udp_associate(settings: &ProxySettings) -> std::io::Result<UdpSupport> {
-  let mut stream = tokio::net::TcpStream::connect((settings.host.as_str(), settings.port)).await?;
+  let host = crate::proxy_storage::bare_host(&settings.host);
+  let mut stream = tokio::net::TcpStream::connect((host, settings.port)).await?;
 
   let credentials = settings
     .username

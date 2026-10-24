@@ -74,6 +74,37 @@ pub enum ProxyParseResult {
   Invalid { line: String, reason: String },
 }
 
+/// The colon-separated fields of a proxy line. An IPv6 address in brackets at
+/// the start of a field stays one field: `[2001:db8::1]:8080:user:pass`.
+fn split_proxy_fields(line: &str) -> Vec<&str> {
+  let mut fields = Vec::new();
+  let mut rest = line;
+  loop {
+    if let Some(end) = rest.starts_with('[').then(|| rest.find(']')).flatten() {
+      let after = &rest[end + 1..];
+      if after.is_empty() {
+        fields.push(rest);
+        return fields;
+      }
+      if let Some(next) = after.strip_prefix(':') {
+        fields.push(&rest[..=end]);
+        rest = next;
+        continue;
+      }
+    }
+    match rest.split_once(':') {
+      Some((field, next)) => {
+        fields.push(field);
+        rest = next;
+      }
+      None => {
+        fields.push(rest);
+        return fields;
+      }
+    }
+  }
+}
+
 // Store active proxy information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyInfo {
@@ -1489,7 +1520,7 @@ impl ProxyManager {
       url.push('@');
     }
 
-    url.push_str(&proxy_settings.host);
+    url.push_str(&crate::proxy_storage::url_host(&proxy_settings.host));
     url.push(':');
     url.push_str(&proxy_settings.port.to_string());
 
@@ -1523,9 +1554,9 @@ impl ProxyManager {
   /// type resistant to an active man-in-the-middle rather than only to a
   /// passive one, so a failure here is fatal by design.
   async fn verify_upstream_tls(proxy_settings: &ProxySettings) -> Result<(), String> {
-    let host = proxy_settings.host.clone();
+    let host = crate::proxy_storage::bare_host(&proxy_settings.host).to_string();
     let port = proxy_settings.port;
-    let addr = format!("{host}:{port}");
+    let addr = crate::proxy_server::connect_authority(&host, port);
 
     let attempt = async {
       let tcp = tokio::net::TcpStream::connect((host.as_str(), port))
@@ -1812,7 +1843,7 @@ impl ProxyManager {
     }
 
     // Try colon-separated formats
-    let parts: Vec<&str> = line.split(':').collect();
+    let parts = split_proxy_fields(line);
 
     match parts.len() {
       // host:port (no auth)
@@ -1846,10 +1877,13 @@ impl ProxyManager {
       }
       // 4 parts: could be host:port:user:pass OR user:pass:host:port
       4 => Self::parse_colon_separated_quad(&parts, "http", line),
-      _ => ProxyParseResult::Invalid {
-        line: line.to_string(),
-        reason: format!("Unexpected format with {} parts", parts.len()),
-      },
+      // username:password@[IPv6]:port
+      _ => {
+        Self::try_parse_user_pass_at_host_port(line).unwrap_or_else(|| ProxyParseResult::Invalid {
+          line: line.to_string(),
+          reason: format!("Unexpected format with {} parts", parts.len()),
+        })
+      }
     }
   }
 
@@ -1977,10 +2011,8 @@ impl ProxyManager {
       }
     } else {
       // Vendors also hand out the colon-separated body behind a scheme, as in
-      // socks5://host:port:user:pass, so try that before plain host:port. An
-      // IPv6 literal splits into four too ("[", "", "1]", "8080" for [::1]:8080),
-      // so require every field to be populated before reading it that way.
-      let parts: Vec<&str> = rest.split(':').collect();
+      // socks5://host:port:user:pass, so try that before plain host:port.
+      let parts = split_proxy_fields(rest);
       if parts.len() == 4 && parts.iter().all(|part| !part.is_empty()) {
         return Some(Self::parse_colon_separated_quad(&parts, protocol, line));
       }
@@ -4700,6 +4732,65 @@ mod tests {
       vless_uri: None,
     });
     assert_eq!(url, "http://justuser@host.io:3128");
+  }
+
+  #[test]
+  fn an_ipv6_proxy_host_is_bracketed_in_its_url() {
+    let settings = |host: &str| ProxySettings {
+      proxy_type: "http".to_string(),
+      host: host.to_string(),
+      port: 8080,
+      username: Some("user".to_string()),
+      password: Some("pass".to_string()),
+      vless_uri: None,
+    };
+    for host in ["2001:db8::1", "[2001:db8::1]"] {
+      let url = ProxyManager::build_proxy_url(&settings(host));
+      assert_eq!(url, "http://user:pass@[2001:db8::1]:8080");
+      let parsed = url::Url::parse(&url).unwrap();
+      assert_eq!(parsed.port(), Some(8080));
+      assert_eq!(
+        crate::proxy_storage::build_proxy_url("http", host, 8080, Some("user"), Some("pass")),
+        url
+      );
+    }
+    assert_eq!(
+      ProxyManager::build_proxy_url(&settings("1.2.3.4")),
+      "http://user:pass@1.2.3.4:8080"
+    );
+  }
+
+  #[test]
+  fn proxy_lines_with_a_bracketed_ipv6_host_parse() {
+    let lines = [
+      "[2001:db8::1]:8080:user:pass",
+      "user:pass:[2001:db8::1]:8080",
+      "user:pass@[2001:db8::1]:8080",
+      "http://user:pass@[2001:db8::1]:8080",
+      "socks5://[2001:db8::1]:8080:user:pass",
+    ];
+    for line in lines {
+      match &ProxyManager::parse_txt_proxies(line)[0] {
+        ProxyParseResult::Parsed(p) => {
+          assert_eq!(p.host, "[2001:db8::1]", "{line}");
+          assert_eq!(p.port, 8080, "{line}");
+          assert_eq!(p.username.as_deref(), Some("user"), "{line}");
+          assert_eq!(p.password.as_deref(), Some("pass"), "{line}");
+        }
+        other => panic!("{line}: expected Parsed, got {other:?}"),
+      }
+    }
+    match &ProxyManager::parse_txt_proxies("[2001:db8::1]:3128")[0] {
+      ProxyParseResult::Parsed(p) => {
+        assert_eq!((p.host.as_str(), p.port), ("[2001:db8::1]", 3128));
+        assert_eq!(p.username, None);
+      }
+      other => panic!("expected Parsed, got {other:?}"),
+    }
+    assert_eq!(
+      split_proxy_fields("1.2.3.4:80:[user:pass"),
+      vec!["1.2.3.4", "80", "[user", "pass"]
+    );
   }
 
   #[test]

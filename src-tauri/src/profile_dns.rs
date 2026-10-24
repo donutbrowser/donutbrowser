@@ -21,6 +21,7 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -618,6 +619,9 @@ pub fn is_missing_name(error: &(dyn std::error::Error + 'static)) -> bool {
   )
 }
 
+/// A name and the record type asked for it.
+type CacheKey = (String, u16);
+
 struct Cached {
   outcome: Result<Vec<IpAddr>, ResolveError>,
   until: Instant,
@@ -644,9 +648,12 @@ impl Conn {
 struct Inner {
   server: DnsServer,
   upstream: Option<String>,
-  cache: Mutex<HashMap<String, Cached>>,
-  /// One lookup per name at a time; the others wait and read the cache.
-  pending: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
+  cache: Mutex<HashMap<CacheKey, Cached>>,
+  /// One lookup per name and type at a time; the others wait and read the
+  /// cache.
+  pending: Mutex<HashMap<CacheKey, Arc<tokio::sync::Mutex<()>>>>,
+  /// The route reached an IPv6 address after it could not reach an IPv4 one.
+  ipv6_first: AtomicBool,
   idle: Mutex<Vec<(Conn, Instant)>>,
   queries: tokio::sync::Semaphore,
 }
@@ -661,6 +668,26 @@ pub struct ProfileResolver {
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
   mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// The IP of a literal (`[...]` allowed), or else the name in lowercase
+/// without the trailing dot.
+fn name_of(host: &str) -> Result<IpAddr, String> {
+  let host = host
+    .strip_prefix('[')
+    .and_then(|h| h.strip_suffix(']'))
+    .unwrap_or(host);
+  host
+    .parse::<IpAddr>()
+    .map_err(|_| host.trim_end_matches('.').to_ascii_lowercase())
+}
+
+fn other_type(qtype: u16) -> u16 {
+  if qtype == TYPE_A {
+    TYPE_AAAA
+  } else {
+    TYPE_A
+  }
 }
 
 async fn tls_handshake(
@@ -688,6 +715,7 @@ impl ProfileResolver {
         upstream: upstream.filter(|u| u != "DIRECT"),
         cache: Mutex::new(HashMap::new()),
         pending: Mutex::new(HashMap::new()),
+        ipv6_first: AtomicBool::new(false),
         idle: Mutex::new(Vec::new()),
         queries: tokio::sync::Semaphore::new(MAX_QUERIES),
       }),
@@ -707,46 +735,93 @@ impl ProfileResolver {
     }
   }
 
-  /// Addresses for `host`, IPv4 first. An IP literal is returned as is.
+  /// Addresses for `host`: the family the route last reached, IPv4 until
+  /// then, and the other family only when the name has none. An IP literal is
+  /// returned as is.
   pub async fn resolve(&self, host: &str) -> Result<Vec<IpAddr>, ResolveError> {
-    let host = host
-      .strip_prefix('[')
-      .and_then(|h| h.strip_suffix(']'))
-      .unwrap_or(host);
-    if let Ok(ip) = host.parse::<IpAddr>() {
-      return Ok(vec![ip]);
+    let name = match name_of(host) {
+      Ok(ip) => return Ok(vec![ip]),
+      Err(name) => name,
+    };
+    let first = if self.inner.ipv6_first.load(Ordering::Relaxed) {
+      TYPE_AAAA
+    } else {
+      TYPE_A
+    };
+    let addresses = self.lookup_cached(&name, first).await?;
+    if !addresses.is_empty() {
+      return Ok(addresses);
     }
-    let name = host.trim_end_matches('.').to_ascii_lowercase();
-    if let Some(outcome) = self.cached(&name) {
+    let addresses = self.lookup_cached(&name, other_type(first)).await?;
+    if addresses.is_empty() {
+      Err(ResolveError::NotFound)
+    } else {
+      Ok(addresses)
+    }
+  }
+
+  /// Addresses of `host` in the family that `tried` does not have. An exit
+  /// often reaches only one family (many IPv6 proxies have no IPv4 route),
+  /// so a dial that failed on one family gets a turn on the other.
+  pub async fn resolve_other_family(&self, host: &str, tried: &[IpAddr]) -> Vec<IpAddr> {
+    let Err(name) = name_of(host) else {
+      return Vec::new();
+    };
+    let qtype = match (
+      tried.iter().any(IpAddr::is_ipv4),
+      tried.iter().any(IpAddr::is_ipv6),
+    ) {
+      (true, false) => TYPE_AAAA,
+      (false, true) => TYPE_A,
+      _ => return Vec::new(),
+    };
+    self.lookup_cached(&name, qtype).await.unwrap_or_default()
+  }
+
+  /// Record the address a dial through the route reached: its family is
+  /// asked for first from now on.
+  pub fn note_reached(&self, ip: IpAddr) {
+    let ipv6 = ip.is_ipv6();
+    if self.inner.ipv6_first.swap(ipv6, Ordering::Relaxed) != ipv6 {
+      log::info!(
+        "Profile DNS family changed first={}",
+        if ipv6 { "ipv6" } else { "ipv4" }
+      );
+    }
+  }
+
+  async fn lookup_cached(&self, name: &str, qtype: u16) -> Result<Vec<IpAddr>, ResolveError> {
+    let key = (name.to_string(), qtype);
+    if let Some(outcome) = self.cached(&key) {
       return outcome;
     }
 
     let gate = lock(&self.inner.pending)
-      .entry(name.clone())
+      .entry(key.clone())
       .or_default()
       .clone();
     let outcome = {
       let _turn = gate.lock().await;
-      match self.cached(&name) {
+      match self.cached(&key) {
         Some(outcome) => outcome,
         None => {
-          let (outcome, ttl) = self.lookup(&name).await;
-          self.store(&name, outcome.clone(), ttl);
+          let (outcome, ttl) = self.lookup(name, qtype).await;
+          self.store(&key, outcome.clone(), ttl);
           outcome
         }
       }
     };
-    lock(&self.inner.pending).remove(&name);
+    lock(&self.inner.pending).remove(&key);
     outcome
   }
 
-  fn cached(&self, name: &str) -> Option<Result<Vec<IpAddr>, ResolveError>> {
+  fn cached(&self, key: &CacheKey) -> Option<Result<Vec<IpAddr>, ResolveError>> {
     let cache = lock(&self.inner.cache);
-    let entry = cache.get(name)?;
+    let entry = cache.get(key)?;
     (entry.until > Instant::now()).then(|| entry.outcome.clone())
   }
 
-  fn store(&self, name: &str, outcome: Result<Vec<IpAddr>, ResolveError>, ttl: Duration) {
+  fn store(&self, key: &CacheKey, outcome: Result<Vec<IpAddr>, ResolveError>, ttl: Duration) {
     let mut cache = lock(&self.inner.cache);
     if cache.len() >= MAX_CACHED {
       let now = Instant::now();
@@ -756,7 +831,7 @@ impl ProfileResolver {
       }
     }
     cache.insert(
-      name.to_string(),
+      key.clone(),
       Cached {
         outcome,
         until: Instant::now() + ttl,
@@ -764,32 +839,25 @@ impl ProfileResolver {
     );
   }
 
-  /// A first, then AAAA only when the name has no IPv4 address: most exits
-  /// reach IPv4, and one query is the common case.
-  async fn lookup(&self, name: &str) -> (Result<Vec<IpAddr>, ResolveError>, Duration) {
-    for qtype in [TYPE_A, TYPE_AAAA] {
-      match self.query(name, qtype).await {
-        Ok(reply) if reply.rcode == RCODE_NOERROR && !reply.addresses.is_empty() => {
-          let ttl = Duration::from_secs(u64::from(reply.ttl)).clamp(MIN_TTL, MAX_TTL);
-          return (Ok(reply.addresses), ttl);
-        }
-        Ok(reply) if reply.rcode == RCODE_NOERROR => continue,
-        Ok(reply) if reply.rcode == RCODE_NXDOMAIN => {
-          return (Err(ResolveError::NotFound), NEGATIVE_TTL)
-        }
-        Ok(reply) => {
-          return (
-            Err(ResolveError::Failed(format!(
-              "server answered rcode={}",
-              reply.rcode
-            ))),
-            FAILURE_TTL,
-          )
-        }
-        Err(e) => return (Err(e), FAILURE_TTL),
+  /// One family of `name`. An empty list means the name exists without an
+  /// address of that family.
+  async fn lookup(&self, name: &str, qtype: u16) -> (Result<Vec<IpAddr>, ResolveError>, Duration) {
+    match self.query(name, qtype).await {
+      Ok(reply) if reply.rcode == RCODE_NOERROR && !reply.addresses.is_empty() => {
+        let ttl = Duration::from_secs(u64::from(reply.ttl)).clamp(MIN_TTL, MAX_TTL);
+        (Ok(reply.addresses), ttl)
       }
+      Ok(reply) if reply.rcode == RCODE_NOERROR => (Ok(Vec::new()), NEGATIVE_TTL),
+      Ok(reply) if reply.rcode == RCODE_NXDOMAIN => (Err(ResolveError::NotFound), NEGATIVE_TTL),
+      Ok(reply) => (
+        Err(ResolveError::Failed(format!(
+          "server answered rcode={}",
+          reply.rcode
+        ))),
+        FAILURE_TTL,
+      ),
+      Err(e) => (Err(e), FAILURE_TTL),
     }
-    (Err(ResolveError::NotFound), NEGATIVE_TTL)
   }
 
   async fn query(&self, name: &str, qtype: u16) -> Result<Reply, ResolveError> {
@@ -1365,6 +1433,112 @@ mod tests {
       Ok(vec!["2001:db8::1".parse().unwrap()])
     );
     assert_eq!(queries.load(std::sync::atomic::Ordering::SeqCst), 2);
+  }
+
+  const V6: [u8; 16] = [0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+
+  fn dual_stack(name: &str, qtype: u16) -> Answer {
+    match (name, qtype) {
+      ("dual.test", TYPE_A) => (0, vec![(TYPE_A, 600, vec![192, 0, 2, 7])]),
+      ("dual.test", TYPE_AAAA) => (0, vec![(TYPE_AAAA, 600, V6.to_vec())]),
+      ("v4only.test", TYPE_A) => (0, vec![(TYPE_A, 600, vec![192, 0, 2, 8])]),
+      (_, _) => (0, Vec::new()),
+    }
+  }
+
+  #[tokio::test]
+  async fn the_other_family_is_asked_for_only_when_a_dial_needs_it() {
+    let (port, queries) = start_dns_server(dual_stack).await;
+    let resolver = tcp_resolver(port);
+    let v4 = resolver.resolve("dual.test").await.unwrap();
+    assert_eq!(v4, vec![IpAddr::from([192, 0, 2, 7])]);
+    assert_eq!(queries.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+    let v6 = resolver.resolve_other_family("dual.test", &v4).await;
+    assert_eq!(v6, vec![IpAddr::from(V6)]);
+    assert_eq!(resolver.resolve_other_family("dual.test", &v6).await, v4);
+    assert!(resolver
+      .resolve_other_family("v4only.test", &[IpAddr::from([192, 0, 2, 8])])
+      .await
+      .is_empty());
+    assert!(resolver
+      .resolve_other_family("192.0.2.1", &v4)
+      .await
+      .is_empty());
+
+    resolver.note_reached(v6[0]);
+    assert_eq!(resolver.resolve("dual.test").await, Ok(v6));
+    assert_eq!(
+      resolver.resolve("v4only.test").await,
+      Ok(vec![IpAddr::from([192, 0, 2, 8])]),
+      "a name without IPv6 still resolves"
+    );
+  }
+
+  /// An HTTP proxy whose exit reaches IPv6 only: a CONNECT to an IPv4
+  /// address fails with 502. Returns its port and the CONNECT targets.
+  async fn start_ipv6_only_proxy() -> (u16, Arc<Mutex<Vec<String>>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let targets = Arc::new(Mutex::new(Vec::new()));
+    let seen = targets.clone();
+    tokio::spawn(async move {
+      while let Ok((mut stream, _)) = listener.accept().await {
+        let seen = seen.clone();
+        tokio::spawn(async move {
+          let mut request = Vec::new();
+          let mut byte = [0u8; 1];
+          while !request.ends_with(b"\r\n\r\n") {
+            if stream.read_exact(&mut byte).await.is_err() {
+              return;
+            }
+            request.push(byte[0]);
+          }
+          let target = String::from_utf8_lossy(&request)
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or_default()
+            .to_string();
+          let reply: &[u8] = if target.starts_with('[') {
+            b"HTTP/1.1 200 Connection established\r\n\r\n"
+          } else {
+            b"HTTP/1.1 502 Bad Gateway\r\n\r\n"
+          };
+          lock(&seen).push(target);
+          let _ = stream.write_all(reply).await;
+          let _ = stream.read(&mut byte).await;
+        });
+      }
+    });
+    (port, targets)
+  }
+
+  #[tokio::test]
+  async fn an_ipv6_only_exit_reaches_a_dual_stack_name_and_keeps_ipv6_first() {
+    let (dns_port, _) = start_dns_server(dual_stack).await;
+    let (proxy_port, targets) = start_ipv6_only_proxy().await;
+    let resolver = tcp_resolver(dns_port);
+    let upstream = format!("http://127.0.0.1:{proxy_port}");
+    let bypass = crate::proxy_server::BypassMatcher::new(&[]);
+    let dial = || {
+      crate::proxy_server::connect_to_target_via_upstream(
+        "dual.test",
+        443,
+        Some(&upstream),
+        &bypass,
+        Some(&resolver),
+      )
+    };
+
+    assert!(dial().await.is_ok());
+    assert_eq!(
+      *lock(&targets),
+      vec!["192.0.2.7:443".to_string(), "[2001:db8::1]:443".to_string()]
+    );
+
+    assert!(dial().await.is_ok());
+    assert_eq!(lock(&targets).len(), 3, "the second dial asks IPv6 first");
+    assert_eq!(lock(&targets)[2], "[2001:db8::1]:443");
   }
 
   #[tokio::test]

@@ -253,6 +253,38 @@ export function splitProxyScheme(line: string): {
 }
 
 /**
+ * The colon-separated fields of a proxy line. An IPv6 address in brackets at
+ * the start of a field stays one field: `[2001:db8::1]:8080:user:pass`.
+ * Mirrors `split_proxy_fields` in `proxy_manager.rs`.
+ */
+export function splitProxyFields(line: string): string[] {
+  const fields: string[] = [];
+  let rest = line;
+  for (;;) {
+    const end = rest.startsWith("[") ? rest.indexOf("]") : -1;
+    if (end !== -1) {
+      const after = rest.slice(end + 1);
+      if (after === "") {
+        fields.push(rest);
+        return fields;
+      }
+      if (after.startsWith(":")) {
+        fields.push(rest.slice(0, end + 1));
+        rest = after.slice(1);
+        continue;
+      }
+    }
+    const colon = rest.indexOf(":");
+    if (colon === -1) {
+      fields.push(rest);
+      return fields;
+    }
+    fields.push(rest.slice(0, colon));
+    rest = rest.slice(colon + 1);
+  }
+}
+
+/**
  * Builds a proxy from a four-part line once the user has said which of the two
  * orderings it uses. Returns null when the chosen ordering doesn't actually fit
  * the line, so a stale selection can't produce a proxy pointing at a password.
@@ -263,7 +295,7 @@ export function resolveAmbiguousProxyLine(
 ): ParsedProxyLine | null {
   const trimmed = line.trim();
   const { proxyType, rest } = splitProxyScheme(trimmed);
-  const parts = rest.split(":");
+  const parts = splitProxyFields(rest);
   if (parts.length !== 4) {
     return null;
   }

@@ -9,6 +9,7 @@ import {
   pickParsedProxy,
   proxyProtocolToken,
   resolveAmbiguousProxyLine,
+  splitProxyFields,
   splitProxyScheme,
 } from "./proxy-string.ts";
 import { canonicalProxyType } from "./proxy-type.ts";
@@ -137,6 +138,31 @@ test("credentials-first resolution reads the tail as the endpoint", () => {
       username: "1234",
       password: "5678",
       original_line: "1234:5678:9012:3456",
+    },
+  );
+});
+
+test("a bracketed IPv6 host stays one field", () => {
+  assert.deepEqual(splitProxyFields("[2001:db8::1]:8080:1234:5678"), [
+    "[2001:db8::1]",
+    "8080",
+    "1234",
+    "5678",
+  ]);
+  assert.deepEqual(splitProxyFields("1:2:[a:b]"), ["1", "2", "[a:b]"]);
+  assert.deepEqual(splitProxyFields("h:80:[u:p"), ["h", "80", "[u", "p"]);
+  assert.deepEqual(
+    resolveAmbiguousProxyLine(
+      "1234:5678:[2001:db8::1]:80",
+      CREDENTIALS_FIRST_FORMAT,
+    ),
+    {
+      proxy_type: "http",
+      host: "[2001:db8::1]",
+      port: 80,
+      username: "1234",
+      password: "5678",
+      original_line: "1234:5678:[2001:db8::1]:80",
     },
   );
 });

@@ -137,10 +137,28 @@ pub fn build_proxy_url(
   } else if let Some(user) = username {
     url.push_str(&format!("{}@", urlencoding::encode(user)));
   }
-  url.push_str(host);
+  url.push_str(&url_host(host));
   url.push(':');
   url.push_str(&port.to_string());
   url
+}
+
+/// `host` without the brackets of an IPv6 address, for a socket connect.
+pub fn bare_host(host: &str) -> &str {
+  host
+    .strip_prefix('[')
+    .and_then(|h| h.strip_suffix(']'))
+    .unwrap_or(host)
+}
+
+/// `host` as the host of a URL: a bare IPv6 address gets its brackets, or
+/// its last group reads as the port.
+pub fn url_host(host: &str) -> std::borrow::Cow<'_, str> {
+  if host.parse::<std::net::Ipv6Addr>().is_ok() {
+    format!("[{host}]").into()
+  } else {
+    host.into()
+  }
 }
 
 /// Rewrite a stored upstream URL into something `reqwest::Proxy` accepts.

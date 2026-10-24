@@ -13,7 +13,7 @@ use regex_lite::Regex;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::io;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -882,7 +882,7 @@ async fn handle_http_via_socks4(
     }
   };
 
-  let socks_host = upstream.host_str().unwrap_or("127.0.0.1");
+  let socks_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
   let socks_port = upstream.port().unwrap_or(1080);
 
   // Parse target from request URI
@@ -1216,7 +1216,7 @@ async fn handle_http_via_shadowsocks(
     .unwrap_or_else(|| "unknown".to_string());
   let port = req.uri().port_u16().unwrap_or(80);
 
-  let ss_host = upstream.host_str().unwrap_or("127.0.0.1");
+  let ss_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
   let ss_port = upstream.port().unwrap_or(8388);
   let method_str = urlencoding::decode(upstream.username())
     .unwrap_or_default()
@@ -2490,50 +2490,68 @@ pub(crate) async fn connect_to_target_via_upstream(
   let Some(resolver) = resolver.filter(|_| !should_bypass) else {
     return dial_route(target_host, target_port, upstream_url, should_bypass).await;
   };
-  let addresses: Vec<SocketAddr> = resolver
-    .resolve(target_host)
-    .await?
-    .iter()
-    .map(|ip| SocketAddr::new(*ip, target_port))
-    .collect();
+  let addresses = resolver.resolve(target_host).await?;
   let authority = connect_authority(target_host, target_port);
   if matches!(upstream_url, None | Some("DIRECT")) {
     let (stream, _) = crate::dialer::connect_addrs(
       &format!("direct connect to {authority}"),
-      addresses,
+      addresses
+        .iter()
+        .map(|ip| SocketAddr::new(*ip, target_port))
+        .collect(),
       tokio::time::Instant::now() + DIRECT_CONNECT_TIMEOUT,
       DIRECT_CONNECT_TIMEOUT,
     )
     .await?;
     return Ok(Box::new(stream));
   }
-  // Each attempt is a whole dial through the upstream, so the next address
-  // waits longer, and only a second address gets a turn: it covers an exit
-  // that cannot reach the first one.
-  let limit = 2 * UPSTREAM_DIAL_TIMEOUT;
+  let what = format!("connect to {authority} through the upstream");
+  let failure = match dial_addresses_via_upstream(&addresses, target_port, upstream_url).await {
+    Ok((stream, reached)) => {
+      resolver.note_reached(reached);
+      return Ok(stream);
+    }
+    Err(failure) => failure,
+  };
+  let other = resolver.resolve_other_family(target_host, &addresses).await;
+  if other.is_empty() {
+    return Err(failure.into_error(&what, 2 * UPSTREAM_DIAL_TIMEOUT).into());
+  }
+  match dial_addresses_via_upstream(&other, target_port, upstream_url).await {
+    Ok((stream, reached)) => {
+      resolver.note_reached(reached);
+      Ok(stream)
+    }
+    Err(failure) => Err(failure.into_error(&what, 2 * UPSTREAM_DIAL_TIMEOUT).into()),
+  }
+}
+
+/// Dial the first two of `addresses` through the upstream. Each attempt is a
+/// whole dial through the upstream, so the second address waits longer, and
+/// only a second address gets a turn: it covers an exit that cannot reach the
+/// first one.
+async fn dial_addresses_via_upstream(
+  addresses: &[IpAddr],
+  target_port: u16,
+  upstream_url: Option<&str>,
+) -> Result<(BoxedAsyncStream, IpAddr), crate::dialer::RaceFailure> {
   let plan = crate::dialer::Race {
     stagger: UPSTREAM_ATTEMPT_DELAY,
     attempt_timeout: UPSTREAM_DIAL_TIMEOUT,
-    deadline: tokio::time::Instant::now() + limit,
+    deadline: tokio::time::Instant::now() + 2 * UPSTREAM_DIAL_TIMEOUT,
   };
-  let candidates = addresses.into_iter().take(2).collect();
-  let raced = crate::dialer::race(candidates, &plan, |address| async move {
+  let candidates = addresses
+    .iter()
+    .take(2)
+    .map(|ip| SocketAddr::new(*ip, target_port))
+    .collect();
+  crate::dialer::race(candidates, &plan, |address| async move {
     dial_route(&address.ip().to_string(), target_port, upstream_url, false)
       .await
       .map_err(|e| io::Error::other(e.to_string()))
   })
-  .await;
-  match raced {
-    Ok((stream, _)) => Ok(stream),
-    Err(failure) => Err(
-      failure
-        .into_error(
-          &format!("connect to {authority} through the upstream"),
-          limit,
-        )
-        .into(),
-    ),
-  }
+  .await
+  .map(|(stream, address)| (stream, address.ip()))
 }
 
 /// Dial `target_host:target_port` over the route as given, with no name
@@ -2559,7 +2577,7 @@ pub(crate) async fn dial_route(
           // stored `https` proxy, so the encrypted hop is the separate
           // `httpstls` scheme below.
           "http" | "https" => {
-            let proxy_host = upstream.host_str().unwrap_or("127.0.0.1");
+            let proxy_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
             let proxy_port = upstream.port().unwrap_or(8080);
             let proxy_stream = crate::dialer::connect_host(
               "upstream proxy",
@@ -2583,7 +2601,7 @@ pub(crate) async fn dial_route(
           // `Proxy-Authorization` credentials are written only after the
           // handshake, so neither reaches the wire in the clear.
           "httpstls" => {
-            let proxy_host = upstream.host_str().unwrap_or("127.0.0.1");
+            let proxy_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
             let proxy_port = upstream.port().unwrap_or(443);
             let tcp = crate::dialer::connect_host(
               "upstream proxy",
@@ -2606,7 +2624,7 @@ pub(crate) async fn dial_route(
             .await?
           }
           "socks4" | "socks5" => {
-            let socks_host = upstream.host_str().unwrap_or("127.0.0.1");
+            let socks_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
             let socks_port = upstream.port().unwrap_or(1080);
 
             let (username, password) = upstream_userpass(&upstream);
@@ -2627,7 +2645,7 @@ pub(crate) async fn dial_route(
             // Shadowsocks: URL format is ss://method:password@host:port
             // where "method" is the cipher (e.g. aes-256-gcm, chacha20-ietf-poly1305)
             // and "password" is the SS server password.
-            let ss_host = upstream.host_str().unwrap_or("127.0.0.1");
+            let ss_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
             let ss_port = upstream.port().unwrap_or(8388);
 
             // The "username" field carries the cipher method
