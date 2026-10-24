@@ -20,9 +20,8 @@ registerHooks({
   },
 });
 
-const { SHORTCUTS, matchesShortcut, shortcutKeys } = await import(
-  "./shortcuts.ts"
-);
+const { SHORTCUTS, matchesGroupDigit, matchesShortcut, shortcutKeys } =
+  await import("./shortcuts.ts");
 
 function lookup(tree, key) {
   return key
@@ -43,6 +42,19 @@ function keyEvent(key, mods = {}) {
     altKey: Boolean(mods.alt),
   };
 }
+
+test("a keydown without a key matches nothing", () => {
+  // Chromium sends these when autofill fills a field.
+  for (const s of SHORTCUTS) {
+    assert.equal(
+      matchesShortcut(s, keyEvent(undefined, { mod: s.mod })),
+      false,
+    );
+  }
+  assert.equal(matchesGroupDigit(keyEvent(undefined, { mod: true })), null);
+  assert.equal(matchesGroupDigit(keyEvent("1x", { mod: true })), null);
+  assert.equal(matchesGroupDigit(keyEvent("3", { mod: true })), 3);
+});
 
 test("no two shortcuts share a chord", () => {
   const seen = new Map();

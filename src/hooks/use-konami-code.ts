@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { isKey } from "@/lib/shortcuts";
 
 /** Up, up, down, down, left, right, left, right, B, A. */
 const SEQUENCE = [
@@ -43,7 +44,9 @@ export function useKonamiCode(onUnlock: () => void) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || !isKey(event)) {
+        return;
+      }
       if (isTyping(event.target)) {
         progress.current = 0;
         return;
