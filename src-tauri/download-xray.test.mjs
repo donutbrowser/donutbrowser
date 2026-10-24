@@ -20,31 +20,31 @@ import {
 const EXPECTED_ASSETS = {
   "aarch64-apple-darwin": [
     "Xray-macos-arm64-v8a.zip",
-    "926cc55fda2a8757dabe4f22dc98772f218ace025f101bd0b68aee232e59d5dc",
+    "2e93a67e8aa1936ecefb307e120830fcbd4c643ab9b1c46a2d0838d5f8409eaf",
   ],
   "x86_64-apple-darwin": [
     "Xray-macos-64.zip",
-    "8e5169b429e76ce5f550c8294db465bc259f30c158ba900aa40802b76ad2f66e",
+    "f5b0471d3459eff1b82e48af0aeac186abcc3298210070afbbbd8437a4e8b203",
   ],
   "x86_64-unknown-linux-gnu": [
     "Xray-linux-64.zip",
-    "0eec3ed4163c273d8c8bf821f7d219e257921cf584aa3fb970715e458e631978",
+    "23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae",
   ],
   "aarch64-unknown-linux-gnu": [
     "Xray-linux-arm64-v8a.zip",
-    "d1304946c486d98e6b886e9b931eaaaebb23835b30e217638037b7f2721d4e9c",
+    "4d30283ae614e3057f730f67cd088a42be6fdf91f8639d82cb69e48cde80413c",
   ],
   "x86_64-pc-windows-msvc": [
     "Xray-windows-64.zip",
-    "fc58c39ee2f2717b4c54d28d374362389e5319b20ae44aea76ea45a5243ec827",
+    "d004c39288ce9ada487c6f398c7c545f7d749e44bdfdd59dbc9f865afba4e1ad",
   ],
 };
 
 test("pins the official Xray-core release and supported assets", () => {
-  assert.equal(XRAY_VERSION, "v26.10.21");
+  assert.equal(XRAY_VERSION, "v26.3.27");
   assert.equal(
     XRAY_SOURCE_URL,
-    "https://github.com/XTLS/Xray-core/tree/v26.10.21",
+    "https://github.com/XTLS/Xray-core/tree/v26.3.27",
   );
   assert.deepEqual(
     Object.fromEntries(
@@ -60,7 +60,7 @@ test("pins the official Xray-core release and supported assets", () => {
     assert.match(asset.sha256, /^[a-f0-9]{64}$/);
     assert.equal(
       xrayDownloadUrl(asset.name),
-      `https://github.com/XTLS/Xray-core/releases/download/v26.10.21/${asset.name}`,
+      `https://github.com/XTLS/Xray-core/releases/download/v26.3.27/${asset.name}`,
     );
   }
 });
