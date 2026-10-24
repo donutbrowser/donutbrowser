@@ -1,6 +1,24 @@
 # Changelog
 
 
+## v0.35.4 (2026-10-24)
+
+### Bug Fixes
+
+- bump multer
+- renew wayfern token
+- headless profile folder
+
+### Documentation
+
+- update CHANGELOG.md and README.md for v0.35.3 [skip ci] (#682)
+
+### Maintenance
+
+- chore: version bump
+- chore: update flake.nix for v0.35.3 [skip ci] (#683)
+
+
 ## v0.35.3 (2026-10-23)
 
 ### Features
