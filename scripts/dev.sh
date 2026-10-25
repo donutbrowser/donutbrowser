@@ -38,8 +38,8 @@ cleanup() {
     kill "$SYNC_PID" 2>/dev/null || true
   fi
 
-  # Stop MinIO container
-  echo -e "${BLUE}Stopping MinIO container...${NC}"
+  # Stop the S3 test server
+  echo -e "${BLUE}Stopping the S3 test server...${NC}"
   cd "$SYNC_DIR" && docker compose down 2>/dev/null || true
 
   # Wait for processes to finish
@@ -71,39 +71,20 @@ fi
 echo -e "${GREEN}Prerequisites OK${NC}"
 echo ""
 
-# Start MinIO container
-echo -e "${YELLOW}Starting MinIO (S3) container...${NC}"
+# Start the S3 test server
+echo -e "${YELLOW}Starting the S3 test server...${NC}"
 cd "$SYNC_DIR"
-docker compose up -d
-
-# Wait for MinIO to be healthy
-echo -e "${YELLOW}Waiting for MinIO to be healthy...${NC}"
-MAX_RETRIES=30
-RETRY_COUNT=0
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  if curl -sf http://127.0.0.1:8987/minio/health/live > /dev/null 2>&1; then
-    echo -e "${GREEN}MinIO is ready!${NC}"
-    break
-  fi
-  RETRY_COUNT=$((RETRY_COUNT + 1))
-  if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo -e "${RED}MinIO failed to start within timeout${NC}"
-    exit 1
-  fi
-  sleep 1
-done
+if ! docker compose up -d --wait; then
+  echo -e "${RED}The S3 test server failed to start${NC}"
+  exit 1
+fi
 echo ""
 
-# Install sync backend dependencies if needed
-if [ ! -d "$SYNC_DIR/node_modules" ]; then
-  echo -e "${YELLOW}Installing sync backend dependencies...${NC}"
-  cd "$SYNC_DIR" && pnpm install
-fi
-
-# Start sync backend in background
+# Build and start the sync backend in the background
 echo -e "${YELLOW}Starting sync backend...${NC}"
 cd "$SYNC_DIR"
-pnpm start:dev &
+cargo build --locked
+cargo run --locked &
 SYNC_PID=$!
 
 # Wait for sync backend to be ready
@@ -133,7 +114,6 @@ echo ""
 echo -e "${YELLOW}Starting Tauri development server...${NC}"
 echo -e "${BLUE}Frontend: http://localhost:12341${NC}"
 echo -e "${BLUE}Sync Backend: http://localhost:12342${NC}"
-echo -e "${BLUE}MinIO Console: http://localhost:8988${NC}"
 echo ""
 cd "$ROOT_DIR"
 pnpm tauri dev &

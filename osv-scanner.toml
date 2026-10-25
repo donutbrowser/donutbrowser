@@ -6,7 +6,8 @@
 # `ignoreUntil` is a deadline, not a dismissal: once it passes the advisory
 # fails the scan again, which is the point. Re-check with
 #   docker run --rm -v "$PWD":/src -w /src ghcr.io/google/osv-scanner-action:v2.6.0 \
-#     --format=table -r --lockfile=pnpm-lock.yaml --lockfile=src-tauri/Cargo.lock ./
+#     --format=table -r --lockfile=pnpm-lock.yaml --lockfile=src-tauri/Cargo.lock \
+#     --lockfile=donut-sync/Cargo.lock ./
 
 # Fixed in glib 0.20, which the GTK stack under Tauri does not use yet. Pulled
 # in on Linux targets only, through tauri -> gtk -> glib, so it moves when Tauri

@@ -1,7 +1,7 @@
 # Storage for developing and testing donut-sync itself. It runs an S3 server
 # only, and the sync server is expected to run on the host beside it
-# (`pnpm start:dev`), which is why the port is published and matches the one
-# pinned in test/test-env.ts.
+# (`cargo run`), which is why the port is published and matches the one the
+# tests use (tests/common/mod.rs).
 #
 # This is NOT the self-hosting compose file. That one runs donut-sync in a
 # container too, and it must set S3_PUBLIC_ENDPOINT, because a server that signs

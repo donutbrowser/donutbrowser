@@ -1,0 +1,278 @@
+[
+  {
+    "endpoint": "http://127.0.0.1:8987",
+    "bucket": "donut-sync",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "profiles/p1/files/Default/Cookies",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "PUT",
+    "url": "http://127.0.0.1:8987/donut-sync/profiles/p1/files/Default/Cookies?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=46cd8bfa3f2a2e76239a9d6c4f7184b6af80ba89649dffcb3b2ffd31a146c944&X-Amz-SignedHeaders=host&x-id=PutObject"
+  },
+  {
+    "endpoint": "http://127.0.0.1:8987",
+    "bucket": "donut-sync",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "profiles/p1/files/Default/Cookies",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "GET",
+    "url": "http://127.0.0.1:8987/donut-sync/profiles/p1/files/Default/Cookies?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=fe2bb206a4c5886a46260a67bda180f9d88c79cfea5b19fcbef202cbee44f70f&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "http://127.0.0.1:8987",
+    "bucket": "donut-sync",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "probe/a b+c (1)!*'~.txt",
+    "expiresIn": 60,
+    "metadata": null,
+    "method": "PUT",
+    "url": "http://127.0.0.1:8987/donut-sync/probe/a%20b%2Bc%20%281%29%21%2A%27~.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=60&X-Amz-Signature=2d56dd5d2c389d96caebe0b26f164290b486648fc3c3180a58cca4d4c7466834&X-Amz-SignedHeaders=host&x-id=PutObject"
+  },
+  {
+    "endpoint": "http://127.0.0.1:8987",
+    "bucket": "donut-sync",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "probe/a b+c (1)!*'~.txt",
+    "expiresIn": 60,
+    "metadata": null,
+    "method": "GET",
+    "url": "http://127.0.0.1:8987/donut-sync/probe/a%20b%2Bc%20%281%29%21%2A%27~.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=60&X-Amz-Signature=14c5eb20e6aad7a78078d48964fa65a1b47eef4e7a5cacc658349e66a6b06dba&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "http://127.0.0.1:8987",
+    "bucket": "donut-sync",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "vpns/ü/日本.json",
+    "expiresIn": 3600,
+    "metadata": {
+      "updated-at": "1700000000",
+      "group-id": "g_1"
+    },
+    "method": "PUT",
+    "url": "http://127.0.0.1:8987/donut-sync/vpns/%C3%BC/%E6%97%A5%E6%9C%AC.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=103778ef846327ca303a4699191c43086ff6fc4720dd49670047e60795ba5a1e&X-Amz-SignedHeaders=host%3Bx-amz-meta-group-id%3Bx-amz-meta-updated-at&x-id=PutObject"
+  },
+  {
+    "endpoint": "http://127.0.0.1:8987",
+    "bucket": "donut-sync",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "vpns/ü/日本.json",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "GET",
+    "url": "http://127.0.0.1:8987/donut-sync/vpns/%C3%BC/%E6%97%A5%E6%9C%AC.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=9535ddb4630eb5ad1aa184962ebd3ff78ceefb62c5e31a1b0f447391010098ce&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "https://acc123.r2.cloudflarestorage.com",
+    "bucket": "donut-prod",
+    "forcePathStyle": true,
+    "region": "auto",
+    "key": "profiles/p1/files/Default/Cookies",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "PUT",
+    "url": "https://acc123.r2.cloudflarestorage.com/donut-prod/profiles/p1/files/Default/Cookies?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=45d6c999f12983f160c02a72a48ee961f56174f3b5de52691b1272971efe6b8e&X-Amz-SignedHeaders=host&x-id=PutObject"
+  },
+  {
+    "endpoint": "https://acc123.r2.cloudflarestorage.com",
+    "bucket": "donut-prod",
+    "forcePathStyle": true,
+    "region": "auto",
+    "key": "profiles/p1/files/Default/Cookies",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "GET",
+    "url": "https://acc123.r2.cloudflarestorage.com/donut-prod/profiles/p1/files/Default/Cookies?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=8cd8bf4263c858876f72f22a18a14d958be1e4fb0bc56cd8ed7f2f625f638164&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "https://acc123.r2.cloudflarestorage.com",
+    "bucket": "donut-prod",
+    "forcePathStyle": true,
+    "region": "auto",
+    "key": "probe/a b+c (1)!*'~.txt",
+    "expiresIn": 60,
+    "metadata": null,
+    "method": "PUT",
+    "url": "https://acc123.r2.cloudflarestorage.com/donut-prod/probe/a%20b%2Bc%20%281%29%21%2A%27~.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=60&X-Amz-Signature=d8ffebc547cc6b8810dbd9a46515ba1b2fe3f164c0d220c724703ec743329847&X-Amz-SignedHeaders=host&x-id=PutObject"
+  },
+  {
+    "endpoint": "https://acc123.r2.cloudflarestorage.com",
+    "bucket": "donut-prod",
+    "forcePathStyle": true,
+    "region": "auto",
+    "key": "probe/a b+c (1)!*'~.txt",
+    "expiresIn": 60,
+    "metadata": null,
+    "method": "GET",
+    "url": "https://acc123.r2.cloudflarestorage.com/donut-prod/probe/a%20b%2Bc%20%281%29%21%2A%27~.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=60&X-Amz-Signature=6d7e983aeef78aebd5ddaf306e2c312500f3093657fac947d8042869dfd4e6d0&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "https://acc123.r2.cloudflarestorage.com",
+    "bucket": "donut-prod",
+    "forcePathStyle": true,
+    "region": "auto",
+    "key": "vpns/ü/日本.json",
+    "expiresIn": 3600,
+    "metadata": {
+      "updated-at": "1700000000",
+      "group-id": "g_1"
+    },
+    "method": "PUT",
+    "url": "https://acc123.r2.cloudflarestorage.com/donut-prod/vpns/%C3%BC/%E6%97%A5%E6%9C%AC.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=dbb84d3697ddab4d530a5677e8216aac3eb62e8b8e153b1ba774ea7b03bfff6b&X-Amz-SignedHeaders=host%3Bx-amz-meta-group-id%3Bx-amz-meta-updated-at&x-id=PutObject"
+  },
+  {
+    "endpoint": "https://acc123.r2.cloudflarestorage.com",
+    "bucket": "donut-prod",
+    "forcePathStyle": true,
+    "region": "auto",
+    "key": "vpns/ü/日本.json",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "GET",
+    "url": "https://acc123.r2.cloudflarestorage.com/donut-prod/vpns/%C3%BC/%E6%97%A5%E6%9C%AC.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=60c221f1ab94f9674904ad742894475408a440c3911494718f8a5285914ab20d&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "https://s3.eu-west-1.amazonaws.com",
+    "bucket": "my-bucket",
+    "forcePathStyle": false,
+    "region": "eu-west-1",
+    "key": "profiles/p1/files/Default/Cookies",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "PUT",
+    "url": "https://my-bucket.s3.eu-west-1.amazonaws.com/profiles/p1/files/Default/Cookies?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=7cc3a3c483fee9cf6653d9212acb3692c9870b240e8b564b4037ca759deac37f&X-Amz-SignedHeaders=host&x-id=PutObject"
+  },
+  {
+    "endpoint": "https://s3.eu-west-1.amazonaws.com",
+    "bucket": "my-bucket",
+    "forcePathStyle": false,
+    "region": "eu-west-1",
+    "key": "profiles/p1/files/Default/Cookies",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "GET",
+    "url": "https://my-bucket.s3.eu-west-1.amazonaws.com/profiles/p1/files/Default/Cookies?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=b610b9423d6a5cc6ed2ba0901cf7beb10bd725035128bb8461a83d80c0103d30&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "https://s3.eu-west-1.amazonaws.com",
+    "bucket": "my-bucket",
+    "forcePathStyle": false,
+    "region": "eu-west-1",
+    "key": "probe/a b+c (1)!*'~.txt",
+    "expiresIn": 60,
+    "metadata": null,
+    "method": "PUT",
+    "url": "https://my-bucket.s3.eu-west-1.amazonaws.com/probe/a%20b%2Bc%20%281%29%21%2A%27~.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=60&X-Amz-Signature=573f967ff553409312b011e0ea9453ee5507e9ba932273ef20a2f66dfed9e0fc&X-Amz-SignedHeaders=host&x-id=PutObject"
+  },
+  {
+    "endpoint": "https://s3.eu-west-1.amazonaws.com",
+    "bucket": "my-bucket",
+    "forcePathStyle": false,
+    "region": "eu-west-1",
+    "key": "probe/a b+c (1)!*'~.txt",
+    "expiresIn": 60,
+    "metadata": null,
+    "method": "GET",
+    "url": "https://my-bucket.s3.eu-west-1.amazonaws.com/probe/a%20b%2Bc%20%281%29%21%2A%27~.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=60&X-Amz-Signature=fbad522cbd964e859b241ba722ef74b24f79294371225bb25108ece962d46042&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "https://s3.eu-west-1.amazonaws.com",
+    "bucket": "my-bucket",
+    "forcePathStyle": false,
+    "region": "eu-west-1",
+    "key": "vpns/ü/日本.json",
+    "expiresIn": 3600,
+    "metadata": {
+      "updated-at": "1700000000",
+      "group-id": "g_1"
+    },
+    "method": "PUT",
+    "url": "https://my-bucket.s3.eu-west-1.amazonaws.com/vpns/%C3%BC/%E6%97%A5%E6%9C%AC.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=b2334d856b3df55c2a915736db01644774629c6e619fe785cf1f157eca89b9bc&X-Amz-SignedHeaders=host%3Bx-amz-meta-group-id%3Bx-amz-meta-updated-at&x-id=PutObject"
+  },
+  {
+    "endpoint": "https://s3.eu-west-1.amazonaws.com",
+    "bucket": "my-bucket",
+    "forcePathStyle": false,
+    "region": "eu-west-1",
+    "key": "vpns/ü/日本.json",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "GET",
+    "url": "https://my-bucket.s3.eu-west-1.amazonaws.com/vpns/%C3%BC/%E6%97%A5%E6%9C%AC.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=be08b1e53788b7e6bf22be0229afbc30f9dc9aca453ef7a6cb5fc4ae65ea7b47&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "https://storage.example.com:8443/base",
+    "bucket": "b",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "profiles/p1/files/Default/Cookies",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "PUT",
+    "url": "https://storage.example.com:8443/base/b/profiles/p1/files/Default/Cookies?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=7e79623f45dcb355ea8700c2573d8349fc2304b9884be75d96b8145de3737906&X-Amz-SignedHeaders=host&x-id=PutObject"
+  },
+  {
+    "endpoint": "https://storage.example.com:8443/base",
+    "bucket": "b",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "profiles/p1/files/Default/Cookies",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "GET",
+    "url": "https://storage.example.com:8443/base/b/profiles/p1/files/Default/Cookies?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=2f456ea892864f09c7d8d921379c4609bbed942dc3ae08706f7352f038b519db&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "https://storage.example.com:8443/base",
+    "bucket": "b",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "probe/a b+c (1)!*'~.txt",
+    "expiresIn": 60,
+    "metadata": null,
+    "method": "PUT",
+    "url": "https://storage.example.com:8443/base/b/probe/a%20b%2Bc%20%281%29%21%2A%27~.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=60&X-Amz-Signature=5692603d9c6de89029e2acd904b0ac435840a9339b53a9e6f5a1fc051e1b6b60&X-Amz-SignedHeaders=host&x-id=PutObject"
+  },
+  {
+    "endpoint": "https://storage.example.com:8443/base",
+    "bucket": "b",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "probe/a b+c (1)!*'~.txt",
+    "expiresIn": 60,
+    "metadata": null,
+    "method": "GET",
+    "url": "https://storage.example.com:8443/base/b/probe/a%20b%2Bc%20%281%29%21%2A%27~.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=60&X-Amz-Signature=e6ed7fbd43d0de572b23b9669bcfa811d838076c73df978009f0bbfc7e161054&X-Amz-SignedHeaders=host&x-id=GetObject"
+  },
+  {
+    "endpoint": "https://storage.example.com:8443/base",
+    "bucket": "b",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "vpns/ü/日本.json",
+    "expiresIn": 3600,
+    "metadata": {
+      "updated-at": "1700000000",
+      "group-id": "g_1"
+    },
+    "method": "PUT",
+    "url": "https://storage.example.com:8443/base/b/vpns/%C3%BC/%E6%97%A5%E6%9C%AC.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=6cad180b6ff529791384b33db1d8efad977ba27a6322911fe6726ba7bccd2bf3&X-Amz-SignedHeaders=host%3Bx-amz-meta-group-id%3Bx-amz-meta-updated-at&x-id=PutObject"
+  },
+  {
+    "endpoint": "https://storage.example.com:8443/base",
+    "bucket": "b",
+    "forcePathStyle": true,
+    "region": "us-east-1",
+    "key": "vpns/ü/日本.json",
+    "expiresIn": 3600,
+    "metadata": null,
+    "method": "GET",
+    "url": "https://storage.example.com:8443/base/b/vpns/%C3%BC/%E6%97%A5%E6%9C%AC.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIDEXAMPLE%2F20261025%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261025T090211Z&X-Amz-Expires=3600&X-Amz-Signature=845787aef3e60f542bbb629c488f5f993b879300a694bd595370d9d007c707fe&X-Amz-SignedHeaders=host&x-id=GetObject"
+  }
+]

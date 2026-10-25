@@ -1,10 +1,5 @@
+target
+tests
 .env
 .env.*
-!.env.example
-coverage
-.nyc_output
-.temp
-.tmp
-.git
 *.log
-test

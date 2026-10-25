@@ -142,3 +142,50 @@ jobs:
         run: |
           command -v cargo-audit > /dev/null || cargo install cargo-audit --locked
           cargo audit
+
+  # The sync server is its own crate. Its end-to-end tests run the binary
+  # against the S3 test server, which needs Docker, so Linux only.
+  donut-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ./donut-sync
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 #master
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 #v2.9.3
+        with:
+          workspaces: "donut-sync -> target"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Run rustfmt check
+        run: cargo fmt --check
+
+      - name: Run clippy check and deny warnings
+        run: cargo clippy --all-targets --locked -- -D warnings -D clippy::all
+
+      - name: Start test storage
+        run: docker compose -f docker-compose.yml up -d --wait
+
+      - name: Run test suite
+        run: cargo test --locked
+
+      - name: Stop test storage
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
+
+      - name: Run cargo audit security check
+        run: |
+          command -v cargo-audit > /dev/null || cargo install cargo-audit --locked
+          cargo audit

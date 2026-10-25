@@ -34,53 +34,59 @@ jobs:
   # donut-sync's own end-to-end suite covers which host it signs into presigned
   # URLs. That is the whole of the self-hosted sync failure in issue 534: sign
   # against an address only the server can reach and every client transfer dies
-  # at connect while /health and /readyz stay green. The suite existed and was
-  # never run by anything, so the guard was decorative. Run it here, before the
+  # at connect while /health and /readyz stay green. Run it here, before the
   # image ships, because an image with broken presigning is the thing that
   # reaches users.
   #
-  # Ubuntu only, and separate from the Rust and Node matrices, because it needs
-  # Docker for the S3 test server.
+  # Ubuntu only: it needs Docker for the S3 test server.
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ./donut-sync
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
-
-      - name: Set up pnpm package manager
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 #v6.1.0
         with:
-          run_install: false
+          persist-credentials: false
 
-      - name: Set up Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 #v7.1.0
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 #master
         with:
-          node-version-file: .node-version
-          cache: "pnpm"
+          toolchain: stable
+          components: rustfmt, clippy
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Rust cache
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 #v2.9.3
+        with:
+          workspaces: "donut-sync -> target"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # Publishes the S3 test server on 8987, the port test/test-env.ts pins.
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings -D clippy::all
+
+      # Publishes the S3 test server on 8987, the port the tests use.
       - name: Start test storage
-        run: docker compose -f donut-sync/docker-compose.yml up -d --wait
+        run: docker compose -f docker-compose.yml up -d --wait
 
-      - name: Run donut-sync end-to-end tests
-        working-directory: ./donut-sync
-        run: pnpm test:e2e
+      - name: Run donut-sync tests
+        run: cargo test --locked
 
       - name: Stop test storage
         if: always()
-        run: docker compose -f donut-sync/docker-compose.yml down -v
+        run: docker compose -f docker-compose.yml down -v
 
   build-and-push:
     needs: test
     # Forks have no Docker Hub credentials; skip instead of failing there.
     if: github.repository == 'donutbrowser/donutbrowser'
     runs-on: ubuntu-latest
-    # A normal build takes 4 to 6 minutes. The emulated arm64 `npm install`
-    # hung four times since August and burned the 6-hour default each time.
+    # Both images are cross-compiled on the runner's own architecture, so
+    # nothing is emulated. The bound keeps a stuck build from burning hours.
     timeout-minutes: 60
     steps:
       - name: Checkout repository
@@ -124,7 +130,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc #v7.4.0
         with:
-          context: .
+          context: ./donut-sync
           file: ./donut-sync/Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.tags }}

@@ -4,7 +4,7 @@
  *
  * This script:
  * 1. Downloads and starts rclone's S3 server (S3-compatible storage)
- * 2. Builds and starts donut-sync server
+ * 2. Builds and starts the donut-sync server
  * 3. Runs the Rust sync e2e tests
  * 4. Cleans up all processes
  *
@@ -13,7 +13,7 @@
 
 import { spawn, execSync } from "child_process";
 import { createWriteStream, existsSync } from "fs";
-import { mkdir, rm, writeFile } from "fs/promises";
+import { mkdir } from "fs/promises";
 import http from "http";
 import https from "https";
 import os from "os";
@@ -150,33 +150,22 @@ async function startS3(bin) {
   return proc;
 }
 
-// tsrs ships binaries for macOS arm64 and Linux only. Where it cannot run
-// (Windows), tsc builds the same config.
-function donutSyncBuildCommand(syncDir) {
-  try {
-    execSync("pnpm exec tsrs --version", { cwd: syncDir, stdio: "ignore" });
-    return "pnpm build";
-  } catch {
-    return "pnpm exec tsc -p tsconfig.build.json --incremental false";
-  }
-}
+const SYNC_BINARY = path.join(
+  ROOT_DIR,
+  "donut-sync",
+  "target",
+  "debug",
+  process.platform === "win32" ? "donut-sync.exe" : "donut-sync",
+);
 
 async function buildDonutSync() {
   log("Building donut-sync...");
-  // An incremental build silently skips emit when
-  // tsconfig.build.tsbuildinfo says nothing changed — even if dist/ was
-  // wiped. Drop the cache so we always produce a fresh dist.
-  const syncDir = path.join(ROOT_DIR, "donut-sync");
-  await rm(path.join(syncDir, "tsconfig.build.tsbuildinfo"), {
-    force: true,
-  });
-  await rm(path.join(syncDir, "dist"), { recursive: true, force: true });
-  execSync(donutSyncBuildCommand(syncDir), {
-    cwd: syncDir,
+  execSync("cargo build --locked", {
+    cwd: path.join(ROOT_DIR, "donut-sync"),
     stdio: process.env.VERBOSE ? "inherit" : "ignore",
   });
-  if (!existsSync(path.join(syncDir, "dist", "main.js"))) {
-    throw new Error("donut-sync build did not produce dist/main.js");
+  if (!existsSync(SYNC_BINARY)) {
+    throw new Error(`donut-sync build did not produce ${SYNC_BINARY}`);
   }
   log("donut-sync built");
 }
@@ -184,8 +173,9 @@ async function buildDonutSync() {
 async function startDonutSync() {
   log(`Starting donut-sync on port ${SYNC_PORT}...`);
 
-  const proc = spawn("node", ["dist/main.js"], {
-    cwd: path.join(ROOT_DIR, "donut-sync"),
+  // Started outside the project, so no developer .env reaches it.
+  const proc = spawn(SYNC_BINARY, [], {
+    cwd: os.tmpdir(),
     env: {
       ...process.env,
       PORT: String(SYNC_PORT),

@@ -1,0 +1,43 @@
+[package]
+name = "donut-sync"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0"
+publish = false
+description = "Donut Browser sync server: S3-backed storage for profiles and settings"
+
+[[bin]]
+name = "donut-sync"
+path = "src/main.rs"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[dependencies]
+async-trait = "0.1.92"
+base64 = "0.23.1"
+bytes = "1.12.1"
+dotenvy = "0.15.7"
+futures-util = "0.3.34"
+hex = "0.4.3"
+hmac = "0.13.0"
+http-body-util = "0.1.5"
+httpdate = "1.0.3"
+hyper = { version = "1.12.0", features = ["server", "http1"] }
+hyper-util = { version = "0.1.21", features = ["tokio", "server", "http1", "server-graceful"] }
+md-5 = "0.11.0"
+rand = "0.10.3"
+regex-lite = "0.1.9"
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
+ring = "0.17.14"
+roxmltree = "0.21.2"
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+sha2 = "0.11.1"
+socket2 = "0.6.5"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "signal", "time", "sync", "fs"] }
+url = "2.5.8"
+uuid = { version = "1.29.0", features = ["v4"] }

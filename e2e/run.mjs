@@ -586,11 +586,16 @@ async function startSyncInfrastructure(runRoot, options, records) {
   await waitForPort(s3Port, 30_000, s3);
 
   const syncRoot = path.join(projectRoot, "donut-sync");
-  await rm(path.join(syncRoot, "tsconfig.build.tsbuildinfo"), { force: true });
-  await rm(path.join(syncRoot, "dist"), { recursive: true, force: true });
-  run("pnpm", ["build"], syncRoot);
-  const sync = startProcess("donut-sync", "node", ["dist/main.js"], {
-    cwd: syncRoot,
+  run("cargo", ["build", "--locked"], syncRoot);
+  const syncBinary = path.join(
+    syncRoot,
+    "target",
+    "debug",
+    `donut-sync${executableSuffix}`,
+  );
+  // Started outside the project, so no developer .env reaches it.
+  const sync = startProcess("donut-sync", syncBinary, [], {
+    cwd: runRoot,
     runRoot,
     verbose: options.verbose,
     env: {

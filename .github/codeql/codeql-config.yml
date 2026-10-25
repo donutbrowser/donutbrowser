@@ -9,6 +9,7 @@ queries:
 paths-ignore:
   - e2e
   - src-tauri/tests
+  - donut-sync/tests
   - "**/*_tests.rs"
   - "**/*.test.mjs"
   - "**/*.test.ts"

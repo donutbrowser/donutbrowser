@@ -18,7 +18,8 @@ on:
     paths:
       - "package.json"
       - "pnpm-lock.yaml"
-      - "donut-sync/package.json"
+      - "donut-sync/Cargo.toml"
+      - "donut-sync/Cargo.lock"
       - "src-tauri/Cargo.toml"
       - "src-tauri/Cargo.lock"
       - "osv-scanner.toml"
@@ -39,4 +40,5 @@ jobs:
         --config=osv-scanner.toml
         --lockfile=pnpm-lock.yaml
         --lockfile=src-tauri/Cargo.lock
+        --lockfile=donut-sync/Cargo.lock
         ./
