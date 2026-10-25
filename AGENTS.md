@@ -105,7 +105,9 @@ donutbrowser/
 │   │   └── cloud_auth.rs           # Cloud authentication
 │   ├── tests/                      # Integration tests
 │   └── Cargo.toml                  # Rust dependencies
-├── donut-sync/                     # NestJS sync server (self-hostable)
+├── donut-sync/                     # Sync server in Rust (self-hostable): auth, presigned S3 URLs, team rules
+│   ├── src/                        # http.rs routing, sync.rs object routes, auth.rs, s3.rs + sigv4.rs, subscribe.rs (SSE)
+│   └── tests/                      # End-to-end tests: the binary against the compose S3 server
 │   └── src/                        # Controllers, services, auth, S3 sync
 ├── e2e/                            # Isolated native UI/sync/Wayfern E2E system
 │   ├── app/                        # Test-only Tauri harness that injects the private driver
@@ -115,7 +117,6 @@ donutbrowser/
 │   ├── api-paths.json              # Snapshot of every published operation; drift check for both SDKs
 │   ├── python/                     # `donutbrowser` (stdlib only, pytest)
 │   └── node/                       # `@donutbrowser/sdk` (ESM TypeScript, node --test)
-├── patches/                        # pnpm compatibility patches for secured dependencies
 ├── packaging/                      # Flatpak manifest, shared AppStream metainfo, Linux package smoke tests
 ├── snap/                           # snapcraft.yaml (strict confinement, repackages the .deb)
 ├── flake.nix                       # Nix development environment
@@ -163,7 +164,7 @@ suite passes:
 | REST API/OpenAPI, MCP, cloud/update contracts, team locks, real-time synchronizer | `pnpm e2e:integrations` |
 | Sync client/server, manifests, timestamps, deletion, encryption, password rollover | `pnpm e2e:sync` |
 | Wayfern download/terms/fingerprint, browser runner, CDP, automation endpoints, process cleanup | `pnpm e2e:browser` |
-| `donut-sync/` server code (controllers, services, auth, S3 endpoints) | `pnpm --filter donut-sync test:e2e` against the compose S3 server |
+| `donut-sync/` server code (routes, auth, S3 client, presigning, subscriptions) | `cd donut-sync && cargo test` against the compose S3 server |
 | E2E harness, WebDriver plugin/driver, app isolation hooks, or changes spanning multiple rows | Run every affected row; use `pnpm e2e` for cross-cutting changes |
 
 `e2e:browser` requires `WAYFERN_TEST_TOKEN` in the environment or local `.env`. `e2e:network`
@@ -173,14 +174,14 @@ and the full suite additionally require Docker plus `RESIDENTIAL_PROXY_URL_ONE_H
 Keep failed artifacts and inspect the per-session app/driver logs and screenshot before changing
 assertions.
 
-The `donut-sync` row is the one suite the root `pnpm test` does not cover (`test:sync-e2e` runs
-the Rust sync harness only). It needs the S3 server in `donut-sync/docker-compose.yml`
-(`rclone serve s3` on port 8987; MinIO no longer publishes community images or binaries).
-`test/test-env.ts` supplies the matching keys:
+The root `pnpm test` runs only the unit tests of `donut-sync` (`test:donut-sync`); its
+end-to-end tests are the `donut-sync` row. They run the binary against the S3 server in
+`donut-sync/docker-compose.yml` (`rclone serve s3` on port 8987; MinIO no longer publishes
+community images or binaries):
 
 ```bash
 docker compose -f donut-sync/docker-compose.yml up -d --wait
-pnpm --filter donut-sync test:e2e
+(cd donut-sync && cargo test)
 docker compose -f donut-sync/docker-compose.yml down -v
 ```
 
@@ -503,7 +504,7 @@ Required env vars / secrets: `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_END
 ## Sync (cloud / self-hosted)
 
 Sync mirrors local state to S3-compatible storage (Donut cloud, or a self-hosted
-`donut-sync` NestJS server). Two distinct mechanisms live in `src-tauri/src/sync/`:
+`donut-sync` server). Two distinct mechanisms live in `src-tauri/src/sync/`:
 
 - Profile browser files (the Chromium/Firefox profile directory): a
   content-hash manifest (`manifest.rs` `generate_manifest`/`compute_diff`) does a
@@ -545,16 +546,20 @@ path, and route its reconcile through `remote_updated_at` + `upload_config_json`
 
 ### Server (`donut-sync/`) metadata passthrough
 
-`presignUpload` signs request `metadata` into the PUT as `x-amz-meta-*` and
-echoes back what it signed (the Rust client must send exactly those headers on
-the PUT or S3 rejects it, hence the echo). `stat` returns `response.Metadata`.
-Older servers omit `metadata` → client falls back to the body-GET path. DTOs:
-`donut-sync/src/sync/dto/sync.dto.ts`; logic: `sync.service.ts`.
+`presign-upload` signs request `metadata` into the PUT as `x-amz-meta-*` and
+echoes back what it signed (the app must send exactly those headers on the PUT
+or S3 rejects it, hence the echo). `stat` returns the object's user metadata.
+Older servers omit `metadata` → client falls back to the body-GET path. Logic:
+`donut-sync/src/sync.rs` (`presign_upload`, `stat`).
+
+The server's HTTP API (routes, JSON shapes, error bodies, status codes, the SSE
+framing) is a public contract: self-hosters pull the latest image, and older
+apps keep talking to it. Change it only on purpose, together with the clients.
 
 ## Team roles and the activity log
 
 - A `launcher` seat opens the team's profiles and keeps what a session changes, never the team's
-  settings. The sync server enforces it (`donut-sync` `LAUNCHER_WRITABLE`: only a profile's
+  settings. The sync server enforces it (`LAUNCHER_WRITABLE` in `donut-sync/src/sync.rs`: only a profile's
   `files/` and `manifest.json`); the app mirrors it so an edit never appears and then reverts.
 - `team_roles.rs` lists every Tauri command and MCP tool that changes team data (profiles,
   proxies, groups, VPNs, extensions, templates, statuses). A new command or tool of that kind goes
