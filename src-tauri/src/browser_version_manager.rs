@@ -31,6 +31,57 @@ pub struct BrowserVersionManager {
   api_client: &'static ApiClient,
 }
 
+/// The OS and CPU of this machine, as the Wayfern catalogue names them
+/// (`linux-arm64`, `windows-x64`, ...).
+///
+/// The CPU is the machine's own, not the one Donut was compiled for: Windows
+/// on ARM runs the x64 build of Donut under emulation, and it must still get
+/// the arm64 browser.
+pub(crate) fn host_platform() -> (String, String) {
+  let os = if cfg!(target_os = "windows") {
+    "windows"
+  } else if cfg!(target_os = "linux") {
+    "linux"
+  } else if cfg!(target_os = "macos") {
+    "macos"
+  } else {
+    "unknown"
+  };
+
+  #[cfg(target_os = "windows")]
+  if let Some(arch) = windows_native_arch() {
+    return (os.to_string(), arch.to_string());
+  }
+
+  let arch = if cfg!(target_arch = "x86_64") {
+    "x64"
+  } else if cfg!(target_arch = "aarch64") {
+    "arm64"
+  } else {
+    "unknown"
+  };
+
+  (os.to_string(), arch.to_string())
+}
+
+/// The native CPU of a Windows machine, also when this process is emulated.
+#[cfg(target_os = "windows")]
+fn windows_native_arch() -> Option<&'static str> {
+  use windows::Win32::System::SystemInformation::{
+    IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM64,
+  };
+  use windows::Win32::System::Threading::{GetCurrentProcess, IsWow64Process2};
+
+  let mut process = IMAGE_FILE_MACHINE::default();
+  let mut native = IMAGE_FILE_MACHINE::default();
+  unsafe { IsWow64Process2(GetCurrentProcess(), &mut process, Some(&mut native)) }.ok()?;
+  match native {
+    IMAGE_FILE_MACHINE_ARM64 => Some("arm64"),
+    IMAGE_FILE_MACHINE_AMD64 => Some("x64"),
+    _ => None,
+  }
+}
+
 impl BrowserVersionManager {
   fn new() -> Self {
     Self {
@@ -47,7 +98,7 @@ impl BrowserVersionManager {
     &self,
     browser: &str,
   ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    let (os, arch) = Self::get_platform_info();
+    let (os, arch) = host_platform();
 
     match browser {
       "wayfern" => {
@@ -294,7 +345,7 @@ impl BrowserVersionManager {
     browser: &str,
     version: &str,
   ) -> Result<DownloadInfo, Box<dyn std::error::Error + Send + Sync>> {
-    let (os, arch) = Self::get_platform_info();
+    let (os, arch) = host_platform();
 
     match browser {
       "wayfern" => {
@@ -324,29 +375,6 @@ impl BrowserVersionManager {
       }
       _ => Err(format!("Unsupported browser: {browser}").into()),
     }
-  }
-
-  /// Get platform and architecture information
-  fn get_platform_info() -> (String, String) {
-    let os = if cfg!(target_os = "windows") {
-      "windows"
-    } else if cfg!(target_os = "linux") {
-      "linux"
-    } else if cfg!(target_os = "macos") {
-      "macos"
-    } else {
-      "unknown"
-    };
-
-    let arch = if cfg!(target_arch = "x86_64") {
-      "x64"
-    } else if cfg!(target_arch = "aarch64") {
-      "arm64"
-    } else {
-      "unknown"
-    };
-
-    (os.to_string(), arch.to_string())
   }
 
   async fn fetch_wayfern_versions(
@@ -439,15 +467,13 @@ mod tests {
       assert!(wayfern_info.is_archive);
     }
 
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    #[cfg(target_os = "windows")]
     {
-      assert_eq!(wayfern_info.filename, "wayfern-1.0.0-windows-x64.zip");
-      assert!(wayfern_info.is_archive);
-    }
-
-    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-    {
-      assert_eq!(wayfern_info.filename, "wayfern-1.0.0-windows-arm64.zip");
+      let (_, arch) = host_platform();
+      assert_eq!(
+        wayfern_info.filename,
+        format!("wayfern-1.0.0-windows-{arch}.zip")
+      );
       assert!(wayfern_info.is_archive);
     }
 

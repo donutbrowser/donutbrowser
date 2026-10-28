@@ -454,6 +454,34 @@ fn sweep_disk_fallback_residue(current_base: &Path) {
   }
 }
 
+/// The ephemeral profiles that still have a directory here although their
+/// browser is gone. The status loop erases a directory when it sees the
+/// browser exit, but it never sees a browser that exits while Donut is closed
+/// or in the second before Donut quits. A protected profile's copy is not
+/// listed: it holds changes that wait for the next unlock to be sealed.
+pub fn stale_dirs(
+  profiles: &[BrowserProfile],
+  running: impl Fn(&BrowserProfile) -> bool,
+) -> Vec<String> {
+  wait_for_recovery();
+  let with_dir: Vec<(&BrowserProfile, String)> = {
+    let Ok(dirs) = EPHEMERAL_DIRS.lock() else {
+      return Vec::new();
+    };
+    profiles
+      .iter()
+      .filter(|profile| profile.ephemeral && !profile.password_protected)
+      .map(|profile| (profile, profile.id.to_string()))
+      .filter(|(_, id)| dirs.contains_key(id))
+      .collect()
+  };
+  with_dir
+    .into_iter()
+    .filter(|(profile, _)| !running(profile))
+    .map(|(_, id)| id)
+    .collect()
+}
+
 /// Whether the macOS RAM disk or the Windows RAM volume is mounted. `None`
 /// where neither can exist.
 pub fn ram_disk_mounted() -> Option<bool> {
@@ -719,6 +747,30 @@ mod tests {
     wait_for_recovery();
 
     assert!(!missing.exists());
+  }
+
+  #[test]
+  #[serial_test::serial]
+  fn only_dirs_of_ephemeral_profiles_whose_browser_is_gone_are_stale() {
+    let _base = BaseGuard::new();
+    EPHEMERAL_DIRS.lock().unwrap().clear();
+
+    let closed = make_test_profile(uuid::Uuid::new_v4(), true);
+    let open = make_test_profile(uuid::Uuid::new_v4(), true);
+    let without_dir = make_test_profile(uuid::Uuid::new_v4(), true);
+    let mut protected = make_test_profile(uuid::Uuid::new_v4(), true);
+    protected.password_protected = true;
+    for profile in [&closed, &open, &protected] {
+      create_ephemeral_dir(&profile.id.to_string()).unwrap();
+    }
+
+    let profiles = [closed.clone(), open.clone(), without_dir, protected.clone()];
+    let stale = stale_dirs(&profiles, |profile| profile.id == open.id);
+
+    assert_eq!(stale, vec![closed.id.to_string()]);
+    for profile in [&closed, &open, &protected] {
+      assert!(remove_ephemeral_dir(&profile.id.to_string()));
+    }
   }
 
   #[test]

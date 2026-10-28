@@ -2852,28 +2852,12 @@ impl ProxyManager {
           // A launch reusing the profile's worker must not race its stop.
           let _lifecycle = self.worker_lifecycle.lock().await;
           for (browser_pid, proxy_id, profile_id) in dead_browser_entries {
+            if self
+              .reap_worker_of_dead_browser(browser_pid, &proxy_id, profile_id.as_deref())
+              .await
             {
-              let mut proxies = self.active_proxies.lock().unwrap();
-              // Re-check the entry still maps to the same proxy_id — another
-              // thread may have replaced it with a new proxy since we snapshotted.
-              if let Some(current) = proxies.get(&browser_pid) {
-                if current.id != proxy_id {
-                  continue;
-                }
-              } else {
-                continue;
-              }
-              proxies.remove(&browser_pid);
+              changed = true;
             }
-            changed = true;
-            if let Some(ref pid) = profile_id {
-              let mut map = self.profile_active_proxy_ids.lock().unwrap();
-              if map.get(pid) == Some(&proxy_id) {
-                map.remove(pid);
-              }
-            }
-            let reason = format!("browser_exited({browser_pid})");
-            let _ = crate::proxy_runner::stop_proxy_process_because(&proxy_id, &reason).await;
           }
         }
       }
@@ -2951,6 +2935,83 @@ impl ProxyManager {
     }
 
     Ok(dead_pids)
+  }
+
+  /// Stop the worker of a browser the app has just seen exit, at once rather
+  /// than at the sweep that confirms the exit a minute later. The exit is
+  /// checked against the exact process the worker recorded, because the app's
+  /// own running check can miss a live browser on Linux; a browser that still
+  /// runs keeps its worker.
+  pub async fn stop_worker_of_exited_browser(&self, browser_pid: u32) {
+    if browser_pid == 0 || is_launch_placeholder_pid(browser_pid) {
+      return;
+    }
+    let Some((proxy_id, profile_id)) = self
+      .active_proxies
+      .lock()
+      .unwrap()
+      .get(&browser_pid)
+      .map(|info| (info.id.clone(), info.profile_id.clone()))
+    else {
+      return;
+    };
+    let expected_start_time = crate::proxy_storage::get_proxy_config(&proxy_id)
+      .and_then(|config| config.browser_pid_start_time);
+    let still_running = live_process_start_times(&[browser_pid])
+      .get(&browser_pid)
+      .is_some_and(|&started| expected_start_time.is_none_or(|expected| started == expected));
+    if still_running {
+      return;
+    }
+
+    let _lifecycle = self.worker_lifecycle.lock().await;
+    if self
+      .reap_worker_of_dead_browser(browser_pid, &proxy_id, profile_id.as_deref())
+      .await
+    {
+      if let Err(e) = events::emit_empty("proxies-changed") {
+        log::warn!("Event emit failed event=proxies-changed err=\"{e}\"");
+      }
+    }
+  }
+
+  /// Forget and stop the worker that served `browser_pid`, which is gone.
+  /// False when the entry now maps to another worker or to none. The caller
+  /// holds `worker_lifecycle`.
+  async fn reap_worker_of_dead_browser(
+    &self,
+    browser_pid: u32,
+    proxy_id: &str,
+    profile_id: Option<&str>,
+  ) -> bool {
+    {
+      let mut proxies = self.active_proxies.lock().unwrap();
+      // Another thread may have replaced the entry since it was read.
+      if proxies
+        .get(&browser_pid)
+        .is_none_or(|current| current.id != proxy_id)
+      {
+        return false;
+      }
+      proxies.remove(&browser_pid);
+    }
+    self
+      .dead_browser_misses
+      .lock()
+      .unwrap()
+      .remove(&browser_pid);
+    if let Some(profile_id) = profile_id {
+      let mut map = self.profile_active_proxy_ids.lock().unwrap();
+      if map
+        .get(profile_id)
+        .is_some_and(|current| current == proxy_id)
+      {
+        map.remove(profile_id);
+      }
+    }
+    let reason = format!("browser_exited({browser_pid})");
+    let _ = crate::proxy_runner::stop_proxy_process_because(proxy_id, &reason).await;
+    true
   }
 
   /// Snapshot the set of tracked proxy IDs (for asserting in tests).

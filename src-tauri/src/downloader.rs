@@ -215,25 +215,7 @@ impl Downloader {
 
   /// Get platform and architecture information
   fn get_platform_info() -> (String, String) {
-    let os = if cfg!(target_os = "windows") {
-      "windows"
-    } else if cfg!(target_os = "linux") {
-      "linux"
-    } else if cfg!(target_os = "macos") {
-      "macos"
-    } else {
-      "unknown"
-    };
-
-    let arch = if cfg!(target_arch = "x86_64") {
-      "x64"
-    } else if cfg!(target_arch = "aarch64") {
-      "arm64"
-    } else {
-      "unknown"
-    };
-
-    (os.to_string(), arch.to_string())
+    crate::browser_version_manager::host_platform()
   }
 
   pub async fn download_browser<R: tauri::Runtime>(
