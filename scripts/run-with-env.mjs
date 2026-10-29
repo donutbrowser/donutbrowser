@@ -54,15 +54,31 @@ const isWindows = process.platform === "win32";
 const spawnArgs = isWindows
   ? args.map((a) => (/\s/.test(a) ? `"${a}"` : a))
   : args;
+// `tauri build` has no step after bundling, so the AppImage fix-up runs here,
+// where every build (local and CI, through tauri-action) passes.
+const repacksAppImages =
+  process.platform === "linux" && cmd === "tauri" && args[0] === "build";
+const startedAt = Date.now();
 const child = spawn(cmd, spawnArgs, { stdio: "inherit", shell: isWindows });
 child.on("error", (err) => {
   console.error(`Failed to spawn ${cmd}:`, err.message);
   process.exit(1);
 });
-child.on("exit", (code, signal) => {
+child.on("exit", async (code, signal) => {
   if (signal) {
     process.kill(process.pid, signal);
-  } else {
-    process.exit(code ?? 1);
+    return;
   }
+  if (code === 0 && repacksAppImages) {
+    try {
+      const { repackFreshAppImages } = await import(
+        "./appimage-system-libs.mjs"
+      );
+      repackFreshAppImages(startedAt);
+    } catch (err) {
+      console.error("AppImage repack failed:", err.message);
+      process.exit(1);
+    }
+  }
+  process.exit(code ?? 1);
 });
