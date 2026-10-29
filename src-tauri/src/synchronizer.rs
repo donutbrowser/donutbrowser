@@ -910,7 +910,7 @@ impl SynchronizerManager {
 
     // Check leader is not already running
     if leader.process_id.is_some() {
-      let sys = sysinfo::System::new_all();
+      let sys = crate::proxy_storage::process_table(sysinfo::RefreshKind::everything());
       if let Some(pid) = leader.process_id {
         if sys.process(sysinfo::Pid::from(pid as usize)).is_some() {
           return Err(

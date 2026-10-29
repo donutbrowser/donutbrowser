@@ -1013,6 +1013,7 @@ fn mcp_key_display_prefix(key: &str) -> String {
 fn mcp_remote_key_label() -> String {
   const MAX_LABEL_CHARS: usize = 80;
   let host = sysinfo::System::host_name()
+    .ok()
     .map(|h| h.trim().to_string())
     .filter(|h| !h.is_empty())
     .unwrap_or_else(|| "this computer".to_string());
@@ -2689,7 +2690,7 @@ pub fn run_with_builder(
       log::info!(
         "Donut started version={} os=\"{}\" arch={} pid={} tz={} portable={} data_dir={}",
         env!("BUILD_VERSION"),
-        sysinfo::System::long_os_version().unwrap_or_else(|| std::env::consts::OS.to_string()),
+        sysinfo::System::long_os_version().unwrap_or_else(|_| std::env::consts::OS.to_string()),
         std::env::consts::ARCH,
         std::process::id(),
         chrono::Local::now().format("%:z"),

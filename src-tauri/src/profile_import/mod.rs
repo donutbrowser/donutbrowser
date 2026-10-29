@@ -106,9 +106,9 @@ pub fn import_into(
 /// executable name: the user may well have Chrome open on a *different*
 /// profile, which is no reason to block the import.
 fn running_source_browser(shape: &layout::SourceShape) -> Option<String> {
-  use sysinfo::{ProcessRefreshKind, RefreshKind, System};
+  use sysinfo::{ProcessRefreshKind, RefreshKind};
 
-  let system = System::new_with_specifics(
+  let system = crate::proxy_storage::process_table(
     RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
   );
 

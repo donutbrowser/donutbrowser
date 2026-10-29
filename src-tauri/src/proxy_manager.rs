@@ -369,7 +369,7 @@ pub fn is_launch_placeholder_pid(pid: u32) -> bool {
 /// read of the process table. A process that exited but is still listed
 /// (a zombie) is not alive.
 fn live_process_start_times(pids: &[u32]) -> HashMap<u32, u64> {
-  use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+  use sysinfo::{ProcessRefreshKind, ProcessesToUpdate};
   if pids.is_empty() {
     return HashMap::new();
   }
@@ -377,7 +377,7 @@ fn live_process_start_times(pids: &[u32]) -> HashMap<u32, u64> {
     .iter()
     .map(|&pid| sysinfo::Pid::from_u32(pid))
     .collect();
-  let mut system = System::new();
+  let mut system = crate::proxy_storage::process_table(sysinfo::RefreshKind::nothing());
   system.refresh_processes_specifics(
     ProcessesToUpdate::Some(&pids),
     true,

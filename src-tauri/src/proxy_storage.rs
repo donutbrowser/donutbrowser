@@ -336,10 +336,17 @@ fn process_has_exited(process: &sysinfo::Process) -> bool {
   }
 }
 
+/// A process table refreshed as `refreshes` asks. sysinfo refuses only
+/// platforms Donut is not built for, so the error cannot happen here.
+pub fn process_table(refreshes: sysinfo::RefreshKind) -> sysinfo::System {
+  sysinfo::System::new_with_specifics(refreshes)
+    .expect("sysinfo supports every platform Donut is built for")
+}
+
 pub fn process_start_time(pid: u32) -> Option<u64> {
-  use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+  use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind};
   let pid = sysinfo::Pid::from_u32(pid);
-  let mut system = System::new();
+  let mut system = process_table(RefreshKind::nothing());
   system.refresh_processes_specifics(
     ProcessesToUpdate::Some(&[pid]),
     true,

@@ -686,12 +686,12 @@ fn write_record(dir: &Path, files: Baseline, store: &Path) -> std::io::Result<()
 /// included: on Windows the network service still holds the cookie database
 /// for a moment after the browser process has exited.
 fn processes_using(dir: &Path) -> Vec<u32> {
-  use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
+  use sysinfo::{ProcessRefreshKind, RefreshKind, UpdateKind};
 
   let Ok(dir) = dir.canonicalize() else {
     return Vec::new();
   };
-  let system = System::new_with_specifics(
+  let system = crate::proxy_storage::process_table(
     RefreshKind::nothing()
       .with_processes(ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always)),
   );

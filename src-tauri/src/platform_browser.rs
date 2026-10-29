@@ -43,7 +43,7 @@ mod unix_processes {
 
   /// Every process with its command line. Parents come with any refresh.
   pub fn snapshot() -> System {
-    let mut system = System::new();
+    let mut system = crate::proxy_storage::process_table(sysinfo::RefreshKind::nothing());
     system.refresh_processes_specifics(
       ProcessesToUpdate::All,
       true,
@@ -103,7 +103,7 @@ mod unix_processes {
   /// Which of `pids` are still alive, from one refresh of those processes.
   pub fn still_alive(pids: &[u32]) -> Vec<u32> {
     let wanted: Vec<Pid> = pids.iter().map(|pid| Pid::from_u32(*pid)).collect();
-    let mut system = System::new();
+    let mut system = crate::proxy_storage::process_table(sysinfo::RefreshKind::nothing());
     system.refresh_processes_specifics(
       ProcessesToUpdate::Some(&wanted),
       true,
@@ -488,9 +488,9 @@ pub mod windows {
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // First try using sysinfo (cross-platform approach), refreshing only this
     // process.
-    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate};
     let sysinfo_pid = Pid::from_u32(pid);
-    let mut system = System::new();
+    let mut system = crate::proxy_storage::process_table(sysinfo::RefreshKind::nothing());
     system.refresh_processes_specifics(
       ProcessesToUpdate::Some(&[sysinfo_pid]),
       true,

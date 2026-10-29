@@ -4149,9 +4149,9 @@ impl WayfernManager {
   fn find_wayfern_process_by_profile(
     target_path: &std::path::Path,
   ) -> Option<(u32, String, Option<u16>)> {
-    use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
+    use sysinfo::{ProcessRefreshKind, RefreshKind, UpdateKind};
 
-    let system = System::new_with_specifics(
+    let system = crate::proxy_storage::process_table(
       RefreshKind::nothing().with_processes(
         ProcessRefreshKind::nothing()
           .with_cmd(UpdateKind::OnlyIfNotSet)

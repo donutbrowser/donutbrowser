@@ -94,9 +94,9 @@ mod windows_client {
   }
 
   fn host_alive(pid: u32) -> bool {
-    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate};
     let pid = sysinfo::Pid::from_u32(pid);
-    let mut system = System::new();
+    let mut system = crate::proxy_storage::process_table(sysinfo::RefreshKind::nothing());
     system.refresh_processes_specifics(
       ProcessesToUpdate::Some(&[pid]),
       true,
@@ -160,7 +160,7 @@ mod windows_client {
     let started = Instant::now();
     let mount = mount_dir();
     let capacity = {
-      let mut system = sysinfo::System::new();
+      let mut system = crate::proxy_storage::process_table(sysinfo::RefreshKind::nothing());
       system.refresh_memory();
       volume_capacity(system.total_memory())
     };
