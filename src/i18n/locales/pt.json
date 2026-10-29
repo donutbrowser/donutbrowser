@@ -1153,7 +1153,7 @@
       "toggleFailed": "Não foi possível alterar o controlo remoto",
       "endpointLabel": "Ponto final MCP remoto",
       "endpointCopied": "Ponto final copiado",
-      "endpointDescription": "Aponte um cliente MCP para aqui usando a credencial acima como token bearer. Uma instância por conta: a primeira aplicação a ligar-se mantém o lugar.",
+      "endpointDescription": "Aponte um cliente MCP para aqui. Um cliente com OAuth, como o Claude ou o ChatGPT, pede-lhe que inicie sessão; os outros clientes enviam a credencial acima como token bearer. Uma instância por conta: a primeira aplicação a ligar-se mantém o lugar.",
       "exampleRequest": "Pedido de exemplo",
       "credentialLabel": "Credencial",
       "credentialPrefix": "{{prefix}}…",

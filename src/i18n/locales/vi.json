@@ -1144,7 +1144,7 @@
       "toggleFailed": "Không thể thay đổi điều khiển từ xa",
       "endpointLabel": "Điểm cuối MCP từ xa",
       "endpointCopied": "Đã sao chép điểm cuối",
-      "endpointDescription": "Trỏ một máy khách MCP tới đây và dùng thông tin xác thực ở trên làm bearer token. Một phiên bản cho mỗi tài khoản: ứng dụng kết nối đầu tiên giữ chỗ.",
+      "endpointDescription": "Trỏ một máy khách MCP tới đây. Máy khách có OAuth, như Claude hoặc ChatGPT, sẽ yêu cầu bạn đăng nhập; các máy khách khác gửi thông tin xác thực ở trên làm bearer token. Một phiên bản cho mỗi tài khoản: ứng dụng kết nối đầu tiên giữ chỗ.",
       "exampleRequest": "Yêu cầu ví dụ",
       "credentialLabel": "Thông tin xác thực",
       "credentialPrefix": "{{prefix}}…",

@@ -1144,7 +1144,7 @@
       "toggleFailed": "Could not change remote control",
       "endpointLabel": "Remote MCP endpoint",
       "endpointCopied": "Endpoint copied",
-      "endpointDescription": "Point an MCP client here with the credential above as its bearer token. One instance per account: the first app to connect keeps the slot.",
+      "endpointDescription": "Point an MCP client here. A client with OAuth, such as Claude or ChatGPT, asks you to sign in; other clients send the credential above as their bearer token. One instance per account: the first app to connect keeps the slot.",
       "exampleRequest": "Example request",
       "credentialLabel": "Credential",
       "credentialPrefix": "{{prefix}}…",

@@ -1144,7 +1144,7 @@
       "toggleFailed": "원격 제어를 변경하지 못했습니다",
       "endpointLabel": "원격 MCP 엔드포인트",
       "endpointCopied": "엔드포인트를 복사했습니다",
-      "endpointDescription": "MCP 클라이언트를 여기로 지정하고 위의 자격 증명을 Bearer 토큰으로 사용하세요. 계정당 인스턴스 하나입니다. 먼저 연결한 앱이 자리를 유지합니다.",
+      "endpointDescription": "MCP 클라이언트를 여기로 지정하세요. Claude나 ChatGPT처럼 OAuth를 지원하는 클라이언트는 로그인을 요청하고, 다른 클라이언트는 위의 자격 증명을 Bearer 토큰으로 보냅니다. 계정당 인스턴스 하나입니다. 먼저 연결한 앱이 자리를 유지합니다.",
       "exampleRequest": "요청 예시",
       "credentialLabel": "자격 증명",
       "credentialPrefix": "{{prefix}}…",

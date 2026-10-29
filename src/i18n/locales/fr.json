@@ -1153,7 +1153,7 @@
       "toggleFailed": "Impossible de modifier le contrôle à distance",
       "endpointLabel": "Point de terminaison MCP distant",
       "endpointCopied": "Point de terminaison copié",
-      "endpointDescription": "Dirigez un client MCP ici avec l'identifiant ci-dessus comme jeton bearer. Une instance par compte : la première application connectée garde la place.",
+      "endpointDescription": "Dirigez un client MCP ici. Un client compatible OAuth, comme Claude ou ChatGPT, vous demande de vous connecter ; les autres clients envoient l'identifiant ci-dessus comme jeton bearer. Une instance par compte : la première application connectée garde la place.",
       "exampleRequest": "Exemple de requête",
       "credentialLabel": "Identifiant",
       "credentialPrefix": "{{prefix}}…",

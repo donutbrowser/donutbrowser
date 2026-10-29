@@ -181,7 +181,199 @@ fn negotiate_protocol_version(requested: Option<&str>) -> &'static str {
   }
 }
 const SERVER_NAME: &str = "donut-browser";
+const SERVER_TITLE: &str = "Donut Browser";
+const SERVER_WEBSITE: &str = "https://donutbrowser.com";
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// What a tool does to the world, as MCP tool annotations say it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ToolHints {
+  read_only: bool,
+  destructive: bool,
+  idempotent: bool,
+  /// Acts on or reads websites, VPN servers or other parties.
+  open_world: bool,
+}
+
+const fn hints(
+  read_only: bool,
+  destructive: bool,
+  idempotent: bool,
+  open_world: bool,
+) -> ToolHints {
+  ToolHints {
+    read_only,
+    destructive,
+    idempotent,
+    open_world,
+  }
+}
+
+/// Reads the app's own data.
+const READS: ToolHints = hints(true, false, true, false);
+/// Reads the page of a running browser.
+const READS_PAGE: ToolHints = hints(true, false, true, true);
+/// Adds something and changes nothing that exists.
+const ADDS: ToolHints = hints(false, false, false, false);
+/// Changes or replaces what exists.
+const CHANGES: ToolHints = hints(false, true, true, false);
+/// Acts on a website, which can do anything in answer.
+const ACTS_ON_PAGE: ToolHints = hints(false, true, false, true);
+/// Opens or moves a browser without acting on the page.
+const BROWSES: ToolHints = hints(false, false, false, true);
+/// Stops something that runs.
+const STOPS: ToolHints = hints(false, false, true, false);
+
+/// The hints of every tool. None for a tool this table does not know, which a
+/// test forbids.
+fn tool_hints(name: &str) -> Option<ToolHints> {
+  Some(match name {
+    "list_profiles"
+    | "get_profile"
+    | "list_tags"
+    | "list_proxies"
+    | "get_profile_status"
+    | "list_profile_statuses"
+    | "list_profile_templates"
+    | "list_groups"
+    | "get_group"
+    | "get_proxy"
+    | "list_vpn_configs"
+    | "get_vpn_status"
+    | "get_profile_fingerprint"
+    | "get_dns_blocklist_status"
+    | "list_extensions"
+    | "list_extension_groups"
+    | "get_team_locks"
+    | "get_team_lock_status"
+    | "get_sync_sessions"
+    | "list_remote_sessions"
+    | "get_remote_session"
+    | "get_remote_hours_quota"
+    | "list_cookie_bot_schedules"
+    | "get_cookie_bot_schedule"
+    | "check_cookie_bot_conflicts"
+    | "list_cookie_bot_runs"
+    | "list_cookie_bot_presets"
+    | "get_cookie_bot_usage"
+    | "detect_browser_profiles"
+    | "export_proxies"
+    | "list_network_requests"
+    | "get_network_request"
+    | "get_human_updates"
+    | "get_diagnostics"
+    | "wait_for_human"
+    | "list_tabs"
+    | "pick_element" => READS,
+    "screenshot"
+    | "get_page_content"
+    | "get_page_info"
+    | "get_interactive_elements"
+    | "perceive_page"
+    | "resolve_locator"
+    | "wait_for" => READS_PAGE,
+    "create_profile"
+    | "create_profiles_from_template"
+    | "import_browser_profiles"
+    | "create_group"
+    | "create_proxy"
+    | "import_proxies"
+    | "import_vpn"
+    | "add_extension"
+    | "create_extension_group"
+    | "start_sync_session"
+    | "ask_human"
+    | "request_human_help"
+    | "report_progress" => ADDS,
+    "add_extension_to_group" | "start_network_capture" => hints(false, false, true, false),
+    "update_profile"
+    | "delete_profile"
+    | "bulk_update_profiles"
+    | "update_group"
+    | "delete_group"
+    | "assign_profiles_to_group"
+    | "update_proxy"
+    | "delete_proxy"
+    | "delete_vpn"
+    | "update_profile_fingerprint"
+    | "update_profile_proxy_bypass_rules"
+    | "update_profile_dns_blocklist"
+    | "update_extension"
+    | "update_extension_group"
+    | "remove_extension_from_group"
+    | "delete_extension"
+    | "delete_extension_group"
+    | "assign_extension_group_to_profile"
+    | "remove_sync_follower"
+    | "set_cookie_bot_schedule"
+    | "delete_cookie_bot_schedule"
+    | "cancel_cookie_bot_run"
+    | "stop_network_capture"
+    | "close_tab" => CHANGES,
+    "distribute_proxies" | "import_profile_cookies" => hints(false, true, false, false),
+    "rotate_proxy_ip" => hints(false, true, false, true),
+    "run_actions"
+    | "press_key"
+    | "evaluate_javascript"
+    | "click_element"
+    | "type_text"
+    | "click_by_index"
+    | "type_by_index"
+    | "click_locator"
+    | "type_locator"
+    | "select_option"
+    | "file_upload" => ACTS_ON_PAGE,
+    "run_profile" | "batch_run_profiles" | "navigate" | "open_tab" | "scroll" | "go_back"
+    | "run_profile_remote" | "run_cookie_bot_now" | "extract_structured" | "send_feedback" => {
+      BROWSES
+    }
+    "connect_vpn" => hints(false, false, true, true),
+    "kill_profile"
+    | "batch_stop_profiles"
+    | "switch_tab"
+    | "stop_remote_session"
+    | "stop_sync_session"
+    | "disconnect_vpn" => STOPS,
+    _ => return None,
+  })
+}
+
+/// `list_profiles` as a person reads it: "List profiles".
+fn tool_title(name: &str) -> String {
+  let words: Vec<String> = name
+    .split('_')
+    .enumerate()
+    .map(|(i, word)| match word {
+      "ip" => "IP".to_string(),
+      "vpn" => "VPN".to_string(),
+      "dns" => "DNS".to_string(),
+      "javascript" => "JavaScript".to_string(),
+      _ if i == 0 => {
+        let mut chars = word.chars();
+        chars
+          .next()
+          .map(|first| first.to_uppercase().chain(chars).collect())
+          .unwrap_or_default()
+      }
+      _ => word.to_string(),
+    })
+    .collect();
+  words.join(" ")
+}
+
+/// The `title` and `annotations` of a tool in `tools/list`. Every hint is
+/// explicit: MCP directories require them. A tool missing from the table is
+/// described at its worst.
+fn tool_annotations(name: &str) -> serde_json::Value {
+  let hints = tool_hints(name).unwrap_or(hints(false, true, false, true));
+  serde_json::json!({
+    "title": tool_title(name),
+    "readOnlyHint": hints.read_only,
+    "destructiveHint": hints.destructive,
+    "idempotentHint": hints.idempotent,
+    "openWorldHint": hints.open_world,
+  })
+}
 
 #[derive(Debug, Serialize)]
 pub struct McpResponse {
@@ -6626,7 +6818,9 @@ impl McpServer {
       },
       "serverInfo": {
         "name": SERVER_NAME,
+        "title": SERVER_TITLE,
         "version": SERVER_VERSION,
+        "websiteUrl": SERVER_WEBSITE,
       },
       "instructions": instructions
     });
@@ -6688,10 +6882,13 @@ impl McpServer {
       .filter(|tool| toolsets.is_none_or(|selection| selection.includes_tool(&tool.name)))
       .map(|tool| {
         let output_schema = crate::mcp_views::output_schema_for(&tool.name);
+        let annotations = tool_annotations(&tool.name);
         let mut value = serde_json::to_value(tool).unwrap_or_default();
         if let Some(schema) = output_schema {
           value["outputSchema"] = schema;
         }
+        value["title"] = annotations["title"].clone();
+        value["annotations"] = annotations;
         value
       })
       .collect();
@@ -13053,6 +13250,44 @@ mod tests {
       "Profile not found"
     );
   }
+  #[test]
+  fn every_tool_has_explicit_annotations() {
+    for tool in McpServer::new().get_tools() {
+      let hints = tool_hints(&tool.name);
+      assert!(hints.is_some(), "{} has no annotations", tool.name);
+      let hints = hints.unwrap();
+      assert!(
+        !(hints.read_only && hints.destructive),
+        "{} reads only, so it cannot destroy",
+        tool.name
+      );
+      let annotations = tool_annotations(&tool.name);
+      for hint in [
+        "readOnlyHint",
+        "destructiveHint",
+        "idempotentHint",
+        "openWorldHint",
+      ] {
+        assert!(annotations[hint].is_boolean(), "{} {hint}", tool.name);
+      }
+    }
+    assert_eq!(tool_title("rotate_proxy_ip"), "Rotate proxy IP");
+    assert_eq!(tool_title("evaluate_javascript"), "Evaluate JavaScript");
+    assert_eq!(tool_title("list_profiles"), "List profiles");
+  }
+
+  #[tokio::test]
+  async fn tools_list_carries_titles_and_annotations() {
+    let server = McpServer::new();
+    let listed = server.handle_tools_list(None).await.unwrap();
+    let tools = listed["tools"].as_array().unwrap();
+    let navigate = tools.iter().find(|t| t["name"] == "navigate").unwrap();
+    assert_eq!(navigate["title"], "Navigate");
+    assert_eq!(navigate["annotations"]["openWorldHint"], true);
+    let list = tools.iter().find(|t| t["name"] == "list_profiles").unwrap();
+    assert_eq!(list["annotations"]["readOnlyHint"], true);
+  }
+
   #[test]
   fn a_stale_plan_token_says_to_restart_and_how_long_the_browser_ran() {
     let message = stale_plan_token_message(Some(204_189));

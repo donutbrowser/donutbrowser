@@ -1144,7 +1144,7 @@
       "toggleFailed": "Uzaktan kontrol değiştirilemedi",
       "endpointLabel": "Uzak MCP uç noktası",
       "endpointCopied": "Uç nokta kopyalandı",
-      "endpointDescription": "Bir MCP istemcisini yukarıdaki kimlik bilgisini bearer belirteci olarak kullanarak buraya yönlendirin. Hesap başına bir örnek: yeri ilk bağlanan uygulama tutar.",
+      "endpointDescription": "Bir MCP istemcisini buraya yönlendirin. Claude veya ChatGPT gibi OAuth destekleyen bir istemci oturum açmanızı ister; diğer istemciler yukarıdaki kimlik bilgisini bearer belirteci olarak gönderir. Hesap başına bir örnek: yeri ilk bağlanan uygulama tutar.",
       "exampleRequest": "Örnek istek",
       "credentialLabel": "Kimlik bilgisi",
       "credentialPrefix": "{{prefix}}…",

@@ -1144,7 +1144,7 @@
       "toggleFailed": "リモート制御を変更できませんでした",
       "endpointLabel": "リモート MCP エンドポイント",
       "endpointCopied": "エンドポイントをコピーしました",
-      "endpointDescription": "MCP クライアントをここに向け、上の資格情報を Bearer トークンとして使用してください。1 アカウントにつき 1 インスタンスです。最初に接続したアプリが枠を保持します。",
+      "endpointDescription": "MCP クライアントをここに向けてください。Claude や ChatGPT など OAuth 対応のクライアントはサインインを求めます。その他のクライアントは上の資格情報を Bearer トークンとして送信します。1 アカウントにつき 1 インスタンスです。最初に接続したアプリが枠を保持します。",
       "exampleRequest": "リクエスト例",
       "credentialLabel": "資格情報",
       "credentialPrefix": "{{prefix}}…",

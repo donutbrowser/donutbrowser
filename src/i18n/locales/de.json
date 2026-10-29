@@ -1144,7 +1144,7 @@
       "toggleFailed": "Die Fernsteuerung konnte nicht geändert werden",
       "endpointLabel": "Remote-MCP-Endpunkt",
       "endpointCopied": "Endpunkt kopiert",
-      "endpointDescription": "Richten Sie einen MCP-Client auf diese Adresse aus und verwenden Sie die Zugangsdaten oben als Bearer-Token. Eine Instanz pro Konto: Die erste App, die sich verbindet, behält den Platz.",
+      "endpointDescription": "Richten Sie einen MCP-Client auf diese Adresse aus. Ein Client mit OAuth, etwa Claude oder ChatGPT, bittet Sie um eine Anmeldung; andere Clients senden die Zugangsdaten oben als Bearer-Token. Eine Instanz pro Konto: Die erste App, die sich verbindet, behält den Platz.",
       "exampleRequest": "Beispielanfrage",
       "credentialLabel": "Zugangsdaten",
       "credentialPrefix": "{{prefix}}…",

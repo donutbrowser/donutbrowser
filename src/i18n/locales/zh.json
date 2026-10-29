@@ -1144,7 +1144,7 @@
       "toggleFailed": "无法更改远程控制",
       "endpointLabel": "远程 MCP 端点",
       "endpointCopied": "已复制端点",
-      "endpointDescription": "将 MCP 客户端指向此处，并使用上方的凭据作为 Bearer 令牌。每个账户一个实例：先连接的应用保留该名额。",
+      "endpointDescription": "将 MCP 客户端指向此处。支持 OAuth 的客户端（如 Claude 或 ChatGPT）会请你登录；其他客户端将上方的凭据作为 Bearer 令牌发送。每个账户一个实例：最先连接的应用保留该位置。",
       "exampleRequest": "请求示例",
       "credentialLabel": "凭据",
       "credentialPrefix": "{{prefix}}…",
