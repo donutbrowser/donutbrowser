@@ -5,7 +5,8 @@
 //! descriptors.
 
 use std::ffi::c_void;
-use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 use windows::Win32::Foundation::{
   STATUS_ACCESS_DENIED, STATUS_BUFFER_OVERFLOW, STATUS_CANNOT_DELETE, STATUS_DIRECTORY_NOT_EMPTY,
@@ -76,17 +77,28 @@ fn fill(out: &mut FileInfo, info: Info) {
 /// One open of a file or directory.
 pub struct Handle {
   id: NodeId,
+  /// Set when the opener has closed its last handle to this open.
+  released: AtomicBool,
 }
 
 pub struct RamFs {
   tree: Mutex<Tree>,
+  /// Opens whose opener still holds a handle, across the whole volume.
+  handles: Arc<AtomicUsize>,
 }
 
 impl RamFs {
   pub fn new(capacity: u64, root_security: Vec<u8>) -> Self {
     RamFs {
       tree: Mutex::new(Tree::new(capacity, root_security)),
+      handles: Arc::default(),
     }
+  }
+
+  /// The count of opens still held. A browser that runs from the volume
+  /// always holds some.
+  pub fn open_handles(&self) -> Arc<AtomicUsize> {
+    Arc::clone(&self.handles)
   }
 
   /// A callback that panicked poisons the lock; the tree stays consistent
@@ -107,7 +119,20 @@ impl RamFs {
     if path.len() * 2 < file_info.normalized_name_size() as usize {
       file_info.set_normalized_name(&path, None);
     }
-    Ok(Handle { id })
+    Ok(Handle {
+      id,
+      released: AtomicBool::new(false),
+    })
+  }
+
+  /// The opener closed its last handle (cleanup), or the open went away
+  /// without that (close). Windows sends the close only when it drops its own
+  /// last reference, which its file cache can hold after the opener is gone,
+  /// so the cleanup is what counts.
+  fn release(&self, handle: &Handle) {
+    if !handle.released.swap(true, Ordering::Relaxed) {
+      self.handles.fetch_sub(1, Ordering::Relaxed);
+    }
   }
 }
 
@@ -213,10 +238,13 @@ impl FileSystemContext for RamFs {
       return Err(FsError::IsADirectory.into());
     }
     tree.open(id)?;
-    self.opened(&tree, id, file_info)
+    let handle = self.opened(&tree, id, file_info)?;
+    self.handles.fetch_add(1, Ordering::Relaxed);
+    Ok(handle)
   }
 
   fn close(&self, context: Handle) {
+    self.release(&context);
     self.tree().close(context.id);
   }
 
@@ -253,10 +281,13 @@ impl FileSystemContext for RamFs {
       security,
       allocation_size,
     )?;
-    self.opened(&tree, id, file_info)
+    let handle = self.opened(&tree, id, file_info)?;
+    self.handles.fetch_add(1, Ordering::Relaxed);
+    Ok(handle)
   }
 
   fn cleanup(&self, context: &Handle, _file_name: Option<&U16CStr>, flags: u32) {
+    self.release(context);
     let mut tree = self.tree();
     let flagged = |flag: FspCleanupFlags| flag.is_flagged(flags);
     if flagged(FspCleanupFlags::FspCleanupSetAllocationSize) {

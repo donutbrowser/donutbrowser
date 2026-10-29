@@ -1,5 +1,6 @@
 //! The process that serves the RAM volume (`donut-proxy ramfs`), and the WinFsp
-//! loading it needs. The volume lives exactly as long as this process.
+//! loading it needs. The volume lives exactly as long as this process, which
+//! ends when nothing uses the volume any more.
 //!
 //! WinFsp is a file system driver that Donut does not ship. When it is
 //! installed, an ordinary user can mount a user-mode file system on a
@@ -7,7 +8,8 @@
 
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, LocalFree, HANDLE, HLOCAL};
@@ -172,18 +174,29 @@ fn volume_params() -> VolumeParams {
 /// A mounted volume. Dropping it unmounts it and frees everything on it.
 pub struct Volume {
   _host: FileSystemHost<RamFs>,
+  handles: Arc<AtomicUsize>,
+}
+
+impl Volume {
+  pub fn open_handles(&self) -> usize {
+    self.handles.load(Ordering::Relaxed)
+  }
 }
 
 pub fn mount_volume(mount: &Path, capacity: u64) -> Result<Volume, String> {
   load().map_err(|e| e.to_string())?;
   let fs = RamFs::new(capacity, root_security()?);
+  let handles = fs.open_handles();
   let mut host: FileSystemHost<RamFs> =
     FileSystemHost::new(volume_params(), fs).map_err(|e| format!("create: {e}"))?;
   host
     .mount(mount.as_os_str())
     .map_err(|e| format!("mount: {e}"))?;
   host.start().map_err(|e| format!("start: {e}"))?;
-  Ok(Volume { _host: host })
+  Ok(Volume {
+    _host: host,
+    handles,
+  })
 }
 
 /// WinFsp creates the mount point itself, so the path must not exist. A
@@ -197,7 +210,13 @@ fn clear_mount_point(mount: &Path) -> Result<(), String> {
   }
 }
 
-/// Mount, record the volume in `state_file`, and serve until killed.
+/// Mount, record the volume in `state_file`, and serve it while it is used.
+///
+/// The app stops the host when it quits with nothing on the volume. A browser
+/// can outlive the app, though, and so can a crashed app's volume; then the
+/// host ends itself once no Donut uses the volume, no file on it is open (a
+/// running browser always holds some), and no protected profile's copy waits
+/// on it to be sealed. Two checks in a row must agree.
 pub fn host_main(mount: &Path, capacity: u64, state_file: &Path) -> i32 {
   let started = std::time::Instant::now();
   let pid = std::process::id();
@@ -234,10 +253,29 @@ pub fn host_main(mount: &Path, capacity: u64, state_file: &Path) -> i32 {
     capacity >> 20,
     started.elapsed().as_millis()
   );
-  let _volume = volume;
-  loop {
-    std::thread::park();
+  let profiles = state_file
+    .parent()
+    .map_or_else(|| PathBuf::from("profiles"), |dir| dir.join("profiles"));
+  let interval = crate::proxy_server::watchdog_poll_interval();
+  let mut unused_checks = 0;
+  while unused_checks < 2 {
+    std::thread::sleep(interval);
+    // The protected-copy check lists the volume, which opens a handle on it,
+    // so it comes after the handle count.
+    let unused = !super::owner_runs(mount)
+      && volume.open_handles() == 0
+      && !super::holds_protected_copy(mount, &profiles);
+    unused_checks = if unused { unused_checks + 1 } else { 0 };
   }
+  drop(volume);
+  if VolumeState::read(state_file).is_some_and(|state| state.pid == pid) {
+    let _ = std::fs::remove_file(state_file);
+  }
+  log::info!(
+    "Ram volume host exiting pid={pid} reason=unused uptime_s={}",
+    started.elapsed().as_secs()
+  );
+  0
 }
 
 #[cfg(test)]

@@ -2171,14 +2171,15 @@ async fn handle_connect_from_buffer(
   Ok(())
 }
 
-/// How often the self-reaping supervisor re-checks its owner. Overridable via
+/// How often a self-reaping `donut-proxy` (a worker, the RAM volume host)
+/// re-checks what keeps it alive. Overridable via
 /// `DONUT_PROXY_WATCHDOG_INTERVAL_MS` so lifecycle tests can observe a real
-/// worker reaping itself in seconds instead of a minute; the floor keeps a
+/// process reaping itself in seconds instead of a minute; the floor keeps a
 /// mistyped value from turning the supervisor into a spin loop.
 const WATCHDOG_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(15);
 const WATCHDOG_POLL_INTERVAL_FLOOR: std::time::Duration = std::time::Duration::from_millis(100);
 
-fn watchdog_poll_interval() -> std::time::Duration {
+pub(crate) fn watchdog_poll_interval() -> std::time::Duration {
   std::env::var("DONUT_PROXY_WATCHDOG_INTERVAL_MS")
     .ok()
     .and_then(|raw| raw.trim().parse::<u64>().ok())
