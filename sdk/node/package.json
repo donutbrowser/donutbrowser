@@ -36,6 +36,6 @@
     "directory": "sdk/node"
   },
   "devDependencies": {
-    "tsrs": "^0.18.0-ts7.1.0-dev.20260929"
+    "tsrs": "^0.20.1-ts7.1.0-beta"
   }
 }
