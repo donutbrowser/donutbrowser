@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build context: this directory (donut-sync/).
-FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.6.1 AS xx
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.10.0 AS xx
 
 # Cross-compiles on the build machine's own architecture: emulating the other
 # one is many times slower.
@@ -22,7 +22,7 @@ RUN touch src/main.rs src/lib.rs \
   && cp target/$(xx-cargo --print-target-triple)/release/donut-sync /donut-sync
 
 # Alpine keeps a shell and wget for health checks people may have written.
-FROM alpine:3.22
+FROM alpine:3
 RUN apk add --no-cache ca-certificates \
   && addgroup -g 1000 donut \
   && adduser -D -u 1000 -G donut donut
