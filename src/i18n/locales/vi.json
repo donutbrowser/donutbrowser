@@ -319,6 +319,16 @@
       "concurrency": "Số hồ sơ khởi chạy cùng lúc",
       "concurrencyDescription": "Số hồ sơ có thể khởi chạy cùng lúc. Số nhỏ hơn giúp máy tính đỡ tải hơn.",
       "seconds": "{{value}} giây"
+    },
+    "network": {
+      "title": "Mạng",
+      "appProxy": "Proxy cho Donut",
+      "appProxyDescription": "Các kết nối riêng của Donut dùng proxy này: tải xuống, kiểm tra cập nhật, đăng nhập và đồng bộ. Hồ sơ vẫn dùng proxy riêng của chúng.",
+      "placeholder": "socks5://user:password@host:1080",
+      "current": "Đang dùng: {{proxy}}",
+      "checkNote": "Donut kiểm tra máy chủ của nó có phản hồi qua proxy trước khi lưu. Lược đồ: http, https, socks5, socks5h.",
+      "saved": "Donut hiện kết nối qua {{proxy}}.",
+      "removed": "Donut không còn dùng proxy riêng."
     }
   },
   "header": {
@@ -2936,7 +2946,9 @@
     "proxyAuthFailed": "Proxy đã từ chối tên người dùng hoặc mật khẩu.",
     "vpnUnreachable": "Máy chủ VPN không phản hồi.",
     "entityInUse": "Đang được {{count}} hồ sơ sử dụng. Hãy chuyển chúng sang proxy hoặc VPN khác trước.",
-    "syncPasswordBlocksRemoteRun": "Mật khẩu mã hóa đồng bộ mã hóa các cài đặt đã đồng bộ của hồ sơ này, và máy chủ từ xa không thể giải mã chúng. Để chạy từ xa, hãy xóa mật khẩu trong cài đặt Mã hóa đồng bộ."
+    "syncPasswordBlocksRemoteRun": "Mật khẩu mã hóa đồng bộ mã hóa các cài đặt đã đồng bộ của hồ sơ này, và máy chủ từ xa không thể giải mã chúng. Để chạy từ xa, hãy xóa mật khẩu trong cài đặt Mã hóa đồng bộ.",
+    "appProxyInvalid": "Nhập proxy theo dạng lược_đồ://máy_chủ:cổng, có thể thêm người_dùng:mật_khẩu@ trước máy chủ. Lược đồ là http, https, socks5 hoặc socks5h.",
+    "appProxyUnreachable": "Donut không thể kết nối qua proxy {{proxy}}. Hãy kiểm tra proxy trong Cài đặt, mục Mạng."
   },
   "rail": {
     "profiles": "Profile",
@@ -3232,7 +3244,8 @@
       "errorDownload": "Không thể tải {{browser}}. Kiểm tra kết nối và thử lại.",
       "errorExtraction": "Không thể giải nén {{browser}}. Vui lòng thử lại.",
       "errorGeneric": "Đã xảy ra lỗi khi thiết lập {{browser}}. Vui lòng thử lại.",
-      "retry": "Thử lại"
+      "retry": "Thử lại",
+      "proxyHint": "Nếu mạng của bạn chặn máy chủ của Donut, hãy nhập proxy cho Donut rồi thử lại."
     },
     "features": {
       "title": "Tính năng",

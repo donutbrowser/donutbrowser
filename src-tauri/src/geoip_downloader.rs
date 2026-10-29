@@ -25,8 +25,17 @@ pub struct GeoIPDownloadProgress {
 static DOWNLOAD_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 pub struct GeoIPDownloader {
-  client: Client,
+  /// A client a test supplies; otherwise `HTTP`.
+  client: Option<Client>,
 }
+
+// A stalled connection must not hold the one download slot forever. The
+// overall limit leaves room for a 60 MB file on a slow link.
+static HTTP: crate::app_proxy::SharedClient = crate::app_proxy::SharedClient::new(|builder| {
+  builder
+    .connect_timeout(std::time::Duration::from_secs(30))
+    .timeout(std::time::Duration::from_secs(30 * 60))
+});
 
 /// How the files are checked before they replace the ones in use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,14 +77,11 @@ fn verify_database(
 
 impl GeoIPDownloader {
   fn new() -> Self {
-    // A stalled connection must not hold the one download slot forever. The
-    // overall limit leaves room for a 60 MB file on a slow link.
-    let client = Client::builder()
-      .connect_timeout(std::time::Duration::from_secs(30))
-      .timeout(std::time::Duration::from_secs(30 * 60))
-      .build()
-      .unwrap_or_else(|_| Client::new());
-    Self { client }
+    Self { client: None }
+  }
+
+  fn client(&self) -> Client {
+    self.client.clone().unwrap_or_else(|| HTTP.get())
   }
 
   pub fn instance() -> &'static GeoIPDownloader {
@@ -85,7 +91,9 @@ impl GeoIPDownloader {
   /// Create a new downloader with custom client (for testing)
   #[cfg(test)]
   pub fn new_with_client(client: Client) -> Self {
-    Self { client }
+    Self {
+      client: Some(client),
+    }
   }
 
   fn get_cache_dir() -> PathBuf {
@@ -309,7 +317,7 @@ impl GeoIPDownloader {
     let _ = fs::remove_file(&temp_path).await;
 
     // Download the file
-    let response = self.client.get(&download_url).send().await?;
+    let response = self.client().get(&download_url).send().await?;
 
     if !response.status().is_success() {
       return Err(
@@ -429,7 +437,7 @@ impl GeoIPDownloader {
     let temp_path = path.with_extension("mmdb.downloading");
     let _ = fs::remove_file(&temp_path).await;
 
-    let response = self.client.get(url).send().await?;
+    let response = self.client().get(url).send().await?;
     if !response.status().is_success() {
       return Err(format!("HTTP {}", response.status()).into());
     }
@@ -456,7 +464,7 @@ impl GeoIPDownloader {
   ) -> Result<Vec<GithubRelease>, Box<dyn std::error::Error + Send + Sync>> {
     let url = format!("https://api.github.com/repos/{MMDB_REPO}/releases");
     let response = self
-      .client
+      .client()
       .get(&url)
       .header("User-Agent", "Mozilla/5.0 (compatible; donutbrowser)")
       .send()
@@ -542,7 +550,7 @@ mod tests {
     // Override the URL for testing
     let url = format!("{}/repos/{}/releases", mock_server.uri(), MMDB_REPO);
     let response = downloader
-      .client
+      .client()
       .get(&url)
       .header("User-Agent", "Mozilla/5.0 (compatible; donutbrowser)")
       .send()

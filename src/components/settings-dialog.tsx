@@ -26,6 +26,7 @@ import {
   LuMic,
   LuMonitor,
   LuMonitorCog,
+  LuNetwork,
   LuPalette,
   LuPlug,
   LuRocket,
@@ -41,6 +42,7 @@ import {
 import { DnsBlocklistDialog } from "@/components/dns-blocklist-dialog";
 import { LoadingButton } from "@/components/loading-button";
 import { LogViewer } from "@/components/log-viewer";
+import { AppProxySettings } from "@/components/settings/app-proxy-settings";
 import { EncryptionSettings } from "@/components/settings/encryption-settings";
 import {
   ChoiceCard,
@@ -195,6 +197,12 @@ const SECTIONS: Array<{
     title: "settings.system.title",
     icon: <LuMonitorCog />,
     search: ["settings.system"],
+  },
+  {
+    id: "network",
+    title: "settings.network.title",
+    icon: <LuNetwork />,
+    search: ["settings.network"],
   },
   {
     id: "launches",
@@ -1416,6 +1424,13 @@ export function SettingsDialog({
                     }
                   />
                 </SettingsCard>
+              </SettingsSection>
+
+              <SettingsSection
+                {...sectionProps("network")}
+                aside={appliesImmediately}
+              >
+                <AppProxySettings />
               </SettingsSection>
 
               <SettingsSection {...sectionProps("launches")}>

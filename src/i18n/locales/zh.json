@@ -319,6 +319,16 @@
       "concurrency": "同时启动的配置文件数",
       "concurrencyDescription": "可以同时启动的配置文件数量。数量越少，电脑负载越低。",
       "seconds": "{{value}} 秒"
+    },
+    "network": {
+      "title": "网络",
+      "appProxy": "Donut 专用代理",
+      "appProxyDescription": "Donut 自身的连接使用此代理：下载、检查更新、登录和同步。各配置文件仍使用各自的代理。",
+      "placeholder": "socks5://user:password@host:1080",
+      "current": "使用中：{{proxy}}",
+      "checkNote": "保存前，Donut 会检查其服务器能否通过该代理响应。协议：http、https、socks5、socks5h。",
+      "saved": "Donut 现在通过 {{proxy}} 连接。",
+      "removed": "Donut 不再使用专用代理。"
     }
   },
   "header": {
@@ -2936,7 +2946,9 @@
     "proxyAuthFailed": "代理拒绝了用户名或密码。",
     "vpnUnreachable": "VPN 服务器没有响应。",
     "entityInUse": "有 {{count}} 个配置文件正在使用。请先将它们改用其他代理或 VPN。",
-    "syncPasswordBlocksRemoteRun": "同步加密密码加密了此配置文件已同步的设置，远程主机无法解密。要远程运行，请在同步加密设置中删除密码。"
+    "syncPasswordBlocksRemoteRun": "同步加密密码加密了此配置文件已同步的设置，远程主机无法解密。要远程运行，请在同步加密设置中删除密码。",
+    "appProxyInvalid": "请按 协议://主机:端口 的格式输入代理，可在主机前加上 用户名:密码@。协议为 http、https、socks5 或 socks5h。",
+    "appProxyUnreachable": "Donut 无法通过其代理 {{proxy}} 连接。请在设置的“网络”中检查代理。"
   },
   "rail": {
     "profiles": "配置文件",
@@ -3232,7 +3244,8 @@
       "errorDownload": "无法下载 {{browser}}。请检查网络连接后重试。",
       "errorExtraction": "无法解压 {{browser}}。请重试。",
       "errorGeneric": "设置 {{browser}} 时出现问题。请重试。",
-      "retry": "重试"
+      "retry": "重试",
+      "proxyHint": "如果你的网络屏蔽了 Donut 的服务器，请为 Donut 输入代理，然后重试。"
     },
     "features": {
       "title": "功能",

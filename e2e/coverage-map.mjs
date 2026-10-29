@@ -37,6 +37,8 @@ export const commandCoverage = {
       "note_tip_feature_used",
       "set_tips_auto_show",
       "observe_cloud_plan",
+      "app_proxy::get_app_proxy",
+      "app_proxy::set_app_proxy",
     ],
   },
   profileEntities: {

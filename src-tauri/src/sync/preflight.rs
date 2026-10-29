@@ -75,7 +75,7 @@ fn probe_client() -> reqwest::Client {
   // condition that would fail an upload fails the probe the same way. A probe
   // that is more permissive than the uploader would report a working setup for
   // a configuration that cannot transfer.
-  reqwest::Client::builder()
+  crate::app_proxy::client_builder()
     .timeout(PROBE_TIMEOUT)
     .build()
     .unwrap_or_default()

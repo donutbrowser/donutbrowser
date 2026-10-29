@@ -263,7 +263,7 @@ fn redirect_policy() -> reqwest::redirect::Policy {
 async fn download_archive(url: &str) -> Result<Vec<u8>, String> {
   use futures_util::StreamExt;
 
-  let client = reqwest::Client::builder()
+  let client = crate::app_proxy::client_builder()
     .timeout(std::time::Duration::from_secs(120))
     .connect_timeout(std::time::Duration::from_secs(15))
     .redirect(redirect_policy())

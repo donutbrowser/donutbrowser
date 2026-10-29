@@ -26,6 +26,7 @@ import {
   SetupScene,
 } from "@/components/onboarding/scenes";
 import { ProfileIsolationDemo } from "@/components/profile-isolation-demo";
+import { AppProxyForm } from "@/components/settings/app-proxy-settings";
 import { SCENE_GRID_CLASS } from "@/components/tips/scene-primitives";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -481,6 +482,14 @@ export function WelcomeDialog({
               <p className="mx-auto max-w-[55ch] text-center text-sm/6 text-pretty text-foreground">
                 {translateBackendError(t, setup.error.detail)}
               </p>
+            )}
+            {setup.error?.stage === "downloading" && (
+              <div className="mx-auto flex w-full max-w-md flex-col gap-2">
+                <p className="text-center text-xs text-pretty text-muted-foreground">
+                  {t("welcome.ready.proxyHint")}
+                </p>
+                <AppProxyForm />
+              </div>
             )}
           </>
         );

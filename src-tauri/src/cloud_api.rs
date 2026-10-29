@@ -5,21 +5,18 @@
 
 use crate::cloud_errors::{self, BackendFailure, FailureCodes};
 use serde::de::DeserializeOwned;
-use std::sync::OnceLock;
 use std::time::Duration;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-fn http() -> &'static reqwest::Client {
-  static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-  CLIENT.get_or_init(|| {
-    reqwest::Client::builder()
+fn http() -> reqwest::Client {
+  static CLIENT: crate::app_proxy::SharedClient = crate::app_proxy::SharedClient::new(|builder| {
+    builder
       .timeout(REQUEST_TIMEOUT)
       .connect_timeout(CONNECT_TIMEOUT)
-      .build()
-      .unwrap_or_else(|_| reqwest::Client::new())
-  })
+  });
+  CLIENT.get()
 }
 
 pub(crate) async fn call<T: DeserializeOwned>(

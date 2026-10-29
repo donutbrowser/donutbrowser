@@ -283,12 +283,8 @@ pub struct BlocklistCacheStatus {
 
 pub struct BlocklistManager;
 
-static HTTP_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
-  reqwest::Client::builder()
-    .timeout(Duration::from_secs(60))
-    .build()
-    .expect("Failed to create HTTP client")
-});
+static HTTP_CLIENT: crate::app_proxy::SharedClient =
+  crate::app_proxy::SharedClient::new(|builder| builder.timeout(Duration::from_secs(60)));
 
 impl BlocklistManager {
   pub fn instance() -> &'static BlocklistManager {
@@ -353,7 +349,7 @@ impl BlocklistManager {
     let mut failures: Vec<String> = Vec::new();
 
     for url in &urls {
-      let response = match HTTP_CLIENT.get(url).send().await {
+      let response = match HTTP_CLIENT.get().get(url).send().await {
         Ok(response) => response,
         Err(e) => {
           failures.push(format!("{url}: {e}"));
@@ -464,7 +460,7 @@ impl BlocklistManager {
       // Custom sources are the person's own URLs: the log names them by
       // position and host only.
       let fetches = config.sources.iter().map(|source| async move {
-        match HTTP_CLIENT.get(source).send().await {
+        match HTTP_CLIENT.get().get(source).send().await {
           Ok(resp) if resp.status().is_success() => resp
             .text()
             .await

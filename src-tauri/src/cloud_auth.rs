@@ -419,7 +419,7 @@ struct CloudProxyConfigResponse {
 }
 
 pub struct CloudAuthManager {
-  client: Client,
+  client: crate::app_proxy::SharedClient,
   state: Mutex<Option<CloudAuthState>>,
   refresh_lock: tokio::sync::Mutex<()>,
   refresh_deferred_until: std::sync::Mutex<Option<Instant>>,
@@ -449,11 +449,11 @@ impl CloudAuthManager {
     // Bound every cloud API call so no single slow / hung request can stall
     // the startup chain (sync-token → proxy-config → wayfern-token), which
     // otherwise gates Wayfern launch behind whichever endpoint is slowest.
-    let client = Client::builder()
-      .timeout(std::time::Duration::from_secs(15))
-      .connect_timeout(std::time::Duration::from_secs(5))
-      .build()
-      .unwrap_or_else(|_| Client::new());
+    let client = crate::app_proxy::SharedClient::new(|builder| {
+      builder
+        .timeout(std::time::Duration::from_secs(15))
+        .connect_timeout(std::time::Duration::from_secs(5))
+    });
     Self {
       client,
       state: Mutex::new(state),
@@ -627,6 +627,7 @@ impl CloudAuthManager {
     let challenge_url = format!("{CLOUD_API_URL}/api/auth/device-code/challenge");
     let challenge_response = self
       .client
+      .get()
       .post(&challenge_url)
       .send()
       .await
@@ -649,6 +650,7 @@ impl CloudAuthManager {
     let exchange_url = format!("{CLOUD_API_URL}/api/auth/device-code/exchange");
     let response = self
       .client
+      .get()
       .post(&exchange_url)
       .json(&serde_json::json!({
         "code": code,
@@ -742,6 +744,7 @@ impl CloudAuthManager {
     let url = format!("{CLOUD_API_URL}/api/auth/token/refresh");
     let response = self
       .client
+      .get()
       .post(&url)
       .json(&serde_json::json!({ "refreshToken": refresh_token }))
       .send()
@@ -848,7 +851,7 @@ impl CloudAuthManager {
       .usable_access_token()
       .await
       .map_err(AuthorizedError::from_token_error)?;
-    let mut response = build(&self.client, &token)
+    let mut response = build(&self.client.get(), &token)
       .send()
       .await
       .map_err(|e| AuthorizedError::Transport(e.to_string()))?;
@@ -857,7 +860,7 @@ impl CloudAuthManager {
         .refresh_after_rejection(&token)
         .await
         .map_err(AuthorizedError::from_token_error)?;
-      response = build(&self.client, &token)
+      response = build(&self.client.get(), &token)
         .send()
         .await
         .map_err(|e| AuthorizedError::Transport(e.to_string()))?;
@@ -908,7 +911,7 @@ impl CloudAuthManager {
     self
       .api_call_with_retry(|access_token| {
         let url = format!("{CLOUD_API_URL}/api/mcp/status");
-        let client = self.client.clone();
+        let client = self.client.get();
         async move {
           let response = client
             .get(&url)
@@ -948,7 +951,7 @@ impl CloudAuthManager {
     let answer = self
       .api_call_with_retry(|access_token| {
         let url = format!("{CLOUD_API_URL}/api/mcp/keys");
-        let client = self.client.clone();
+        let client = self.client.get();
         let label = label.to_string();
         async move {
           let response = client
@@ -1001,7 +1004,7 @@ impl CloudAuthManager {
           "{CLOUD_API_URL}/api/mcp/keys/{}",
           urlencoding::encode(key_id)
         );
-        let client = self.client.clone();
+        let client = self.client.get();
         async move {
           let response = client
             .delete(&url)
@@ -1086,7 +1089,7 @@ impl CloudAuthManager {
     let user = self
       .api_call_with_retry(|access_token| {
         let url = format!("{CLOUD_API_URL}/api/auth/me");
-        let client = self.client.clone();
+        let client = self.client.get();
         async move {
           let response = client
             .get(&url)
@@ -1135,7 +1138,7 @@ impl CloudAuthManager {
     let fetched = self
       .api_call_with_retry(|access_token| {
         let url = format!("{CLOUD_API_URL}/api/auth/sync-token");
-        let client = self.client.clone();
+        let client = self.client.get();
         async move {
           let response = client
             .post(&url)
@@ -1194,7 +1197,7 @@ impl CloudAuthManager {
     let fetched = self
       .api_call_with_retry(|access_token| {
         let url = format!("{CLOUD_API_URL}/api/auth/sync-token");
-        let client = self.client.clone();
+        let client = self.client.get();
         let body = serde_json::json!({ "server": server });
         async move {
           let response = client
@@ -1289,6 +1292,7 @@ impl CloudAuthManager {
       }
       let _ = self
         .client
+        .get()
         .post(&url)
         .header("Authorization", format!("Bearer {access_token}"))
         .json(&body)
@@ -1515,7 +1519,7 @@ impl CloudAuthManager {
     match self
       .api_call_with_retry(|access_token| {
         let url = format!("{CLOUD_API_URL}/api/proxy/config");
-        let client = self.client.clone();
+        let client = self.client.get();
         async move {
           let response = client
             .get(&url)
@@ -1600,7 +1604,7 @@ impl CloudAuthManager {
     self
       .api_call_with_retry(|access_token| {
         let url = format!("{CLOUD_API_URL}/api/auth/sync-profile-usage");
-        let client = reqwest::Client::new();
+        let client = CLOUD_AUTH.client.get();
         async move {
           let response = client
             .post(&url)
@@ -1627,7 +1631,7 @@ impl CloudAuthManager {
     self
       .api_call_with_retry(|access_token| {
         let url = format!("{CLOUD_API_URL}/api/proxy/locations/countries");
-        let client = self.client.clone();
+        let client = self.client.get();
         async move {
           let response = client
             .get(&url)
@@ -1674,11 +1678,11 @@ impl CloudAuthManager {
         // api.donutbrowser.com hangs the background fetch indefinitely,
         // which in turn forces wayfern_manager's launch-time wait to
         // exhaust its full polling budget every time.
-        let client = reqwest::Client::builder()
+        let client = crate::app_proxy::client_builder()
           .timeout(std::time::Duration::from_secs(8))
           .connect_timeout(std::time::Duration::from_secs(4))
           .build()
-          .unwrap_or_else(|_| reqwest::Client::new());
+          .unwrap_or_else(|_| CLOUD_AUTH.client.get());
         async move {
           let response = client
             .post(&url)
@@ -2242,7 +2246,7 @@ pub async fn cloud_get_proxy_usage() -> Result<Option<CloudProxyUsage>, String> 
   match CLOUD_AUTH
     .api_call_with_retry(|access_token| {
       let url = format!("{CLOUD_API_URL}/api/proxy/usage");
-      let client = reqwest::Client::new();
+      let client = CLOUD_AUTH.client.get();
       async move {
         let response = client
           .get(&url)

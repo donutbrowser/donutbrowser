@@ -24,20 +24,24 @@ pub fn unreachable_error(proxy: &str) -> String {
 }
 
 /// The coded error for a failed request, when the failure is the connection
-/// itself and a system proxy carried it. `None` for any other failure, which
-/// the caller reports as before.
+/// itself and a proxy carried it: Donut's own proxy when one is set
+/// (`app_proxy`), which replaces the system proxy, else the system proxy.
+/// `None` for any other failure, which the caller reports as before.
 pub fn explain(error: &reqwest::Error) -> Option<String> {
   if !(error.is_connect() || error.is_timeout()) {
     return None;
   }
+  if let Some(proxy) = crate::app_proxy::current() {
+    return Some(crate::app_proxy::unreachable_error(&proxy));
+  }
   https_proxy().map(|proxy| unreachable_error(&proxy))
 }
 
-/// Whether `message` is the error `unreachable_error` builds. Retrying that one
-/// only repeats the wait, because the setting stays wrong until the user
-/// changes it.
+/// Whether `message` is the error `explain` builds. Retrying that one only
+/// repeats the wait, because the setting stays wrong until the user changes
+/// it.
 pub fn is_unreachable_error(message: &str) -> bool {
-  message.contains("\"SYSTEM_PROXY_UNREACHABLE\"")
+  message.contains("\"SYSTEM_PROXY_UNREACHABLE\"") || message.contains("\"APP_PROXY_UNREACHABLE\"")
 }
 
 /// The variables reqwest reads, in the order it reads them.

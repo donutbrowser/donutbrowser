@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import test from "node:test";
 import { appFromEnvironment, withApp } from "../lib/app.mjs";
@@ -413,5 +414,89 @@ test("tray labels, hide-to-tray, and confirmed quit follow the native lifecycle"
     throw error;
   } finally {
     await app.close();
+  }
+});
+
+// Donut's own requests go through the proxy set in Settings > Network, for
+// people whose network reaches Donut's servers only through one. A local
+// CONNECT proxy records each tunnel, so a tunnel to donutbrowser.com proves
+// the app used it.
+test("Donut's own requests go through the proxy set for it", async () => {
+  const tunnels = [];
+  const proxy = net.createServer((client) => {
+    client.once("data", (head) => {
+      const [line, ...headers] = head.toString("latin1").split("\r\n");
+      const [method, target] = line.split(" ");
+      if (method !== "CONNECT") {
+        client.end("HTTP/1.1 405 Method Not Allowed\r\n\r\n");
+        return;
+      }
+      tunnels.push({
+        target,
+        authorized: headers.some((h) =>
+          h.toLowerCase().startsWith("proxy-authorization: basic "),
+        ),
+      });
+      const [host, port] = target.split(":");
+      const upstream = net.connect(Number(port), host, () => {
+        client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+        upstream.pipe(client);
+        client.pipe(upstream);
+      });
+      upstream.on("error", () => client.destroy());
+      client.on("error", () => upstream.destroy());
+    });
+  });
+  await new Promise((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+  const { port } = proxy.address();
+  const closed = net.createServer();
+  await new Promise((resolve) => closed.listen(0, "127.0.0.1", resolve));
+  const closedPort = closed.address().port;
+  await new Promise((resolve) => closed.close(resolve));
+
+  const app = appFromEnvironment("smoke-app-proxy");
+  const code = async (value) =>
+    JSON.parse(
+      (await app.invokeError("set_app_proxy", { proxy: value })).replace(
+        /^[^{]*/,
+        "",
+      ),
+    ).code;
+  try {
+    await app.start();
+    assert.equal(await app.invoke("get_app_proxy"), null);
+    assert.equal(await code("ftp://127.0.0.1:21"), "APP_PROXY_INVALID");
+    assert.equal(
+      await code(`http://127.0.0.1:${closedPort}`),
+      "APP_PROXY_UNREACHABLE",
+    );
+    assert.equal(await app.invoke("get_app_proxy"), null);
+
+    const set = await app.invoke("set_app_proxy", {
+      proxy: `http://donut:secret@127.0.0.1:${port}`,
+    });
+    assert.equal(set, `http://127.0.0.1:${port}`, "no credentials come back");
+    assert.ok(
+      tunnels.some((t) => t.target === "donutbrowser.com:443" && t.authorized),
+      "the check reaches Donut's servers through the proxy, with its login",
+    );
+
+    // Kept across a restart, and used by the first request after it.
+    await app.restart();
+    assert.equal(await app.invoke("get_app_proxy"), `http://127.0.0.1:${port}`);
+    const before = tunnels.length;
+    await app.invoke("fetch_browser_versions_with_count", {
+      browserStr: "wayfern",
+    });
+    assert.ok(
+      tunnels.slice(before).some((t) => t.target === "donutbrowser.com:443"),
+      "the version check goes through the proxy",
+    );
+
+    assert.equal(await app.invoke("set_app_proxy", { proxy: null }), null);
+    assert.equal(await app.invoke("get_app_proxy"), null);
+  } finally {
+    await app.close();
+    await new Promise((resolve) => proxy.close(resolve));
   }
 });

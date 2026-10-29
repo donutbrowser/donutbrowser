@@ -131,7 +131,7 @@ const CONTROL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 /// the bare `reqwest::Client::new()` these calls used to use — which inherited
 /// no timeout at all.
 fn control_client(total: std::time::Duration) -> reqwest::Client {
-  reqwest::Client::builder()
+  crate::app_proxy::client_builder()
     .connect_timeout(CONTROL_CONNECT_TIMEOUT)
     .timeout(total)
     .build()
@@ -1178,14 +1178,10 @@ pub(crate) fn jittered(delay: Duration) -> Duration {
 /// Deliberately not the shared one: a total request timeout would kill a
 /// healthy stream on schedule, so only the connect phase is bounded and
 /// liveness is enforced by the idle timeout instead.
-pub(crate) fn stream_client() -> &'static reqwest::Client {
-  static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
-  CLIENT.get_or_init(|| {
-    reqwest::Client::builder()
-      .connect_timeout(Duration::from_secs(10))
-      .build()
-      .unwrap_or_else(|_| reqwest::Client::new())
-  })
+pub(crate) fn stream_client() -> reqwest::Client {
+  static CLIENT: crate::app_proxy::SharedClient =
+    crate::app_proxy::SharedClient::new(|builder| builder.connect_timeout(Duration::from_secs(10)));
+  CLIENT.get()
 }
 
 async fn connect_session_events(

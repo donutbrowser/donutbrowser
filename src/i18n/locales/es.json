@@ -320,6 +320,16 @@
       "concurrency": "Perfiles que se inician a la vez",
       "concurrencyDescription": "Cuántos perfiles pueden iniciarse al mismo tiempo. Un número menor carga menos tu ordenador.",
       "seconds": "{{value}} s"
+    },
+    "network": {
+      "title": "Red",
+      "appProxy": "Proxy para Donut",
+      "appProxyDescription": "Las conexiones propias de Donut usan este proxy: descargas, comprobación de actualizaciones, inicio de sesión y sincronización. Los perfiles conservan sus propios proxies.",
+      "placeholder": "socks5://user:password@host:1080",
+      "current": "En uso: {{proxy}}",
+      "checkNote": "Donut comprueba que sus servidores responden a través del proxy antes de guardarlo. Esquemas: http, https, socks5, socks5h.",
+      "saved": "Donut ahora se conecta a través de {{proxy}}.",
+      "removed": "Donut ya no usa un proxy propio."
     }
   },
   "header": {
@@ -2956,7 +2966,9 @@
     "proxyAuthFailed": "El proxy rechazó el usuario o la contraseña.",
     "vpnUnreachable": "El servidor VPN no responde.",
     "entityInUse": "Lo usan {{count}} perfiles. Asígnales primero otro proxy o VPN.",
-    "syncPasswordBlocksRemoteRun": "La contraseña del cifrado de sincronización cifra los ajustes sincronizados de este perfil, y un host remoto no puede descifrarlos. Para ejecutarlo en remoto, elimina la contraseña en los ajustes de Cifrado de sincronización."
+    "syncPasswordBlocksRemoteRun": "La contraseña del cifrado de sincronización cifra los ajustes sincronizados de este perfil, y un host remoto no puede descifrarlos. Para ejecutarlo en remoto, elimina la contraseña en los ajustes de Cifrado de sincronización.",
+    "appProxyInvalid": "Introduce el proxy como esquema://host:puerto, con usuario:contraseña@ opcional antes del host. El esquema es http, https, socks5 o socks5h.",
+    "appProxyUnreachable": "Donut no pudo conectarse a través de su proxy {{proxy}}. Revisa el proxy en Ajustes, en Red."
   },
   "rail": {
     "profiles": "Perfiles",
@@ -3252,7 +3264,8 @@
       "errorDownload": "No se pudo descargar {{browser}}. Comprueba tu conexión e inténtalo de nuevo.",
       "errorExtraction": "No se pudo extraer {{browser}}. Inténtalo de nuevo.",
       "errorGeneric": "Algo salió mal al configurar {{browser}}. Inténtalo de nuevo.",
-      "retry": "Reintentar"
+      "retry": "Reintentar",
+      "proxyHint": "Si tu red bloquea los servidores de Donut, introduce un proxy para Donut y vuelve a intentarlo."
     },
     "features": {
       "title": "Funciones",

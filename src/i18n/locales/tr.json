@@ -319,6 +319,16 @@
       "concurrency": "Aynı anda başlayan profil sayısı",
       "concurrencyDescription": "Aynı anda kaç profilin başlayabileceği. Daha düşük bir sayı bilgisayarınızı daha az yorar.",
       "seconds": "{{value}} sn"
+    },
+    "network": {
+      "title": "Ağ",
+      "appProxy": "Donut için proxy",
+      "appProxyDescription": "Donut'un kendi bağlantıları bu proxy'yi kullanır: indirmeler, güncelleme denetimleri, oturum açma ve eşitleme. Profiller kendi proxy'lerini kullanmaya devam eder.",
+      "placeholder": "socks5://user:password@host:1080",
+      "current": "Kullanımda: {{proxy}}",
+      "checkNote": "Donut, kaydetmeden önce sunucularının proxy üzerinden yanıt verdiğini denetler. Şemalar: http, https, socks5, socks5h.",
+      "saved": "Donut artık {{proxy}} üzerinden bağlanıyor.",
+      "removed": "Donut artık kendi proxy'sini kullanmıyor."
     }
   },
   "header": {
@@ -2936,7 +2946,9 @@
     "proxyAuthFailed": "Proxy kullanıcı adını veya parolayı reddetti.",
     "vpnUnreachable": "VPN sunucusu yanıt vermiyor.",
     "entityInUse": "{{count}} profil tarafından kullanılıyor. Önce onları başka bir proxy'ye veya VPN'e geçirin.",
-    "syncPasswordBlocksRemoteRun": "Eşitleme şifrelemesi parolası bu profilin eşitlenen ayarlarını şifreler ve uzak sunucu bunları çözemez. Uzakta çalıştırmak için Eşitleme şifrelemesi ayarlarından parolayı kaldırın."
+    "syncPasswordBlocksRemoteRun": "Eşitleme şifrelemesi parolası bu profilin eşitlenen ayarlarını şifreler ve uzak sunucu bunları çözemez. Uzakta çalıştırmak için Eşitleme şifrelemesi ayarlarından parolayı kaldırın.",
+    "appProxyInvalid": "Proxy'yi şema://sunucu:port biçiminde girin; sunucudan önce isteğe bağlı kullanıcı:parola@ ekleyebilirsiniz. Şema http, https, socks5 veya socks5h olmalıdır.",
+    "appProxyUnreachable": "Donut, {{proxy}} proxy'si üzerinden bağlanamadı. Proxy'yi Ayarlar'da, Ağ bölümünde denetleyin."
   },
   "rail": {
     "profiles": "Profiller",
@@ -3232,7 +3244,8 @@
       "errorDownload": "{{browser}} indirilemedi. Bağlantınızı kontrol edip yeniden deneyin.",
       "errorExtraction": "{{browser}} çıkarılamadı. Lütfen yeniden deneyin.",
       "errorGeneric": "{{browser}} kurulurken bir şeyler ters gitti. Lütfen yeniden deneyin.",
-      "retry": "Yeniden dene"
+      "retry": "Yeniden dene",
+      "proxyHint": "Ağınız Donut'un sunucularını engelliyorsa Donut için bir proxy girin ve yeniden deneyin."
     },
     "features": {
       "title": "Özellikler",

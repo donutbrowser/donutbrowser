@@ -320,6 +320,16 @@
       "concurrency": "Profils lancés en même temps",
       "concurrencyDescription": "Le nombre de profils qui peuvent démarrer en même temps. Un nombre plus bas charge moins votre ordinateur.",
       "seconds": "{{value}} s"
+    },
+    "network": {
+      "title": "Réseau",
+      "appProxy": "Proxy pour Donut",
+      "appProxyDescription": "Les connexions propres à Donut passent par ce proxy : téléchargements, recherche de mises à jour, connexion et synchronisation. Les profils gardent leurs propres proxys.",
+      "placeholder": "socks5://user:password@host:1080",
+      "current": "Utilisé : {{proxy}}",
+      "checkNote": "Donut vérifie que ses serveurs répondent via le proxy avant de l'enregistrer. Schémas : http, https, socks5, socks5h.",
+      "saved": "Donut se connecte maintenant via {{proxy}}.",
+      "removed": "Donut n'utilise plus de proxy propre."
     }
   },
   "header": {
@@ -2956,7 +2966,9 @@
     "proxyAuthFailed": "Le proxy a refusé le nom d'utilisateur ou le mot de passe.",
     "vpnUnreachable": "Le serveur VPN ne répond pas.",
     "entityInUse": "Utilisé par {{count}} profils. Attribuez-leur d'abord un autre proxy ou VPN.",
-    "syncPasswordBlocksRemoteRun": "Le mot de passe du chiffrement de synchronisation chiffre les réglages synchronisés de ce profil, et un hôte distant ne peut pas les déchiffrer. Pour l'exécuter à distance, supprimez le mot de passe dans les réglages Chiffrement de synchronisation."
+    "syncPasswordBlocksRemoteRun": "Le mot de passe du chiffrement de synchronisation chiffre les réglages synchronisés de ce profil, et un hôte distant ne peut pas les déchiffrer. Pour l'exécuter à distance, supprimez le mot de passe dans les réglages Chiffrement de synchronisation.",
+    "appProxyInvalid": "Saisissez le proxy sous la forme schéma://hôte:port, avec utilisateur:mot_de_passe@ facultatif avant l'hôte. Le schéma est http, https, socks5 ou socks5h.",
+    "appProxyUnreachable": "Donut n'a pas pu se connecter via son proxy {{proxy}}. Vérifiez le proxy dans Paramètres, sous Réseau."
   },
   "rail": {
     "profiles": "Profils",
@@ -3252,7 +3264,8 @@
       "errorDownload": "Impossible de télécharger {{browser}}. Vérifiez votre connexion et réessayez.",
       "errorExtraction": "Impossible d'extraire {{browser}}. Veuillez réessayer.",
       "errorGeneric": "Une erreur s'est produite lors de la configuration de {{browser}}. Veuillez réessayer.",
-      "retry": "Réessayer"
+      "retry": "Réessayer",
+      "proxyHint": "Si votre réseau bloque les serveurs de Donut, saisissez un proxy pour Donut, puis réessayez."
     },
     "features": {
       "title": "Fonctionnalités",

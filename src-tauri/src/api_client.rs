@@ -1,4 +1,3 @@
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -126,15 +125,14 @@ struct CachedWayfernData {
 }
 
 pub struct ApiClient {
-  client: Client,
+  client: crate::app_proxy::SharedClient,
 }
 
 impl ApiClient {
   pub fn new() -> Self {
-    let client = Client::builder()
-      .timeout(std::time::Duration::from_secs(30))
-      .build()
-      .unwrap_or_else(|_| Client::new());
+    let client = crate::app_proxy::SharedClient::new(|builder| {
+      builder.timeout(std::time::Duration::from_secs(30))
+    });
 
     Self { client }
   }
@@ -293,6 +291,7 @@ impl ApiClient {
     for attempt in 1..=3 {
       match self
         .client
+        .get()
         .get(url)
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36")
         .send()

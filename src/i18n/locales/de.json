@@ -319,6 +319,16 @@
       "concurrency": "Gleichzeitig startende Profile",
       "concurrencyDescription": "Wie viele Profile gleichzeitig starten können. Eine kleinere Zahl belastet deinen Computer weniger.",
       "seconds": "{{value}} s"
+    },
+    "network": {
+      "title": "Netzwerk",
+      "appProxy": "Proxy für Donut",
+      "appProxyDescription": "Donuts eigene Verbindungen nutzen diesen Proxy: Downloads, Update-Prüfungen, Anmeldung und Synchronisierung. Profile behalten ihre eigenen Proxys.",
+      "placeholder": "socks5://user:password@host:1080",
+      "current": "In Verwendung: {{proxy}}",
+      "checkNote": "Donut prüft vor dem Speichern, ob seine Server über den Proxy antworten. Schemata: http, https, socks5, socks5h.",
+      "saved": "Donut verbindet sich jetzt über {{proxy}}.",
+      "removed": "Donut nutzt keinen eigenen Proxy mehr."
     }
   },
   "header": {
@@ -2936,7 +2946,9 @@
     "proxyAuthFailed": "Der Proxy hat Benutzername oder Passwort abgelehnt.",
     "vpnUnreachable": "Der VPN-Server antwortet nicht.",
     "entityInUse": "Wird von {{count}} Profilen verwendet. Weisen Sie ihnen zuerst einen anderen Proxy oder ein anderes VPN zu.",
-    "syncPasswordBlocksRemoteRun": "Das Passwort der Sync-Verschlüsselung verschlüsselt die synchronisierten Einstellungen dieses Profils, und ein Remote-Host kann sie nicht entschlüsseln. Um es remote auszuführen, entfernen Sie das Passwort in den Einstellungen der Sync-Verschlüsselung."
+    "syncPasswordBlocksRemoteRun": "Das Passwort der Sync-Verschlüsselung verschlüsselt die synchronisierten Einstellungen dieses Profils, und ein Remote-Host kann sie nicht entschlüsseln. Um es remote auszuführen, entfernen Sie das Passwort in den Einstellungen der Sync-Verschlüsselung.",
+    "appProxyInvalid": "Gib den Proxy als schema://host:port ein, optional mit benutzer:passwort@ vor dem Host. Das Schema ist http, https, socks5 oder socks5h.",
+    "appProxyUnreachable": "Donut konnte keine Verbindung über seinen Proxy {{proxy}} herstellen. Prüfe den Proxy in den Einstellungen unter Netzwerk."
   },
   "rail": {
     "profiles": "Profile",
@@ -3232,7 +3244,8 @@
       "errorDownload": "{{browser}} konnte nicht heruntergeladen werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
       "errorExtraction": "{{browser}} konnte nicht entpackt werden. Bitte versuchen Sie es erneut.",
       "errorGeneric": "Beim Einrichten von {{browser}} ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.",
-      "retry": "Erneut versuchen"
+      "retry": "Erneut versuchen",
+      "proxyHint": "Wenn dein Netzwerk Donuts Server blockiert, gib einen Proxy für Donut ein und versuche es erneut."
     },
     "features": {
       "title": "Funktionen",

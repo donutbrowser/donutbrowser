@@ -319,6 +319,16 @@
       "concurrency": "同時に起動するプロファイル数",
       "concurrencyDescription": "同時に起動できるプロファイルの数です。数が少ないほどコンピューターの負荷が下がります。",
       "seconds": "{{value}} 秒"
+    },
+    "network": {
+      "title": "ネットワーク",
+      "appProxy": "Donut 用プロキシ",
+      "appProxyDescription": "Donut 自身の接続（ダウンロード、更新の確認、サインイン、同期）はこのプロキシを使います。プロファイルはそれぞれのプロキシを使います。",
+      "placeholder": "socks5://user:password@host:1080",
+      "current": "使用中: {{proxy}}",
+      "checkNote": "保存する前に、プロキシ経由で Donut のサーバーが応答するか確認します。スキーム: http、https、socks5、socks5h。",
+      "saved": "Donut は {{proxy}} 経由で接続します。",
+      "removed": "Donut は独自のプロキシを使わなくなりました。"
     }
   },
   "header": {
@@ -2936,7 +2946,9 @@
     "proxyAuthFailed": "プロキシがユーザー名またはパスワードを拒否しました。",
     "vpnUnreachable": "VPN サーバーが応答しません。",
     "entityInUse": "{{count}} 件のプロファイルで使用中です。先に別のプロキシまたはVPNに切り替えてください。",
-    "syncPasswordBlocksRemoteRun": "同期暗号化のパスワードがこのプロファイルの同期済み設定を暗号化しているため、リモートホストでは復号できません。リモートで実行するには、同期暗号化の設定でパスワードを削除してください。"
+    "syncPasswordBlocksRemoteRun": "同期暗号化のパスワードがこのプロファイルの同期済み設定を暗号化しているため、リモートホストでは復号できません。リモートで実行するには、同期暗号化の設定でパスワードを削除してください。",
+    "appProxyInvalid": "プロキシを scheme://host:port の形式で入力してください。ホストの前に user:password@ を付けることもできます。スキームは http、https、socks5、socks5h のいずれかです。",
+    "appProxyUnreachable": "Donut はプロキシ {{proxy}} 経由で接続できませんでした。設定の「ネットワーク」でプロキシを確認してください。"
   },
   "rail": {
     "profiles": "プロファイル",
@@ -3232,7 +3244,8 @@
       "errorDownload": "{{browser}} をダウンロードできませんでした。接続を確認して、もう一度お試しください。",
       "errorExtraction": "{{browser}} を展開できませんでした。もう一度お試しください。",
       "errorGeneric": "{{browser}} のセットアップ中に問題が発生しました。もう一度お試しください。",
-      "retry": "再試行"
+      "retry": "再試行",
+      "proxyHint": "ネットワークが Donut のサーバーをブロックしている場合は、Donut 用のプロキシを入力してから再試行してください。"
     },
     "features": {
       "title": "機能",
