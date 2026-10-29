@@ -49,3 +49,14 @@ ignoreUntil = 2026-12-31
 id = "RUSTSEC-2026-0372"
 reason = "zvariant_derive merged into zbus 6; every crate that pulls in zbus still requires zbus 5."
 ignoreUntil = 2026-12-31
+
+# block-buffer 0.10.4 <- digest 0.10, through axum 0.8 (sha1), boringtun 0.7
+# (blake2, hmac) and tauri-codegen 2.7 (sha2). Only block-buffer 0.12.1 has the
+# fix, and the newest release of each of those crates still requires digest
+# 0.10. The defect needs a panic inside the hash compression function that is
+# caught and followed by more use of the same hasher; the SHA-1, SHA-2, BLAKE2
+# and MD5 compression functions do not panic.
+[[IgnoredVulns]]
+id = "GHSA-qwgh-2vcv-g2f7"
+reason = "block-buffer 0.10 has no fix; axum, boringtun and tauri-codegen still require digest 0.10."
+ignoreUntil = 2026-12-31
