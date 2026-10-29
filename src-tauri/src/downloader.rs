@@ -168,7 +168,7 @@ impl Downloader {
     &self,
     browser_type: BrowserType,
     version: &str,
-    _download_info: &DownloadInfo,
+    download_info: &DownloadInfo,
   ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     match browser_type {
       BrowserType::Wayfern => {
@@ -191,22 +191,23 @@ impl Downloader {
           );
         }
 
-        // Get the download URL for current platform
-        let download_url = self
-          .api_client
-          .get_wayfern_download_url(&version_info)
-          .ok_or_else(|| {
-            let (os, arch) = Self::get_platform_info();
-            format!(
-              "No compatible download found for Wayfern on {os}/{arch}. Available platforms: {}",
-              version_info
-                .downloads
-                .iter()
-                .filter_map(|(k, v)| if v.is_some() { Some(k.as_str()) } else { None })
-                .collect::<Vec<_>>()
-                .join(", ")
-            )
-          })?;
+        // Take the build that the local file name was made for, so the name and the bytes always
+        // describe the same platform.
+        let download_url =
+          crate::browser_version_manager::wayfern_slot_of_archive(&download_info.filename, version)
+            .and_then(|slot| version_info.downloads.get(slot).cloned().flatten())
+            .ok_or_else(|| {
+              let (os, arch) = Self::get_platform_info();
+              format!(
+                "No compatible download found for Wayfern on {os}/{arch}. Available platforms: {}",
+                version_info
+                  .downloads
+                  .iter()
+                  .filter_map(|(k, v)| if v.is_some() { Some(k.as_str()) } else { None })
+                  .collect::<Vec<_>>()
+                  .join(", ")
+              )
+            })?;
 
         Ok(download_url)
       }

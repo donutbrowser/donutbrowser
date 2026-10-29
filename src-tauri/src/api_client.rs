@@ -356,12 +356,16 @@ impl ApiClient {
   /// Get the download URL for Wayfern based on current platform
   pub fn get_wayfern_download_url(&self, version_info: &WayfernVersionInfo) -> Option<String> {
     let (os, arch) = Self::get_platform_info();
-    let platform_key = format!("{os}-{arch}");
+    let slot = wayfern_slot_for(&version_info.downloads, &os, &arch)?;
+    version_info.downloads.get(&slot).cloned().flatten()
+  }
 
-    version_info
-      .downloads
-      .get(&platform_key)
-      .and_then(|url| url.clone())
+  /// The downloads key that this host takes from the last fetched Wayfern manifest, or None when
+  /// no manifest is cached or nothing in it runs here.
+  pub fn cached_wayfern_slot(&self) -> Option<String> {
+    let (os, arch) = Self::get_platform_info();
+    let version_info = self.load_cached_wayfern_version()?;
+    wayfern_slot_for(&version_info.downloads, &os, &arch)
   }
 
   /// Check if Wayfern has a compatible download for current platform
@@ -394,9 +398,68 @@ impl ApiClient {
 
 static API_CLIENT: std::sync::LazyLock<ApiClient> = std::sync::LazyLock::new(ApiClient::new);
 
+/// The downloads key of the Wayfern build for one platform: its own key, or windows-x64 on Windows
+/// on Arm, which runs the x64 build through emulation, while no windows-arm64 build is published.
+/// Other platforms have no fallback: an x64 build cannot run on Linux on Arm, and an absent entry
+/// means "not available".
+pub(crate) fn wayfern_slot_for(
+  downloads: &std::collections::HashMap<String, Option<String>>,
+  os: &str,
+  arch: &str,
+) -> Option<String> {
+  let published = |key: &str| downloads.get(key).is_some_and(Option::is_some);
+  let own = format!("{os}-{arch}");
+  if published(&own) {
+    return Some(own);
+  }
+  if os == "windows" && arch == "arm64" && published("windows-x64") {
+    return Some("windows-x64".to_string());
+  }
+  None
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn wayfern_slot_for_takes_the_host_build_and_falls_back_only_on_windows_arm() {
+    let downloads = |pairs: &[(&str, Option<&str>)]| {
+      pairs
+        .iter()
+        .map(|(key, url)| (key.to_string(), url.map(str::to_string)))
+        .collect::<std::collections::HashMap<_, _>>()
+    };
+    let both = downloads(&[
+      ("windows-x64", Some("https://d/x64.zip")),
+      ("windows-arm64", Some("https://d/arm64.zip")),
+    ]);
+    assert_eq!(
+      wayfern_slot_for(&both, "windows", "arm64").as_deref(),
+      Some("windows-arm64")
+    );
+    let x64_only = downloads(&[
+      ("windows-x64", Some("https://d/x64.zip")),
+      ("windows-arm64", None),
+      ("linux-x64", Some("https://d/linux-x64.tar.xz")),
+      ("linux-arm64", None),
+    ]);
+    assert_eq!(
+      wayfern_slot_for(&x64_only, "windows", "arm64").as_deref(),
+      Some("windows-x64")
+    );
+    assert_eq!(
+      wayfern_slot_for(&x64_only, "windows", "x64").as_deref(),
+      Some("windows-x64")
+    );
+    assert_eq!(wayfern_slot_for(&x64_only, "linux", "arm64"), None);
+    let missing = downloads(&[("windows-x64", Some("https://d/x64.zip"))]);
+    assert_eq!(
+      wayfern_slot_for(&missing, "windows", "arm64").as_deref(),
+      Some("windows-x64")
+    );
+    assert_eq!(wayfern_slot_for(&downloads(&[]), "windows", "arm64"), None);
+  }
 
   #[test]
   fn test_version_parsing() {

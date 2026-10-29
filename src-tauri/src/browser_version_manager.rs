@@ -37,6 +37,28 @@ pub struct BrowserVersionManager {
 /// The CPU is the machine's own, not the one Donut was compiled for: Windows
 /// on ARM runs the x64 build of Donut under emulation, and it must still get
 /// the arm64 browser.
+/// The local file name of a Wayfern archive for one downloads key, or None for an unknown key.
+pub(crate) fn wayfern_archive_name(version: &str, slot: &str) -> Option<String> {
+  let extension = match slot {
+    "macos-arm64" | "macos-x64" => "dmg",
+    "linux-x64" | "linux-arm64" => "tar.xz",
+    "windows-x64" | "windows-arm64" => "zip",
+    _ => return None,
+  };
+  Some(format!("wayfern-{version}-{slot}.{extension}"))
+}
+
+/// The downloads key that `wayfern_archive_name` built `filename` from.
+pub(crate) fn wayfern_slot_of_archive<'a>(filename: &'a str, version: &str) -> Option<&'a str> {
+  let rest = filename
+    .strip_prefix("wayfern-")?
+    .strip_prefix(version)?
+    .strip_prefix('-')?;
+  [".dmg", ".tar.xz", ".zip"]
+    .iter()
+    .find_map(|extension| rest.strip_suffix(extension))
+}
+
 pub(crate) fn host_platform() -> (String, String) {
   let os = if cfg!(target_os = "windows") {
     "windows"
@@ -352,19 +374,16 @@ impl BrowserVersionManager {
         // Wayfern downloads from https://download.wayfern.com/
         // File naming: wayfern-{chromium_version}-{platform}-{arch}.{ext}
         // Platform/arch format: linux-x64, macos-arm64, etc.
-        let platform_key = format!("{os}-{arch}");
-        let (filename, is_archive) = match platform_key.as_str() {
-          "macos-arm64" | "macos-x64" => (format!("wayfern-{version}-{platform_key}.dmg"), true),
-          "linux-x64" | "linux-arm64" => (format!("wayfern-{version}-{platform_key}.tar.xz"), true),
-          "windows-x64" | "windows-arm64" => {
-            (format!("wayfern-{version}-{platform_key}.zip"), true)
-          }
-          _ => {
-            return Err(
-              format!("Unsupported platform/architecture for Wayfern: {os}/{arch}").into(),
-            )
-          }
+        // The local name follows the build this host actually takes, so a file named for one CPU
+        // never holds another CPU's build. Without a cached manifest it names the host's own slot.
+        let platform_key = self
+          .api_client
+          .cached_wayfern_slot()
+          .unwrap_or_else(|| format!("{os}-{arch}"));
+        let Some(filename) = wayfern_archive_name(version, &platform_key) else {
+          return Err(format!("Unsupported platform/architecture for Wayfern: {os}/{arch}").into());
         };
+        let is_archive = true;
 
         // Note: The actual URL will be resolved dynamically from version.json in downloader.rs
         Ok(DownloadInfo {
@@ -413,6 +432,33 @@ pub async fn get_browser_release_types(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn wayfern_archive_name_follows_the_slot_taken_and_round_trips() {
+    let version = "155.0.8059.79";
+    assert_eq!(
+      wayfern_archive_name(version, "windows-arm64").as_deref(),
+      Some("wayfern-155.0.8059.79-windows-arm64.zip")
+    );
+    // Windows on Arm that falls back to the x64 build stores it under the x64 name.
+    assert_eq!(
+      wayfern_archive_name(version, "windows-x64").as_deref(),
+      Some("wayfern-155.0.8059.79-windows-x64.zip")
+    );
+    assert_eq!(
+      wayfern_archive_name(version, "linux-arm64").as_deref(),
+      Some("wayfern-155.0.8059.79-linux-arm64.tar.xz")
+    );
+    assert_eq!(wayfern_archive_name(version, "plan9-x64"), None);
+    for slot in ["macos-arm64", "linux-x64", "windows-x64", "windows-arm64"] {
+      let name = wayfern_archive_name(version, slot).unwrap();
+      assert_eq!(wayfern_slot_of_archive(&name, version), Some(slot));
+    }
+    assert_eq!(
+      wayfern_slot_of_archive("wayfern-155.0.8059.79-windows-x64.zip", "154.0.8037.57"),
+      None
+    );
+  }
 
   #[tokio::test]
   async fn test_browser_version_manager_creation() {
