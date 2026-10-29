@@ -101,6 +101,50 @@ fn clear_stale_browser_pids() {
   }
 }
 
+/// Erase the in-memory directory of each ephemeral profile whose browser is
+/// gone (`ephemeral_dirs::stale_dirs`). One such directory keeps the macOS RAM
+/// disk mounted after Donut quits, and its disk image helper makes macOS list
+/// Donut as running in the background; on Windows it keeps the RAM volume's
+/// host running.
+async fn discard_stale_ephemeral_dirs() {
+  fn browser_running(profile: &profile::BrowserProfile) -> bool {
+    profile
+      .process_id
+      .is_some_and(proxy_storage::is_process_running)
+  }
+  fn current(id: &str) -> Option<profile::BrowserProfile> {
+    profile::ProfileManager::instance()
+      .list_profiles()
+      .ok()?
+      .into_iter()
+      .find(|profile| profile.id.to_string() == id)
+  }
+
+  let stale = tauri::async_runtime::spawn_blocking(|| {
+    let profiles = profile::ProfileManager::instance()
+      .list_profiles()
+      .unwrap_or_default();
+    ephemeral_dirs::stale_dirs(&profiles, browser_running)
+  })
+  .await
+  .unwrap_or_default();
+
+  for id in stale {
+    // A launch of the profile owns its directory.
+    let Some(_launch) = browser_runner::try_lock_profile_launch(&id).await else {
+      continue;
+    };
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+      if current(&id).is_some_and(|profile| !browser_running(&profile))
+        && ephemeral_dirs::remove_ephemeral_dir(&id)
+      {
+        traffic_stats::delete_traffic_stats(&id);
+      }
+    })
+    .await;
+  }
+}
+
 fn e2e_automation_enabled() -> bool {
   #[cfg(feature = "e2e")]
   {
@@ -2958,6 +3002,7 @@ pub fn run_with_builder(
             log::error!("Stale browser pid sweep failed err=\"{e}\"");
           }
           let _ = STARTUP_SCAN_DONE.set(());
+          discard_stale_ephemeral_dirs().await;
 
           let bump = handle.clone();
           let moved = tauri::async_runtime::spawn_blocking(move || {
@@ -3348,6 +3393,11 @@ pub fn run_with_builder(
                   if !is_running {
                     crate::profile::clear_on_close::clear_profile_browsing_data(&profile)
                       .await;
+                    if let Some(pid) = profile.process_id {
+                      crate::proxy_manager::PROXY_MANAGER
+                        .stop_worker_of_exited_browser(pid)
+                        .await;
+                    }
                   }
 
                   // Notify sync scheduler of running state changes
@@ -3857,6 +3907,7 @@ pub fn run_with_builder(
         // one account holds one bridge at a time, so an instance that exits
         // without hanging up delays the account's next machine.
         mcp_remote::stop(None);
+        tauri::async_runtime::block_on(discard_stale_ephemeral_dirs());
         ephemeral_dirs::detach_unused_ram_disk();
         log::info!("Donut exiting {}", process_report::summary());
         tauri::async_runtime::block_on(

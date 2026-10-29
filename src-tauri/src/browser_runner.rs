@@ -1379,6 +1379,9 @@ impl BrowserRunner {
       self
         .save_process_info(&updated_profile)
         .map_err(|e| format!("Failed to update profile: {e}"))?;
+      if let Some(pid) = profile.process_id {
+        PROXY_MANAGER.stop_worker_of_exited_browser(pid).await;
+      }
 
       // Check for pending updates and apply them
       if let Ok(Some(pending_update)) = self

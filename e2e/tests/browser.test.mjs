@@ -2014,6 +2014,129 @@ test("a proxy worker recovers for a live browser and dies with its browser", asy
   }
 });
 
+// A browser that closes takes its proxy worker with it as soon as the app sees
+// the exit. The worker's own watchdog (15 s polls, two misses) and the app's
+// sweep (30 s, two misses) each take half a minute or more, so the 12 s budget
+// below holds only through the app's immediate stop. An ephemeral profile's
+// in-memory directory never outlives its browser either, not even one that
+// exits while the app is closed: a directory left behind keeps the macOS RAM
+// disk mounted after Donut quits, so macOS lists Donut as running in the
+// background, and keeps the Windows RAM volume's host process running.
+test("a closed browser takes its proxy worker and in-memory profile with it", async () => {
+  assert.ok(process.env.WAYFERN_TEST_TOKEN, "WAYFERN_TEST_TOKEN is required");
+  const name = "browser-exit-cleanup";
+  const ephemeralRoot = path.join(
+    process.env.DONUT_E2E_RUN_ROOT,
+    "sessions",
+    name,
+    "ephemeral",
+  );
+  const app = appFromEnvironment(name, {
+    seedVersionCache:
+      cachedFixtureVersion(process.env.DONUT_E2E_PROJECT_ROOT) ?? false,
+    wayfernTermsAccepted: false,
+    extraEnv: { DONUTBROWSER_EPHEMERAL_ROOT: ephemeralRoot },
+  });
+
+  const strays = new Set();
+  const launchEphemeral = async (version, profileName) => {
+    const profile = await app.invoke("create_browser_profile_new", {
+      name: profileName,
+      browserStr: "wayfern",
+      version,
+      releaseType: "stable",
+      proxyId: null,
+      vpnId: null,
+      wayfernConfig: {
+        fingerprint: null,
+        randomize_fingerprint_on_launch: false,
+        geoip: false,
+      },
+      groupId: null,
+      ephemeral: true,
+      dnsBlocklist: null,
+      launchHook: null,
+    });
+    const launched = await app.invoke("launch_browser_profile", {
+      profile,
+      url: `${fixtureUrl}/worker-lifecycle`,
+    });
+    const browserPid = launched.process_id;
+    assert.ok(browserPid, "Wayfern must report a process id");
+    strays.add(browserPid);
+    const worker = await app.waitFor(
+      async () =>
+        (await readWorkerConfigs(app)).find(
+          (config) => config.profile_id === profile.id && config.pid,
+        ),
+      { description: `the proxy worker of ${profileName}` },
+    );
+    strays.add(worker.pid);
+    const dir = path.join(ephemeralRoot, profile.id);
+    assert.ok(
+      existsSync(dir),
+      "an ephemeral profile runs from its in-memory directory",
+    );
+    return { profile, browserPid, workerPid: worker.pid, dir };
+  };
+  const killBrowser = async (pid) => {
+    if (processExists(pid)) process.kill(pid, "SIGKILL");
+    await waitForCondition(() => !processExists(pid), `Wayfern ${pid} to exit`);
+  };
+
+  try {
+    const prepared = await prepareWayfern(
+      app,
+      process.env.DONUT_E2E_PROJECT_ROOT,
+    );
+    if (!app.session) await app.start();
+    if (!(await app.invoke("check_wayfern_terms_accepted"))) {
+      await app.invoke("accept_wayfern_terms");
+    }
+
+    // The app is up and the browser goes away.
+    const first = await launchEphemeral(prepared.version, "Closed Beside App");
+    await killBrowser(first.browserPid);
+    await waitForCondition(
+      () => !processExists(first.workerPid),
+      `donut-proxy ${first.workerPid} to stop with its browser`,
+      12_000,
+    );
+    await waitForCondition(
+      () => !existsSync(first.dir),
+      `the in-memory directory of ${first.profile.id} to be erased`,
+      12_000,
+    );
+
+    // The browser goes away while the app is closed. What it leaves behind
+    // is put back in place, so the next start must erase it whatever the
+    // harness did to the browser when it closed the app.
+    const second = await launchEphemeral(prepared.version, "Closed After App");
+    await app.close();
+    await killBrowser(second.browserPid);
+    await mkdir(second.dir, { recursive: true });
+    await writeFile(path.join(second.dir, "Cookies"), "left behind");
+    await app.start();
+    await waitForCondition(
+      () => !existsSync(second.dir),
+      `the next start to erase the directory ${second.profile.id} left behind`,
+    );
+    const left = await readdir(ephemeralRoot);
+    assert.deepEqual(left, [], "no in-memory profile outlives its browser");
+  } finally {
+    for (const pid of strays) {
+      if (pid && processExists(pid)) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          // Already gone.
+        }
+      }
+    }
+    await app.close();
+  }
+});
+
 // Two things nothing else covers. First, that an assigned extension group
 // actually reaches Wayfern: a loaded MV3 extension registers a
 // `chrome-extension://<id>/background.js` service-worker target, so CDP can see
