@@ -93,6 +93,13 @@ impl DonutAccounts {
       .unwrap_or_else(|| DEFAULT_DONUT_API_URL.to_string())
       .trim_end_matches('/')
       .to_string();
+    if !is_private_transport(&api_url) {
+      crate::log::error(
+        "DonutAccounts",
+        "DONUT_API_URL must use https (http only on a loopback address): it carries the tokens of Donut accounts. Donut account sign-in is off.",
+      );
+      return None;
+    }
     Some(Self::new(public_url, api_url))
   }
 
@@ -172,6 +179,24 @@ impl DonutAccounts {
   }
 }
 
+/// Whether a token sent to `url` stays private on the way: https, or plain
+/// http that never leaves this machine.
+fn is_private_transport(url: &str) -> bool {
+  let Ok(url) = url::Url::parse(url) else {
+    return false;
+  };
+  match url.scheme() {
+    "https" => true,
+    "http" => match url.host() {
+      Some(url::Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+      Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+      Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+      None => false,
+    },
+    _ => false,
+  }
+}
+
 fn account_scope_of(body: &Value) -> Option<AccountScope> {
   let answer = body.as_object()?;
   if answer.get("active") != Some(&Value::Bool(true)) {
@@ -227,6 +252,18 @@ mod tests {
     assert_eq!(n("ftp://sync.example.com"), None);
     assert_eq!(n("not a url"), None);
     assert_eq!(n(&format!("https://a.com/{}", "x".repeat(2100))), None);
+  }
+
+  #[test]
+  fn tokens_go_only_to_https_or_this_machine() {
+    assert!(is_private_transport("https://api.donutbrowser.com"));
+    assert!(is_private_transport("http://127.0.0.1:4000"));
+    assert!(is_private_transport("http://localhost:4000"));
+    assert!(is_private_transport("http://[::1]:4000"));
+    assert!(!is_private_transport("http://api.donutbrowser.com"));
+    assert!(!is_private_transport("http://10.0.0.5:4000"));
+    assert!(!is_private_transport("ftp://api.donutbrowser.com"));
+    assert!(!is_private_transport("not a url"));
   }
 
   #[test]
