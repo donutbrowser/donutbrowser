@@ -125,6 +125,18 @@ sudo snap install --dangerous Donut_*_amd64.snap
 
 The Snap leaves the microphone, the camera and the keyring (used by profile import) disconnected until you run `sudo snap connect donutbrowser:audio-record`, `donutbrowser:camera` or `donutbrowser:password-manager-service`. The Flatpak cannot change the default browser, so choose Donut in your system settings instead.
 
+### Windows portable
+
+The portable version keeps its profiles, logins and settings in the `data` folder next to `Donut.exe`, and updates itself like the installed app. An update does not change `data`, `cache` or `logs`.
+
+Portable copies of v0.35.5 and older cannot update themselves. To update one, quit Donut and run this in PowerShell with the path of your portable folder:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/donutbrowser/donutbrowser/main/scripts/update-portable.ps1))) -Path "D:\Donut-Portable"
+```
+
+Or download [update-portable.ps1](scripts/update-portable.ps1), right-click it and select **Run with PowerShell**. It asks for the folder.
+
 ### Nix
 
 ```bash
