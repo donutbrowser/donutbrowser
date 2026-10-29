@@ -144,9 +144,12 @@ The native suites use the published `tauri-wd` driver (pinned in `e2e/app/Cargo.
 into the ignored `e2e/.driver` root) and launch an `e2e`-feature build.
 Every session gets its own temporary Donut data/cache/log root, home directory,
 WebView store, ports, and sync bucket. Never point a suite at production or development data.
-Every suite runs the Donut window headless (`DONUT_E2E_HEADLESS=1`, forwarded as the tauri-wd
-`headless` capability), so a run never pops a window or steals focus. `DONUT_E2E_HEADED=1` shows
-the window when a failure needs watching.
+A run never pops a window on the desktop or steals focus. On macOS and Windows every suite runs the
+Donut window headless (`DONUT_E2E_HEADLESS=1`, forwarded as the tauri-wd `headless` capability). On
+Linux `e2e/run.mjs` starts its own Xvfb display and shows the window there, because GTK never sizes
+a window it never shows and WebKitGTK then lays the page out at 0x0; Linux runs need Xvfb
+installed. `DONUT_E2E_HEADED=1` shows the window on the current display when a failure needs
+watching.
 
 `e2e/app/Cargo.lock` is generated, gitignored, and never edited by hand. `e2e/run.mjs` seeds it
 from `src-tauri/Cargo.lock` whenever that file is newer, so the harness always links the exact
