@@ -16,6 +16,12 @@ static PROFILE_LAUNCH_LOCKS: LazyLock<
   tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
 > = LazyLock::new(|| tokio::sync::Mutex::new(HashMap::new()));
 
+/// Wakes the app's running-state check (`lib.rs`) when a browser starts. While
+/// nothing runs, that check sleeps on a long interval, and a browser that
+/// exits before it wakes would keep its Stop button, its proxy worker and its
+/// exit cleanup until then.
+pub static BROWSER_STARTED: tokio::sync::Notify = tokio::sync::Notify::const_new();
+
 /// How long a remote navigation waits for the page to settle.
 ///
 /// A relayed round trip crosses two networks and the page load itself happens
@@ -910,6 +916,7 @@ impl BrowserRunner {
       } else {
         self.save_process_info(&updated_profile)?;
       }
+      BROWSER_STARTED.notify_one();
       let _ = crate::tag_manager::TAG_MANAGER.lock().map(|tm| {
         let _ = tm.rebuild_from_profiles(&self.profile_manager.list_profiles().unwrap_or_default());
       });

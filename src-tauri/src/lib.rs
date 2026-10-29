@@ -3272,7 +3272,12 @@ pub fn run_with_builder(
         let mut current_interval_secs = FAST_INTERVAL_SECS;
 
         loop {
-          interval.tick().await;
+          // A launch ends the idle wait, so a browser is watched at the fast
+          // interval from its start.
+          tokio::select! {
+            _ = interval.tick() => {}
+            _ = crate::browser_runner::BROWSER_STARTED.notified() => {}
+          }
 
           let runner = crate::browser_runner::BrowserRunner::instance();
           let profiles = match runner.profile_manager.list_profiles() {
