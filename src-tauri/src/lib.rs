@@ -206,6 +206,7 @@ mod log_redaction;
 pub mod log_streak;
 mod log_viewer;
 mod platform_browser;
+mod portable_update;
 mod process_report;
 mod profile;
 mod profile_dns;
@@ -2695,6 +2696,12 @@ pub fn run_with_builder(
         app_dirs::is_portable(),
         data_dir
       );
+
+      // Before an update check can stage a new portable update there.
+      #[cfg(target_os = "windows")]
+      if let Some(dir) = app_dirs::portable_dir() {
+        portable_update::clean_up(dir);
+      }
 
       // Before the first request Donut makes.
       app_proxy::load();

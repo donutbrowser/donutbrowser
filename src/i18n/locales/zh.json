@@ -2677,6 +2677,7 @@
     "wayfernNotResponding": "Wayfern 已启动，但未在 {{seconds}} 秒内响应。可能是安全软件拦截了它，或它无法打开窗口。请在杀毒软件中允许 Wayfern，然后重试。",
     "updateProfilesRunning": "安装更新前，请停止所有正在运行的配置文件。",
     "updatePreparationFailed": "Donut Browser 无法安全停止后台网络进程。请重启电脑，然后再次尝试更新。",
+    "portableUpdateFailed": "Donut Browser 无法替换便携文件夹中的文件，已保留当前版本。请关闭正在使用该文件夹中文件的程序，然后再次重启。",
     "wayfernTermsRequired": "请先接受 Wayfern 条款与条件，再使用 Wayfern。",
     "apiPortUnavailable": "API 服务器找不到可用端口。",
     "mcpAgentUnknown": "不支持此 MCP 客户端。",

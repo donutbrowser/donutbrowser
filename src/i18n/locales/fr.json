@@ -2696,6 +2696,7 @@
     "wayfernNotResponding": "Wayfern a démarré mais n'a pas répondu en {{seconds}} secondes. Un logiciel de sécurité le bloque peut-être, ou il n'a pas pu ouvrir sa fenêtre. Autorisez Wayfern dans votre antivirus, puis réessayez.",
     "updateProfilesRunning": "Arrêtez tous les profils en cours d’exécution avant d’installer la mise à jour.",
     "updatePreparationFailed": "Donut Browser n’a pas pu arrêter en toute sécurité un processus réseau en arrière-plan. Redémarrez l’ordinateur, puis réessayez la mise à jour.",
+    "portableUpdateFailed": "Donut Browser n’a pas pu remplacer ses fichiers dans le dossier portable et garde la version actuelle. Fermez les programmes qui utilisent des fichiers de ce dossier, puis redémarrez à nouveau.",
     "wayfernTermsRequired": "Acceptez les conditions générales de Wayfern pour utiliser Wayfern.",
     "apiPortUnavailable": "Le serveur API n’a trouvé aucun port disponible.",
     "mcpAgentUnknown": "Ce client MCP n’est pas pris en charge.",

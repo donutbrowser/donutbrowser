@@ -117,6 +117,7 @@ export type BackendErrorCode =
   | "PROFILE_ROUTE_UNAVAILABLE"
   | "UPDATE_PROFILES_RUNNING"
   | "UPDATE_PREPARATION_FAILED"
+  | "PORTABLE_UPDATE_FAILED"
   | "PROFILE_NAME_EXISTS"
   | "IMPORT_SOURCE_NOT_FOUND"
   | "IMPORT_SOURCE_NOT_CHROMIUM"
@@ -703,6 +704,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.updateProfilesRunning");
     case "UPDATE_PREPARATION_FAILED":
       return t("backendErrors.updatePreparationFailed");
+    case "PORTABLE_UPDATE_FAILED":
+      return t("backendErrors.portableUpdateFailed");
     case "PROFILE_NAME_EXISTS":
       return t("backendErrors.profileNameExists", {
         name: parsed.params?.name ?? "",

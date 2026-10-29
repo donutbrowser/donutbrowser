@@ -10,7 +10,7 @@ fn base_dirs() -> &'static BaseDirs {
 }
 
 /// Returns the portable base directory if a `.portable` marker exists next to the executable.
-fn portable_dir() -> Option<&'static PathBuf> {
+pub fn portable_dir() -> Option<&'static PathBuf> {
   PORTABLE_DIR
     .get_or_init(|| {
       std::env::current_exe()

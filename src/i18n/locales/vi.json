@@ -2677,6 +2677,7 @@
     "wayfernNotResponding": "Wayfern đã khởi động nhưng không phản hồi trong {{seconds}} giây. Có thể phần mềm bảo mật đang giữ nó, hoặc nó không mở được cửa sổ. Hãy cho phép Wayfern trong phần mềm diệt virus rồi thử lại.",
     "updateProfilesRunning": "Hãy dừng tất cả hồ sơ đang chạy trước khi cài đặt bản cập nhật.",
     "updatePreparationFailed": "Donut Browser không thể dừng an toàn một tiến trình mạng chạy nền. Hãy khởi động lại máy tính rồi thử cập nhật lại.",
+    "portableUpdateFailed": "Donut Browser không thể thay thế các tệp trong thư mục di động và giữ phiên bản hiện tại. Hãy đóng các chương trình đang dùng tệp trong thư mục đó, rồi khởi động lại lần nữa.",
     "wayfernTermsRequired": "Hãy chấp nhận Điều khoản và Điều kiện của Wayfern để sử dụng Wayfern.",
     "apiPortUnavailable": "Máy chủ API không tìm thấy cổng khả dụng.",
     "mcpAgentUnknown": "Ứng dụng MCP này không được hỗ trợ.",

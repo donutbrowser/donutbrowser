@@ -17,6 +17,7 @@ across multiple operating systems and installation methods.
   - MSI: Silent installation using msiexec
   - EXE: Silent installation with multiple fallback flags (NSIS, Inno Setup)
   - ZIP: Binary replacement
+  - Portable ZIP: files swapped at restart, data kept (`portable_update.rs`)
 - **Architecture**: Supports both x64 and x86_64
 
 ### Linux
@@ -157,10 +158,11 @@ pub struct AppUpdateInfo {
 }
 
 impl AppUpdateInfo {
-  /// What this install may do with the update. A portable copy is replaced
-  /// by hand; with automatic updates off, the person starts the install.
-  fn with_install_policy(mut self, portable: bool, auto_updates_disabled: bool) -> Self {
-    if portable {
+  /// What this install may do with the update. A copy replaced by hand only
+  /// hears about it; with automatic updates off, the person starts the
+  /// install.
+  fn with_install_policy(mut self, replaced_by_hand: bool, auto_updates_disabled: bool) -> Self {
+    if replaced_by_hand {
       self.manual_update_required = true;
     }
     self.auto_install = !self.manual_update_required && !auto_updates_disabled;
@@ -722,6 +724,9 @@ impl AppAutoUpdater {
 
     #[cfg(target_os = "windows")]
     {
+      if crate::app_dirs::is_portable() {
+        return crate::portable_update::asset_url(assets, arch);
+      }
       self.get_windows_download_url(assets, arch)
     }
 
@@ -1070,6 +1075,15 @@ impl AppAutoUpdater {
   }
 
   /// Download the update file without progress tracking (silent download)
+  /// Where an update is downloaded. A portable copy keeps it on its own drive.
+  fn download_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    if let Some(install_dir) = crate::app_dirs::portable_dir() {
+      return crate::portable_update::update_dir(install_dir);
+    }
+    std::env::temp_dir().join("donut_app_update")
+  }
+
   async fn download_update_silent(
     &self,
     download_url: &str,
@@ -1140,7 +1154,7 @@ impl AppAutoUpdater {
     update_info: &AppUpdateInfo,
     stage: &mut &'static str,
   ) -> Result<(String, u64, &'static str), Box<dyn std::error::Error + Send + Sync>> {
-    let temp_dir = std::env::temp_dir().join("donut_app_update");
+    let temp_dir = Self::download_dir();
     fs::create_dir_all(&temp_dir)?;
 
     let filename = update_info
@@ -1168,6 +1182,16 @@ impl AppAutoUpdater {
       update_info.asset_digest.as_deref(),
     )?;
 
+    // The swap needs every Donut process gone, so it waits for the restart.
+    #[cfg(target_os = "windows")]
+    if let Some(install_dir) = crate::app_dirs::portable_dir() {
+      *stage = "extract";
+      let package = crate::portable_update::stage(&download_path, install_dir).await?;
+      let _ = fs::remove_file(&download_path);
+      *PENDING_UPDATE.lock().unwrap() = Some(PendingUpdate::Portable(package));
+      return Ok((filename, bytes, "portable_deferred_to_restart"));
+    }
+
     *stage = "extract";
     let extracted_app_path = self.extract_update(&download_path, &temp_dir).await?;
 
@@ -1182,7 +1206,7 @@ impl AppAutoUpdater {
         .unwrap_or("")
         .to_lowercase();
       if ext == "msi" || ext == "exe" {
-        *PENDING_INSTALLER_PATH.lock().unwrap() = Some(extracted_app_path);
+        *PENDING_UPDATE.lock().unwrap() = Some(PendingUpdate::Installer(extracted_app_path));
         return Ok((filename, bytes, "installer_deferred_to_restart"));
       }
       *stage = "install";
@@ -1930,6 +1954,73 @@ impl AppAutoUpdater {
     )
   }
 
+  /// Moves the staged portable update into place once no Donut process runs
+  /// from the old files. On failure the current version stays.
+  #[cfg(target_os = "windows")]
+  async fn install_portable_update(
+    package: &Path,
+    exe: &Path,
+  ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    Self::prepare_windows_installer().await?;
+    let started = std::time::Instant::now();
+    let (Some(install_dir), Some(exe_name)) = (exe.parent(), exe.file_name()) else {
+      return Err("The portable executable has no folder".into());
+    };
+    let package = package.to_path_buf();
+    let install_dir = install_dir.to_path_buf();
+    let exe_name = exe_name.to_os_string();
+    let applied = tokio::task::spawn_blocking(move || {
+      crate::portable_update::apply(&package, &install_dir, &exe_name)
+    })
+    .await?;
+    match applied {
+      Ok(files) => {
+        log::info!(
+          "Portable update installed files={files} elapsed_ms={}",
+          started.elapsed().as_millis()
+        );
+        Ok(())
+      }
+      Err(e) => {
+        log::error!("Portable update failed, current version kept err=\"{e}\"");
+        Err(
+          serde_json::json!({ "code": "PORTABLE_UPDATE_FAILED" })
+            .to_string()
+            .into(),
+        )
+      }
+    }
+  }
+
+  /// Starts `app_path` once this process has exited, from a detached script.
+  #[cfg(target_os = "windows")]
+  fn relaunch_after_exit(app_path: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let current_pid = std::process::id();
+    let script_path = std::env::temp_dir().join("donut_restart.bat");
+    let script_content = format!(
+      "@echo off\n\
+       :w\n\
+       tasklist /fi \"PID eq {current_pid}\" 2>nul | find \"{current_pid}\" >nul && (timeout /t 1 /nobreak >nul & goto w)\n\
+       timeout /t 1 /nobreak >nul\n\
+       start \"\" \"{app}\"\n\
+       del \"%~f0\"\n",
+      app = app_path.to_str().unwrap(),
+    );
+    fs::write(&script_path, script_content)?;
+
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let child = Command::new("cmd")
+      .args(["/C", script_path.to_str().unwrap()])
+      .creation_flags(CREATE_NO_WINDOW)
+      .spawn()?;
+    log::info!(
+      "Process spawned pid={} purpose=\"relaunch after exit\" waits_for_pid={current_pid}",
+      child.id()
+    );
+    Ok(())
+  }
+
   /// Restart the application
   async fn restart_application(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     #[cfg(target_os = "macos")]
@@ -1997,11 +2088,19 @@ rm "{}"
       use std::ffi::OsStr;
       use std::os::windows::ffi::OsStrExt;
 
-      let pending = PENDING_INSTALLER_PATH.lock().unwrap().take();
+      let pending = PENDING_UPDATE.lock().unwrap().take();
 
-      if let Some(installer_path) = pending {
+      if let Some(PendingUpdate::Portable(package)) = pending {
+        // Read before the swap gives the running file another name.
+        let exe = std::env::current_exe()?;
+        if let Err(e) = Self::install_portable_update(&package, &exe).await {
+          *PENDING_UPDATE.lock().unwrap() = Some(PendingUpdate::Portable(package));
+          return Err(e);
+        }
+        Self::relaunch_after_exit(&exe)?;
+      } else if let Some(PendingUpdate::Installer(installer_path)) = pending {
         if let Err(e) = Self::prepare_windows_installer().await {
-          *PENDING_INSTALLER_PATH.lock().unwrap() = Some(installer_path);
+          *PENDING_UPDATE.lock().unwrap() = Some(PendingUpdate::Installer(installer_path));
           return Err(e);
         }
 
@@ -2084,34 +2183,7 @@ rm "{}"
           parameters
         );
       } else {
-        // No pending installer — just restart the app. Use a minimal
-        // detached process to relaunch after we exit.
-        let app_path = self.get_current_app_path()?;
-        let current_pid = std::process::id();
-        let temp_dir = std::env::temp_dir();
-        let script_path = temp_dir.join("donut_restart.bat");
-
-        let script_content = format!(
-          "@echo off\n\
-           :w\n\
-           tasklist /fi \"PID eq {current_pid}\" 2>nul | find \"{current_pid}\" >nul && (timeout /t 1 /nobreak >nul & goto w)\n\
-           timeout /t 1 /nobreak >nul\n\
-           start \"\" \"{app}\"\n\
-           del \"%~f0\"\n",
-          app = app_path.to_str().unwrap(),
-        );
-        fs::write(&script_path, script_content)?;
-
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let child = Command::new("cmd")
-          .args(["/C", script_path.to_str().unwrap()])
-          .creation_flags(CREATE_NO_WINDOW)
-          .spawn()?;
-        log::info!(
-          "Process spawned pid={} purpose=\"relaunch after exit\" waits_for_pid={current_pid}",
-          child.id()
-        );
+        Self::relaunch_after_exit(&self.get_current_app_path()?)?;
       }
 
       tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -2213,7 +2285,10 @@ fn with_install_policy(update: Option<AppUpdateInfo>) -> Option<AppUpdateInfo> {
     .load_settings()
     .map(|s| s.disable_auto_updates)
     .unwrap_or(false);
-  update.map(|info| info.with_install_policy(crate::app_dirs::is_portable(), auto_updates_disabled))
+  // Releases ship a portable ZIP for Windows only. Anywhere else a `.portable`
+  // copy would lose its marker to the installer.
+  let replaced_by_hand = crate::app_dirs::is_portable() && !cfg!(target_os = "windows");
+  update.map(|info| info.with_install_policy(replaced_by_hand, auto_updates_disabled))
 }
 
 #[tauri::command]
@@ -2371,9 +2446,18 @@ fn status_logged(cmd: &mut Command, purpose: &str) -> std::io::Result<std::proce
   );
   Ok(status)
 }
-/// The Windows installer that runs on the next user-initiated restart.
+
+/// A downloaded Windows update that runs at "Restart now".
 #[cfg(target_os = "windows")]
-static PENDING_INSTALLER_PATH: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+enum PendingUpdate {
+  /// An NSIS or MSI installer.
+  Installer(PathBuf),
+  /// The unpacked files of the portable ZIP.
+  Portable(PathBuf),
+}
+
+#[cfg(target_os = "windows")]
+static PENDING_UPDATE: std::sync::Mutex<Option<PendingUpdate>> = std::sync::Mutex::new(None);
 
 #[cfg(test)]
 mod tests {
@@ -2844,7 +2928,7 @@ mod tests {
   }
 
   #[test]
-  fn a_portable_copy_is_told_to_download_by_hand() {
+  fn a_copy_replaced_by_hand_is_told_to_download() {
     for disabled in [false, true] {
       let info = update_info(false).with_install_policy(true, disabled);
       assert!(info.manual_update_required);

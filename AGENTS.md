@@ -83,6 +83,7 @@ donutbrowser/
 │   │   ├── wayfern_manager.rs       # Wayfern (Chromium) browser management
 │   │   ├── downloader.rs           # Browser binary downloader
 │   │   ├── extraction.rs           # Archive extraction (zip, tar, dmg, msi)
+│   │   ├── portable_update.rs      # Portable Windows ZIP self-update: staged in .update/, files swapped at restart
 │   │   ├── settings_manager.rs     # App settings persistence (atomic writes), tips + paid-welcome state
 │   │   ├── system_proxy.rs         # The OS proxy Donut's own requests use; named in the error when it is unreachable
 │   │   ├── vault.rs                # Per-install key that seals local secrets; opens legacy build-password seals once

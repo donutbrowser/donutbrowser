@@ -2677,6 +2677,7 @@
     "wayfernNotResponding": "Wayfern başladı ancak {{seconds}} saniye içinde yanıt vermedi. Bir güvenlik yazılımı onu bekletiyor olabilir veya penceresini açamadı. Antivirüs programınızda Wayfern'e izin verin ve yeniden deneyin.",
     "updateProfilesRunning": "Güncellemeyi yüklemeden önce çalışan tüm profilleri durdurun.",
     "updatePreparationFailed": "Donut Browser arka plandaki bir ağ işlemini güvenli şekilde durduramadı. Bilgisayarınızı yeniden başlatıp güncellemeyi tekrar deneyin.",
+    "portableUpdateFailed": "Donut Browser taşınabilir klasördeki dosyalarını değiştiremedi ve mevcut sürümü korudu. Bu klasördeki dosyaları kullanan programları kapatıp yeniden başlatın.",
     "wayfernTermsRequired": "Wayfern'ü kullanmak için Wayfern Hüküm ve Koşullarını kabul edin.",
     "apiPortUnavailable": "API sunucusu kullanılabilir bir bağlantı noktası bulamadı.",
     "mcpAgentUnknown": "Bu MCP istemcisi desteklenmiyor.",
