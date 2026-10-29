@@ -1569,44 +1569,47 @@ pub async fn ensure_active_browsers_downloaded(
       }
     };
 
-    // Retry transient failures a few times. Each attempt is wrapped in an overall
-    // timeout so that a hang anywhere in the download pipeline (version resolution,
-    // a stalled stream, extraction) cannot block the next browser forever. This is
-    // the core of the bug fix: Wayfern downloads proceed independently.
+    // Retry transient failures a few times. An attempt that stops moving is
+    // dropped, so a hang anywhere in the pipeline (version resolution, a stalled
+    // stream, extraction) cannot block the next browser forever. Only a stall
+    // counts: a fixed limit cut off every slow connection in the middle of
+    // Wayfern's gigabyte.
     const MAX_ATTEMPTS: u32 = 3;
-    const ATTEMPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
+    const ATTEMPT_STALL: std::time::Duration = std::time::Duration::from_secs(600);
     let mut succeeded = false;
     for attempt in 1..=MAX_ATTEMPTS {
-      let result = tokio::time::timeout(
-        ATTEMPT_TIMEOUT,
+      let result = crate::downloader::unless_stalled(
         crate::downloader::download_browser(
           app_handle.clone(),
           browser.to_string(),
           version.clone(),
         ),
+        browser,
+        &version,
+        ATTEMPT_STALL,
       )
       .await;
 
       match result {
-        Ok(Ok(_)) => {
+        Some(Ok(_)) => {
           downloaded.push(format!("{browser} {version}"));
           succeeded = true;
           break;
         }
-        Ok(Err(e)) => {
+        Some(Err(e)) => {
           // A proxy setting stays wrong until the user changes it.
           if crate::system_proxy::is_unreachable_error(&e.to_string()) {
             break;
           }
         }
-        Err(_) => {
-          // The download future itself hung past the overall timeout and was dropped,
-          // so its own cleanup never ran. Clear any leftover in-progress bookkeeping
-          // (by browser prefix, as a catch-all for whatever key was in flight) and
-          // emit a terminal error event so the UI stops spinning.
+        None => {
+          // The download future stalled and was dropped, so its own cleanup
+          // never ran. Clear any leftover in-progress bookkeeping (by browser
+          // prefix, as a catch-all for whatever key was in flight) and emit a
+          // terminal error event so the UI stops spinning.
           log::warn!(
-            "Browser auto-download timed out browser={browser} version={version} attempt={attempt}/{MAX_ATTEMPTS} timeout_s={}",
-            ATTEMPT_TIMEOUT.as_secs()
+            "Browser auto-download stalled browser={browser} version={version} attempt={attempt}/{MAX_ATTEMPTS} stall_s={}",
+            ATTEMPT_STALL.as_secs()
           );
           crate::downloader::clear_download_state_for_browser(browser);
           let progress = crate::downloader::DownloadProgress::failed(browser, &version, None);

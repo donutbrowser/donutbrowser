@@ -114,6 +114,7 @@ impl ExtractionReporter {
   }
 
   fn emit(&self, percentage: f64, downloaded_bytes: u64, total_bytes: Option<u64>) {
+    crate::downloader::note_progress(&self.browser, &self.version);
     let progress = DownloadProgress {
       browser: self.browser.clone(),
       version: self.version.clone(),

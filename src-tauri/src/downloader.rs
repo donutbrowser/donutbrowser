@@ -19,6 +19,69 @@ const STREAM_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(
 // consistent client for the pair.
 const DOWNLOAD_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
 
+// When each download ("browser-version") last moved: bytes received or
+// unpacked. `unless_stalled` reads it.
+static LAST_PROGRESS: std::sync::LazyLock<
+  Mutex<std::collections::HashMap<String, std::time::Instant>>,
+> = std::sync::LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
+
+// How often `unless_stalled` looks at the progress.
+const STALL_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Record that the download of `browser` `version` moved.
+pub(crate) fn note_progress(browser: &str, version: &str) {
+  if let Ok(mut moved) = LAST_PROGRESS.lock() {
+    moved.insert(format!("{browser}-{version}"), std::time::Instant::now());
+  }
+}
+
+/// Run `download` until it ends, or until neither its transfer nor its
+/// extraction has moved for `stall`; `None` then. A slow connection keeps
+/// moving, so only a hang stops it.
+pub(crate) async fn unless_stalled<T>(
+  download: impl std::future::Future<Output = T>,
+  browser: &str,
+  version: &str,
+  stall: std::time::Duration,
+) -> Option<T> {
+  let started = std::time::Instant::now();
+  let key = format!("{browser}-{version}");
+  tokio::pin!(download);
+  loop {
+    tokio::select! {
+      result = &mut download => return Some(result),
+      () = tokio::time::sleep(STALL_CHECK_INTERVAL.min(stall)) => {
+        let moved = LAST_PROGRESS
+          .lock()
+          .ok()
+          .and_then(|moved| moved.get(&key).copied())
+          .filter(|at| *at > started)
+          .unwrap_or(started);
+        if moved.elapsed() >= stall {
+          return None;
+        }
+      }
+    }
+  }
+}
+
+/// Remove everything in `dir` but `keep`.
+fn remove_all_but(dir: &Path, keep: &Path) -> std::io::Result<()> {
+  for entry in std::fs::read_dir(dir)? {
+    let entry = entry?;
+    let path = entry.path();
+    if path == keep {
+      continue;
+    }
+    if entry.file_type()?.is_dir() {
+      std::fs::remove_dir_all(&path)?;
+    } else {
+      std::fs::remove_file(&path)?;
+    }
+  }
+  Ok(())
+}
+
 // Global state to track currently downloading browser-version pairs
 static DOWNLOADING_BROWSERS: std::sync::LazyLock<
   std::sync::Arc<Mutex<std::collections::HashSet<String>>>,
@@ -594,6 +657,7 @@ impl Downloader {
             None
           };
 
+          note_progress(browser_type.as_str(), version);
           let _ = events::emit(
             "download-progress",
             &DownloadProgress {
@@ -805,6 +869,14 @@ impl Downloader {
 
     // Use the extraction module
     if download_info.is_archive {
+      // An attempt that ended after extracting leaves its files here, and the
+      // archive's top folder would land beside them as a second copy of the
+      // browser. Extract into a folder that holds only the archive.
+      if let Err(e) = remove_all_but(&browser_dir, &download_path) {
+        log::warn!(
+          "Earlier extraction cleanup failed browser={browser_str} version={version} err=\"{e}\""
+        );
+      }
       match self
         .extractor
         .extract_browser(
@@ -1189,6 +1261,48 @@ mod tests {
   use tempfile::TempDir;
   use wiremock::matchers::{method, path};
   use wiremock::{Mock, MockServer, ResponseTemplate};
+
+  #[tokio::test]
+  async fn a_slow_download_that_keeps_moving_is_not_cut_off() {
+    let stall = std::time::Duration::from_millis(300);
+    let slow = async {
+      for _ in 0..20 {
+        note_progress("stall-test", "moving");
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+      }
+      "done"
+    };
+    assert_eq!(
+      unless_stalled(slow, "stall-test", "moving", stall).await,
+      Some("done"),
+      "a second of steady progress outlives a 300 ms stall limit"
+    );
+
+    let hung = tokio::time::sleep(std::time::Duration::from_secs(5));
+    let started = std::time::Instant::now();
+    assert_eq!(
+      unless_stalled(hung, "stall-test", "hung", stall).await,
+      None
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(2));
+  }
+
+  #[test]
+  fn only_the_archive_is_left_before_extraction() {
+    let dir = TempDir::new().unwrap();
+    let archive = dir.path().join("wayfern.tar.xz");
+    std::fs::write(&archive, b"archive").unwrap();
+    std::fs::write(dir.path().join("chrome"), b"earlier").unwrap();
+    std::fs::create_dir_all(dir.path().join("wayfern-1-linux-x64-portable/locales")).unwrap();
+
+    remove_all_but(dir.path(), &archive).unwrap();
+
+    let left: Vec<_> = std::fs::read_dir(dir.path())
+      .unwrap()
+      .map(|entry| entry.unwrap().path())
+      .collect();
+    assert_eq!(left, vec![archive]);
+  }
 
   #[tokio::test]
   async fn test_download_file_with_progress() {
