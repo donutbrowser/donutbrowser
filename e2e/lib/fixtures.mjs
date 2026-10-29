@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import {
   chmod,
   copyFile,
@@ -27,12 +27,20 @@ export function defaultWayfernPath(projectRoot) {
     return path.resolve(process.env.DONUT_E2E_WAYFERN_PATH);
   }
   const fixtureRoot = path.join(projectRoot, ".cache", "e2e-wayfern-fixture");
-  return process.platform === "darwin"
-    ? path.join(fixtureRoot, "Wayfern.app")
-    : path.join(
-        fixtureRoot,
-        process.platform === "win32" ? "Wayfern.exe" : "wayfern",
-      );
+  // Linux and Windows builds are a directory, as the portable archives unpack.
+  return path.join(
+    fixtureRoot,
+    process.platform === "darwin" ? "Wayfern.app" : "wayfern",
+  );
+}
+
+/** Executable names the app looks for in a Linux or Windows build. */
+const WAYFERN_EXECUTABLES = ["wayfern", "chromium", "chrome"].map((name) =>
+  process.platform === "win32" ? `${name}.exe` : name,
+);
+
+function isDirectory(file) {
+  return existsSync(file) && statSync(file).isDirectory();
 }
 
 /**
@@ -76,7 +84,18 @@ export function wayfernExecutable(bundlePath) {
   if (process.platform === "darwin") {
     return path.join(bundlePath, "Contents", "MacOS", "Wayfern");
   }
-  return bundlePath;
+  if (!isDirectory(bundlePath)) return bundlePath;
+  // The executable sits at the top of the build or in its one subdirectory.
+  const subdirectories = readdirSync(bundlePath)
+    .map((name) => path.join(bundlePath, name))
+    .filter(isDirectory);
+  for (const dir of [bundlePath, ...subdirectories]) {
+    for (const name of WAYFERN_EXECUTABLES) {
+      const candidate = path.join(dir, name);
+      if (existsSync(candidate) && !isDirectory(candidate)) return candidate;
+    }
+  }
+  return path.join(bundlePath, WAYFERN_EXECUTABLES[0]);
 }
 
 export function inspectWayfern(bundlePath) {
@@ -183,10 +202,7 @@ async function cacheDownloadedWayfern(app, projectRoot, version) {
   const source =
     process.platform === "darwin"
       ? path.join(installDir, "Wayfern.app")
-      : path.join(
-          installDir,
-          process.platform === "win32" ? "wayfern.exe" : "wayfern",
-        );
+      : installDir;
   const staging = `${destination}.tmp-${process.pid}`;
   const retired = `${destination}.stale-${process.pid}`;
   await rm(staging, { recursive: true, force: true });
@@ -196,8 +212,7 @@ async function cacheDownloadedWayfern(app, projectRoot, version) {
       await cloneAppBundle(source, staging);
     } else {
       await mkdir(path.dirname(staging), { recursive: true });
-      await copyFile(source, staging);
-      if (process.platform !== "win32") await chmod(staging, 0o755);
+      await cp(source, staging, { recursive: true, preserveTimestamps: true });
     }
     if (existsSync(destination)) await rename(destination, retired);
     await rename(staging, destination);
@@ -235,6 +250,11 @@ export async function seedWayfern(dataRoot, wayfern) {
       wayfern.bundlePath,
       path.join(installDir, "Wayfern.app"),
     );
+  } else if (isDirectory(wayfern.bundlePath)) {
+    await cp(wayfern.bundlePath, installDir, {
+      recursive: true,
+      preserveTimestamps: true,
+    });
   } else {
     const name = process.platform === "win32" ? "wayfern.exe" : "wayfern";
     const destination = path.join(installDir, name);
