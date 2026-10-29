@@ -1054,27 +1054,38 @@ test("profile inspector, group gestures, and remote handoff preserve context", a
           },
         );
         // The picker renders its HSL input separately from its effect-driven
-        // onColorChange. The controlled swatch is the color committed on close.
-        const chosenColor = Color(
-          await app.waitFor(
-            () =>
-              app.execute(
-                `
+        // onColorChange, and each step of the drag reaches the swatch a few
+        // renders later, so the first new swatch color is not yet the final
+        // selection.
+        await app.waitFor(
+          () =>
+            app.execute(
+              `
               const color = getComputedStyle(document.querySelector(arguments[0])).backgroundColor;
               const before = document.createElement('span').style;
               before.backgroundColor = arguments[1];
-              return color !== before.backgroundColor ? color : null;
+              return color !== before.backgroundColor;
             `,
-                [colorTrigger, colorBefore],
-              ),
-            {
-              description:
-                "selected color reaches the controlled profile swatch",
-            },
-          ),
-        ).hex();
+              [colorTrigger, colorBefore],
+            ),
+          {
+            description: "selected color reaches the controlled profile swatch",
+          },
+        );
         await app.clickSelector(colorTrigger);
         await waitForSelector(app, slot("popover-content"), false);
+        // With the picker gone, the swatch shows the color committed on close.
+        const chosenColor = Color(
+          await app.execute(
+            "return getComputedStyle(document.querySelector(arguments[0])).backgroundColor;",
+            [colorTrigger],
+          ),
+        ).hex();
+        assert.notEqual(
+          chosenColor.toLowerCase(),
+          Color(colorBefore).hex().toLowerCase(),
+          "the swatch keeps the selected color after the popup closes",
+        );
         await app.waitFor(
           async () =>
             (await app.invoke("list_browser_profiles"))
