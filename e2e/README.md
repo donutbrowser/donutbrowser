@@ -44,11 +44,14 @@ harness in `e2e/app`, then installs the `tauri-wd` CLI into the ignored `e2e/.dr
 version pinned by `e2e/app/Cargo.toml` is not already there. The harness enables Donut's `e2e`
 feature and injects the WebDriver plugin so the production crate never depends on it. Both the
 plugin and the CLI come from the same pinned crates.io release, so they cannot drift apart. Bump
-the pin in `e2e/app/Cargo.toml` to move to a newer driver. Every suite runs the Donut window
-headless (on macOS the window is transparent, click-through and never focused; elsewhere it is
-hidden), so a run never pops a window or steals focus. Set `DONUT_E2E_HEADED=1` to watch the
-window while debugging a failure; Wayfern browsers launched by a test are separate processes and
-show their own windows unless the test asks for a headless launch.
+the pin in `e2e/app/Cargo.toml` to move to a newer driver. Every suite keeps the Donut window off
+your screen, so a run never pops a window or steals focus: on macOS the window is transparent,
+click-through and never focused, and on Windows it is hidden. On Linux the runner starts a private
+Xvfb screen (install the `xvfb` package) and shows the window and every Wayfern window there,
+because GTK gives a hidden window no size and its page would have a 0x0 viewport. Set
+`DONUT_E2E_HEADED=1` to watch the window on your display while debugging a failure; Wayfern
+browsers launched by a test are separate processes and show their own windows unless the test
+asks for a headless launch.
 Add `--no-build` to
 `node e2e/run.mjs --suite=<name>` only when all four outputs are current.
 `DONUT_E2E_KEEP_ARTIFACTS=1` retains successful local runs; failed runs are always retained and

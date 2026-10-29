@@ -285,10 +285,11 @@ export class AppSession {
       env,
       cwd: this.cwd,
       startupTimeout: 120_000,
-      // Set by run.mjs for every suite. The driver keeps the Donut window off
-      // the user's screen (on macOS transparent, click-through and never key,
-      // with the app as an accessory; hidden elsewhere), so a suite never
-      // pops a window or steals focus.
+      // Set by run.mjs on macOS and Windows. The driver keeps the Donut window
+      // off the user's screen (on macOS transparent, click-through and never
+      // key, with the app as an accessory; hidden on Windows), so a suite
+      // never pops a window or steals focus. Linux runs show the window on a
+      // private display instead, because a hidden GTK window has no size.
       headless: process.env.DONUT_E2E_HEADLESS === "1",
     });
     await this.session.setTimeouts();

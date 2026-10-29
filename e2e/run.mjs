@@ -217,6 +217,53 @@ async function stopProcess(record) {
   record.stream.end();
 }
 
+// GTK never gives a hidden window a size, so a hidden Donut window on Linux
+// lays its page out in a 0x0 viewport: no element has a box, nothing can be
+// clicked, and every check of what a person sees fails. Linux runs show the
+// window on a private Xvfb screen instead, where nobody sees it and the page
+// has its real size. Returns the display name.
+async function startPrivateDisplay(runRoot, records) {
+  const logPath = path.join(runRoot, "logs", "xvfb.log");
+  const stream = createWriteStream(logPath, { flags: "a" });
+  // -displayfd takes the first free display and writes its number to fd 3.
+  const child = spawn(
+    "Xvfb",
+    ["-displayfd", "3", "-screen", "0", "1920x1080x24", "-nolisten", "tcp"],
+    { detached: true, stdio: ["ignore", "pipe", "pipe", "pipe"] },
+  );
+  child.stdout.pipe(stream, { end: false });
+  child.stderr.pipe(stream, { end: false });
+  records.push({ name: "xvfb", process: child, stream, logPath });
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Xvfb named no display; see ${logPath}`)),
+      15_000,
+    );
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      reject(
+        error.code === "ENOENT"
+          ? new Error(
+              "Linux runs need Xvfb (package xvfb); DONUT_E2E_HEADED=1 uses the current display instead",
+            )
+          : error,
+      );
+    });
+    child.once("exit", (code, signal) => {
+      clearTimeout(timer);
+      reject(new Error(`Xvfb exited with ${code ?? signal}; see ${logPath}`));
+    });
+    let written = "";
+    child.stdio[3].on("data", (chunk) => {
+      written += chunk;
+      if (written.includes("\n")) {
+        clearTimeout(timer);
+        resolve(`:${written.trim()}`);
+      }
+    });
+  });
+}
+
 function unquoteEnvValue(value) {
   const trimmed = value.trim();
   const quote = trimmed[0];
@@ -969,6 +1016,20 @@ async function main() {
     }
     installSidecars();
 
+    const headed = process.env.DONUT_E2E_HEADED === "1";
+    const privateDisplay =
+      process.platform === "linux" && !headed
+        ? await startPrivateDisplay(runRoot, records)
+        : null;
+    // The driver passes its environment to the app, and the app to Wayfern.
+    const appEnv = { ...process.env };
+    if (privateDisplay) {
+      appEnv.DISPLAY = privateDisplay;
+      appEnv.GDK_BACKEND = "x11";
+      delete appEnv.WAYLAND_DISPLAY;
+      log(`Private display ${privateDisplay}`);
+    }
+
     const driverPort = await freePort();
     const driver = startProcess(
       "tauri-wd",
@@ -989,7 +1050,7 @@ async function main() {
       ],
       {
         cwd: projectRoot,
-        env: process.env,
+        env: appEnv,
         runRoot,
         verbose: options.verbose,
       },
@@ -1053,7 +1114,7 @@ async function main() {
     const child = spawn(process.execPath, testArgs, {
       cwd: projectRoot,
       env: {
-        ...process.env,
+        ...appEnv,
         DONUT_E2E_RUN_ROOT: runRoot,
         DONUT_E2E_PROJECT_ROOT: projectRoot,
         DONUT_E2E_APP: appBinary,
@@ -1061,15 +1122,18 @@ async function main() {
         DONUT_E2E_FIXTURE_URL: `http://127.0.0.1:${fixture.port}`,
         DONUT_E2E_GEOIP_FIXTURE_READY: geoIpFixture ? "1" : "0",
         DONUT_E2E_GEOIP_ASN_FIXTURE_READY: geoIpAsnFixture ? "1" : "0",
-        // Every suite runs the Donut window headless so a local run never
-        // pops a window or steals focus: the app builds it hidden and the
-        // tauri-wd plugin keeps it off screen (on macOS transparent,
-        // click-through and never key, with the app as an accessory; hidden
-        // elsewhere). AppSession forwards this as the headless capability;
-        // only the driver's TAURI_WEBDRIVER_HEADLESS reaches the app.
-        // DONUT_E2E_HEADED=1 shows the window again when a failure needs
-        // watching. Wayfern itself is a separate process and unaffected.
-        DONUT_E2E_HEADLESS: process.env.DONUT_E2E_HEADED === "1" ? "0" : "1",
+        // Every suite keeps the Donut window off the user's screen so a local
+        // run never pops a window or steals focus. On macOS and Windows it
+        // runs headless: the app builds the window hidden and the tauri-wd
+        // plugin keeps it off screen (on macOS transparent, click-through and
+        // never key, with the app as an accessory; hidden on Windows).
+        // AppSession forwards this as the headless capability; only the
+        // driver's TAURI_WEBDRIVER_HEADLESS reaches the app. On Linux the
+        // window is shown on the private display instead (see
+        // startPrivateDisplay), and Wayfern opens there too.
+        // DONUT_E2E_HEADED=1 shows the window on the current display when a
+        // failure needs watching.
+        DONUT_E2E_HEADLESS: headed || privateDisplay ? "0" : "1",
         WAYFERN_TEST_TOKEN: token,
         RESIDENTIAL_PROXY_URL_ONE_SOCKS:
           localValues.RESIDENTIAL_PROXY_URL_ONE_SOCKS ?? "",
