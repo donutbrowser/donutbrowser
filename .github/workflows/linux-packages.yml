@@ -163,6 +163,9 @@ jobs:
       - name: Put the .deb where the manifest expects it
         run: mv linux-deb/*.deb packaging/donut.deb
 
+      - name: Name the packaged version in the AppStream metadata
+        run: sh packaging/linux/stamp-release.sh "$METAINFO" src-tauri/tauri.conf.json
+
       - name: Validate the AppStream metadata
         run: appstreamcli validate --no-net --explain "$METAINFO"
 

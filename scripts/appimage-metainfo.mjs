@@ -4,6 +4,8 @@
 // `Donut.desktop`, not the Flatpak's `com.donutbrowser.DonutBrowser.desktop`.
 // The URL types AppStream 0.15 does not know (Ubuntu 22.04, the oldest
 // system the AppImage runs on) are left out, so the file validates there.
+// The version being bundled becomes the newest release, as
+// packaging/linux/stamp-release.sh does for the Flatpak and the Snap.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -26,21 +28,40 @@ const APPIMAGE_LAUNCHABLE =
   '<launchable type="desktop-id">Donut.desktop</launchable>';
 const NEWER_URL_TYPES =
   /^[ \t]*<url type="(?:vcs-browser|contribute)">.*<\/url>\r?\n/gm;
+const RELEASES = /^([ \t]*)<releases>\r?\n/m;
 
-export function appimageMetainfo(shared) {
+export function appimageMetainfo(shared, version, date) {
   if (!shared.includes(SHARED_LAUNCHABLE)) {
     throw new Error(`The shared metainfo has no ${SHARED_LAUNCHABLE}`);
   }
-  return shared
+  if (!RELEASES.test(shared)) {
+    throw new Error("The shared metainfo has no <releases>");
+  }
+  const withoutNewerUrls = shared
     .replace(SHARED_LAUNCHABLE, APPIMAGE_LAUNCHABLE)
     .replace(NEWER_URL_TYPES, "");
+  if (withoutNewerUrls.includes(`<release version="${version}"`)) {
+    return withoutNewerUrls;
+  }
+  return withoutNewerUrls.replace(
+    RELEASES,
+    (line, indent) =>
+      `${line}${indent}  <release version="${version}" date="${date}" />\n`,
+  );
 }
 
 function main() {
+  const { version } = JSON.parse(
+    readFileSync(resolve(ROOT, "src-tauri/tauri.conf.json"), "utf8"),
+  );
   mkdirSync(dirname(APPIMAGE_METAINFO), { recursive: true });
   writeFileSync(
     APPIMAGE_METAINFO,
-    appimageMetainfo(readFileSync(SHARED_METAINFO, "utf8")),
+    appimageMetainfo(
+      readFileSync(SHARED_METAINFO, "utf8"),
+      version,
+      new Date().toISOString().slice(0, 10),
+    ),
   );
 }
 

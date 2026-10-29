@@ -81,6 +81,9 @@ parts:
       craftctl default
       install -Dm644 "$CRAFT_PROJECT_DIR/packaging/linux/com.donutbrowser.DonutBrowser.metainfo.xml" \
         "$CRAFT_PART_INSTALL/usr/share/metainfo/com.donutbrowser.DonutBrowser.metainfo.xml"
+      sh "$CRAFT_PROJECT_DIR/packaging/linux/stamp-release.sh" \
+        "$CRAFT_PART_INSTALL/usr/share/metainfo/com.donutbrowser.DonutBrowser.metainfo.xml" \
+        "$CRAFT_PROJECT_DIR/src-tauri/tauri.conf.json"
       desktop="$CRAFT_PART_INSTALL/usr/share/applications"
       mv "$desktop/Donut.desktop" "$desktop/donutbrowser.desktop"
       sed -i 's|^Icon=.*|Icon=${SNAP}/usr/share/icons/hicolor/512x512/apps/donutbrowser.png|' \
