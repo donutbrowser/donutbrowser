@@ -1005,7 +1005,11 @@ export function IntegrationsDialog({
           </DialogHeader>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* The scrollbar sits in the page's gutter, not over the content:
+            WebKitGTK's overlay scrollbar takes the clicks in its strip even
+            while it is hidden, and the snippets' copy buttons are at the
+            content's right edge. */}
+        <div className="-me-3 min-h-0 flex-1 overflow-y-auto pe-3">
           <div className={cn(subPage && "mx-auto w-full max-w-4xl")}>
             <AnimatedTabs
               value={shownTab}

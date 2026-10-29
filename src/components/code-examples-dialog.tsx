@@ -171,7 +171,9 @@ export function CodeExamplesDialog({
                 <TabsPrimitive.Content
                   key={example.id}
                   value={example.id}
-                  className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto outline-none"
+                  // In the dialog's padding, the scrollbar stays off the
+                  // snippets' copy buttons (see integrations-dialog.tsx).
+                  className="-me-3 flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto pe-3 outline-none"
                 >
                   <motion.div
                     initial={animate ? { x: 6 } : false}
