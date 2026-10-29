@@ -282,7 +282,7 @@ impl Guard {
         Ok(found) => scope = found,
         Err(e) => log::warn(
           CONTEXT,
-          &format!("Team scope resolution failed for {sub}; using own namespace: {e}"),
+          &format!("Team scope resolution failed; using own namespace: {e}"),
         ),
       }
     }

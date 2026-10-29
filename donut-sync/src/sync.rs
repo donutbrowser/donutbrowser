@@ -1191,10 +1191,7 @@ impl SyncService {
         .await
         .map_err(store_error)?;
       deleted.push(id.clone());
-      log::log(
-        CONTEXT,
-        &format!("Cleaned up excess profile {id} for user {user_id}"),
-      );
+      log::log(CONTEXT, &format!("Cleaned up excess profile {id}"));
     }
 
     let remaining = profiles.len() - deleted.len();
