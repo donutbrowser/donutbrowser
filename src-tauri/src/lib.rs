@@ -196,6 +196,7 @@ mod geoip_downloader;
 mod geolocation;
 mod group_bookmarks;
 mod group_manager;
+mod human_hold;
 mod human_typing;
 mod indexed_db;
 mod ip_utils;

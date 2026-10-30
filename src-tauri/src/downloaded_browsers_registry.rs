@@ -1252,6 +1252,51 @@ mod tests {
   }
 
   #[test]
+  fn a_rebuild_leaves_the_first_build_only_when_no_profile_uses_it() {
+    let first = "155.0.8059.79";
+    let rebuilt = "155.0.8059.79-2";
+    let wayfern = |version: &str| ("wayfern".to_string(), version.to_string());
+    let registry_with_both = || {
+      let registry = DownloadedBrowsersRegistry::new();
+      for version in [first, rebuilt] {
+        registry.add_browser(DownloadedBrowserInfo {
+          browser: "wayfern".to_string(),
+          version: version.to_string(),
+          file_path: PathBuf::from(format!("/test/wayfern/{version}")),
+        });
+      }
+      registry
+    };
+    let first_entry = format!("wayfern {first}");
+
+    // A profile still on the first build keeps it.
+    let registry = registry_with_both();
+    let cleaned = registry
+      .cleanup_unused_binaries_internal(&[wayfern(first), wayfern(rebuilt)], &[])
+      .expect("cleanup should succeed");
+    assert!(!cleaned.contains(&first_entry), "{cleaned:?}");
+    assert!(registry.is_browser_registered("wayfern", first));
+
+    // A running profile on the first build keeps it, also when no profile lists it as active.
+    let registry = registry_with_both();
+    let cleaned = registry
+      .cleanup_unused_binaries_internal(&[wayfern(rebuilt)], &[wayfern(first)])
+      .expect("cleanup should succeed");
+    assert!(!cleaned.contains(&first_entry), "{cleaned:?}");
+    assert!(registry.is_browser_registered("wayfern", first));
+
+    // When every profile is on the rebuild and none runs on the first build, the first build goes
+    // and the rebuild stays.
+    let registry = registry_with_both();
+    let cleaned = registry
+      .cleanup_unused_binaries_internal(&[wayfern(rebuilt)], &[])
+      .expect("cleanup should succeed");
+    assert!(cleaned.contains(&first_entry), "{cleaned:?}");
+    assert!(!registry.is_browser_registered("wayfern", first));
+    assert!(registry.is_browser_registered("wayfern", rebuilt));
+  }
+
+  #[test]
   fn test_last_version_kept_during_cleanup() {
     let registry = DownloadedBrowsersRegistry::new();
 

@@ -309,7 +309,9 @@ impl AutoUpdater {
           // A pending entry is matched on the profile's current version alone,
           // so recording one for an older build would downgrade the profile the
           // moment it closes, and would pin that older binary against cleanup.
-          if !self.is_version_newer(new_version, &profile.version) {
+          if profile_update_step(true, &profile.version, new_version)
+            != ProfileUpdateStep::QueueUntilClosed
+          {
             log::debug!(
               "Pending browser update skipped: not newer profile={} from={} to={new_version}",
               profile.id,
@@ -349,7 +351,7 @@ impl AutoUpdater {
         }
 
         // Check if this is an update (newer version)
-        if self.is_version_newer(new_version, &profile.version) {
+        if profile_update_step(false, &profile.version, new_version) == ProfileUpdateStep::MoveNow {
           // Update the profile version
           match self.profile_manager.update_profile_version(
             app_handle,
@@ -506,7 +508,9 @@ impl AutoUpdater {
   ) -> Option<crate::profile::BrowserProfile> {
     let latest = self.get_latest_installed_version(&profile.browser)?;
 
-    if !self.is_version_newer(&latest, &profile.version) {
+    if profile_update_step(profile.process_id.is_some(), &profile.version, &latest)
+      != ProfileUpdateStep::MoveNow
+    {
       return None;
     }
 
@@ -578,11 +582,12 @@ impl AutoUpdater {
       };
 
       for profile in profiles {
-        if profile.process_id.is_some() {
-          continue;
-        }
-
-        if !self.is_version_newer(&latest_version, &profile.version) {
+        if profile_update_step(
+          profile.process_id.is_some(),
+          &profile.version,
+          &latest_version,
+        ) != ProfileUpdateStep::MoveNow
+        {
           continue;
         }
 
@@ -660,9 +665,51 @@ static VERSION_FETCH_STREAK: crate::log_streak::Streak =
 /// Updates found by the previous check, so an unchanged result logs at debug.
 static BROWSER_UPDATE_LAST_SUMMARY: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
+/// What one profile does with an offered browser version. A profile never moves to an older or
+/// equal version. A running profile never moves under itself: it queues the update until it closes,
+/// so its install stays in use (and is kept by cleanup) until then. This holds for every version,
+/// also a rebuild of the same Chromium version ("155.0.8059.79-2").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProfileUpdateStep {
+  Keep,
+  QueueUntilClosed,
+  MoveNow,
+}
+
+pub(crate) fn profile_update_step(
+  running: bool,
+  current: &str,
+  offered: &str,
+) -> ProfileUpdateStep {
+  if !crate::api_client::is_version_newer(offered, current) {
+    ProfileUpdateStep::Keep
+  } else if running {
+    ProfileUpdateStep::QueueUntilClosed
+  } else {
+    ProfileUpdateStep::MoveNow
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn a_running_profile_never_moves_to_a_rebuild() {
+    use ProfileUpdateStep::*;
+    let (old, rebuilt) = ("155.0.8059.79", "155.0.8059.79-2");
+    // Running: the rebuild waits until the profile closes; the old install stays in use.
+    assert_eq!(profile_update_step(true, old, rebuilt), QueueUntilClosed);
+    // Closed: the profile moves at once (in practice at its next launch).
+    assert_eq!(profile_update_step(false, old, rebuilt), MoveNow);
+    // Never back to the first build, and nothing to do on the same build.
+    assert_eq!(profile_update_step(false, rebuilt, old), Keep);
+    assert_eq!(profile_update_step(true, rebuilt, old), Keep);
+    assert_eq!(profile_update_step(false, rebuilt, rebuilt), Keep);
+    assert_eq!(profile_update_step(false, old, old), Keep);
+    // A newer Chromium version still wins over a rebuild of the older one.
+    assert_eq!(profile_update_step(false, rebuilt, "156.0.7000.1"), MoveNow);
+  }
 
   fn create_test_profile(name: &str, browser: &str, version: &str) -> BrowserProfile {
     BrowserProfile {

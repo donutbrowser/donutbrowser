@@ -487,6 +487,29 @@ mod tests {
   }
 
   #[test]
+  fn a_client_without_the_revision_field_reads_the_new_manifest_as_before() {
+    // The struct as released before the revision field: the field must be ignored.
+    #[derive(serde::Deserialize)]
+    struct OldWayfernVersionInfo {
+      version: String,
+      downloads: std::collections::HashMap<String, Option<String>>,
+    }
+    let manifest = r#"{"version":"155.0.8059.79","revision":2,
+      "downloads":{"linux-x64":"https://d/wayfern-155.0.8059.79-linux-x64-portable.tar.xz"}}"#;
+    let old: OldWayfernVersionInfo = serde_json::from_str(manifest).unwrap();
+    assert_eq!(old.version, "155.0.8059.79");
+    assert_eq!(old.downloads.len(), 1);
+    // A new client installs the rebuild in its own directory, beside the first build.
+    let new: WayfernVersionInfo = serde_json::from_str(manifest).unwrap();
+    let new = new.with_revision_folded();
+    assert_eq!(new.version, "155.0.8059.79-2");
+    let dir = std::path::Path::new("binaries")
+      .join("wayfern")
+      .join(&new.version);
+    assert!(dir.ends_with("wayfern/155.0.8059.79-2"));
+  }
+
+  #[test]
   fn the_manifest_revision_folds_into_the_version_once() {
     let read = |json: &str| -> WayfernVersionInfo { serde_json::from_str(json).unwrap() };
     let plain = read(r#"{"version":"155.0.8059.79","downloads":{}}"#).with_revision_folded();
