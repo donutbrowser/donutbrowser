@@ -464,6 +464,13 @@ mod tests {
       wayfern_slot_of_archive("wayfern-155.0.8059.79-windows-x64.zip", "154.0.8037.57"),
       None
     );
+    // A rebuild's version carries its revision, and the name still round-trips.
+    let rebuilt = wayfern_archive_name("155.0.8059.79-2", "windows-x64").unwrap();
+    assert_eq!(rebuilt, "wayfern-155.0.8059.79-2-windows-x64.zip");
+    assert_eq!(
+      wayfern_slot_of_archive(&rebuilt, "155.0.8059.79-2"),
+      Some("windows-x64")
+    );
   }
 
   #[tokio::test]

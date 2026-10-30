@@ -25,6 +25,8 @@ pub struct VersionComponent {
   pub minor: u32,
   pub patch: u32,
   pub build: u32,
+  /// The rebuild of one Chromium version: "155.0.8059.79-2" is revision 2, a plain version is 1.
+  pub revision: u32,
 }
 
 impl VersionComponent {
@@ -36,6 +38,7 @@ impl VersionComponent {
       version
     };
 
+    let (version, revision) = Self::split_revision(version);
     let numeric_part = Self::numeric_prefix(version);
 
     let parts: Vec<u32> = numeric_part
@@ -48,7 +51,21 @@ impl VersionComponent {
       minor: parts.get(1).copied().unwrap_or(0),
       patch: parts.get(2).copied().unwrap_or(0),
       build: parts.get(3).copied().unwrap_or(0),
+      revision,
     }
+  }
+
+  /// Splits a trailing "-<digits>" rebuild revision off a version; a version without one is
+  /// revision 1.
+  fn split_revision(version: &str) -> (&str, u32) {
+    if let Some((base, tail)) = version.rsplit_once('-') {
+      if !tail.is_empty() && tail.bytes().all(|b| b.is_ascii_digit()) {
+        if let Ok(revision) = tail.parse() {
+          return (base, revision);
+        }
+      }
+    }
+    (version, 1)
   }
 
   fn numeric_prefix(version: &str) -> String {
@@ -70,12 +87,20 @@ impl PartialOrd for VersionComponent {
 
 impl Ord for VersionComponent {
   fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-    (self.major, self.minor, self.patch, self.build).cmp(&(
-      other.major,
-      other.minor,
-      other.patch,
-      other.build,
-    ))
+    (
+      self.major,
+      self.minor,
+      self.patch,
+      self.build,
+      self.revision,
+    )
+      .cmp(&(
+        other.major,
+        other.minor,
+        other.patch,
+        other.build,
+        other.revision,
+      ))
   }
 }
 
@@ -110,6 +135,24 @@ pub struct BrowserRelease {
 pub struct WayfernVersionInfo {
   pub version: String,
   pub downloads: std::collections::HashMap<String, Option<String>>,
+  /// The rebuild of `version`, when it is not the first. It is folded into `version` as
+  /// "<version>-<revision>" when the manifest is read, so a rebuild of the same Chromium version
+  /// gets its own install directory and counts as an update.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub revision: Option<u32>,
+}
+
+impl WayfernVersionInfo {
+  /// Folds `revision` into `version`. Revision 1, or none, keeps the plain Chromium version, so a
+  /// manifest without the field reads as before. Folding twice changes nothing.
+  fn with_revision_folded(mut self) -> Self {
+    if let Some(revision) = self.revision.take() {
+      if revision >= 2 {
+        self.version = format!("{}-{revision}", self.version);
+      }
+    }
+    self
+  }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -325,7 +368,7 @@ impl ApiClient {
     let version_info = match version_info {
       Some(info) => {
         WAYFERN_VERSION_FETCH.succeeded();
-        info
+        info.with_revision_folded()
       }
       None => {
         let err = proxy_err.unwrap_or_else(|| {
@@ -421,6 +464,44 @@ pub(crate) fn wayfern_slot_for(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn a_rebuild_revision_orders_after_the_same_chromium_version() {
+    let rebuilt = VersionComponent::parse("155.0.8059.79-2");
+    assert_eq!((rebuilt.build, rebuilt.revision), (79, 2));
+    assert_eq!(VersionComponent::parse("155.0.8059.79").revision, 1);
+    assert_eq!(VersionComponent::parse("155").revision, 1);
+    assert!(is_version_newer("155.0.8059.79-2", "155.0.8059.79"));
+    assert!(!is_version_newer("155.0.8059.79", "155.0.8059.79-2"));
+    assert!(is_version_newer("155.0.8059.79-3", "155.0.8059.79-2"));
+    assert!(is_version_newer("156.0.7000.1", "155.0.8059.79-3"));
+    assert_eq!(
+      compare_versions("155.0.8059.79-1", "155.0.8059.79"),
+      std::cmp::Ordering::Equal
+    );
+    // The version gates of Wayfern features still see the Chromium version.
+    assert_ne!(
+      compare_versions("155.0.8059.79-2", "155"),
+      std::cmp::Ordering::Less
+    );
+  }
+
+  #[test]
+  fn the_manifest_revision_folds_into_the_version_once() {
+    let read = |json: &str| -> WayfernVersionInfo { serde_json::from_str(json).unwrap() };
+    let plain = read(r#"{"version":"155.0.8059.79","downloads":{}}"#).with_revision_folded();
+    assert_eq!(plain.version, "155.0.8059.79");
+    let first =
+      read(r#"{"version":"155.0.8059.79","downloads":{},"revision":1}"#).with_revision_folded();
+    assert_eq!(first.version, "155.0.8059.79");
+    let rebuilt =
+      read(r#"{"version":"155.0.8059.79","downloads":{},"revision":2}"#).with_revision_folded();
+    assert_eq!(rebuilt.version, "155.0.8059.79-2");
+    assert_eq!(rebuilt.revision, None);
+    let cached: WayfernVersionInfo =
+      serde_json::from_str(&serde_json::to_string(&rebuilt).unwrap()).unwrap();
+    assert_eq!(cached.with_revision_folded().version, "155.0.8059.79-2");
+  }
 
   #[test]
   fn wayfern_slot_for_takes_the_host_build_and_falls_back_only_on_windows_arm() {
