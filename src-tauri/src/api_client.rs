@@ -453,6 +453,18 @@ mod tests {
       Some("windows-x64")
     );
     assert_eq!(wayfern_slot_for(&x64_only, "linux", "arm64"), None);
+    let with_linux_arm = downloads(&[
+      ("linux-x64", Some("https://d/linux-x64.tar.xz")),
+      ("linux-arm64", Some("https://d/linux-arm64.tar.xz")),
+    ]);
+    assert_eq!(
+      wayfern_slot_for(&with_linux_arm, "linux", "arm64").as_deref(),
+      Some("linux-arm64")
+    );
+    assert_eq!(
+      wayfern_slot_for(&with_linux_arm, "linux", "x64").as_deref(),
+      Some("linux-x64")
+    );
     let missing = downloads(&[("windows-x64", Some("https://d/x64.zip"))]);
     assert_eq!(
       wayfern_slot_for(&missing, "windows", "arm64").as_deref(),

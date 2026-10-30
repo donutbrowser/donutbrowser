@@ -450,7 +450,13 @@ mod tests {
       Some("wayfern-155.0.8059.79-linux-arm64.tar.xz")
     );
     assert_eq!(wayfern_archive_name(version, "plan9-x64"), None);
-    for slot in ["macos-arm64", "linux-x64", "windows-x64", "windows-arm64"] {
+    for slot in [
+      "macos-arm64",
+      "linux-x64",
+      "linux-arm64",
+      "windows-x64",
+      "windows-arm64",
+    ] {
       let name = wayfern_archive_name(version, slot).unwrap();
       assert_eq!(wayfern_slot_of_archive(&name, version), Some(slot));
     }
