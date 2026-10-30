@@ -760,6 +760,35 @@ pub fn wayfern_failure(detail: &str, fallback_code: &str, claimed_os: Option<&st
     .unwrap_or_else(|| crate::backend_error_with_detail(fallback_code, cdp_error_message(detail)))
 }
 
+/// A cross-OS refusal as the user must read it. The server gives a Wayfern
+/// token only to the account's primary desktop, so a paid account on another
+/// desktop has no token, and the browser then refuses its cross-OS claim as a
+/// plan problem. Call after the token retry, so the device refusal is current.
+pub fn explain_cross_os_refusal(error: String) -> String {
+  let device_refused = crate::cloud_auth::CLOUD_AUTH
+    .wayfern_device_refusal()
+    .is_some();
+  primary_device_refusal(&error, device_refused).unwrap_or(error)
+}
+
+fn primary_device_refusal(error: &str, device_refused: bool) -> Option<String> {
+  if !device_refused {
+    return None;
+  }
+  let value = serde_json::from_str::<serde_json::Value>(error).ok()?;
+  if value.get("code")?.as_str()? != "WAYFERN_CROSS_OS_REQUIRES_PLAN" {
+    return None;
+  }
+  let os = value
+    .pointer("/params/detail")
+    .and_then(|detail| detail.as_str())
+    .unwrap_or("another operating system");
+  Some(crate::backend_error_with_detail(
+    "WAYFERN_CROSS_OS_PRIMARY_DEVICE",
+    os,
+  ))
+}
+
 /// The last lines a browser printed before it quit, redacted, for one log
 /// line.
 fn last_said(lines: &[String]) -> String {
@@ -2808,11 +2837,11 @@ impl WayfernManager {
           "get fingerprint"
         };
         let detail = e.to_string();
-        let coded = wayfern_failure(
+        let coded = explain_cross_os_refusal(wayfern_failure(
           &detail,
           "WAYFERN_FINGERPRINT_GENERATION_FAILED",
           config.os.as_deref(),
-        );
+        ));
         log::warn!(
           "Fingerprint generation refused profile={} step=\"{what}\" err=\"{}\"",
           profile.id,
@@ -2882,11 +2911,11 @@ impl WayfernManager {
     };
     let claimed_os = params["operatingSystem"].as_str().map(str::to_string);
     let failure = |e: Box<dyn std::error::Error + Send + Sync>| {
-      wayfern_failure(
+      explain_cross_os_refusal(wayfern_failure(
         &e.to_string(),
         "WAYFERN_FINGERPRINT_APPLY_FAILED",
         claimed_os.as_deref(),
-      )
+      ))
     };
     let auth = &crate::cloud_auth::CLOUD_AUTH;
     // A view read once is shown again without starting a browser, while the
@@ -5788,6 +5817,20 @@ mod tests {
       Some("linux")
     );
     assert_eq!(WayfernManager::os_from_platform("Nintendo"), None);
+  }
+
+  #[test]
+  fn a_cross_os_refusal_on_a_secondary_desktop_names_the_primary_device() {
+    let refused = crate::backend_error_with_detail("WAYFERN_CROSS_OS_REQUIRES_PLAN", "macos");
+    let explained = primary_device_refusal(&refused, true).unwrap();
+    assert!(explained.contains("WAYFERN_CROSS_OS_PRIMARY_DEVICE"));
+    assert!(explained.contains("macos"));
+
+    // Without a device refusal the plan message stands, and other codes pass.
+    assert_eq!(primary_device_refusal(&refused, false), None);
+    let busy = crate::backend_error("WAYFERN_BROWSER_BUSY");
+    assert_eq!(primary_device_refusal(&busy, true), None);
+    assert_eq!(primary_device_refusal("not json", true), None);
   }
 
   #[test]

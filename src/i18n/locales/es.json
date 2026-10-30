@@ -2773,6 +2773,7 @@
     "wayfernFingerprintGenerationFailed": "No se pudo crear una huella digital para este perfil. {{detail}}",
     "wayfernGenerationLimitReached": "Se alcanzó el límite temporal de generación de huellas digitales. Inténtalo de nuevo más tarde.",
     "wayfernCrossOsRequiresPlan": "Este perfil se ejecuta como {{detail}} y este equipo usa otro sistema operativo. Para abrirlo aquí se necesita un plan Pro o Team.",
+    "wayfernCrossOsPrimaryDevice": "Este perfil se ejecuta como {{detail}}. Los perfiles de otro sistema operativo solo funcionan en tu dispositivo principal. Cierra la sesión de Donut Browser en tus otros equipos y vuelve a intentarlo.",
     "wayfernIdentityRefused": "El navegador no se inició con la identidad de este perfil, así que se cerró. {{detail}}",
     "wayfernInstanceLimitReached": "Hay demasiados navegadores abiertos para tu plan. Cierra un navegador e inténtalo de nuevo.",
     "tooManyBrowsersRunning": "Cierra una ventana del navegador para continuar.",
@@ -3294,8 +3295,8 @@
     "progress": "Progreso de la configuración"
   },
   "wayfernBlocked": {
-    "title": "Automatización del navegador en pausa",
-    "description": "La automatización del navegador funciona en un solo dispositivo a la vez y otro dispositivo con la sesión abierta la está usando. Cierra la sesión allí y vuelve a iniciar el perfil."
+    "title": "No es tu dispositivo principal",
+    "description": "La automatización del navegador y los perfiles de otro sistema operativo solo funcionan en tu dispositivo principal. Cierra la sesión de Donut Browser en tus otros equipos y vuelve a intentarlo."
   },
   "profileGenerationLimit": {
     "title": "Límite de perfiles por hora alcanzado",

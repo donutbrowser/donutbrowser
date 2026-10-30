@@ -2754,6 +2754,7 @@
     "wayfernFingerprintGenerationFailed": "Bu profil için parmak izi oluşturulamadı. {{detail}}",
     "wayfernGenerationLimitReached": "Geçici parmak izi oluşturma sınırına ulaşıldı. Daha sonra tekrar deneyin.",
     "wayfernCrossOsRequiresPlan": "Bu profil {{detail}} olarak çalışıyor ve bu bilgisayarda başka bir işletim sistemi var. Burada açmak için Pro veya Team planı gerekir.",
+    "wayfernCrossOsPrimaryDevice": "Bu profil {{detail}} olarak çalışıyor. Başka bir işletim sistemi için olan profiller yalnızca birincil cihazınızda çalışır. Diğer bilgisayarlarınızda Donut Browser oturumunu kapatın, ardından yeniden deneyin.",
     "wayfernIdentityRefused": "Tarayıcı bu profilin kimliğiyle başlamadığı için kapatıldı. {{detail}}",
     "wayfernInstanceLimitReached": "Planınız için çok fazla tarayıcı açık. Bir tarayıcıyı kapatıp tekrar deneyin.",
     "tooManyBrowsersRunning": "Devam etmek için bir tarayıcı penceresini kapatın.",
@@ -3274,8 +3275,8 @@
     "progress": "Kurulum ilerlemesi"
   },
   "wayfernBlocked": {
-    "title": "Tarayıcı otomasyonu duraklatıldı",
-    "description": "Tarayıcı otomasyonu aynı anda yalnızca tek bir cihazda çalışır ve şu anda oturum açmış başka bir cihaz tarafından kullanılıyor. O cihazdan çıkış yapın, ardından profili yeniden başlatın."
+    "title": "Birincil cihazınız değil",
+    "description": "Tarayıcı otomasyonu ve başka bir işletim sistemi için olan profiller yalnızca birincil cihazınızda çalışır. Diğer bilgisayarlarınızda Donut Browser oturumunu kapatın, ardından yeniden deneyin."
   },
   "profileGenerationLimit": {
     "title": "Saatlik profil sınırına ulaşıldı",

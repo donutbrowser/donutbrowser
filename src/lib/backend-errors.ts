@@ -302,6 +302,9 @@ export type BackendErrorCode =
   // offline one cannot apply it. Distinct from the generic apply failure because
   // signing in again is the fix; `detail` names the claimed OS.
   | "WAYFERN_CROSS_OS_REQUIRES_PLAN"
+  // The plan includes it, but the server gives the token only to the account's
+  // primary desktop. `detail` names the claimed OS.
+  | "WAYFERN_CROSS_OS_PRIMARY_DEVICE"
   | "WAYFERN_IDENTITY_REFUSED"
   | "WAYFERN_INSTANCE_LIMIT_REACHED"
   | "TOO_MANY_BROWSERS_RUNNING"
@@ -1095,6 +1098,10 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.wayfernGenerationLimitReached");
     case "WAYFERN_CROSS_OS_REQUIRES_PLAN":
       return t("backendErrors.wayfernCrossOsRequiresPlan", {
+        detail: remoteOsLabel(parsed.params?.detail ?? ""),
+      });
+    case "WAYFERN_CROSS_OS_PRIMARY_DEVICE":
+      return t("backendErrors.wayfernCrossOsPrimaryDevice", {
         detail: remoteOsLabel(parsed.params?.detail ?? ""),
       });
     case "WAYFERN_IDENTITY_REFUSED":

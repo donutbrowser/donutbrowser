@@ -2754,6 +2754,7 @@
     "wayfernFingerprintGenerationFailed": "无法为此配置文件创建指纹。{{detail}}",
     "wayfernGenerationLimitReached": "已达到临时指纹生成上限。请稍后再试。",
     "wayfernCrossOsRequiresPlan": "此配置文件以 {{detail}} 身份运行，而这台电脑使用其他操作系统。要在此处打开，需要 Pro 或 Team 套餐。",
+    "wayfernCrossOsPrimaryDevice": "此配置文件以 {{detail}} 身份运行。其他操作系统的配置文件只能在您的主设备上运行。请在其他电脑上退出 Donut Browser 登录，然后重试。",
     "wayfernIdentityRefused": "浏览器未以此配置文件的身份启动，因此已被关闭。{{detail}}",
     "wayfernInstanceLimitReached": "当前套餐下打开的浏览器过多。请关闭一个浏览器后重试。",
     "tooManyBrowsersRunning": "请关闭一个浏览器窗口以继续。",
@@ -3274,8 +3275,8 @@
     "progress": "设置进度"
   },
   "wayfernBlocked": {
-    "title": "浏览器自动化已暂停",
-    "description": "浏览器自动化一次只能在一台设备上运行，目前有另一台已登录的设备正在使用。请在该设备上退出登录，然后重新启动此配置文件。"
+    "title": "不是您的主设备",
+    "description": "浏览器自动化和其他操作系统的配置文件只能在您的主设备上运行。请在其他电脑上退出 Donut Browser 登录，然后重试。"
   },
   "profileGenerationLimit": {
     "title": "已达到每小时的配置文件上限",

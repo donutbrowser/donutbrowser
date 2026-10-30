@@ -2754,6 +2754,7 @@
     "wayfernFingerprintGenerationFailed": "Could not create a fingerprint for this profile. {{detail}}",
     "wayfernGenerationLimitReached": "Temporary fingerprint generation limit reached. Try again later.",
     "wayfernCrossOsRequiresPlan": "This profile runs as {{detail}}, and this computer runs another operating system. Opening it here needs a Pro or Team plan.",
+    "wayfernCrossOsPrimaryDevice": "This profile runs as {{detail}}. Profiles for another operating system run only on your primary device. Sign out of Donut Browser on your other computers, then try again.",
     "wayfernIdentityRefused": "The browser did not start on this profile's identity, so it was closed. {{detail}}",
     "wayfernInstanceLimitReached": "Too many browsers are open for your plan. Close a browser and try again.",
     "tooManyBrowsersRunning": "Close one browser window to continue.",
@@ -3274,8 +3275,8 @@
     "progress": "Setup progress"
   },
   "wayfernBlocked": {
-    "title": "Browser automation paused",
-    "description": "Browser automation runs on one device at a time, and another signed-in device is currently using it. Sign out there, then relaunch the profile."
+    "title": "Not your primary device",
+    "description": "Browser automation and profiles for another operating system run only on your primary device. Sign out of Donut Browser on your other computers, then try again."
   },
   "profileGenerationLimit": {
     "title": "Hourly profile limit reached",

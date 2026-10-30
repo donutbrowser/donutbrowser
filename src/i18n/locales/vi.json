@@ -2754,6 +2754,7 @@
     "wayfernFingerprintGenerationFailed": "Không thể tạo dấu vân tay cho hồ sơ này. {{detail}}",
     "wayfernGenerationLimitReached": "Đã đạt giới hạn tạm thời về tạo dấu vân tay. Vui lòng thử lại sau.",
     "wayfernCrossOsRequiresPlan": "Hồ sơ này chạy dưới dạng {{detail}}, còn máy tính này dùng hệ điều hành khác. Để mở hồ sơ ở đây, bạn cần gói Pro hoặc Team.",
+    "wayfernCrossOsPrimaryDevice": "Hồ sơ này chạy dưới dạng {{detail}}. Hồ sơ cho hệ điều hành khác chỉ chạy trên thiết bị chính của bạn. Hãy đăng xuất Donut Browser trên các máy tính khác, rồi thử lại.",
     "wayfernIdentityRefused": "Trình duyệt không khởi động với danh tính của hồ sơ này nên đã bị đóng. {{detail}}",
     "wayfernInstanceLimitReached": "Có quá nhiều trình duyệt đang mở so với gói của bạn. Hãy đóng một trình duyệt rồi thử lại.",
     "tooManyBrowsersRunning": "Hãy đóng một cửa sổ trình duyệt để tiếp tục.",
@@ -3274,8 +3275,8 @@
     "progress": "Tiến độ thiết lập"
   },
   "wayfernBlocked": {
-    "title": "Tự động hóa trình duyệt đã tạm dừng",
-    "description": "Tự động hóa trình duyệt chỉ chạy trên một thiết bị tại một thời điểm và một thiết bị khác đang đăng nhập hiện đang sử dụng nó. Hãy đăng xuất trên thiết bị đó, rồi khởi chạy lại cấu hình."
+    "title": "Không phải thiết bị chính",
+    "description": "Tự động hóa trình duyệt và hồ sơ cho hệ điều hành khác chỉ chạy trên thiết bị chính của bạn. Hãy đăng xuất Donut Browser trên các máy tính khác, rồi thử lại."
   },
   "profileGenerationLimit": {
     "title": "Đã đạt giới hạn hồ sơ mỗi giờ",

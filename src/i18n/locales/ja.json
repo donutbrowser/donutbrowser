@@ -2754,6 +2754,7 @@
     "wayfernFingerprintGenerationFailed": "このプロファイルのフィンガープリントを作成できませんでした。{{detail}}",
     "wayfernGenerationLimitReached": "一時的なフィンガープリント生成上限に達しました。しばらくしてから再度お試しください。",
     "wayfernCrossOsRequiresPlan": "このプロファイルは {{detail}} として動作し、このコンピューターでは別のオペレーティングシステムが動作しています。ここで開くには Pro または Team プランが必要です。",
+    "wayfernCrossOsPrimaryDevice": "このプロファイルは {{detail}} として動作します。別のオペレーティングシステムのプロファイルは、プライマリデバイスでのみ実行できます。ほかのコンピューターで Donut Browser からサインアウトしてから、もう一度お試しください。",
     "wayfernIdentityRefused": "ブラウザーがこのプロファイルのアイデンティティで起動しなかったため、終了しました。{{detail}}",
     "wayfernInstanceLimitReached": "ご利用のプランでは、開いているブラウザーが多すぎます。ブラウザーを1つ閉じてからもう一度お試しください。",
     "tooManyBrowsersRunning": "続行するには、ブラウザーのウィンドウを1つ閉じてください。",
@@ -3274,8 +3275,8 @@
     "progress": "セットアップの進行状況"
   },
   "wayfernBlocked": {
-    "title": "ブラウザの自動化が一時停止しました",
-    "description": "ブラウザの自動化は同時に1台のデバイスでのみ利用できます。現在、サインイン中の別のデバイスが使用しています。そのデバイスからサインアウトして、プロファイルを再起動してください。"
+    "title": "プライマリデバイスではありません",
+    "description": "ブラウザの自動化と別のオペレーティングシステムのプロファイルは、プライマリデバイスでのみ実行できます。ほかのコンピューターで Donut Browser からサインアウトしてから、もう一度お試しください。"
   },
   "profileGenerationLimit": {
     "title": "1時間あたりのプロファイル上限に達しました",

@@ -72,7 +72,7 @@ fn log_err(err: &str, profile: &BrowserProfile) -> String {
 }
 
 /// Outcomes the person meets as a dialog or a notice, not a fault.
-const LAUNCH_BLOCK_CODES: [&str; 11] = [
+const LAUNCH_BLOCK_CODES: [&str; 12] = [
   "FINGERPRINT_EXIT_MISMATCH",
   "LAUNCH_CONSENT_EXPIRED",
   "PROFILE_RUNNING",
@@ -84,6 +84,7 @@ const LAUNCH_BLOCK_CODES: [&str; 11] = [
   "PROFILE_ROUTE_REQUIRED",
   "PROFILE_ROUTE_UNAVAILABLE",
   "WAYFERN_CROSS_OS_REQUIRES_PLAN",
+  "WAYFERN_CROSS_OS_PRIMARY_DEVICE",
 ];
 
 /// One line per failed launch. A coded error logs its code and detail only:
@@ -799,7 +800,11 @@ impl BrowserRunner {
         // can name the cause. Prefixing it would put English in front of the
         // JSON the frontend parses, and the whole thing would reach the user
         // as raw machine output.
-        crate::wrap_backend_error(e, "Failed to launch Wayfern").into()
+        crate::wrap_backend_error(
+          crate::wayfern_manager::explain_cross_os_refusal(e.to_string()),
+          "Failed to launch Wayfern",
+        )
+        .into()
       })?;
 
       // Get the process ID from launch result

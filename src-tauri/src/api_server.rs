@@ -1571,6 +1571,10 @@ fn manager_error_response(err: impl std::fmt::Display) -> (StatusCode, String) {
         // Mapping them here lets the gate live in the shared manager instead of
         // being re-implemented in each handler to get the status right.
         StatusCode::PAYMENT_REQUIRED
+      } else if code == "WAYFERN_CROSS_OS_PRIMARY_DEVICE" {
+        // The plan includes it; the server refuses this desktop because
+        // another one is the account's primary device.
+        StatusCode::FORBIDDEN
       } else if code == "WAYFERN_INSTANCE_LIMIT_REACHED"
         || code == "TOO_MANY_BROWSERS_RUNNING"
         || code == "WAYFERN_GENERATION_LIMIT_REACHED"
@@ -7096,6 +7100,7 @@ mod tests {
         "WAYFERN_CUSTOM_FINGERPRINT_REQUIRES_PLAN",
         StatusCode::PAYMENT_REQUIRED,
       ),
+      ("WAYFERN_CROSS_OS_PRIMARY_DEVICE", StatusCode::FORBIDDEN),
       (
         "WAYFERN_INSTANCE_LIMIT_REACHED",
         StatusCode::TOO_MANY_REQUESTS,
