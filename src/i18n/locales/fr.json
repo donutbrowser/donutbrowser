@@ -4143,6 +4143,7 @@
       "stepTypes": {
         "click": "Cliquer",
         "extract": "Extraire",
+        "hold": "Maintenir appuyé",
         "navigate": "Aller à une page",
         "pressKey": "Appuyer sur une touche",
         "screenshot": "Capture",

@@ -4095,6 +4095,7 @@
       "stepTypes": {
         "click": "Click",
         "extract": "Extract",
+        "hold": "Press and hold",
         "navigate": "Go to a page",
         "pressKey": "Press a key",
         "screenshot": "Screenshot",

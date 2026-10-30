@@ -21,6 +21,11 @@ import {
   STEP_TYPES,
 } from "@/lib/recipes";
 
+/** The hold length the API accepts, and the one a new step gets. */
+const HOLD_MIN_MS = 100;
+const HOLD_MAX_MS = 30000;
+const HOLD_DEFAULT_MS = 3000;
+
 /** A step of `type` with the fields that kind needs, and nothing else. */
 export function emptyStep(type: RecipeStepType): RecipeStep {
   switch (type) {
@@ -28,6 +33,8 @@ export function emptyStep(type: RecipeStepType): RecipeStep {
       return { type, url: "" };
     case "click":
       return { type, locator: { name: "" } };
+    case "hold":
+      return { type, durationMs: HOLD_DEFAULT_MS, locator: { name: "" } };
     case "type":
       return { type, text: "", locator: { name: "" } };
     case "waitFor":
@@ -71,6 +78,13 @@ export function isStepComplete(step: RecipeStep): boolean {
       return Boolean(step.key?.trim());
     case "sleep":
       return typeof step.ms === "number" && step.ms > 0;
+    case "hold":
+      return (
+        step.durationMs === undefined ||
+        (Number.isInteger(step.durationMs) &&
+          step.durationMs >= HOLD_MIN_MS &&
+          step.durationMs <= HOLD_MAX_MS)
+      );
     default:
       return true;
   }
@@ -97,6 +111,8 @@ export function tidyStep(step: RecipeStep): RecipeStep {
   }
   if (step.type === "scroll") tidy.direction = step.direction ?? "down";
   if (step.type === "sleep") tidy.ms = step.ms ?? 1000;
+  if (step.type === "hold")
+    tidy.durationMs = step.durationMs ?? HOLD_DEFAULT_MS;
   if (step.type === "screenshot" && step.fullPage) tidy.fullPage = true;
   if (step.type === "extract" && step.attr?.trim())
     tidy.attr = step.attr.trim();
@@ -340,6 +356,21 @@ function StepFields({
             disabled={disabled}
             onChange={(event) => {
               set({ ms: Number(event.target.value) });
+            }}
+          />
+        </Field>
+      )}
+
+      {step.type === "hold" && (
+        <Field label={t("agent.recipes.fields.milliseconds")}>
+          <Input
+            type="number"
+            min={HOLD_MIN_MS}
+            max={HOLD_MAX_MS}
+            value={String(step.durationMs ?? HOLD_DEFAULT_MS)}
+            disabled={disabled}
+            onChange={(event) => {
+              set({ durationMs: Number(event.target.value) });
             }}
           />
         </Field>

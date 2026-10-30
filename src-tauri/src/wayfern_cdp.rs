@@ -1291,6 +1291,44 @@ pub mod vellum {
       .map_err(|e| WayfernError::Malformed(format!("Vellum.inscribe: {e}")))
   }
 
+  /// Press `button` (left by default) where the pointer is and keep it down.
+  /// Glides made while it is down carry it.
+  pub async fn clasp(
+    session: &mut WayfernSession,
+    pointer: &VellumPointer,
+    button: Option<&str>,
+  ) -> Result<(), WayfernError> {
+    let mut params = serde_json::json!({ "pointer": pointer.id });
+    if let Some(button) = button {
+      params["button"] = Value::from(button);
+    }
+    session.call("Vellum.clasp", params).await.map(|_| ())
+  }
+
+  /// Let go of the held button where the pointer is, then wait up to
+  /// `load_timeout` for a page load. Returns whether a load was seen.
+  pub async fn unclasp_awaiting_load(
+    session: &mut WayfernSession,
+    pointer: &VellumPointer,
+    load_timeout: Duration,
+  ) -> Result<bool, WayfernError> {
+    let (_, navigated) = session
+      .call_then_await_navigation(
+        "Vellum.unclasp",
+        serde_json::json!({ "pointer": pointer.id }),
+        load_timeout,
+      )
+      .await?;
+    Ok(navigated)
+  }
+
+  /// Whether `error` is a browser built before `method` existed.
+  pub fn is_missing(error: &WayfernError, method: &str) -> bool {
+    error
+      .to_string()
+      .contains(&format!("'{method}' wasn't found"))
+  }
+
   /// Destroy the pointer.
   pub async fn release(
     session: &mut WayfernSession,
@@ -1388,6 +1426,8 @@ pub(crate) mod test_support {
     PickerSilent,
     /// Answer `Vellum.strike`, then emit `Page.loadEventFired`.
     StrikeNavigates,
+    /// A browser built before `Vellum.clasp` and `Vellum.unclasp`.
+    NoClasp,
     /// `resolveLocator` matches, but its `backendNodeId` names another node,
     /// as on Wayfern 152 to 155; the page finds the match as node 353.
     RenumberedNodeIds,
@@ -1569,6 +1609,9 @@ pub(crate) mod test_support {
                     None => {}
                   }
                 }
+                ok(serde_json::json!({}))
+              }
+              "Vellum.clasp" | "Vellum.unclasp" if behaviour != Fake::NoClasp => {
                 ok(serde_json::json!({}))
               }
               "Vellum.release"

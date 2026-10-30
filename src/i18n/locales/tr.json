@@ -4095,6 +4095,7 @@
       "stepTypes": {
         "click": "Tıkla",
         "extract": "Çıkar",
+        "hold": "Basılı tut",
         "navigate": "Bir sayfaya git",
         "pressKey": "Bir tuşa bas",
         "screenshot": "Ekran görüntüsü",

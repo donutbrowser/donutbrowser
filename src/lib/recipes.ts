@@ -10,6 +10,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 export type RecipeStepType =
   | "navigate"
   | "click"
+  | "hold"
   | "type"
   | "waitFor"
   | "extract"
@@ -22,6 +23,7 @@ export type RecipeStepType =
 export const STEP_TYPES: readonly RecipeStepType[] = [
   "navigate",
   "click",
+  "hold",
   "type",
   "waitFor",
   "extract",
@@ -34,6 +36,7 @@ export const STEP_TYPES: readonly RecipeStepType[] = [
 /** The kinds that name an element, and so carry exactly one target. */
 export const TARGETED: readonly RecipeStepType[] = [
   "click",
+  "hold",
   "type",
   "waitFor",
   "extract",
@@ -50,6 +53,8 @@ export interface RecipeStep {
   direction?: "up" | "down";
   amount?: number;
   ms?: number;
+  /** How long a `hold` keeps the button down, 100 to 30000 ms. */
+  durationMs?: number;
   timeoutMs?: number;
   fullPage?: boolean;
   selector?: string;

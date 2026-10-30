@@ -4095,6 +4095,7 @@
       "stepTypes": {
         "click": "클릭",
         "extract": "추출",
+        "hold": "길게 누르기",
         "navigate": "페이지 열기",
         "pressKey": "키 누르기",
         "screenshot": "스크린샷",

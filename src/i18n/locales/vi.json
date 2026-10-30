@@ -4095,6 +4095,7 @@
       "stepTypes": {
         "click": "Nhấp",
         "extract": "Trích xuất",
+        "hold": "Nhấn giữ",
         "navigate": "Mở một trang",
         "pressKey": "Nhấn phím",
         "screenshot": "Ảnh màn hình",

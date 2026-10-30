@@ -4095,6 +4095,7 @@
       "stepTypes": {
         "click": "点击",
         "extract": "提取",
+        "hold": "长按",
         "navigate": "打开页面",
         "pressKey": "按键",
         "screenshot": "截图",

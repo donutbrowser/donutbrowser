@@ -14,9 +14,10 @@ const RECIPE_CODES: FailureCodes = FailureCodes {
 
 pub type RecipeStep = serde_json::Value;
 
-const RECIPE_STEP_TYPES: [&str; 9] = [
+const RECIPE_STEP_TYPES: [&str; 10] = [
   "navigate",
   "click",
+  "hold",
   "type",
   "waitFor",
   "extract",
@@ -26,7 +27,7 @@ const RECIPE_STEP_TYPES: [&str; 9] = [
   "sleep",
 ];
 
-const RECIPE_TARGETED_TYPES: [&str; 4] = ["click", "type", "waitFor", "extract"];
+const RECIPE_TARGETED_TYPES: [&str; 5] = ["click", "hold", "type", "waitFor", "extract"];
 
 const MAX_RECIPE_STEPS: usize = 200;
 
@@ -339,6 +340,7 @@ mod tests {
       serde_json::json!({"type": "teleport", "url": "https://example.com"}),
       serde_json::json!({"type": "click"}),
       serde_json::json!({"type": "click", "selector": "#buy", "locator": {"role": "button"}}),
+      serde_json::json!({"type": "hold", "durationMs": 5000}),
     ] {
       assert!(
         validate_recipe("nightly", std::slice::from_ref(&rejected))
@@ -349,9 +351,14 @@ mod tests {
     }
 
     let click = serde_json::json!({"type": "click", "locator": {"role": "button", "name": "Buy"}});
-    let (name, steps) = validate_recipe("  nightly  ", &[navigate.clone(), click.clone()]).unwrap();
+    let hold = serde_json::json!({"type": "hold", "durationMs": 8000, "selector": "#px-captcha"});
+    let (name, steps) = validate_recipe(
+      "  nightly  ",
+      &[navigate.clone(), click.clone(), hold.clone()],
+    )
+    .unwrap();
     assert_eq!(name, "nightly");
-    assert_eq!(steps, vec![navigate, click]);
+    assert_eq!(steps, vec![navigate, click, hold]);
   }
 
   #[test]

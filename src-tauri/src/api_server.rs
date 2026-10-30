@@ -881,6 +881,7 @@ struct ImportProxiesResponse {
     agent_perceive_api,
     agent_resolve_locator_api,
     agent_click_api,
+    agent_hold_api,
     agent_type_api,
     agent_extract_api,
     agent_pick_api,
@@ -998,6 +999,8 @@ struct ImportProxiesResponse {
     crate::mcp_server::AgentResolveRequest,
     crate::mcp_server::AgentClickRequest,
     crate::mcp_server::AgentClick,
+    crate::mcp_server::AgentHoldRequest,
+    crate::mcp_server::AgentHold,
     crate::mcp_server::AgentTypeRequest,
     crate::mcp_server::AgentTyping,
     crate::mcp_server::AgentPickRequest,
@@ -1257,6 +1260,7 @@ fn build_v1_router() -> Router<ApiServerState> {
     .routes(routes!(agent_perceive_api))
     .routes(routes!(agent_resolve_locator_api))
     .routes(routes!(agent_click_api))
+    .routes(routes!(agent_hold_api))
     .routes(routes!(agent_type_api))
     .routes(routes!(agent_extract_api))
     .routes(routes!(agent_pick_api))
@@ -1450,7 +1454,7 @@ fn is_automation_request(method: &Method, path: &str) -> bool {
       // exactly as a script one is.
       Some(_),
       Some("agent"),
-      Some("perceive" | "resolve-locator" | "click" | "type" | "extract" | "pick"),
+      Some("perceive" | "resolve-locator" | "click" | "hold" | "type" | "extract" | "pick"),
       None
     )
   )
@@ -5663,6 +5667,37 @@ async fn agent_click_api(
 
 #[utoipa::path(
   post,
+  path = "/v1/profiles/{id}/agent/hold",
+  params(
+    ("id" = String, Path, description = "Profile ID")
+  ),
+  request_body = crate::mcp_server::AgentHoldRequest,
+  responses(
+    (status = 200, description = "The element was pressed and held, then let go: for a press-and-hold check. The pointer moves a little while the button is down; `held_ms` is how long the button was down", body = crate::mcp_server::AgentHold),
+    (status = 400, description = "Malformed request, duration_ms out of 100 to 30000, no element matched, or several did"),
+    (status = 401, description = "Unauthorized"),
+    (status = 402, description = "Active paid plan with browser automation required"),
+    (status = 404, description = "Profile not found"),
+    (status = 409, description = "The profile is not running"),
+    (status = 429, description = "Automation request rate limit exceeded"),
+    (status = 502, description = "The browser did not answer as documented"),
+    (status = 500, description = "Internal server error")
+  ),
+  security(
+    ("bearer_auth" = [])
+  ),
+  tag = "agent"
+)]
+async fn agent_hold_api(
+  Path(id): Path<String>,
+  Json(request): Json<crate::mcp_server::AgentHoldRequest>,
+) -> Result<Json<crate::mcp_server::AgentHold>, (StatusCode, String)> {
+  let ctx = agent_context_for(&id).await?;
+  agent_reply(&id, crate::mcp_server::agent_hold(&ctx, &request).await).await
+}
+
+#[utoipa::path(
+  post,
   path = "/v1/profiles/{id}/agent/type",
   params(
     ("id" = String, Path, description = "Profile ID")
@@ -6160,6 +6195,7 @@ mod tests {
       "/v1/profiles/profile-id/agent/perceive",
       "/v1/profiles/profile-id/agent/resolve-locator",
       "/v1/profiles/profile-id/agent/click",
+      "/v1/profiles/profile-id/agent/hold",
       "/v1/profiles/profile-id/agent/type",
       "/v1/profiles/profile-id/agent/extract",
       "/v1/profiles/profile-id/agent/pick",
@@ -6921,6 +6957,9 @@ mod tests {
       vec!["locator"]
     );
     assert_eq!(schema_required(&spec, "AgentClickRequest"), vec!["locator"]);
+    // A hold names its element by locator or selector, and both are optional
+    // in the schema because exactly one is required, which the handler checks.
+    assert!(schema_required(&spec, "AgentHoldRequest").is_empty());
     let type_request = schema_required(&spec, "AgentTypeRequest");
     assert!(
       type_request.contains(&"locator".to_string()) && type_request.contains(&"text".to_string())
@@ -7427,6 +7466,7 @@ mod tests {
       "/v1/profiles/{id}/agent/perceive",
       "/v1/profiles/{id}/agent/resolve-locator",
       "/v1/profiles/{id}/agent/click",
+      "/v1/profiles/{id}/agent/hold",
       "/v1/profiles/{id}/agent/type",
       "/v1/profiles/{id}/agent/extract",
       "/v1/profiles/{id}/agent/pick",
@@ -7634,6 +7674,7 @@ mod tests {
       "/v1/profiles/{id}/agent/perceive",
       "/v1/profiles/{id}/agent/resolve-locator",
       "/v1/profiles/{id}/agent/click",
+      "/v1/profiles/{id}/agent/hold",
       "/v1/profiles/{id}/agent/type",
       "/v1/profiles/{id}/agent/extract",
       "/v1/profiles/{id}/agent/pick",
@@ -7660,6 +7701,7 @@ mod tests {
         "LocatorResolution",
       ),
       ("/v1/profiles/{id}/agent/click", "AgentClick"),
+      ("/v1/profiles/{id}/agent/hold", "AgentHold"),
       ("/v1/profiles/{id}/agent/type", "AgentTyping"),
       ("/v1/profiles/{id}/agent/extract", "Extraction"),
       ("/v1/profiles/{id}/agent/pick", "PickedElement"),

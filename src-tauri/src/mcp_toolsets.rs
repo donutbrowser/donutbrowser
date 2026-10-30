@@ -58,6 +58,7 @@ pub const TOOLSETS: &[(&str, &[&str])] = &[
       "perceive_page",
       "resolve_locator",
       "click_locator",
+      "press_and_hold",
       "type_locator",
       "select_option",
       "file_upload",
