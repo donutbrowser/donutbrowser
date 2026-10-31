@@ -1,70 +1,6 @@
 [
   {
-    "name": "@babel/code-frame",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/compat-data",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/core",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/generator",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/helper-compilation-targets",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/helper-globals",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/helper-module-imports",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/helper-module-transforms",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/helper-string-parser",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/helper-validator-identifier",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/helper-validator-option",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/helpers",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/parser",
-    "license": "MIT"
-  },
-  {
     "name": "@babel/runtime",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/template",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/traverse",
-    "license": "MIT"
-  },
-  {
-    "name": "@babel/types",
     "license": "MIT"
   },
   {
@@ -85,26 +21,6 @@
   },
   {
     "name": "@img/colour",
-    "license": "MIT"
-  },
-  {
-    "name": "@jridgewell/gen-mapping",
-    "license": "MIT"
-  },
-  {
-    "name": "@jridgewell/remapping",
-    "license": "MIT"
-  },
-  {
-    "name": "@jridgewell/resolve-uri",
-    "license": "MIT"
-  },
-  {
-    "name": "@jridgewell/sourcemap-codec",
-    "license": "MIT"
-  },
-  {
-    "name": "@jridgewell/trace-mapping",
     "license": "MIT"
   },
   {
@@ -720,10 +636,6 @@
     "license": "BSD-3-Clause OR MIT"
   },
   {
-    "name": "browserslist",
-    "license": "MIT"
-  },
-  {
     "name": "bs58",
     "license": "Apache-2.0 OR MIT"
   },
@@ -912,10 +824,6 @@
     "license": "CC0-1.0 OR MIT-0 OR Apache-2.0"
   },
   {
-    "name": "convert-source-map",
-    "license": "MIT"
-  },
-  {
     "name": "cookie",
     "license": "Apache-2.0 OR MIT"
   },
@@ -1080,10 +988,6 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
-    "name": "debug",
-    "license": "MIT"
-  },
-  {
     "name": "decimal.js-light",
     "license": "MIT"
   },
@@ -1200,10 +1104,6 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
-    "name": "electron-to-chromium",
-    "license": "ISC"
-  },
-  {
     "name": "embed_plist",
     "license": "Apache-2.0 OR MIT"
   },
@@ -1257,10 +1157,6 @@
   },
   {
     "name": "es-toolkit",
-    "license": "MIT"
-  },
-  {
-    "name": "escalade",
     "license": "MIT"
   },
   {
@@ -1452,10 +1348,6 @@
     "license": "MIT"
   },
   {
-    "name": "gensync",
-    "license": "MIT"
-  },
-  {
     "name": "get-nonce",
     "license": "MIT"
   },
@@ -1529,10 +1421,6 @@
   },
   {
     "name": "harfrust",
-    "license": "MIT"
-  },
-  {
-    "name": "has-flag",
     "license": "MIT"
   },
   {
@@ -1780,20 +1668,8 @@
     "license": "MIT"
   },
   {
-    "name": "js-tokens",
-    "license": "MIT"
-  },
-  {
-    "name": "jsesc",
-    "license": "MIT"
-  },
-  {
     "name": "json-patch",
     "license": "Apache-2.0 OR MIT"
-  },
-  {
-    "name": "json5",
-    "license": "MIT"
   },
   {
     "name": "jsonc-parser",
@@ -1870,10 +1746,6 @@
   {
     "name": "loop9",
     "license": "MIT"
-  },
-  {
-    "name": "lru-cache",
-    "license": "ISC"
   },
   {
     "name": "lucide-react",
@@ -1964,10 +1836,6 @@
     "license": "BSD-3-Clause OR Apache-2.0"
   },
   {
-    "name": "ms",
-    "license": "MIT"
-  },
-  {
     "name": "msi",
     "license": "MIT"
   },
@@ -2010,10 +1878,6 @@
   {
     "name": "no_std_io2",
     "license": "Apache-2.0 OR MIT"
-  },
-  {
-    "name": "node-releases",
-    "license": "MIT"
   },
   {
     "name": "nom",
@@ -2828,10 +2692,6 @@
     "license": "BSD-3-Clause"
   },
   {
-    "name": "supports-color",
-    "license": "MIT"
-  },
-  {
     "name": "svgtypes",
     "license": "Apache-2.0 OR MIT"
   },
@@ -3160,10 +3020,6 @@
     "license": "ISC"
   },
   {
-    "name": "update-browserslist-db",
-    "license": "MIT"
-  },
-  {
     "name": "url",
     "license": "Apache-2.0 OR MIT"
   },
@@ -3200,6 +3056,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "utf_types",
+    "license": "Apache-2.0 OR MIT"
+  },
+  {
     "name": "utoipa",
     "license": "Apache-2.0 OR MIT"
   },
@@ -3221,7 +3081,7 @@
   },
   {
     "name": "victory-vendor",
-    "license": "MIT AND ISC"
+    "license": "MIT AND ISC AND BSD-3-Clause"
   },
   {
     "name": "walkdir",
@@ -3446,10 +3306,6 @@
   {
     "name": "y4m",
     "license": "MIT"
-  },
-  {
-    "name": "yallist",
-    "license": "ISC"
   },
   {
     "name": "yaml-rust2",

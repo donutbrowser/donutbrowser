@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 
 // Pinned so a fresh rclone release cannot change what CI runs underneath us.
-export const RCLONE_VERSION = "v1.75.1";
+export const RCLONE_VERSION = "v1.75.2";
 
 function rcloneAsset() {
   const platform = os.platform();
