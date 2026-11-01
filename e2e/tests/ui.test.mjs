@@ -7783,3 +7783,284 @@ test("a signed-in free account starts on Donut cloud and may pick a server set u
     }
   });
 });
+
+function agentUser(agent) {
+  return {
+    logged_in_at: new Date().toISOString(),
+    user: {
+      id: "ui-agent",
+      email: "agent@example.test",
+      plan: "free",
+      planPeriod: null,
+      subscriptionStatus: "inactive",
+      profileLimit: 3,
+      cloudProfilesUsed: 0,
+      proxyBandwidthLimitMb: 0,
+      proxyBandwidthUsedMb: 0,
+      proxyBandwidthExtraMb: 0,
+      isPrimaryDevice: true,
+      entitlements: {
+        active: false,
+        browserAutomation: false,
+        crossOsFingerprints: false,
+        cloudBackup: false,
+        teamCollaboration: false,
+        profileLimit: 3,
+        requestsPerHour: 0,
+        ...(agent ? { agent: true } : {}),
+      },
+    },
+  };
+}
+
+async function signInWithAgent(app, cloudUser) {
+  await stubCommand(app, "cloud_get_user", cloudUser);
+  await app.invoke("plugin:event|emit", {
+    event: "cloud-auth-changed",
+    payload: null,
+  });
+}
+
+async function agentCallCount(app, command) {
+  return app.execute(
+    "return (window.__donutStubbedCalls ?? []).filter((c) => c.command === arguments[0]).length;",
+    [command],
+  );
+}
+
+test("without the agent entitlement nothing new renders and nothing is asked", async () => {
+  await withApp("ui-agent-off", async (app) => {
+    for (const name of ["Off One", "Off Two"]) {
+      await createUiProfile(app, name);
+    }
+    // Tripwires: any agent call while the flag is off is a failure.
+    for (const command of [
+      "get_agent_engine_status",
+      "get_agent_credits",
+      "list_agent_batches",
+      "list_agent_routines",
+    ]) {
+      await stubCommand(app, command, null);
+    }
+    await signInWithAgent(app, agentUser(false));
+    await app.waitForText("Off Two");
+    await app.clickSelector(`[aria-label="${en.common.aria.selectAll}"]`);
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return Boolean(document.querySelector('[data-bulk-action="run"]'));`,
+        ),
+      { description: "the action bar" },
+    );
+    assert.equal(
+      await app.execute(
+        `return Boolean(document.querySelector('[data-bulk-action="agent-task"]'));`,
+      ),
+      false,
+      "no Run task action without the agent",
+    );
+    await dismissSurface(app);
+    await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return Boolean(document.querySelector('[data-testid="agent-tab-conversation"]'));`,
+        ),
+      { description: "the agent page" },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const shown = await app.execute(`return {
+      tabs: [...document.querySelectorAll('[data-testid^="agent-tab-"]')].map((n) => n.dataset.testid),
+      credits: Boolean(document.querySelector('[data-slot="agent-credits"]')),
+      tasks: Boolean(document.querySelector('[data-slot="agent-tasks"]')),
+      text: document.body.innerText,
+    };`);
+    assert.deepEqual(shown.tabs, [
+      "agent-tab-conversation",
+      "agent-tab-profiles",
+      "agent-tab-activity",
+      "agent-tab-recipes",
+      "agent-tab-schedules",
+    ]);
+    assert.equal(shown.credits, false);
+    assert.equal(shown.tasks, false);
+    for (const text of [
+      en.agent.tabs.tasks,
+      en.agent.tabs.routines,
+      en.agent.tasks.promptPlaceholder,
+    ]) {
+      assert.ok(!shown.text.includes(text), `"${text}" must not render`);
+    }
+    for (const command of [
+      "get_agent_engine_status",
+      "get_agent_credits",
+      "list_agent_batches",
+      "list_agent_routines",
+    ]) {
+      assert.equal(await agentCallCount(app, command), 0, `${command} called`);
+    }
+  });
+});
+
+/** A screenshot once page and list motion has come to rest. */
+async function captureSettled(app, label) {
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  await app.capture(label);
+}
+
+test("agent tasks run on many profiles, ask before acting, and routines repeat them", async () => {
+  await withApp(
+    "ui-agent-tasks",
+    async (app) => {
+      const names = ["Atlas", "Borealis", "Cirrus", "Dune"];
+      for (const name of names) {
+        await createUiProfile(app, name);
+      }
+      await signInWithAgent(app, agentUser(true));
+      await app.waitForText("Dune");
+
+      // The selection becomes the task's profiles.
+      await app.clickSelector(`[aria-label="${en.common.aria.selectAll}"]`);
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-bulk-action="agent-task"]'));`,
+          ),
+        { description: "the Run task action" },
+      );
+      await captureSettled(app, "agent-action-bar");
+      await app.clickSelector('[data-bulk-action="agent-task"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-profile-picker"]')?.innerText ?? null;`,
+          ),
+        { description: "the composer" },
+      );
+      assert.match(
+        await app.execute(
+          `return document.querySelector('[data-slot="agent-profile-picker"]').innerText;`,
+        ),
+        new RegExp(en.agent.tasks.profileCount.replace("{{n}}", "4")),
+      );
+      // A free account with the agent gets tasks and credits; the paid tabs
+      // keep their locks.
+      assert.ok(
+        await app.execute(
+          `return Boolean(document.querySelector('[data-slot="agent-credits"]'));`,
+        ),
+      );
+      await app.fillSelector(
+        '[data-slot="agent-task-prompt"]',
+        "[slow] Find the cheapest flight from Tirana to Lisbon next Friday",
+      );
+      await app.fillSelector(
+        '[data-slot="agent-task-url"]',
+        "https://flights.example.test",
+      );
+      await captureSettled(app, "agent-task-composer");
+      await app.clickSelector('[data-slot="agent-task-run"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-batch-tile"]').length === 4 &&
+              document.querySelectorAll('[data-slot="agent-step"]').length >= 2;`,
+          ),
+        { timeoutMs: 30_000, description: "four tiles and a live stream" },
+      );
+      // A script click: a WebDriver click scrolls the page to the tile first.
+      await app.execute(
+        `document.querySelector('[data-slot="agent-batch-tile"]:nth-child(2)').click();`,
+      );
+      await captureSettled(app, "agent-batch-running");
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-batch"]')?.dataset.finished === "true";`,
+          ),
+        { timeoutMs: 60_000, description: "the batch finished" },
+      );
+      assert.match(
+        await app.execute(
+          `return document.querySelector('[data-slot="agent-batch-summary"]').innerText;`,
+        ),
+        new RegExp(
+          en.agent.tasks.progress
+            .replace("{{done}}", "4")
+            .replace("{{total}}", "4"),
+        ),
+      );
+      await captureSettled(app, "agent-batch-done");
+
+      // Asking before acting: the question waits inline.
+      await app.clickSelector('[data-slot="agent-profile-picker"]');
+      await app.clickSelector('[data-slot="agent-profile-all"]');
+      await app.clickSelector('[data-slot="agent-profile-option"]');
+      await dismissSurface(app);
+      await app.fillSelector(
+        '[data-slot="agent-task-prompt"]',
+        "[approval] Book the 09:40 flight and stop before paying",
+      );
+      await app.clickSelector('[data-slot="agent-task-run"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-approval"]'));`,
+          ),
+        { timeoutMs: 30_000, description: "the approval" },
+      );
+      await captureSettled(app, "agent-task-approval");
+      await app.clickSelector('[data-slot="agent-approval-approve"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-result"]'));`,
+          ),
+        { timeoutMs: 30_000, description: "the result" },
+      );
+
+      // Routines: saved once, run headless on the same profiles.
+      await app.clickSelector('[data-testid="agent-tab-routines"]');
+      await app.clickSelector('[data-slot="agent-routine-new"]');
+      await app.fillSelector('[data-slot="agent-routine-name"]', "Fare watch");
+      await app.fillSelector(
+        '[data-slot="agent-routine-prompt"]',
+        "Check the fare from Tirana to Lisbon and note the cheapest",
+      );
+      await app.clickSelector(
+        '[data-slot="agent-routine-editor"] [data-slot="agent-profile-picker"]',
+      );
+      await app.clickSelector('[data-slot="agent-profile-all"]');
+      await dismissSurface(app);
+      await captureSettled(app, "agent-routine-editor");
+      await app.clickSelector('[data-slot="agent-routine-save"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-routine"]').length === 1;`,
+          ),
+        { description: "the saved routine" },
+      );
+      await app.clickSelector('[data-slot="agent-routine-run-now"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-batch"]')?.dataset.finished === "true" &&
+              document.querySelector('[data-slot="agent-batch"]').innerText.includes(${JSON.stringify(en.agent.tasks.fromRoutine)});`,
+          ),
+        { timeoutMs: 60_000, description: "the routine run" },
+      );
+      await app.clickSelector('[data-testid="agent-tab-routines"]');
+      await app.clickSelector('[data-slot="agent-routine-history"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-routine-run"]').length === 4;`,
+          ),
+        { description: "four runs in the history" },
+      );
+      await captureSettled(app, "agent-routines");
+    },
+    { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
+  );
+});

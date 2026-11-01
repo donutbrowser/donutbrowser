@@ -1153,9 +1153,14 @@ test("agent tasks and routines follow the engine contract", async () => {
 
       // What the engine never sees: an empty prompt, a non-web start page, no
       // profiles.
-      await assertCommandErrorCode(app, "start_agent_batch", "AGENT_PROMPT_EMPTY", {
-        request: { profileIds: ids, prompt: "   " },
-      });
+      await assertCommandErrorCode(
+        app,
+        "start_agent_batch",
+        "AGENT_PROMPT_EMPTY",
+        {
+          request: { profileIds: ids, prompt: "   " },
+        },
+      );
       await assertCommandErrorCode(
         app,
         "start_agent_batch",
@@ -1168,9 +1173,14 @@ test("agent tasks and routines follow the engine contract", async () => {
           },
         },
       );
-      await assertCommandErrorCode(app, "start_agent_batch", "AGENT_NO_PROFILES", {
-        request: { profileIds: [], prompt: "Read it" },
-      });
+      await assertCommandErrorCode(
+        app,
+        "start_agent_batch",
+        "AGENT_NO_PROFILES",
+        {
+          request: { profileIds: [], prompt: "Read it" },
+        },
+      );
 
       // One prompt on three profiles, two at a time, each with its own stream.
       const batch = await start({
@@ -1220,7 +1230,10 @@ test("agent tasks and routines follow the engine contract", async () => {
         approvalId: waiting.approval.approvalId,
         approve: true,
       });
-      assert.equal((await settle(asking.id, "the approved task")).tally.done, 1);
+      assert.equal(
+        (await settle(asking.id, "the approved task")).tally.done,
+        1,
+      );
 
       // One task per browser; steer, pause, resume and stop a slow one.
       const slow = await start({
@@ -1237,12 +1250,17 @@ test("agent tasks and routines follow the engine contract", async () => {
         "AGENT_ACTION_INVALID",
         { batchId: slow.id, profileId: ids[1], action: "dance" },
       );
-      await assertCommandErrorCode(app, "control_agent_task", "AGENT_NOTE_EMPTY", {
-        batchId: slow.id,
-        profileId: ids[1],
-        action: "steer",
-        message: "  ",
-      });
+      await assertCommandErrorCode(
+        app,
+        "control_agent_task",
+        "AGENT_NOTE_EMPTY",
+        {
+          batchId: slow.id,
+          profileId: ids[1],
+          action: "steer",
+          message: "  ",
+        },
+      );
       await app.invoke("control_agent_task", {
         batchId: slow.id,
         profileId: ids[1],
@@ -1275,7 +1293,10 @@ test("agent tasks and routines follow the engine contract", async () => {
         batchId: slow.id,
       });
       await app.invoke("stop_agent_batch", { batchId: slow.id });
-      assert.equal((await settle(slow.id, "the stopped task")).tally.stopped, 1);
+      assert.equal(
+        (await settle(slow.id, "the stopped task")).tally.stopped,
+        1,
+      );
 
       // Failures are retried on request, and only failures.
       const failing = await start({
