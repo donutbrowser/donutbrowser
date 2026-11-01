@@ -29,7 +29,7 @@ use crate::store::{ByteStream, ListInput, Store, StoreError, Upload};
 pub const COMMAND: &str = "migrate-at-rest";
 const CONTEXT: &str = "Migrate";
 /// Temporary sealed copies. No client prefix matches it.
-pub const TMP_PREFIX: &str = ".donut-sync-at-rest-tmp/";
+pub const TMP_PREFIX: &str = ".donut-sync-at-rest/tmp/";
 const PROGRESS_EVERY: Duration = Duration::from_secs(10);
 /// Tries per object: storage has transient failures.
 const ATTEMPTS: u32 = 3;
@@ -148,7 +148,7 @@ pub struct Report {
   pub failed: u64,
 }
 
-enum Outcome {
+pub(crate) enum Outcome {
   Current,
   Sealed(u64),
   Rotated(u64),
@@ -191,12 +191,25 @@ fn throttled(body: ByteStream, limit: Option<Arc<RateLimit>>) -> ByteStream {
   }
 }
 
-struct Migration {
+pub(crate) struct Migration {
   store: Arc<dyn Store>,
   keyring: Arc<Keyring>,
   dry_run: bool,
   conditional: bool,
   limit: Option<Arc<RateLimit>>,
+}
+
+impl Migration {
+  /// Seals in place, as the migration does, without a rate limit.
+  pub(crate) fn sealing(store: Arc<dyn Store>, keyring: Arc<Keyring>, conditional: bool) -> Self {
+    Self {
+      store,
+      keyring,
+      dry_run: false,
+      conditional,
+      limit: None,
+    }
+  }
 }
 
 fn precondition_failed(error: &StoreError) -> bool {
@@ -234,7 +247,7 @@ pub async fn honors_if_match(store: &dyn Store) -> Result<bool, StoreError> {
 impl Migration {
   /// `listed_ms` is the LastModified the listing gave: it has milliseconds,
   /// where a HEAD has seconds.
-  async fn object(&self, key: &str, listed_ms: Option<i64>) -> Outcome {
+  pub(crate) async fn object(&self, key: &str, listed_ms: Option<i64>) -> Outcome {
     let mut attempt = 0;
     loop {
       attempt += 1;
@@ -432,7 +445,7 @@ pub async fn migrate(
       .contents
       .into_iter()
       .map(|object| (object.key, object.last_modified_ms))
-      .filter(|(key, _)| !key.starts_with(TMP_PREFIX))
+      .filter(|(key, _)| !key.starts_with(crate::sealer::INTERNAL_ROOT))
       .collect();
     let keys: Vec<&String> = objects.iter().map(|(key, _)| key).collect();
     let outcomes: Vec<(String, Outcome)> = futures_util::stream::iter(objects.iter())

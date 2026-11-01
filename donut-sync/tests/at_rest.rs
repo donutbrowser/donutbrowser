@@ -33,7 +33,8 @@ async fn call(server: &Server, route: &str, body: Value) -> (u16, Value) {
   .await
 }
 
-/// What the app does: presign, then PUT with the echoed metadata.
+/// What a newer app does with a small file: presign, then PUT to the
+/// transfer URL with the echoed metadata.
 async fn upload(server: &Server, key: &str, body: Vec<u8>, updated_at: Option<&str>) -> String {
   let mut request = json!({ "key": key, "contentType": "application/octet-stream" });
   if let Some(updated_at) = updated_at {
@@ -41,7 +42,15 @@ async fn upload(server: &Server, key: &str, body: Vec<u8>, updated_at: Option<&s
   }
   let (status, presign) = call(server, "presign-upload", request).await;
   assert_eq!(status, 200, "{presign}");
-  let url = presign["url"].as_str().unwrap().to_string();
+  // Older apps keep the direct storage URL.
+  assert!(
+    presign["url"]
+      .as_str()
+      .unwrap()
+      .starts_with(common::S3_ENDPOINT)
+  );
+  assert_eq!(presign["transfer"]["partSize"], json!(8 * 1024 * 1024));
+  let url = presign["transfer"]["url"].as_str().unwrap().to_string();
   let mut put = http()
     .put(&url)
     .header("Content-Length", body.len().to_string())
@@ -111,7 +120,11 @@ async fn transfers_go_through_the_server_and_are_sealed_in_storage() {
       .await
       .unwrap(),
   );
-  assert_eq!(readyz, json!({ "status": "ready", "s3": true }));
+  // Older apps still upload to storage directly, so its address is named.
+  assert_eq!(
+    readyz,
+    json!({ "status": "ready", "s3": true, "storageEndpoint": common::S3_ENDPOINT })
+  );
   assert!(
     server
       .logs()
@@ -132,8 +145,13 @@ async fn batches_and_downloads_keep_the_s3_shapes() {
   for item in batch["items"].as_array().unwrap() {
     let key = item["key"].as_str().unwrap();
     assert!(item["expiresAt"].is_string());
+    // "a" as a newer app sends it, "b" as an older one.
+    let url = match key {
+      "a" => item["transfer"]["url"].as_str().unwrap(),
+      _ => item["url"].as_str().unwrap(),
+    };
     let response = http()
-      .put(item["url"].as_str().unwrap())
+      .put(url)
       .header("Content-Length", key.len().to_string())
       .body(key.to_string())
       .send()
@@ -178,7 +196,7 @@ async fn transfer_urls_refuse_what_s3_would_refuse() {
     json!({ "key": "k", "metadata": { "updated-at": "5" } }),
   )
   .await;
-  let url = presign["url"].as_str().unwrap();
+  let url = presign["transfer"]["url"].as_str().unwrap();
   let put = |url: String| client.put(url).header("Content-Length", "1").body("x");
 
   // The signed metadata must be sent, exactly.
@@ -537,4 +555,221 @@ async fn a_bad_key_stops_the_server_at_start() {
   let (code, out) = common::run_to_exit(&env);
   assert_eq!(code, 1);
   assert!(out.contains("must be 32 bytes"), "{out}");
+}
+
+const PART: usize = 8 * 1024 * 1024;
+
+/// Presign as a newer app does, and return (transfer URL, signed metadata).
+async fn presign_transfer(server: &Server, key: &str) -> (String, Value) {
+  let (status, presign) = call(
+    server,
+    "presign-upload",
+    json!({ "key": key, "contentType": "application/octet-stream", "metadata": { "updated-at": "77" } }),
+  )
+  .await;
+  assert_eq!(status, 200, "{presign}");
+  (
+    presign["transfer"]["url"].as_str().unwrap().to_string(),
+    presign["metadata"].clone(),
+  )
+}
+
+async fn start_parts(url: &str, length: usize) -> reqwest::Response {
+  http()
+    .post(url)
+    .header("x-donut-upload-length", length.to_string())
+    .header("Content-Type", "application/octet-stream")
+    .header("x-amz-meta-updated-at", "77")
+    .send()
+    .await
+    .unwrap()
+}
+
+fn part_url(url: &str, upload: &str, part: usize) -> String {
+  format!("{url}&upload={upload}&part={part}")
+}
+
+#[tokio::test]
+async fn large_files_upload_in_parts_into_one_sealed_object() {
+  let (server, bucket) = sealed_server("parts", K1).await;
+  let key = "profiles/p/files/large";
+  let plain = sample(2 * PART + 12_345);
+  let (url, _) = presign_transfer(&server, key).await;
+
+  let started = start_parts(&url, plain.len()).await;
+  assert_eq!(started.status(), 200);
+  let started: Value = started.json().await.unwrap();
+  assert_eq!(
+    (started["partSize"].as_u64(), started["parts"].as_u64()),
+    (Some(PART as u64), Some(3))
+  );
+  let upload = started["upload"].as_str().unwrap();
+
+  let mut etags = Vec::new();
+  for (i, chunk) in plain.chunks(PART).enumerate() {
+    let response = http()
+      .put(part_url(&url, upload, i + 1))
+      .header("Content-Length", chunk.len().to_string())
+      .body(chunk.to_vec())
+      .send()
+      .await
+      .unwrap();
+    assert_eq!(response.status(), 200, "{}", response.text().await.unwrap());
+    etags.push(response.headers()["etag"].to_str().unwrap().to_string());
+  }
+  // A part sent again replaces itself.
+  let again = http()
+    .put(part_url(&url, upload, 2))
+    .header("Content-Length", PART.to_string())
+    .body(plain[PART..2 * PART].to_vec())
+    .send()
+    .await
+    .unwrap();
+  etags[1] = again.headers()["etag"].to_str().unwrap().to_string();
+  let done = http()
+    .post(format!("{url}&upload={upload}&op=complete"))
+    .json(&json!({ "parts": etags }))
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(done.status(), 200, "{}", done.text().await.unwrap());
+
+  let raw = raw_store(&bucket);
+  let head = raw.head_object(key).await.unwrap();
+  assert_eq!(head.metadata_value("donut-at-rest"), Some("1:k1"));
+  let (_, stat) = call(&server, "stat", json!({ "key": key })).await;
+  assert_eq!(stat["size"], json!(plain.len()));
+  assert_eq!(stat["metadata"]["updated-at"], "77");
+  assert_eq!(download(&server, key).await, (200, plain));
+}
+
+#[tokio::test]
+async fn part_requests_refuse_what_does_not_fit_the_upload() {
+  let (server, _) = sealed_server("partrefuse", K1).await;
+  let (url, _) = presign_transfer(&server, "k").await;
+  // Unsigned metadata, and no length.
+  let response = http()
+    .post(&url)
+    .header("x-donut-upload-length", "10")
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(response.status(), 403);
+  let response = http()
+    .post(&url)
+    .header("x-amz-meta-updated-at", "77")
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(response.status(), 400);
+
+  let started: Value = start_parts(&url, PART + 1).await.json().await.unwrap();
+  let upload = started["upload"].as_str().unwrap().to_string();
+  let put = |part: usize, len: usize| {
+    http()
+      .put(part_url(&url, &upload, part))
+      .header("Content-Length", len.to_string())
+      .body(vec![0u8; len])
+      .send()
+  };
+  assert_eq!(
+    put(1, PART - 1).await.unwrap().status(),
+    400,
+    "a short part"
+  );
+  assert_eq!(put(3, 1).await.unwrap().status(), 400, "no part 3");
+  assert_eq!(put(0, 1).await.unwrap().status(), 400, "no part 0");
+  // A forged token, or this token on another key's URL.
+  let forged = upload.replacen('.', ".0", 1);
+  let response = http()
+    .put(part_url(&url, &forged, 2))
+    .header("Content-Length", "1")
+    .body(vec![0u8])
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(response.status(), 403);
+  let (other, _) = presign_transfer(&server, "other").await;
+  let response = http()
+    .put(part_url(&other, &upload, 2))
+    .header("Content-Length", "1")
+    .body(vec![0u8])
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(response.status(), 403);
+  // The wrong number of parts on completion.
+  let one = put(2, 1).await.unwrap();
+  let etag = one.headers()["etag"].to_str().unwrap().to_string();
+  let done = http()
+    .post(format!("{url}&upload={upload}&op=complete"))
+    .json(&json!({ "parts": [etag] }))
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(done.status(), 400);
+  // Aborted, the upload takes no more parts.
+  let aborted = http()
+    .delete(format!("{url}&upload={upload}"))
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(aborted.status(), 204);
+  assert_eq!(download(&server, "k").await.0, 404);
+}
+
+#[tokio::test]
+async fn older_apps_upload_directly_and_the_sealer_seals_it() {
+  let (server, bucket) = sealed_server("direct", K1).await;
+  let key = "profiles/p/files/old-app";
+  let (status, presign) = call(
+    &server,
+    "presign-upload",
+    json!({ "key": key, "metadata": { "updated-at": "5" } }),
+  )
+  .await;
+  assert_eq!(status, 200);
+  let plain = sample(300_000);
+  let response = http()
+    .put(presign["url"].as_str().unwrap())
+    .header("Content-Length", plain.len().to_string())
+    .header("x-amz-meta-updated-at", "5")
+    .body(plain.clone())
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(response.status(), 200);
+  let raw: std::sync::Arc<dyn Store> = std::sync::Arc::new(raw_store(&bucket));
+  assert!(
+    raw
+      .head_object(key)
+      .await
+      .unwrap()
+      .metadata_value("donut-at-rest")
+      .is_none()
+  );
+  // Readable before it is sealed.
+  assert_eq!(download(&server, key).await, (200, plain.clone()));
+
+  let keyring = std::sync::Arc::new(donut_sync::at_rest::Keyring::parse(K1).unwrap());
+  let sealer = donut_sync::sealer::Sealer::new(raw.clone(), keyring)
+    .await
+    .unwrap();
+  let report = sealer
+    .pending_pass(donut_sync::time::now_ms())
+    .await
+    .unwrap();
+  assert_eq!((report.records, report.sealed, report.failed), (1, 1, 0));
+  let head = raw.head_object(key).await.unwrap();
+  assert_eq!(head.metadata_value("donut-at-rest"), Some("1:k1"));
+  assert_eq!(head.metadata_value("updated-at"), Some("5"));
+  assert_eq!(download(&server, key).await, (200, plain));
+  // The record stays until its URL is dead.
+  let (_, list) = call(&server, "list", json!({ "prefix": "" })).await;
+  assert_eq!(list["objects"].as_array().unwrap().len(), 1, "{list}");
+  let report = sealer
+    .pending_pass(donut_sync::time::now_ms() + 2 * 3600 * 1000)
+    .await
+    .unwrap();
+  assert_eq!(report.records_done, 1);
 }

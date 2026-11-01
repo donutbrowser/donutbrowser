@@ -12,7 +12,6 @@ use futures_util::StreamExt;
 use crate::at_rest::{self, Keyring, MARKER};
 use crate::config::Config;
 use crate::log;
-use crate::migrate::TMP_PREFIX;
 use crate::sealed_store::sealed_by;
 use crate::store::{ListInput, Store, StoreError};
 
@@ -135,8 +134,9 @@ pub struct Report {
   pub unknown_key: u64,
   /// A marker of another format version, or a size no sealed object has.
   pub invalid: u64,
-  /// Leftover temporary copies of an interrupted migration.
-  pub temporary: u64,
+  /// This server's own objects: records of direct uploads, and leftovers of
+  /// an interrupted migration.
+  pub internal: u64,
   /// Gone between the listing and the HEAD.
   pub vanished: u64,
   pub sampled: u64,
@@ -160,10 +160,10 @@ impl Report {
       ));
     }
     line.push_str(&format!(
-      " unknown_key={} invalid={} temporary={} vanished={} sampled={} sample_failed={}",
+      " unknown_key={} invalid={} internal={} vanished={} sampled={} sample_failed={}",
       self.unknown_key,
       self.invalid,
-      self.temporary,
+      self.internal,
       self.vanished,
       self.sampled,
       self.sample_failed
@@ -252,12 +252,12 @@ pub async fn verify(
       })
       .await
       .map_err(|e| format!("Listing failed: {e}"))?;
-    let (temporary, keys): (Vec<String>, Vec<String>) = page
+    let (internal, keys): (Vec<String>, Vec<String>) = page
       .contents
       .into_iter()
       .map(|object| object.key)
-      .partition(|key| key.starts_with(TMP_PREFIX));
-    report.temporary += temporary.len() as u64;
+      .partition(|key| key.starts_with(crate::sealer::INTERNAL_ROOT));
+    report.internal += internal.len() as u64;
     let classified: Vec<(String, Classified)> = futures_util::stream::iter(keys)
       .map(|key| {
         let store = store.clone();
@@ -394,7 +394,7 @@ mod tests {
       .put_object("c", b"ccc".to_vec(), "text/plain", &[])
       .await
       .unwrap();
-    raw.set(&format!("{TMP_PREFIX}left"), "x");
+    raw.set(&format!("{}left", crate::migrate::TMP_PREFIX), "x");
     let keys = keyring(&format!("{K1},{K2}"));
 
     let before = verify(raw.clone(), keys.clone(), &Options::default())
@@ -408,7 +408,7 @@ mod tests {
     assert_eq!(before.sealed["k2"].objects, 1);
     assert_eq!(before.sealed["k2"].plain_bytes, 3);
     assert_eq!(
-      (before.temporary, before.sampled, before.sample_failed),
+      (before.internal, before.sampled, before.sample_failed),
       (1, 1, 0)
     );
 

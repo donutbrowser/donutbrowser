@@ -3,6 +3,9 @@
 //! signed and expiring like S3's, and the body streams through the sealed
 //! store. A device sends and reads exactly what it did with S3: the same
 //! method, `Content-Length`, `Content-Type` and the signed `x-amz-meta-*`.
+//!
+//! A request body through a proxy such as Cloudflare has a size and time
+//! limit, so newer apps upload large files in parts (`transfer_parts`).
 
 use std::sync::Arc;
 
@@ -19,16 +22,23 @@ use crate::at_rest::Keyring;
 use crate::http::{BoxError, ResBody, drain, full};
 use crate::store::{Store, StoreError, Upload};
 use crate::time;
+use crate::transfer_parts;
 
 pub const PATH: &str = "/v1/transfer";
 /// Transfers streamed at a time; more wait their turn. Each holds a few
 /// frames in memory.
 const MAX_TRANSFERS: usize = 64;
 const META_PARAM: &str = "meta-";
+/// Query parameters a part request adds to a signed URL. The upload token
+/// authenticates them, so they are not part of the URL's signature.
+const UPLOAD_PARAM: &str = "upload";
+const PART_PARAM: &str = "part";
+const OP_PARAM: &str = "op";
 
 pub struct TransferSigner {
   /// The current key's first; any of them verifies.
   keys: Vec<[u8; 32]>,
+  pub(crate) keyring: Arc<Keyring>,
   slots: Arc<tokio::sync::Semaphore>,
 }
 
@@ -37,6 +47,16 @@ pub struct TransferSigner {
 pub struct Grant {
   pub key: String,
   pub metadata: Vec<(String, String)>,
+}
+
+/// A URL whose signature holds, with what a part request added to it.
+#[derive(Debug, PartialEq)]
+pub struct Signed {
+  pub grant: Grant,
+  pub expires_ms: i64,
+  pub upload: Option<String>,
+  pub part: Option<String>,
+  pub op: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -51,9 +71,10 @@ fn field(mac: &mut Hmac<Sha256>, value: &str) {
 }
 
 impl TransferSigner {
-  pub fn new(keyring: &Keyring) -> Self {
+  pub fn new(keyring: &Arc<Keyring>) -> Self {
     Self {
       keys: keyring.url_keys(),
+      keyring: keyring.clone(),
       slots: Arc::new(tokio::sync::Semaphore::new(MAX_TRANSFERS)),
     }
   }
@@ -102,15 +123,28 @@ impl TransferSigner {
   }
 
   pub fn verify(&self, method: &str, query: &str, now_ms: i64) -> Result<Grant, Refusal> {
+    let signed = self.check(method, query)?;
+    if now_ms > signed.expires_ms {
+      return Err(Refusal::Expired);
+    }
+    Ok(signed.grant)
+  }
+
+  /// The signature only; the caller decides whether the URL's time counts.
+  pub fn check(&self, method: &str, query: &str) -> Result<Signed, Refusal> {
     let mut key = None;
     let mut expires = None;
     let mut signature = None;
     let mut metadata = Vec::new();
+    let (mut upload, mut part, mut op) = (None, None, None);
     for (name, value) in url::form_urlencoded::parse(query.as_bytes()) {
       match name.as_ref() {
         "key" if key.is_none() => key = Some(value.into_owned()),
         "expires" if expires.is_none() => expires = Some(value.into_owned()),
         "sig" if signature.is_none() => signature = Some(value.into_owned()),
+        UPLOAD_PARAM if upload.is_none() => upload = Some(value.into_owned()),
+        PART_PARAM if part.is_none() => part = Some(value.into_owned()),
+        OP_PARAM if op.is_none() => op = Some(value.into_owned()),
         other => match other.strip_prefix(META_PARAM) {
           Some(meta) => metadata.push((meta.to_string(), value.into_owned())),
           None => return Err(Refusal::BadSignature),
@@ -130,15 +164,34 @@ impl TransferSigner {
       return Err(Refusal::BadSignature);
     }
     let expires_ms: i64 = expires.parse().map_err(|_| Refusal::BadSignature)?;
-    if now_ms > expires_ms {
-      return Err(Refusal::Expired);
-    }
-    Ok(Grant { key, metadata })
+    Ok(Signed {
+      grant: Grant { key, metadata },
+      expires_ms,
+      upload,
+      part,
+      op,
+    })
+  }
+
+  /// HMAC of `data` under the current key, for upload tokens.
+  pub(crate) fn tag(&self, data: &[u8]) -> Vec<u8> {
+    let mut mac = Hmac::<Sha256>::new_from_slice(&self.keys[0]).expect("HMAC takes any key length");
+    mac.update(data);
+    mac.finalize().into_bytes().to_vec()
+  }
+
+  /// Whether `tag` is `data`'s under any key.
+  pub(crate) fn tag_holds(&self, data: &[u8], tag: &[u8]) -> bool {
+    self.keys.iter().any(|key| {
+      let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC takes any key length");
+      mac.update(data);
+      mac.verify_slice(tag).is_ok()
+    })
   }
 }
 
 /// An S3-style error document, so a device logs what S3 would have said.
-fn s3_error(status: u16, code: &str, message: &str) -> Response<ResBody> {
+pub(crate) fn s3_error(status: u16, code: &str, message: &str) -> Response<ResBody> {
   let body = format!(
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Error><Code>{code}</Code><Message>{message}</Message></Error>"
   );
@@ -150,7 +203,7 @@ fn s3_error(status: u16, code: &str, message: &str) -> Response<ResBody> {
     .expect("static response parts are valid")
 }
 
-fn store_refusal(error: StoreError) -> Response<ResBody> {
+pub(crate) fn store_refusal(error: StoreError) -> Response<ResBody> {
   match error {
     StoreError::NotFound => s3_error(404, "NoSuchKey", "The specified key does not exist."),
     StoreError::Service { status, code, .. } if (400..500).contains(&status) => {
@@ -167,7 +220,7 @@ fn store_refusal(error: StoreError) -> Response<ResBody> {
   }
 }
 
-fn header_text(parts: &Parts, name: impl header::AsHeaderName) -> Option<String> {
+pub(crate) fn header_text(parts: &Parts, name: impl header::AsHeaderName) -> Option<String> {
   parts
     .headers
     .get(name)
@@ -180,35 +233,108 @@ pub async fn serve(
   parts: &Parts,
   body: Incoming,
 ) -> Response<ResBody> {
-  let method = parts.method.as_str();
-  let grant = match signer.verify(method, parts.uri.query().unwrap_or(""), time::now_ms()) {
-    Ok(grant) if parts.method == Method::GET || parts.method == Method::PUT => grant,
-    Ok(_) | Err(Refusal::BadSignature) => {
+  // A GET URL reads; a PUT URL writes, in one request or in parts.
+  let signed_for = if parts.method == Method::GET {
+    "GET"
+  } else {
+    "PUT"
+  };
+  let signed = match signer.check(signed_for, parts.uri.query().unwrap_or("")) {
+    Ok(signed) => signed,
+    Err(_) => {
       drain(body).await;
-      return s3_error(
-        403,
-        "SignatureDoesNotMatch",
-        "The request signature we calculated does not match the signature you provided.",
-      );
-    }
-    Err(Refusal::Expired) => {
-      drain(body).await;
-      return s3_error(403, "AccessDenied", "Request has expired");
+      return bad_signature();
     }
   };
+  // Parts carry an upload token, which outlives the URL that started them.
+  if signed.upload.is_none() && time::now_ms() > signed.expires_ms {
+    drain(body).await;
+    return s3_error(403, "AccessDenied", "Request has expired");
+  }
   let slot = signer
     .slots
     .clone()
     .acquire_owned()
     .await
     .expect("the semaphore is never closed");
-  if parts.method == Method::GET {
-    drain(body).await;
-    return download(store, &grant.key, slot).await;
-  }
-  let response = upload(store, grant, parts, body).await;
+  let response = match (&parts.method, signed.upload.is_some()) {
+    (&Method::GET, false) => {
+      drain(body).await;
+      return download(store, &signed.grant.key, slot).await;
+    }
+    (&Method::PUT, false) => upload(store, signed.grant, parts, body).await,
+    (&Method::POST, false) => transfer_parts::start(store, signer, signed.grant, parts, body).await,
+    (&Method::PUT | &Method::POST | &Method::DELETE, true) => {
+      transfer_parts::serve(store, signer, signed, parts, body).await
+    }
+    _ => {
+      drain(body).await;
+      bad_signature()
+    }
+  };
   drop(slot);
   response
+}
+
+pub(crate) fn bad_signature() -> Response<ResBody> {
+  s3_error(
+    403,
+    "SignatureDoesNotMatch",
+    "The request signature we calculated does not match the signature you provided.",
+  )
+}
+
+/// The `x-amz-meta-*` a request sent, when they are exactly the signed ones.
+pub(crate) fn signed_metadata(
+  parts: &Parts,
+  grant: Grant,
+) -> Result<Vec<(String, String)>, Box<Response<ResBody>>> {
+  let mut sent: Vec<(String, String)> = parts
+    .headers
+    .iter()
+    .filter_map(|(name, value)| {
+      name.as_str().strip_prefix("x-amz-meta-").map(|n| {
+        (
+          n.to_string(),
+          value.as_bytes().iter().map(|&b| b as char).collect(),
+        )
+      })
+    })
+    .collect();
+  sent.sort();
+  let mut signed = grant.metadata;
+  signed.sort();
+  if sent != signed {
+    return Err(Box::new(s3_error(
+      403,
+      "AccessDenied",
+      "There were headers present in the request which were not signed",
+    )));
+  }
+  Ok(signed)
+}
+
+/// A request body as a store stream.
+pub(crate) fn body_stream(body: Incoming) -> crate::store::ByteStream {
+  Box::pin(
+    body
+      .into_data_stream()
+      .map(|chunk: Result<Bytes, hyper::Error>| {
+        chunk.map_err(|e| StoreError::Transport(e.to_string()))
+      }),
+  )
+}
+
+pub(crate) fn content_length(parts: &Parts) -> Option<u64> {
+  header_text(parts, header::CONTENT_LENGTH).and_then(|v| v.trim().parse().ok())
+}
+
+pub(crate) fn missing_length() -> Response<ResBody> {
+  s3_error(
+    411,
+    "MissingContentLength",
+    "You must provide the Content-Length HTTP header.",
+  )
 }
 
 async fn download(
@@ -259,48 +385,23 @@ async fn upload(
   parts: &Parts,
   body: Incoming,
 ) -> Response<ResBody> {
-  let mut sent: Vec<(String, String)> = parts
-    .headers
-    .iter()
-    .filter_map(|(name, value)| {
-      name.as_str().strip_prefix("x-amz-meta-").map(|n| {
-        (
-          n.to_string(),
-          value.as_bytes().iter().map(|&b| b as char).collect(),
-        )
-      })
-    })
-    .collect();
-  sent.sort();
-  let mut signed = grant.metadata;
-  signed.sort();
-  if sent != signed {
+  let key = grant.key.clone();
+  let signed = match signed_metadata(parts, grant) {
+    Ok(signed) => signed,
+    Err(refusal) => {
+      drain(body).await;
+      return *refusal;
+    }
+  };
+  let Some(length) = content_length(parts) else {
     drain(body).await;
-    return s3_error(
-      403,
-      "AccessDenied",
-      "There were headers present in the request which were not signed",
-    );
-  }
-  let Some(length) = header_text(parts, header::CONTENT_LENGTH).and_then(|v| v.trim().parse().ok())
-  else {
-    drain(body).await;
-    return s3_error(
-      411,
-      "MissingContentLength",
-      "You must provide the Content-Length HTTP header.",
-    );
+    return missing_length();
   };
   let content_type = header_text(parts, header::CONTENT_TYPE);
-  let stream = body
-    .into_data_stream()
-    .map(|chunk: Result<Bytes, hyper::Error>| {
-      chunk.map_err(|e| StoreError::Transport(e.to_string()))
-    });
   match store
     .put_object_stream(
-      &grant.key,
-      Box::pin(stream),
+      &key,
+      body_stream(body),
       Upload {
         length,
         content_type: content_type.as_deref(),
@@ -324,7 +425,9 @@ mod tests {
   use super::*;
 
   fn signer() -> TransferSigner {
-    TransferSigner::new(&Keyring::parse("k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap())
+    TransferSigner::new(&Arc::new(
+      Keyring::parse("k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap(),
+    ))
   }
 
   fn query(url: &str) -> &str {
@@ -377,16 +480,16 @@ mod tests {
   fn an_old_key_still_verifies_after_rotation() {
     let old = signer();
     let url = old.url("http://h", "GET", "k", 50, &[]);
-    let rotated = TransferSigner::new(
-      &Keyring::parse(
+    let rotated = TransferSigner::new(&Arc::new(
+      Keyring::parse(
         "k2:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=,k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       )
       .unwrap(),
-    );
+    ));
     assert!(rotated.verify("GET", query(&url), 0).is_ok());
-    let removed = TransferSigner::new(
-      &Keyring::parse("k2:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap(),
-    );
+    let removed = TransferSigner::new(&Arc::new(
+      Keyring::parse("k2:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap(),
+    ));
     assert_eq!(
       removed.verify("GET", query(&url), 0),
       Err(Refusal::BadSignature)

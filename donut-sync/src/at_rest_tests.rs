@@ -385,3 +385,64 @@ mod sealed_store {
     assert_eq!(store.get_object_text("b").await.unwrap(), "x");
   }
 }
+
+#[tokio::test]
+async fn an_object_sealed_in_parts_reads_like_one_sealed_whole() {
+  let keys = keyring(K1);
+  let part = 2 * FRAME;
+  for size in [
+    0,
+    1,
+    part - 1,
+    part,
+    part + 1,
+    2 * part,
+    3 * part + FRAME + 5,
+  ] {
+    let plain = sample(size);
+    let salt = new_salt();
+    let parts = size.div_ceil(part).max(1);
+    let mut sealed = Vec::new();
+    for i in 0..parts {
+      let start = i * part;
+      let chunk = plain[start..(start + part).min(size)].to_vec();
+      let last = i + 1 == parts;
+      let sealer = Sealer::for_part(&keys, "k1", &salt, (start / FRAME) as u64).unwrap();
+      let len = chunk.len() as u64;
+      let out = collect(seal_part_stream(sealer, last, chunked(chunk, &[777])))
+        .await
+        .unwrap();
+      assert_eq!(
+        out.len() as u64,
+        sealed_part_len("k1", len, i == 0, last),
+        "size {size} part {i}"
+      );
+      sealed.extend(out);
+    }
+    assert_eq!(
+      sealed.len() as u64,
+      sealed_len("k1", size as u64),
+      "size {size}"
+    );
+    assert_eq!(open(keys.clone(), &sealed).unwrap(), plain, "size {size}");
+  }
+  assert!(Sealer::for_part(&keys, "k9", &new_salt(), 0).is_none());
+}
+
+#[tokio::test]
+async fn parts_out_of_place_do_not_open() {
+  let keys = keyring(K1);
+  let salt = new_salt();
+  let part = |first: u64, last: bool, data: Vec<u8>| {
+    let sealer = Sealer::for_part(&keys, "k1", &salt, first).unwrap();
+    collect(seal_part_stream(sealer, last, chunked(data, &[FRAME])))
+  };
+  let one = part(0, false, sample(FRAME)).await.unwrap();
+  let two = part(1, true, sample(10)).await.unwrap();
+  assert!(open(keys.clone(), &[one.clone(), two.clone()].concat()).is_ok());
+  // A part numbered as if it came later, or a non-final part last.
+  let skipped = part(2, true, sample(10)).await.unwrap();
+  assert!(open(keys.clone(), &[one.clone(), skipped].concat()).is_err());
+  let unfinished = part(1, false, sample(FRAME)).await.unwrap();
+  assert!(open(keys.clone(), &[one, unfinished].concat()).is_err());
+}

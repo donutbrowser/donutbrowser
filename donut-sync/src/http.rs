@@ -39,7 +39,7 @@ pub fn full(bytes: impl Into<Bytes>) -> ResBody {
     .boxed_unsync()
 }
 
-fn json_response(status: u16, body: &Value) -> Response<ResBody> {
+pub(crate) fn json_response(status: u16, body: &Value) -> Response<ResBody> {
   let text = body.to_string();
   Response::builder()
     .status(status)

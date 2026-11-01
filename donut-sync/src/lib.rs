@@ -18,12 +18,14 @@ pub mod migrate;
 pub mod net;
 pub mod s3;
 pub mod sealed_store;
+pub mod sealer;
 pub mod sigv4;
 pub mod store;
 pub mod subscribe;
 pub mod sync;
 pub mod time;
 pub mod transfer;
+pub mod transfer_parts;
 pub mod verify;
 
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -167,11 +169,11 @@ pub async fn build_state(config: &Config) -> Result<Arc<AppState>, String> {
         ),
       );
       (
-        Arc::new(SealedStore::new(s3, keyring.clone())),
+        Arc::new(SealedStore::new(s3.clone(), keyring.clone())),
         Some(TransferSigner::new(keyring)),
       )
     }
-    None => (s3, None),
+    None => (s3.clone(), None),
   };
   let presigner = Presigner::new(
     Location::parse(&public_endpoint, &storage.bucket, storage.force_path_style)?,
@@ -202,6 +204,9 @@ pub async fn build_state(config: &Config) -> Result<Arc<AppState>, String> {
 
   sync.ensure_bucket_exists().await?;
   sync.warn_if_presign_endpoint_is_server_only();
+  if let Some(keyring) = keyring {
+    crate::sealer::spawn(s3, keyring);
+  }
 
   Ok(Arc::new(AppState {
     guard,

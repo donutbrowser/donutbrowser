@@ -20,8 +20,10 @@ SYNC_TOKEN=... S3_ENDPOINT=... S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=... \
 `.env.example` lists the variables. A `.env` file in the working directory is
 also read.
 
-With `SYNC_AT_REST_KEY` set, the server encrypts every object it stores, and
-transfers go through it instead of straight to storage. Objects stored before
+With `SYNC_AT_REST_KEY` set, the server encrypts every object it stores.
+Downloads and uploads from current apps go through it, large files in parts.
+Older apps still upload straight to storage, and the server encrypts those
+files minutes later. Objects stored before
 stay readable; `donut-sync migrate-at-rest --help` encrypts them in place, and
 `donut-sync verify-at-rest` checks that none is left in plaintext.
 

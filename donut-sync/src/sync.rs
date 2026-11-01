@@ -195,17 +195,36 @@ impl SyncService {
     self.transfer.as_ref()
   }
 
-  fn put_url(
+  /// `transfer` of a presign-upload answer when the store is sealed: the
+  /// signed URL newer apps upload through, in parts. Older apps keep the
+  /// direct storage URL, whose writes the sealer seals afterwards.
+  fn transfer_json(
     &self,
     origin: &str,
     key: &str,
     expires_in: f64,
     metadata: &[(String, String)],
     now: i64,
-  ) -> String {
-    match &self.transfer {
-      Some(signer) => signer.url(origin, "PUT", key, expires_ms(now, expires_in), metadata),
-      None => self.presigner.put_url(key, expires_in, metadata, now),
+  ) -> Option<Value> {
+    let signer = self.transfer.as_ref()?;
+    Some(json!({
+      "url": signer.url(origin, "PUT", key, expires_ms(now, expires_in), metadata),
+      "partSize": crate::transfer_parts::PART_SIZE,
+    }))
+  }
+
+  /// Notes the keys handed direct storage URLs, so the sealer seals what
+  /// older apps write there.
+  async fn note_direct_uploads(&self, keys: &[String], now: i64, expires_in: f64) {
+    if self.transfer.is_none() || keys.is_empty() {
+      return;
+    }
+    if let Err(e) =
+      crate::sealer::note_direct_uploads(self.store.as_ref(), keys, expires_ms(now, expires_in))
+        .await
+    {
+      // The hourly backstop pass still finds these objects.
+      log::warn(CONTEXT, &format!("Direct uploads not noted err=\"{e}\""));
     }
   }
 
@@ -240,16 +259,13 @@ impl SyncService {
   /// publish its storage host.
   /// Withheld too when transfers come here: devices never reach storage.
   pub fn diagnostic_storage_endpoint(&self) -> Option<&str> {
-    (!self.cloud && self.transfer.is_none()).then_some(self.public_endpoint.as_str())
+    (!self.cloud).then_some(self.public_endpoint.as_str())
   }
 
   /// A single-label host (`minio`, `s3`) resolves only inside a container
   /// network, so every presigned URL built from it fails for the desktop
   /// client while the server's own S3 calls succeed. Say it once at boot.
   pub fn warn_if_presign_endpoint_is_server_only(&self) {
-    if self.transfer.is_some() {
-      return;
-    }
     let Ok(url) = url::Url::parse(&self.public_endpoint) else {
       return;
     };
@@ -508,13 +524,15 @@ impl SyncService {
     let expires_in = clamp_expires_in(body.field("expiresIn")?);
     let now = time::now_ms();
     let expires_at = iso_at(now as f64 + expires_in * 1000.0);
-    let url = self.put_url(
-      origin,
-      require_key(&key)?,
-      expires_in,
-      metadata.as_deref().unwrap_or(&[]),
-      now,
-    );
+    let scoped = require_key(&key)?;
+    let metadata_or_none = metadata.as_deref().unwrap_or(&[]);
+    let url = self
+      .presigner
+      .put_url(scoped, expires_in, metadata_or_none, now);
+    let transfer = self.transfer_json(origin, scoped, expires_in, metadata_or_none, now);
+    self
+      .note_direct_uploads(&[scoped.to_string()], now, expires_in)
+      .await;
 
     if ctx.mode == Mode::Cloud && field_starts_with(raw_key, "profiles/")? {
       self.report_profile_usage_async(ctx);
@@ -526,6 +544,9 @@ impl SyncService {
     out.insert("expiresAt".to_string(), Value::String(expires_at));
     if let Some(metadata) = &metadata {
       out.insert("metadata".to_string(), metadata_json(metadata));
+    }
+    if let Some(transfer) = transfer {
+      out.insert("transfer".to_string(), transfer);
     }
     Ok(Value::Object(out))
   }
@@ -632,7 +653,9 @@ impl SyncService {
     let objects: Vec<Value> = response
       .contents
       .iter()
-      .filter(|object| !object.key.ends_with(MANIFEST_KEY))
+      .filter(|object| {
+        !object.key.ends_with(MANIFEST_KEY) && !object.key.starts_with(crate::sealer::INTERNAL_ROOT)
+      })
       .map(|object| {
         let key = if !user_prefix.is_empty() {
           object.key.strip_prefix(user_prefix).unwrap_or(&object.key)
@@ -708,16 +731,23 @@ impl SyncService {
     )
     .await?;
     let mut out_items = Vec::with_capacity(keys.len());
+    let mut direct = Vec::with_capacity(keys.len());
     for (raw, key) in raw_keys.iter().zip(&keys) {
-      let url = self.put_url(origin, require_key(key)?, expires_in, &[], now);
+      let scoped = require_key(key)?;
+      let url = self.presigner.put_url(scoped, expires_in, &[], now);
       let mut item = Map::new();
       if let Field::Value(value) = raw {
         item.insert("key".to_string(), (*value).clone());
       }
       item.insert("url".to_string(), Value::String(url));
       item.insert("expiresAt".to_string(), Value::String(expires_at.clone()));
+      if let Some(transfer) = self.transfer_json(origin, scoped, expires_in, &[], now) {
+        item.insert("transfer".to_string(), transfer);
+      }
       out_items.push(Value::Object(item));
+      direct.push(scoped.to_string());
     }
+    self.note_direct_uploads(&direct, now, expires_in).await;
 
     if ctx.mode == Mode::Cloud {
       let mut any_profile = false;

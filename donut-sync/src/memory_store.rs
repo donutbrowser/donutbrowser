@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use md5::{Digest, Md5};
 
 use crate::store::{
-  ByteStream, Download, HeadOutput, ListInput, ListObject, ListOutput, Store, StoreError, Upload,
-  collect, once,
+  ByteStream, Download, HeadOutput, ListInput, ListObject, ListOutput, PendingUpload, Store,
+  StoreError, Upload, collect, once,
 };
 
 pub type HeadHook = Box<dyn Fn(&str) -> Result<HeadOutput, StoreError> + Send + Sync>;
@@ -24,6 +24,17 @@ pub struct Object {
   pub modified_ms: i64,
 }
 
+/// S3's smallest part, except the last.
+pub const MIN_PART: usize = 5 * 1024 * 1024;
+
+pub struct Multipart {
+  key: String,
+  content_type: Option<String>,
+  metadata: Vec<(String, String)>,
+  parts: BTreeMap<u32, Vec<u8>>,
+  initiated_ms: i64,
+}
+
 #[derive(Default)]
 pub struct MemoryStore {
   pub objects: Mutex<BTreeMap<String, Object>>,
@@ -32,6 +43,7 @@ pub struct MemoryStore {
   pub clock: AtomicI64,
   pub head_hook: Option<HeadHook>,
   pub list_hook: Option<ListHook>,
+  pub uploads: Mutex<BTreeMap<String, Multipart>>,
 }
 
 fn etag(body: &[u8]) -> String {
@@ -267,5 +279,111 @@ impl Store for MemoryStore {
       upload.content_type.map(str::to_string),
     );
     Ok(())
+  }
+
+  async fn create_multipart(
+    &self,
+    key: &str,
+    content_type: Option<&str>,
+    metadata: &[(String, String)],
+  ) -> Result<String, StoreError> {
+    self.call();
+    let id = uuid::Uuid::new_v4().simple().to_string();
+    self.uploads.lock().unwrap().insert(
+      id.clone(),
+      Multipart {
+        key: key.to_string(),
+        content_type: content_type.map(str::to_string),
+        metadata: metadata.to_vec(),
+        parts: BTreeMap::new(),
+        initiated_ms: self.tick(),
+      },
+    );
+    Ok(id)
+  }
+
+  async fn upload_part(
+    &self,
+    key: &str,
+    upload_id: &str,
+    part: u32,
+    body: ByteStream,
+    length: u64,
+  ) -> Result<String, StoreError> {
+    self.call();
+    let body = collect(body).await?;
+    if body.len() as u64 != length {
+      return Err(StoreError::Transport("length mismatch".to_string()));
+    }
+    let mut uploads = self.uploads.lock().unwrap();
+    let upload = uploads
+      .get_mut(upload_id)
+      .filter(|u| u.key == key)
+      .ok_or(StoreError::NotFound)?;
+    let tag = etag(&body);
+    upload.parts.insert(part, body);
+    Ok(tag)
+  }
+
+  async fn complete_multipart(
+    &self,
+    key: &str,
+    upload_id: &str,
+    etags: &[String],
+  ) -> Result<(), StoreError> {
+    self.call();
+    let upload = self
+      .uploads
+      .lock()
+      .unwrap()
+      .remove(upload_id)
+      .filter(|u| u.key == key)
+      .ok_or(StoreError::NotFound)?;
+    let mut body = Vec::new();
+    for (i, expected) in etags.iter().enumerate() {
+      let part = upload
+        .parts
+        .get(&(i as u32 + 1))
+        .filter(|part| etag(part) == *expected)
+        .ok_or_else(|| StoreError::Service {
+          status: 400,
+          code: "InvalidPart".to_string(),
+          message: String::new(),
+        })?;
+      if i + 1 < etags.len() && part.len() < MIN_PART {
+        return Err(StoreError::Service {
+          status: 400,
+          code: "EntityTooSmall".to_string(),
+          message: String::new(),
+        });
+      }
+      body.extend_from_slice(part);
+    }
+    self.insert(key, body, upload.metadata, upload.content_type);
+    Ok(())
+  }
+
+  async fn abort_multipart(&self, _key: &str, upload_id: &str) -> Result<(), StoreError> {
+    self.call();
+    self.uploads.lock().unwrap().remove(upload_id);
+    Ok(())
+  }
+
+  async fn list_multipart(&self, prefix: &str) -> Result<Vec<PendingUpload>, StoreError> {
+    self.call();
+    Ok(
+      self
+        .uploads
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(_, u)| u.key.starts_with(prefix))
+        .map(|(id, u)| PendingUpload {
+          key: u.key.clone(),
+          upload_id: id.clone(),
+          initiated_ms: Some(u.initiated_ms),
+        })
+        .collect(),
+    )
   }
 }

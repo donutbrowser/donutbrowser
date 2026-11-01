@@ -41,6 +41,20 @@ pub struct PresignUploadResponse {
   /// from older servers → client sends no metadata headers (body-GET fallback).
   #[serde(default)]
   pub metadata: Option<HashMap<String, String>>,
+  /// Set by a server that encrypts at rest: upload through it instead of
+  /// `url`, in parts when the file is larger than one.
+  #[serde(default)]
+  pub transfer: Option<SealedTransfer>,
+}
+
+/// A server's own upload URL, for a store it encrypts at rest. A request
+/// through a proxy in front of it has a size and time limit, so a file larger
+/// than `part_size` goes up in parts (`SyncClient::upload_bytes`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SealedTransfer {
+  pub url: String,
+  #[serde(rename = "partSize")]
+  pub part_size: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +140,8 @@ pub struct PresignUploadBatchItemResponse {
   pub url: String,
   #[serde(rename = "expiresAt")]
   pub expires_at: String,
+  #[serde(default)]
+  pub transfer: Option<SealedTransfer>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

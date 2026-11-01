@@ -753,6 +753,7 @@ impl SyncEngine {
       .client
       .upload_bytes_with_metadata(
         &presign.url,
+        presign.transfer.as_ref(),
         &payload,
         Some(content_type),
         presign.metadata.as_ref(),
@@ -1324,7 +1325,12 @@ impl SyncEngine {
 
     self
       .client
-      .upload_bytes(&presign.url, &upload_data, Some(content_type))
+      .upload_bytes(
+        &presign.url,
+        presign.transfer.as_ref(),
+        &upload_data,
+        Some(content_type),
+      )
       .await?;
 
     Ok(())
@@ -1525,10 +1531,10 @@ impl SyncEngine {
     let batch_response = self.client.presign_upload_batch(items).await?;
 
     // Build URL map
-    let url_map: HashMap<String, String> = batch_response
+    let url_map: HashMap<String, (String, Option<SealedTransfer>)> = batch_response
       .items
       .into_iter()
-      .map(|item| (item.key, item.url))
+      .map(|item| (item.key, (item.url, item.transfer)))
       .collect();
 
     let total_bytes: u64 = files.iter().map(|f| f.size).sum();
@@ -1602,7 +1608,7 @@ impl SyncEngine {
         continue;
       }
 
-      let url = url.unwrap();
+      let (url, transfer) = url.unwrap();
       let client = client.clone();
       let tracker = tracker.clone();
       let resume_state = resume_state.clone();
@@ -1653,7 +1659,7 @@ impl SyncEngine {
         let mut last_err = String::new();
         for attempt in 0..MAX_FILE_RETRIES {
           match client
-            .upload_bytes(&url, &upload_data, content_type.as_deref())
+            .upload_bytes(&url, transfer.as_ref(), &upload_data, content_type.as_deref())
             .await
           {
             Ok(()) => {
@@ -2674,7 +2680,12 @@ impl SyncEngine {
         .await?;
       self
         .client
-        .upload_bytes(&file_presign.url, &file_payload, Some(file_content_type))
+        .upload_bytes(
+          &file_presign.url,
+          file_presign.transfer.as_ref(),
+          &file_payload,
+          Some(file_content_type),
+        )
         .await?;
     }
 
@@ -4961,7 +4972,7 @@ mod tests {
                      ?X-Amz-Signature=deadbeef";
 
     let error = client
-      .upload_bytes(presigned, b"payload", None)
+      .upload_bytes(presigned, None, b"payload", None)
       .await
       .expect_err("a host that cannot resolve must not report a successful upload");
 

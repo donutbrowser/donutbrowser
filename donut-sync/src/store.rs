@@ -138,6 +138,40 @@ pub trait Store: Send + Sync {
     body: ByteStream,
     upload: Upload<'_>,
   ) -> Result<(), StoreError>;
+  /// Starts a multipart upload; the object gets `content_type` and `metadata`.
+  async fn create_multipart(
+    &self,
+    key: &str,
+    content_type: Option<&str>,
+    metadata: &[(String, String)],
+  ) -> Result<String, StoreError>;
+  /// One part, `length` bytes from `body`. Returns its ETag.
+  async fn upload_part(
+    &self,
+    key: &str,
+    upload_id: &str,
+    part: u32,
+    body: ByteStream,
+    length: u64,
+  ) -> Result<String, StoreError>;
+  /// Joins the parts, in order, by their ETags.
+  async fn complete_multipart(
+    &self,
+    key: &str,
+    upload_id: &str,
+    etags: &[String],
+  ) -> Result<(), StoreError>;
+  async fn abort_multipart(&self, key: &str, upload_id: &str) -> Result<(), StoreError>;
+  /// Unfinished uploads under `prefix`.
+  async fn list_multipart(&self, prefix: &str) -> Result<Vec<PendingUpload>, StoreError>;
+}
+
+/// An unfinished multipart upload.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PendingUpload {
+  pub key: String,
+  pub upload_id: String,
+  pub initiated_ms: Option<i64>,
 }
 
 pub struct Download {

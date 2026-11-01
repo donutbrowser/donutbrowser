@@ -11,7 +11,8 @@ use reqwest::Method;
 use crate::jsval::js_number;
 use crate::sigv4::{self, Credentials};
 use crate::store::{
-  ByteStream, Download, HeadOutput, ListInput, ListObject, ListOutput, Store, StoreError, Upload,
+  ByteStream, Download, HeadOutput, ListInput, ListObject, ListOutput, PendingUpload, Store,
+  StoreError, Upload,
 };
 use crate::time;
 
@@ -327,6 +328,38 @@ fn restore_controls(text: &str) -> String {
       _ => c,
     })
     .collect()
+}
+
+type UploadsPage = (Vec<PendingUpload>, Option<(String, String)>);
+
+/// A ListMultipartUploads reply: the uploads, and where the next page starts.
+fn parse_uploads(body: &[u8]) -> Result<UploadsPage, StoreError> {
+  let text = std::str::from_utf8(body)
+    .map_err(|e| StoreError::Transport(format!("ListMultipartUploads reply is not UTF-8: {e}")))?;
+  let doc = roxmltree::Document::parse(text)
+    .map_err(|e| StoreError::Transport(format!("ListMultipartUploads reply is not XML: {e}")))?;
+  let root = doc.root_element();
+  let mut uploads = Vec::new();
+  let mut truncated = false;
+  for node in root.children().filter(|n| n.is_element()) {
+    match node.tag_name().name() {
+      "Upload" => uploads.push(PendingUpload {
+        key: child_text(node, "Key").unwrap_or("").to_string(),
+        upload_id: child_text(node, "UploadId").unwrap_or("").to_string(),
+        initiated_ms: child_text(node, "Initiated").and_then(time::parse_rfc3339_ms),
+      }),
+      "IsTruncated" => truncated = node.text().unwrap_or("").trim() == "true",
+      _ => {}
+    }
+  }
+  let next = if truncated {
+    child_text(root, "NextKeyMarker")
+      .zip(child_text(root, "NextUploadIdMarker"))
+      .map(|(key, id)| (key.to_string(), id.to_string()))
+  } else {
+    None
+  };
+  Ok((uploads, next))
 }
 
 fn parse_list(body: &[u8]) -> Result<ListOutput, StoreError> {
@@ -746,6 +779,150 @@ impl Store for S3Store {
       head,
       body: Box::pin(body),
     })
+  }
+
+  async fn create_multipart(
+    &self,
+    key: &str,
+    content_type: Option<&str>,
+    metadata: &[(String, String)],
+  ) -> Result<String, StoreError> {
+    let path = self.location.object_path(key);
+    let mut headers = Vec::new();
+    if let Some(content_type) = content_type {
+      headers.push(("content-type".to_string(), content_type.to_string()));
+    }
+    for (name, value) in metadata {
+      headers.push((format!("x-amz-meta-{name}"), value.clone()));
+    }
+    let reply = self
+      .expect_success(
+        Method::POST,
+        &path,
+        &[("uploads".to_string(), String::new())],
+        &headers,
+        &[],
+      )
+      .await?;
+    let text = String::from_utf8_lossy(&reply.body);
+    let doc = roxmltree::Document::parse(&text)
+      .map_err(|e| StoreError::Transport(format!("CreateMultipartUpload reply is not XML: {e}")))?;
+    child_text(doc.root_element(), "UploadId")
+      .filter(|id| !id.is_empty())
+      .map(str::to_string)
+      .ok_or_else(|| {
+        StoreError::Transport("CreateMultipartUpload reply has no UploadId".to_string())
+      })
+  }
+
+  /// One attempt: a stream cannot be sent twice.
+  async fn upload_part(
+    &self,
+    key: &str,
+    upload_id: &str,
+    part: u32,
+    body: ByteStream,
+    length: u64,
+  ) -> Result<String, StoreError> {
+    let path = self.location.object_path(key);
+    let query = [
+      ("partNumber".to_string(), part.to_string()),
+      ("uploadId".to_string(), upload_id.to_string()),
+    ];
+    let headers = [("content-length".to_string(), length.to_string())];
+    let response = self
+      .request(
+        &Method::PUT,
+        &path,
+        &query,
+        &headers,
+        sigv4::UNSIGNED_PAYLOAD.to_string(),
+      )
+      .body(reqwest::Body::wrap_stream(body))
+      .send()
+      .await
+      .map_err(|e| StoreError::Transport(transport_message(&e)))?;
+    if !response.status().is_success() {
+      return Err(refusal(response).await);
+    }
+    head_of(response.headers())
+      .etag
+      .ok_or_else(|| StoreError::Transport("UploadPart reply has no ETag".to_string()))
+  }
+
+  async fn complete_multipart(
+    &self,
+    key: &str,
+    upload_id: &str,
+    etags: &[String],
+  ) -> Result<(), StoreError> {
+    let mut xml = String::from("<CompleteMultipartUpload>");
+    for (i, etag) in etags.iter().enumerate() {
+      xml.push_str(&format!(
+        "<Part><PartNumber>{}</PartNumber><ETag>{}</ETag></Part>",
+        i + 1,
+        xml_escape(etag)
+      ));
+    }
+    xml.push_str("</CompleteMultipartUpload>");
+    let path = self.location.object_path(key);
+    let reply = self
+      .expect_success(
+        Method::POST,
+        &path,
+        &[("uploadId".to_string(), upload_id.to_string())],
+        &[("content-type".to_string(), "application/xml".to_string())],
+        xml.as_bytes(),
+      )
+      .await?;
+    // Like a copy, a completion can fail with 200 and an error document.
+    if let Some((code, message)) = error_document(&reply.body) {
+      return Err(StoreError::Service {
+        status: reply.status,
+        code,
+        message,
+      });
+    }
+    Ok(())
+  }
+
+  async fn abort_multipart(&self, key: &str, upload_id: &str) -> Result<(), StoreError> {
+    let path = self.location.object_path(key);
+    self
+      .expect_success(
+        Method::DELETE,
+        &path,
+        &[("uploadId".to_string(), upload_id.to_string())],
+        &[],
+        &[],
+      )
+      .await
+      .map(|_| ())
+  }
+
+  async fn list_multipart(&self, prefix: &str) -> Result<Vec<PendingUpload>, StoreError> {
+    let path = self.location.bucket_path();
+    let mut out = Vec::new();
+    let mut marker: Option<(String, String)> = None;
+    loop {
+      let mut query = vec![
+        ("uploads".to_string(), String::new()),
+        ("prefix".to_string(), prefix.to_string()),
+      ];
+      if let Some((key, id)) = &marker {
+        query.push(("key-marker".to_string(), key.clone()));
+        query.push(("upload-id-marker".to_string(), id.clone()));
+      }
+      let reply = self
+        .expect_success(Method::GET, &path, &query, &[], &[])
+        .await?;
+      let (uploads, next) = parse_uploads(&reply.body)?;
+      out.extend(uploads);
+      match next {
+        Some(next) if Some(&next) != marker.as_ref() => marker = Some(next),
+        _ => return Ok(out),
+      }
+    }
   }
 
   /// One attempt: a stream cannot be sent twice.

@@ -203,25 +203,53 @@ pub struct Sealer {
   pending: Vec<u8>,
 }
 
+pub type Salt = [u8; SALT];
+
+pub fn new_salt() -> Salt {
+  let mut salt = [0u8; SALT];
+  rand::fill(&mut salt);
+  salt
+}
+
+fn header_of(key_id: &str, salt: &Salt) -> Vec<u8> {
+  let mut header = Vec::with_capacity(header_len(key_id) as usize);
+  header.extend_from_slice(MAGIC);
+  header.push(VERSION);
+  header.push(key_id.len() as u8);
+  header.extend_from_slice(key_id.as_bytes());
+  header.extend_from_slice(salt);
+  header
+}
+
 impl Sealer {
+  fn with(key: &Key, salt: &Salt, first_frame: u64) -> Self {
+    Self {
+      key: object_key(&key.secret, salt),
+      header: header_of(&key.id, salt),
+      index: first_frame,
+      pending: Vec::new(),
+    }
+  }
+
   /// A sealer and the header that starts its output.
   pub fn new(keyring: &Keyring) -> (Self, Bytes) {
-    let current = keyring.current();
-    let mut salt = [0u8; SALT];
-    rand::fill(&mut salt);
-    let mut header = Vec::with_capacity(header_len(&current.id) as usize);
-    header.extend_from_slice(MAGIC);
-    header.push(VERSION);
-    header.push(current.id.len() as u8);
-    header.extend_from_slice(current.id.as_bytes());
-    header.extend_from_slice(&salt);
-    let sealer = Self {
-      key: object_key(&current.secret, &salt),
-      header: header.clone(),
-      index: 0,
-      pending: Vec::new(),
-    };
-    (sealer, Bytes::from(header))
+    let sealer = Self::with(keyring.current(), &new_salt(), 0);
+    let header = Bytes::from(sealer.header.clone());
+    (sealer, header)
+  }
+
+  /// One part of an object sealed in parts under `key_id` and `salt`: its
+  /// frames are numbered from `first_frame`, and only part 1 carries the
+  /// header. `None` when the keyring does not hold `key_id`.
+  pub fn for_part(
+    keyring: &Keyring,
+    key_id: &str,
+    salt: &Salt,
+    first_frame: u64,
+  ) -> Option<(Self, Option<Bytes>)> {
+    let sealer = Self::with(keyring.find(key_id)?, salt, first_frame);
+    let header = (first_frame == 0).then(|| Bytes::from(sealer.header.clone()));
+    Some((sealer, header))
   }
 
   fn seal(&mut self, mut frame: Vec<u8>, last: bool) -> Bytes {
@@ -247,6 +275,28 @@ impl Sealer {
     let frame = std::mem::take(&mut self.pending);
     self.seal(frame, true)
   }
+
+  /// The end of a part: the object's final frame on the last part, else the
+  /// part's own last full frame.
+  fn finish_part(mut self, last: bool) -> Option<Bytes> {
+    if last {
+      return Some(self.finish());
+    }
+    let frame = std::mem::take(&mut self.pending);
+    (!frame.is_empty()).then(|| self.seal(frame, false))
+  }
+}
+
+/// The stored size of one part of `plain` bytes. A part before the last holds
+/// whole frames only.
+pub fn sealed_part_len(key_id: &str, plain: u64, first: bool, last: bool) -> u64 {
+  let header = if first { header_len(key_id) } else { 0 };
+  let frames = if last {
+    frames(plain)
+  } else {
+    plain / FRAME as u64
+  };
+  header + plain + frames * TAG as u64
 }
 
 /// Decrypts a sealed byte stream, frame by frame.
@@ -332,14 +382,15 @@ impl Opener {
 }
 
 enum Codec {
-  Seal(Option<Sealer>, Option<Bytes>),
+  /// The sealer, the header still to send, and whether this ends the object.
+  Seal(Option<Sealer>, Option<Bytes>, bool),
   Open(Option<Opener>),
 }
 
 impl Codec {
   fn push(&mut self, data: &[u8], out: &mut VecDeque<Bytes>) -> Result<(), StoreError> {
     match self {
-      Codec::Seal(sealer, header) => {
+      Codec::Seal(sealer, header, _) => {
         if let Some(header) = header.take() {
           out.push_back(header);
         }
@@ -352,11 +403,11 @@ impl Codec {
 
   fn finish(&mut self, out: &mut VecDeque<Bytes>) -> Result<(), StoreError> {
     match self {
-      Codec::Seal(sealer, header) => {
+      Codec::Seal(sealer, header, last) => {
         if let Some(header) = header.take() {
           out.push_back(header);
         }
-        out.push_back(sealer.take().expect("finished once").finish());
+        out.extend(sealer.take().expect("finished once").finish_part(*last));
         Ok(())
       }
       Codec::Open(opener) => {
@@ -414,7 +465,16 @@ fn transform(input: ByteStream, codec: Codec) -> ByteStream {
 /// `input` sealed under the current key.
 pub fn seal_stream(keyring: &Keyring, input: ByteStream) -> ByteStream {
   let (sealer, header) = Sealer::new(keyring);
-  transform(input, Codec::Seal(Some(sealer), Some(header)))
+  transform(input, Codec::Seal(Some(sealer), Some(header), true))
+}
+
+/// One part of an object sealed in parts (see `Sealer::for_part`).
+pub fn seal_part_stream(
+  (sealer, header): (Sealer, Option<Bytes>),
+  last: bool,
+  input: ByteStream,
+) -> ByteStream {
+  transform(input, Codec::Seal(Some(sealer), header, last))
 }
 
 /// `input`, a sealed object, opened. A forged, cut or wrongly keyed object

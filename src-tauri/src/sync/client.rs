@@ -23,6 +23,29 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
 /// only when nothing arrives for a full minute.
 const READ_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// Tries per part of an upload in parts. The file's own retries come on top.
+const PART_ATTEMPTS: u32 = 3;
+const PART_RETRY_DELAY: Duration = Duration::from_secs(1);
+/// The size of a file uploaded in parts, which the server checks every part against.
+const UPLOAD_LENGTH_HEADER: &str = "x-donut-upload-length";
+
+/// The server's answer to the start of an upload in parts.
+#[derive(serde::Deserialize)]
+struct PartsStarted {
+  upload: String,
+  #[serde(rename = "partSize")]
+  part_size: u64,
+  parts: u64,
+}
+
+/// `url` with `pairs` added to its query.
+fn with_query(url: &str, pairs: &[(&str, &str)]) -> SyncResult<String> {
+  let mut url = reqwest::Url::parse(url)
+    .map_err(|e| SyncError::NetworkError(format!("Invalid transfer URL: {e}")))?;
+  url.query_pairs_mut().extend_pairs(pairs);
+  Ok(url.into())
+}
+
 #[derive(Clone)]
 pub struct SyncClient {
   client: Client,
@@ -227,42 +250,201 @@ impl SyncClient {
     Ok(all_objects)
   }
 
+  /// Uploads to a presign answer: through `transfer` when the server offers
+  /// it, else to `presigned_url`.
   pub async fn upload_bytes(
     &self,
     presigned_url: &str,
+    transfer: Option<&SealedTransfer>,
     data: &[u8],
     content_type: Option<&str>,
   ) -> SyncResult<()> {
     self
-      .upload_bytes_with_metadata(presigned_url, data, content_type, None)
+      .upload_bytes_with_metadata(presigned_url, transfer, data, content_type, None)
       .await
   }
 
-  /// PUT to a presigned URL, sending `metadata` as `x-amz-meta-*` headers. These
-  /// MUST be exactly the metadata the presign signed (from
-  /// `PresignUploadResponse::metadata`) or S3 rejects the request.
+  /// `upload_bytes`, sending `metadata` as `x-amz-meta-*` headers. These MUST
+  /// be exactly the metadata the presign signed (from
+  /// `PresignUploadResponse::metadata`) or the upload is refused.
   pub async fn upload_bytes_with_metadata(
+    &self,
+    presigned_url: &str,
+    transfer: Option<&SealedTransfer>,
+    data: &[u8],
+    content_type: Option<&str>,
+    metadata: Option<&std::collections::HashMap<String, String>>,
+  ) -> SyncResult<()> {
+    match transfer {
+      Some(transfer) if data.len() as u64 > transfer.part_size => {
+        self
+          .upload_in_parts(transfer, data, content_type, metadata)
+          .await
+      }
+      Some(transfer) => {
+        self
+          .put_once(&transfer.url, data, content_type, metadata)
+          .await
+      }
+      None => {
+        self
+          .put_once(presigned_url, data, content_type, metadata)
+          .await
+      }
+    }
+  }
+
+  fn with_upload_headers(
+    mut req: reqwest::RequestBuilder,
+    content_type: Option<&str>,
+    metadata: Option<&std::collections::HashMap<String, String>>,
+  ) -> reqwest::RequestBuilder {
+    if let Some(ct) = content_type {
+      req = req.header("Content-Type", ct);
+    }
+    for (k, v) in metadata.into_iter().flatten() {
+      req = req.header(format!("x-amz-meta-{k}"), v);
+    }
+    req
+  }
+
+  /// Sends a request of an upload in parts; any answer but a success is an
+  /// error carrying the server's own words.
+  async fn send_part_request(
+    &self,
+    url: &str,
+    req: reqwest::RequestBuilder,
+  ) -> SyncResult<reqwest::Response> {
+    let response = req
+      .send()
+      .await
+      .map_err(|e| SyncError::NetworkError(super::preflight::transport_reason_for(url, &e)))?;
+    if !response.status().is_success() {
+      let status = response.status();
+      let body = response.text().await.unwrap_or_default();
+      return Err(SyncError::NetworkError(format!(
+        "Upload failed with status {status}: {body}"
+      )));
+    }
+    Ok(response)
+  }
+
+  /// The server's protocol for files larger than one request may carry:
+  /// start with the size, send each part (retried on its own), then join
+  /// them. A failure aborts the upload, so storage keeps nothing half done.
+  async fn upload_in_parts(
+    &self,
+    transfer: &SealedTransfer,
+    data: &[u8],
+    content_type: Option<&str>,
+    metadata: Option<&std::collections::HashMap<String, String>>,
+  ) -> SyncResult<()> {
+    let start = Self::with_upload_headers(
+      self
+        .client
+        .post(&transfer.url)
+        .header(UPLOAD_LENGTH_HEADER, data.len().to_string())
+        .header("Content-Length", "0"),
+      content_type,
+      metadata,
+    );
+    let started: PartsStarted = self
+      .send_part_request(&transfer.url, start)
+      .await?
+      .json()
+      .await
+      .map_err(|e| SyncError::SerializationError(e.to_string()))?;
+    let outcome = self.send_parts(transfer, &started, data).await;
+    if outcome.is_err() {
+      let abort = with_query(&transfer.url, &[("upload", &started.upload)])?;
+      if let Err(e) = self.client.delete(&abort).send().await {
+        log::debug!("Upload abort failed err=\"{e}\"");
+      }
+    }
+    outcome
+  }
+
+  async fn send_parts(
+    &self,
+    transfer: &SealedTransfer,
+    started: &PartsStarted,
+    data: &[u8],
+  ) -> SyncResult<()> {
+    let part_size = usize::try_from(started.part_size)
+      .ok()
+      .filter(|size| *size > 0)
+      .ok_or_else(|| SyncError::InvalidData("The server gave no part size".to_string()))?;
+    let chunks: Vec<&[u8]> = data.chunks(part_size).collect();
+    if chunks.len() as u64 != started.parts {
+      return Err(SyncError::InvalidData(format!(
+        "The server expects {} parts, the file has {}",
+        started.parts,
+        chunks.len()
+      )));
+    }
+    let mut etags = Vec::with_capacity(chunks.len());
+    for (index, chunk) in chunks.iter().enumerate() {
+      let number = (index + 1).to_string();
+      let url = with_query(
+        &transfer.url,
+        &[("upload", &started.upload), ("part", &number)],
+      )?;
+      let mut attempt = 0;
+      let etag = loop {
+        attempt += 1;
+        let req = self
+          .client
+          .put(&url)
+          .header("Content-Length", chunk.len().to_string())
+          .body(chunk.to_vec());
+        match self.send_part_request(&url, req).await {
+          Ok(response) => {
+            break response
+              .headers()
+              .get("etag")
+              .and_then(|v| v.to_str().ok())
+              .map(str::to_string)
+              .ok_or_else(|| {
+                SyncError::InvalidData(format!("Part {number} came back without an ETag"))
+              })?;
+          }
+          Err(e) if attempt >= PART_ATTEMPTS => return Err(e),
+          Err(e) => {
+            log::debug!("Part retry part={number} attempt={attempt} err=\"{e}\"");
+            tokio::time::sleep(PART_RETRY_DELAY * attempt).await;
+          }
+        }
+      };
+      etags.push(etag);
+    }
+    let complete = with_query(
+      &transfer.url,
+      &[("upload", &started.upload), ("op", "complete")],
+    )?;
+    let req = self
+      .client
+      .post(&complete)
+      .json(&serde_json::json!({ "parts": etags }));
+    self.send_part_request(&complete, req).await.map(|_| ())
+  }
+
+  /// One PUT, as S3 takes it.
+  async fn put_once(
     &self,
     presigned_url: &str,
     data: &[u8],
     content_type: Option<&str>,
     metadata: Option<&std::collections::HashMap<String, String>>,
   ) -> SyncResult<()> {
-    let mut req = self
-      .client
-      .put(presigned_url)
-      .header("Content-Length", data.len().to_string())
-      .body(data.to_vec());
-
-    if let Some(ct) = content_type {
-      req = req.header("Content-Type", ct);
-    }
-
-    if let Some(meta) = metadata {
-      for (k, v) in meta {
-        req = req.header(format!("x-amz-meta-{k}"), v);
-      }
-    }
+    let req = Self::with_upload_headers(
+      self
+        .client
+        .put(presigned_url)
+        .header("Content-Length", data.len().to_string())
+        .body(data.to_vec()),
+      content_type,
+      metadata,
+    );
 
     // The storage host here comes from the presigned URL, so on a self-hosted
     // server it is whatever the server signed against, frequently an address
@@ -489,5 +671,202 @@ impl SyncClient {
       )
       .await?;
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::collections::HashMap;
+  use wiremock::matchers::{body_bytes, body_json, header, method, path, query_param};
+  use wiremock::{Mock, MockServer, ResponseTemplate};
+
+  fn client() -> SyncClient {
+    SyncClient::new("http://127.0.0.1:1".to_string(), "unused".to_string())
+  }
+
+  fn transfer(server: &MockServer, part_size: u64) -> SealedTransfer {
+    SealedTransfer {
+      url: format!("{}/v1/transfer?key=k&expires=1&sig=s", server.uri()),
+      part_size,
+    }
+  }
+
+  fn meta() -> HashMap<String, String> {
+    HashMap::from([("updated-at".to_string(), "7".to_string())])
+  }
+
+  #[tokio::test]
+  async fn without_a_transfer_the_presigned_url_takes_the_file() {
+    let server = MockServer::start().await;
+    Mock::given(method("PUT"))
+      .and(path("/bucket/k"))
+      .and(body_bytes(b"data".to_vec()))
+      .respond_with(ResponseTemplate::new(200))
+      .expect(1)
+      .mount(&server)
+      .await;
+    client()
+      .upload_bytes(&format!("{}/bucket/k", server.uri()), None, b"data", None)
+      .await
+      .unwrap();
+  }
+
+  #[tokio::test]
+  async fn a_file_within_one_part_goes_through_the_server_in_one_request() {
+    let server = MockServer::start().await;
+    Mock::given(method("PUT"))
+      .and(path("/v1/transfer"))
+      .and(header("x-amz-meta-updated-at", "7"))
+      .and(header("content-type", "application/json"))
+      .and(body_bytes(b"data".to_vec()))
+      .respond_with(ResponseTemplate::new(200))
+      .expect(1)
+      .mount(&server)
+      .await;
+    client()
+      .upload_bytes_with_metadata(
+        "http://storage.invalid/never",
+        Some(&transfer(&server, 4)),
+        b"data",
+        Some("application/json"),
+        Some(&meta()),
+      )
+      .await
+      .unwrap();
+  }
+
+  #[tokio::test]
+  async fn a_larger_file_goes_up_in_parts_and_a_failed_part_is_sent_again() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+      .and(path("/v1/transfer"))
+      .and(header("x-donut-upload-length", "10"))
+      .and(header("x-amz-meta-updated-at", "7"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_json(serde_json::json!({ "upload": "T.1", "partSize": 4, "parts": 3 })),
+      )
+      .expect(1)
+      .mount(&server)
+      .await;
+    for (part, body) in [("1", &b"0123"[..]), ("2", b"4567"), ("3", b"89")] {
+      if part == "2" {
+        Mock::given(method("PUT"))
+          .and(query_param("part", part))
+          .respond_with(ResponseTemplate::new(503))
+          .up_to_n_times(1)
+          .with_priority(1)
+          .mount(&server)
+          .await;
+      }
+      Mock::given(method("PUT"))
+        .and(query_param("upload", "T.1"))
+        .and(query_param("part", part))
+        .and(query_param("key", "k"))
+        .and(body_bytes(body.to_vec()))
+        .respond_with(ResponseTemplate::new(200).insert_header("etag", format!("\"e{part}\"")))
+        .expect(1)
+        .mount(&server)
+        .await;
+    }
+    Mock::given(method("POST"))
+      .and(query_param("op", "complete"))
+      .and(query_param("upload", "T.1"))
+      .and(body_json(
+        serde_json::json!({ "parts": ["\"e1\"", "\"e2\"", "\"e3\""] }),
+      ))
+      .respond_with(ResponseTemplate::new(200))
+      .expect(1)
+      .mount(&server)
+      .await;
+    client()
+      .upload_bytes_with_metadata(
+        "http://storage.invalid/never",
+        Some(&transfer(&server, 4)),
+        b"0123456789",
+        None,
+        Some(&meta()),
+      )
+      .await
+      .unwrap();
+  }
+
+  #[tokio::test]
+  async fn a_part_that_keeps_failing_aborts_the_upload() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+      .and(path("/v1/transfer"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_json(serde_json::json!({ "upload": "T.2", "partSize": 4, "parts": 2 })),
+      )
+      .mount(&server)
+      .await;
+    Mock::given(method("PUT"))
+      .respond_with(ResponseTemplate::new(500).set_body_string("no"))
+      .expect(u64::from(PART_ATTEMPTS))
+      .mount(&server)
+      .await;
+    Mock::given(method("DELETE"))
+      .and(query_param("upload", "T.2"))
+      .respond_with(ResponseTemplate::new(204))
+      .expect(1)
+      .mount(&server)
+      .await;
+    let error = client()
+      .upload_bytes(
+        "http://storage.invalid/never",
+        Some(&transfer(&server, 4)),
+        b"01234567",
+        None,
+      )
+      .await
+      .unwrap_err();
+    assert!(error.to_string().contains("500"), "{error}");
+  }
+
+  #[tokio::test]
+  async fn a_part_count_that_disagrees_with_the_file_is_refused_before_sending() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+      .respond_with(
+        ResponseTemplate::new(200)
+          .set_body_json(serde_json::json!({ "upload": "T.3", "partSize": 4, "parts": 5 })),
+      )
+      .mount(&server)
+      .await;
+    Mock::given(method("DELETE"))
+      .respond_with(ResponseTemplate::new(204))
+      .expect(1)
+      .mount(&server)
+      .await;
+    assert!(client()
+      .upload_bytes(
+        "http://x.invalid",
+        Some(&transfer(&server, 4)),
+        b"0123456",
+        None
+      )
+      .await
+      .is_err());
+  }
+
+  #[test]
+  fn answers_from_servers_that_do_not_seal_have_no_transfer() {
+    let old: PresignUploadResponse =
+      serde_json::from_str(r#"{"url":"u","expiresAt":"t"}"#).unwrap();
+    assert_eq!(old.transfer, None);
+    let new: PresignUploadBatchItemResponse = serde_json::from_str(
+      r#"{"key":"k","url":"u","expiresAt":"t","transfer":{"url":"v","partSize":8388608}}"#,
+    )
+    .unwrap();
+    assert_eq!(
+      new.transfer,
+      Some(SealedTransfer {
+        url: "v".to_string(),
+        part_size: 8_388_608
+      })
+    );
   }
 }

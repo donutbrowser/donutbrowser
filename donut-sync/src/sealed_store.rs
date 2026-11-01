@@ -12,7 +12,7 @@ use async_trait::async_trait;
 
 use crate::at_rest::{self, Keyring, MARKER};
 use crate::store::{
-  ByteStream, Download, HeadOutput, ListInput, ListOutput, Store, StoreError, Upload,
+  ByteStream, Download, HeadOutput, ListInput, ListOutput, PendingUpload, Store, StoreError, Upload,
 };
 
 /// User metadata (`x-amz-meta-donut-orig-mtime`): the object's LastModified
@@ -184,5 +184,51 @@ impl Store for SealedStore {
         },
       )
       .await
+  }
+
+  // Multipart parts pass through as they come: the caller (transfer.rs)
+  // seals each part as whole frames of one object.
+
+  async fn create_multipart(
+    &self,
+    key: &str,
+    content_type: Option<&str>,
+    metadata: &[(String, String)],
+  ) -> Result<String, StoreError> {
+    self
+      .inner
+      .create_multipart(key, content_type, &self.with_marker(metadata))
+      .await
+  }
+
+  async fn upload_part(
+    &self,
+    key: &str,
+    upload_id: &str,
+    part: u32,
+    body: ByteStream,
+    length: u64,
+  ) -> Result<String, StoreError> {
+    self
+      .inner
+      .upload_part(key, upload_id, part, body, length)
+      .await
+  }
+
+  async fn complete_multipart(
+    &self,
+    key: &str,
+    upload_id: &str,
+    etags: &[String],
+  ) -> Result<(), StoreError> {
+    self.inner.complete_multipart(key, upload_id, etags).await
+  }
+
+  async fn abort_multipart(&self, key: &str, upload_id: &str) -> Result<(), StoreError> {
+    self.inner.abort_multipart(key, upload_id).await
+  }
+
+  async fn list_multipart(&self, prefix: &str) -> Result<Vec<PendingUpload>, StoreError> {
+    self.inner.list_multipart(prefix).await
   }
 }
