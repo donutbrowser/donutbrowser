@@ -2959,6 +2959,8 @@
     "agentBusy": "このプロファイルはすでにタスクを実行中です。",
     "agentTokenRequired": "エージェントがサインインできませんでした。もう一度お試しください。",
     "agentEngineFailed": "エージェントはその操作を実行できませんでした。",
+    "agentTaskEnded": "このタスクはすでに終了しています。",
+    "agentApprovalClosed": "この質問はもう受け付けていません。",
     "agentBrowserUnreachable": "プロファイルのブラウザが応答しませんでした。",
     "agentBrowserClosed": "タスクの完了前にブラウザが閉じました。",
     "agentPromptEmpty": "先にタスクを書いてください。",

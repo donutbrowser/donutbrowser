@@ -293,6 +293,11 @@ export type BackendErrorCode =
   | "AGENT_BUSY"
   | "AGENT_TOKEN_REQUIRED"
   | "AGENT_ENGINE_FAILED"
+  | "AGENT_API_BASE_REFUSED"
+  | "AGENT_INVALID_PARAMS"
+  | "AGENT_TASK_UNKNOWN"
+  | "AGENT_TASK_ENDED"
+  | "AGENT_APPROVAL_UNKNOWN"
   | "AGENT_BROWSER_UNREACHABLE"
   | "AGENT_BROWSER_CLOSED"
   | "AGENT_PROMPT_EMPTY"
@@ -1107,7 +1112,15 @@ export function translateBackendError(t: TFunction, err: unknown): string {
     case "AGENT_TOKEN_REQUIRED":
       return t("backendErrors.agentTokenRequired");
     case "AGENT_ENGINE_FAILED":
+    case "AGENT_INVALID_PARAMS":
       return t("backendErrors.agentEngineFailed");
+    case "AGENT_API_BASE_REFUSED":
+      return t("backendErrors.agentUnsupported");
+    case "AGENT_TASK_UNKNOWN":
+    case "AGENT_TASK_ENDED":
+      return t("backendErrors.agentTaskEnded");
+    case "AGENT_APPROVAL_UNKNOWN":
+      return t("backendErrors.agentApprovalClosed");
     case "AGENT_BROWSER_UNREACHABLE":
       return t("backendErrors.agentBrowserUnreachable");
     case "AGENT_BROWSER_CLOSED":

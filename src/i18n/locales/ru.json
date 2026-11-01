@@ -2999,6 +2999,8 @@
     "agentBusy": "Этот профиль уже выполняет задачу.",
     "agentTokenRequired": "Агент не смог войти. Попробуйте снова.",
     "agentEngineFailed": "Агент не смог это сделать.",
+    "agentTaskEnded": "Эта задача уже завершена.",
+    "agentApprovalClosed": "Этот вопрос больше не открыт.",
     "agentBrowserUnreachable": "Браузер профиля не ответил.",
     "agentBrowserClosed": "Браузер закрылся до завершения задачи.",
     "agentPromptEmpty": "Сначала напишите задачу.",

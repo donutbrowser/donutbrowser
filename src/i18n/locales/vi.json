@@ -2959,6 +2959,8 @@
     "agentBusy": "Hồ sơ này đang chạy một tác vụ.",
     "agentTokenRequired": "Tác tử không đăng nhập được. Hãy thử lại.",
     "agentEngineFailed": "Tác tử không làm được việc đó.",
+    "agentTaskEnded": "Tác vụ này đã kết thúc.",
+    "agentApprovalClosed": "Câu hỏi này không còn mở.",
     "agentBrowserUnreachable": "Trình duyệt của hồ sơ không phản hồi.",
     "agentBrowserClosed": "Trình duyệt đã đóng trước khi tác vụ xong.",
     "agentPromptEmpty": "Hãy viết một tác vụ trước.",

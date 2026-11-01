@@ -2979,6 +2979,8 @@
     "agentBusy": "Este perfil ya está ejecutando una tarea.",
     "agentTokenRequired": "El agente no pudo iniciar sesión. Inténtalo de nuevo.",
     "agentEngineFailed": "El agente no pudo hacer eso.",
+    "agentTaskEnded": "Esta tarea ya terminó.",
+    "agentApprovalClosed": "Esta pregunta ya no está abierta.",
     "agentBrowserUnreachable": "El navegador del perfil no respondió.",
     "agentBrowserClosed": "El navegador se cerró antes de que terminara la tarea.",
     "agentPromptEmpty": "Escribe primero una tarea.",
