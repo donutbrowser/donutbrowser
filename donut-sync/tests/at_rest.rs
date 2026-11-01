@@ -698,6 +698,21 @@ async fn part_requests_refuse_what_does_not_fit_the_upload() {
     .await
     .unwrap();
   assert_eq!(response.status(), 403);
+  // A part sent again must carry the same bytes.
+  assert_eq!(put(1, PART).await.unwrap().status(), 200);
+  assert_eq!(
+    put(1, PART).await.unwrap().status(),
+    200,
+    "the same bytes again"
+  );
+  let changed = http()
+    .put(part_url(&url, &upload, 1))
+    .header("Content-Length", PART.to_string())
+    .body(vec![1u8; PART])
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(changed.status(), 409);
   // The wrong number of parts on completion.
   let one = put(2, 1).await.unwrap();
   let etag = one.headers()["etag"].to_str().unwrap().to_string();
@@ -755,21 +770,120 @@ async fn older_apps_upload_directly_and_the_sealer_seals_it() {
   let sealer = donut_sync::sealer::Sealer::new(raw.clone(), keyring)
     .await
     .unwrap();
+  // Nothing is rewritten while the URL can still write.
   let report = sealer
     .pending_pass(donut_sync::time::now_ms())
     .await
     .unwrap();
-  assert_eq!((report.records, report.sealed, report.failed), (1, 1, 0));
-  let head = raw.head_object(key).await.unwrap();
-  assert_eq!(head.metadata_value("donut-at-rest"), Some("1:k1"));
-  assert_eq!(head.metadata_value("updated-at"), Some("5"));
-  assert_eq!(download(&server, key).await, (200, plain));
-  // The record stays until its URL is dead.
+  assert_eq!((report.records, report.checked), (1, 0));
   let (_, list) = call(&server, "list", json!({ "prefix": "" })).await;
   assert_eq!(list["objects"].as_array().unwrap().len(), 1, "{list}");
+  // Once it is dead, the object is sealed and the record goes.
   let report = sealer
     .pending_pass(donut_sync::time::now_ms() + 2 * 3600 * 1000)
     .await
     .unwrap();
-  assert_eq!(report.records_done, 1);
+  assert_eq!(
+    (report.sealed, report.failed, report.records_done),
+    (1, 0, 1)
+  );
+  let head = raw.head_object(key).await.unwrap();
+  assert_eq!(head.metadata_value("donut-at-rest"), Some("1:k1"));
+  assert_eq!(head.metadata_value("updated-at"), Some("5"));
+  assert_eq!(download(&server, key).await, (200, plain));
+}
+
+#[tokio::test]
+async fn a_rollback_unseals_everything_and_the_key_can_go() {
+  let bucket = bucket("unseal");
+  let key_sealed = "profiles/p/files/sealed";
+  let key_parts = "profiles/p/files/parts";
+  let small = sample(70_000);
+  let large = sample(PART + 99);
+
+  let server = Server::start(&bucket, &[("SYNC_AT_REST_KEY", Some(K1))]).await;
+  upload(&server, key_sealed, small.clone(), Some("3")).await;
+  let (url, _) = presign_transfer(&server, key_parts).await;
+  let started: Value = start_parts(&url, large.len()).await.json().await.unwrap();
+  let upload_token = started["upload"].as_str().unwrap().to_string();
+  let mut etags = Vec::new();
+  for (i, chunk) in large.chunks(PART).enumerate() {
+    let response = http()
+      .put(part_url(&url, &upload_token, i + 1))
+      .header("Content-Length", chunk.len().to_string())
+      .body(chunk.to_vec())
+      .send()
+      .await
+      .unwrap();
+    etags.push(response.headers()["etag"].to_str().unwrap().to_string());
+  }
+  let done = http()
+    .post(format!("{url}&upload={upload_token}&op=complete"))
+    .json(&json!({ "parts": etags }))
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(done.status(), 200);
+  let (_, before) = call(&server, "stat", json!({ "key": key_sealed })).await;
+  drop(server);
+
+  // Unsealing state: sealed objects read, new writes stay plaintext.
+  let unsealing = format!("unseal,{K1}");
+  let server = Server::start(&bucket, &[("SYNC_AT_REST_KEY", Some(&unsealing))]).await;
+  assert!(
+    server.logs().contains("Encryption at rest unsealing"),
+    "{}",
+    server.logs()
+  );
+  assert_eq!(download(&server, key_parts).await, (200, large.clone()));
+  upload(&server, "profiles/p/files/new", b"new".to_vec(), None).await;
+  let raw = raw_store(&bucket);
+  let new_head = raw.head_object("profiles/p/files/new").await.unwrap();
+  assert_eq!(new_head.metadata_value("donut-at-rest"), None);
+  assert_eq!(
+    collect(raw.get_object("profiles/p/files/new").await.unwrap().body)
+      .await
+      .unwrap(),
+    b"new"
+  );
+
+  let storage = storage_env(&bucket);
+  let mut env: Vec<(&str, &str)> = storage.iter().map(|(k, v)| (*k, v.as_str())).collect();
+  env.push(("SYNC_AT_REST_KEY", K1));
+  let (code, out) = run_command(&["migrate-at-rest", "--unseal"], &env);
+  assert_eq!(code, 1, "--unseal refuses a sealing keyring: {out}");
+  env.retain(|(k, _)| *k != "SYNC_AT_REST_KEY");
+  env.push(("SYNC_AT_REST_KEY", &unsealing));
+  let (code, out) = run_command(&["verify-at-rest"], &env);
+  assert_eq!(code, 1, "{out}");
+  let (code, out) = run_command(&["migrate-at-rest", "--unseal", "--concurrency", "3"], &env);
+  assert_eq!(code, 0, "{out}");
+  assert!(out.contains("unsealed=2"), "{out}");
+  let (code, out) = run_command(&["verify-at-rest"], &env);
+  assert_eq!(code, 0, "{out}");
+  assert!(out.contains("complete=true"), "{out}");
+  drop(server);
+
+  // The key is gone: plaintext everywhere, the times from before.
+  let server = Server::start(&bucket, &[]).await;
+  for (key, body) in [(key_sealed, small), (key_parts, large)] {
+    let (status, presign) = call(&server, "presign-download", json!({ "key": key })).await;
+    assert_eq!(status, 200);
+    let got = http()
+      .get(presign["url"].as_str().unwrap())
+      .send()
+      .await
+      .unwrap()
+      .bytes()
+      .await
+      .unwrap();
+    assert_eq!(got.to_vec(), body, "{key}");
+  }
+  let (_, after) = call(&server, "stat", json!({ "key": key_sealed })).await;
+  // To the second: a HEAD has seconds, the listing the migration kept has
+  // milliseconds.
+  let second = |v: &Value| v["lastModified"].as_str().unwrap()[..19].to_string();
+  assert_eq!(second(&after), second(&before));
+  assert_eq!(after["metadata"]["updated-at"], "3");
+  assert!(after["metadata"].get("donut-at-rest").is_none());
 }

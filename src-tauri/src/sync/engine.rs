@@ -128,6 +128,22 @@ pub async fn cancel_profile_sync(profile_id: String) -> Result<bool, String> {
 /// Upload/download concurrency limit
 const SYNC_CONCURRENCY: usize = 32;
 
+/// The limit when files go through the sync server itself (a server that
+/// encrypts at rest): it serves a few transfers per account at a time, and
+/// more only queue there.
+const SERVER_TRANSFER_CONCURRENCY: usize = 6;
+
+/// The path of a sync server's own transfer URLs.
+const SERVER_TRANSFER_PATH: &str = "/v1/transfer?";
+
+fn transfer_concurrency(through_server: bool) -> usize {
+  if through_server {
+    SERVER_TRANSFER_CONCURRENCY
+  } else {
+    SYNC_CONCURRENCY
+  }
+}
+
 /// Max retries for individual file uploads/downloads
 const MAX_FILE_RETRIES: u32 = 3;
 
@@ -1560,7 +1576,8 @@ impl SyncEngine {
       .store(already_bytes, Ordering::Relaxed);
     tracker.emit_final();
 
-    let semaphore = Arc::new(Semaphore::new(SYNC_CONCURRENCY));
+    let through_server = url_map.values().any(|(_, transfer)| transfer.is_some());
+    let semaphore = Arc::new(Semaphore::new(transfer_concurrency(through_server)));
     let client = self.client.clone();
     let profile_dir = profile_dir.to_path_buf();
     let profile_id_owned = profile_id.to_string();
@@ -1831,7 +1848,10 @@ impl SyncEngine {
       .store(already_bytes, Ordering::Relaxed);
     tracker.emit_final();
 
-    let semaphore = Arc::new(Semaphore::new(SYNC_CONCURRENCY));
+    let through_server = url_map
+      .values()
+      .any(|url| url.contains(SERVER_TRANSFER_PATH));
+    let semaphore = Arc::new(Semaphore::new(transfer_concurrency(through_server)));
     let client = self.client.clone();
     let profile_dir = profile_dir.to_path_buf();
     let profile_id_owned = profile_id.to_string();

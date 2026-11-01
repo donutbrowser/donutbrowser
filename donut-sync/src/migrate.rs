@@ -13,6 +13,15 @@
 //!
 //! A rewrite gives the object a new LastModified, so the old one is kept in
 //! `ORIGINAL_MTIME` and the server reports it (profile age, stat, downloads).
+//!
+//! The copy can still land on top of a device's write or delete made in that
+//! window. Where the bucket keeps versions (B2), the key's versions are read
+//! after the copy, and a version made between the read and the copy is put
+//! back as the current one.
+//!
+//! `--unseal` goes the other way, for a rollback: run it while the server is
+//! in the unsealing state (`SYNC_AT_REST_KEY=unseal,<keys>`), then remove the
+//! key once `verify-at-rest` finds nothing sealed.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -23,8 +32,9 @@ use futures_util::StreamExt;
 use crate::at_rest::{self, Keyring, MARKER};
 use crate::config::Config;
 use crate::log;
-use crate::sealed_store::{ORIGINAL_MTIME, original_mtime, sealed_by};
-use crate::store::{ByteStream, ListInput, Store, StoreError, Upload};
+use crate::original_times::{ORIGINAL_MTIME, original_mtime};
+use crate::sealed_store::sealed_by;
+use crate::store::{ByteStream, CopySpec, HeadOutput, ListInput, Store, StoreError, Upload};
 
 pub const COMMAND: &str = "migrate-at-rest";
 const CONTEXT: &str = "Migrate";
@@ -34,11 +44,13 @@ const PROGRESS_EVERY: Duration = Duration::from_secs(10);
 /// Tries per object: storage has transient failures.
 const ATTEMPTS: u32 = 3;
 
-const USAGE: &str = "Usage: donut-sync migrate-at-rest [--dry-run] [--prefix P] [--concurrency N] [--max-mib-per-sec N] [--checkpoint FILE]
+const USAGE: &str = "Usage: donut-sync migrate-at-rest [--unseal] [--dry-run] [--prefix P] [--concurrency N] [--max-mib-per-sec N] [--checkpoint FILE]
 
 Seals every plaintext object in S3_BUCKET with the first key of SYNC_AT_REST_KEY,
 and re-seals objects under its other keys. Safe to stop and run again.
 
+  --unseal             Turn every sealed object back into plaintext. Needs
+                       SYNC_AT_REST_KEY=unseal,<keys>, as the server has it.
   --dry-run            Count what would change; write nothing.
   --prefix P           Only keys under P.
   --concurrency N      Objects at a time (default 4).
@@ -47,6 +59,7 @@ and re-seals objects under its other keys. Safe to stop and run again.
 
 #[derive(Debug, Default, Clone)]
 pub struct Options {
+  pub unseal: bool,
   pub dry_run: bool,
   pub prefix: Option<String>,
   pub concurrency: usize,
@@ -69,6 +82,7 @@ fn parse(args: &[String]) -> Result<Options, String> {
     };
     match arg.as_str() {
       "--dry-run" => options.dry_run = true,
+      "--unseal" => options.unseal = true,
       "--prefix" => options.prefix = Some(value(arg)?),
       "--concurrency" => {
         options.concurrency = value(arg)?
@@ -143,15 +157,20 @@ pub struct Report {
   /// Objects under an older key re-sealed (or to re-seal).
   pub rotated: u64,
   pub rotated_bytes: u64,
+  /// Sealed objects turned back into plaintext (or to turn back).
+  pub unsealed: u64,
+  pub unsealed_bytes: u64,
   /// Written or deleted by someone else meanwhile; left as they are.
   pub changed: u64,
   pub failed: u64,
 }
 
 pub(crate) enum Outcome {
+  /// Already as this run wants it.
   Current,
   Sealed(u64),
   Rotated(u64),
+  Unsealed(u64),
   Changed,
   Failed(String),
 }
@@ -191,9 +210,17 @@ fn throttled(body: ByteStream, limit: Option<Arc<RateLimit>>) -> ByteStream {
   }
 }
 
+/// Which way objects are rewritten.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Direction {
+  Seal,
+  Unseal,
+}
+
 pub(crate) struct Migration {
   store: Arc<dyn Store>,
   keyring: Arc<Keyring>,
+  direction: Direction,
   dry_run: bool,
   conditional: bool,
   limit: Option<Arc<RateLimit>>,
@@ -205,6 +232,7 @@ impl Migration {
     Self {
       store,
       keyring,
+      direction: Direction::Seal,
       dry_run: false,
       conditional,
       limit: None,
@@ -214,6 +242,20 @@ impl Migration {
 
 fn precondition_failed(error: &StoreError) -> bool {
   matches!(error, StoreError::Service { status: 412, .. })
+}
+
+/// Deletes `key` with every version it has, where the bucket keeps versions,
+/// so a temporary object leaves nothing behind.
+pub async fn purge(store: &dyn Store, key: &str) -> Result<(), StoreError> {
+  match store.list_versions(key).await? {
+    Some(versions) => {
+      for version in versions.iter().filter(|v| v.key == key) {
+        store.delete_version(key, &version.version_id).await?;
+      }
+      Ok(())
+    }
+    None => store.delete_object(key).await,
+  }
 }
 
 /// Whether the store refuses a PUT whose `If-Match` names another ETag.
@@ -234,7 +276,7 @@ pub async fn honors_if_match(store: &dyn Store) -> Result<bool, StoreError> {
       },
     )
     .await;
-  let _ = store.delete_object(&probe).await;
+  let _ = purge(store, &probe).await;
   match outcome {
     Ok(()) => Ok(false),
     Err(e) if precondition_failed(&e) => Ok(true),
@@ -242,6 +284,30 @@ pub async fn honors_if_match(store: &dyn Store) -> Result<bool, StoreError> {
     Err(StoreError::Service { .. }) => Ok(false),
     Err(e) => Err(e),
   }
+}
+
+/// The key id an object is sealed under, or `None` for plaintext. The marker
+/// alone is not trusted, since a device could set it on a direct upload:
+/// the stored bytes must start with the header it names, at a sealed size.
+pub(crate) async fn sealed_kid(
+  store: &dyn Store,
+  key: &str,
+  head: &HeadOutput,
+) -> Result<Option<String>, StoreError> {
+  let Some(id) = sealed_by(head) else {
+    return Ok(None);
+  };
+  let start = store.get_range(key, at_rest::header_len(id)).await?;
+  if !at_rest::header_names(&start, id) {
+    return Ok(None);
+  }
+  let stored = head.content_length.unwrap_or(0);
+  if at_rest::plain_len(id, stored).is_none() {
+    return Err(StoreError::Corrupt(format!(
+      "sealed object has an invalid size {stored}"
+    )));
+  }
+  Ok(Some(id.to_string()))
 }
 
 impl Migration {
@@ -264,25 +330,22 @@ impl Migration {
 
   async fn try_object(&self, key: &str, listed_ms: Option<i64>) -> Result<Outcome, StoreError> {
     let head = self.store.head_object(key).await?;
+    let kid = sealed_kid(self.store.as_ref(), key, &head).await?;
     let current = self.keyring.current().id();
-    let old_key = match sealed_by(&head) {
-      Some(id) if id == current => return Ok(Outcome::Current),
-      Some(id) => Some(id.to_string()),
-      None => None,
-    };
     let stored = head.content_length.unwrap_or(0);
-    let plain = match &old_key {
-      Some(id) => at_rest::plain_len(id, stored).ok_or_else(|| {
-        StoreError::Corrupt(format!("sealed object has an invalid size {stored}"))
-      })?,
+    let plain = match &kid {
+      Some(id) => at_rest::plain_len(id, stored).unwrap_or(0),
       None => stored,
     };
-    let done = |plain| match old_key {
-      Some(_) => Outcome::Rotated(plain),
-      None => Outcome::Sealed(plain),
+    let (seal, done) = match (self.direction, kid.as_deref()) {
+      (Direction::Seal, Some(id)) if id == current => return Ok(Outcome::Current),
+      (Direction::Seal, Some(_)) => (true, Outcome::Rotated(plain)),
+      (Direction::Seal, None) => (true, Outcome::Sealed(plain)),
+      (Direction::Unseal, None) => return Ok(Outcome::Current),
+      (Direction::Unseal, Some(_)) => (false, Outcome::Unsealed(plain)),
     };
     if self.dry_run {
-      return Ok(done(plain));
+      return Ok(done);
     }
     let etag = head
       .etag
@@ -293,17 +356,22 @@ impl Migration {
       return Ok(Outcome::Changed);
     }
     let mut body = throttled(download.body, self.limit.clone());
-    if old_key.is_some() {
+    if kid.is_some() {
       body = at_rest::open_stream(self.keyring.clone(), body);
     }
-    let sealed = at_rest::seal_stream(&self.keyring, body);
     let mut metadata: Vec<(String, String)> = head
       .metadata
       .iter()
       .filter(|(name, _)| name != MARKER && name != ORIGINAL_MTIME)
       .cloned()
       .collect();
-    metadata.push((MARKER.to_string(), self.keyring.marker()));
+    let length = if seal {
+      body = at_rest::seal_stream(&self.keyring, body);
+      metadata.push((MARKER.to_string(), self.keyring.marker()));
+      at_rest::sealed_len(current, plain)
+    } else {
+      plain
+    };
     if let Some(ms) = original_mtime(&head)
       .or(listed_ms)
       .or(head.last_modified_ms)
@@ -311,7 +379,7 @@ impl Migration {
       metadata.push((ORIGINAL_MTIME.to_string(), ms.to_string()));
     }
     let upload = Upload {
-      length: at_rest::sealed_len(current, plain),
+      length,
       content_type: head.content_type.as_deref(),
       metadata: &metadata,
       if_match: None,
@@ -321,31 +389,92 @@ impl Migration {
         .store
         .put_object_stream(
           key,
-          sealed,
+          body,
           Upload {
             if_match: Some(&etag),
             ..upload
           },
         )
         .await?;
-      return Ok(done(plain));
+      return Ok(done);
     }
     let tmp = format!("{TMP_PREFIX}{}", uuid::Uuid::new_v4().simple());
     let placed = async {
-      self.store.put_object_stream(&tmp, sealed, upload).await?;
+      self.store.put_object_stream(&tmp, body, upload).await?;
       if self.store.head_object(key).await?.etag.as_deref() != Some(etag.as_str()) {
-        return Ok(false);
+        return Ok(None);
       }
-      self.store.copy_object(&tmp, key).await?;
-      Ok::<_, StoreError>(true)
+      let copied = self
+        .store
+        .copy_object_with(&tmp, key, CopySpec::default())
+        .await?;
+      Ok::<_, StoreError>(Some(copied.version_id))
     }
     .await;
-    let _ = self.store.delete_object(&tmp).await;
-    Ok(if placed? {
-      done(plain)
+    let _ = purge(self.store.as_ref(), &tmp).await;
+    let Some(ours) = placed? else {
+      return Ok(Outcome::Changed);
+    };
+    match self
+      .settle(key, head.version_id.as_deref(), ours.as_deref())
+      .await?
+    {
+      true => Ok(Outcome::Changed),
+      false => Ok(done),
+    }
+  }
+
+  /// After the copy: a version made between the read and the copy (a
+  /// device's write or delete) is put back as the current one. `true` when
+  /// one was. Needs a bucket that keeps versions.
+  async fn settle(
+    &self,
+    key: &str,
+    read: Option<&str>,
+    ours: Option<&str>,
+  ) -> Result<bool, StoreError> {
+    let (Some(read), Some(ours)) = (read, ours) else {
+      return Ok(false);
+    };
+    let Some(versions) = self.store.list_versions(key).await? else {
+      return Ok(false);
+    };
+    let history: Vec<_> = versions.iter().filter(|v| v.key == key).collect();
+    let (Some(at_ours), Some(at_read)) = (
+      history.iter().position(|v| v.version_id == ours),
+      history.iter().position(|v| v.version_id == read),
+    ) else {
+      return Ok(false);
+    };
+    // Newest first: anything before ours came after it and stays current.
+    if at_ours != 0 || at_read <= at_ours + 1 {
+      return Ok(false);
+    }
+    let lost = history[at_ours + 1];
+    if lost.delete_marker {
+      self.store.delete_object(key).await?;
+      log::warn(
+        CONTEXT,
+        &format!("Delete made during the rewrite put back key={key}"),
+      );
     } else {
-      Outcome::Changed
-    })
+      self
+        .store
+        .copy_object_with(
+          key,
+          key,
+          CopySpec {
+            source_version: Some(&lost.version_id),
+            ..CopySpec::default()
+          },
+        )
+        .await?;
+      log::warn(
+        CONTEXT,
+        &format!("Write made during the rewrite put back key={key}"),
+      );
+    }
+    Ok(true)
   }
 }
 
@@ -364,15 +493,39 @@ fn write_checkpoint(path: &PathBuf, key: &str) -> Result<(), String> {
     .map_err(|e| format!("Cannot write checkpoint {}: {e}", path.display()))
 }
 
+/// Every key under `prefix`.
+pub(crate) async fn list_keys(store: &dyn Store, prefix: &str) -> Result<Vec<String>, String> {
+  let mut out = Vec::new();
+  let mut token = None;
+  loop {
+    let page = store
+      .list_objects_v2(&ListInput {
+        prefix: Some(prefix.to_string()),
+        max_keys: Some("1000".to_string()),
+        continuation_token: token.clone(),
+        ..ListInput::default()
+      })
+      .await
+      .map_err(|e| format!("Listing failed: {e}"))?;
+    out.extend(page.contents.into_iter().map(|object| object.key));
+    token = page.next_continuation_token.filter(|_| page.is_truncated);
+    if token.is_none() {
+      return Ok(out);
+    }
+  }
+}
+
 fn summary(report: &Report, elapsed: Duration) -> String {
   format!(
-    "scanned={} current={} sealed={} sealed_bytes={} rotated={} rotated_bytes={} changed={} failed={} elapsed_ms={}",
+    "scanned={} current={} sealed={} sealed_bytes={} rotated={} rotated_bytes={} unsealed={} unsealed_bytes={} changed={} failed={} elapsed_ms={}",
     report.scanned,
     report.current,
     report.sealed,
     report.sealed_bytes,
     report.rotated,
     report.rotated_bytes,
+    report.unsealed,
+    report.unsealed_bytes,
     report.changed,
     report.failed,
     elapsed.as_millis()
@@ -388,6 +541,23 @@ pub async fn migrate(
   options: &Options,
 ) -> Result<Report, String> {
   let started = Instant::now();
+  let direction = if options.unseal {
+    Direction::Unseal
+  } else {
+    Direction::Seal
+  };
+  match (direction, keyring.unsealing()) {
+    (Direction::Unseal, false) => {
+      return Err(
+        "--unseal needs SYNC_AT_REST_KEY=unseal,<keys>, and the server running with it, so it stops sealing new writes"
+          .to_string(),
+      );
+    }
+    (Direction::Seal, true) => {
+      return Err("SYNC_AT_REST_KEY has `unseal`: sealing is off. Use --unseal.".to_string());
+    }
+    _ => {}
+  }
   let conditional = if options.dry_run {
     false
   } else {
@@ -402,7 +572,8 @@ pub async fn migrate(
   log::log(
     CONTEXT,
     &format!(
-      "Migration started key={} dry_run={} conditional_put={conditional} concurrency={} max_bytes_per_sec={} resume_after={}",
+      "Migration started direction={} key={} dry_run={} conditional_put={conditional} concurrency={} max_bytes_per_sec={} resume_after={}",
+      if options.unseal { "unseal" } else { "seal" },
       keyring.current().id(),
       options.dry_run,
       options.concurrency,
@@ -413,6 +584,7 @@ pub async fn migrate(
   let migration = Migration {
     store: store.clone(),
     keyring,
+    direction,
     dry_run: options.dry_run,
     conditional,
     limit: options.bytes_per_sec.map(|per_sec| {
@@ -465,6 +637,10 @@ pub async fn migrate(
           report.rotated += 1;
           report.rotated_bytes += bytes;
         }
+        Outcome::Unsealed(bytes) => {
+          report.unsealed += 1;
+          report.unsealed_bytes += bytes;
+        }
         Outcome::Changed => report.changed += 1,
         Outcome::Failed(err) => {
           report.failed += 1;
@@ -499,6 +675,20 @@ pub async fn migrate(
         ),
       );
     }
+  }
+  // A whole bucket unsealed: this server's own objects (sealed records and
+  // state) go too, so nothing sealed is left when the key is removed.
+  if options.unseal && !options.dry_run && options.prefix.is_none() && report.failed == 0 {
+    let internal = list_keys(store.as_ref(), crate::sealer::INTERNAL_ROOT).await?;
+    for key in &internal {
+      purge(store.as_ref(), key)
+        .await
+        .map_err(|e| format!("Internal object not removed key={key} err={e}"))?;
+    }
+    log::log(
+      CONTEXT,
+      &format!("Internal objects removed count={}", internal.len()),
+    );
   }
   let line = format!(
     "{} {}",
@@ -571,7 +761,7 @@ mod tests {
       .await
       .unwrap();
     assert_eq!((report.sealed, report.failed, report.changed), (3, 0, 0));
-    let sealed = SealedStore::new(raw.clone(), keyring.clone());
+    let sealed = crate::served_store(raw.clone(), Some(&keyring));
     let head = sealed
       .head_object("users/u/profiles/p/files/a")
       .await
@@ -606,7 +796,7 @@ mod tests {
       .unwrap();
     assert_eq!((report.rotated, report.rotated_bytes), (1, 5));
     let only_new = Arc::new(Keyring::parse(K2).unwrap());
-    let store = SealedStore::new(raw.clone(), only_new);
+    let store = crate::served_store(raw.clone(), Some(&only_new));
     assert_eq!(store.get_object_text("a").await.unwrap(), "hello");
     assert_eq!(store.head_object("a").await.unwrap().metadata, meta("1"));
   }
@@ -644,6 +834,203 @@ mod tests {
     let raw = Arc::new(MemoryStore::default());
     assert!(honors_if_match(raw.as_ref()).await.unwrap());
     assert!(raw.keys().is_empty(), "the probe cleans up");
+  }
+
+  fn keyring(value: &str) -> Arc<Keyring> {
+    Arc::new(Keyring::parse(value).unwrap())
+  }
+
+  fn unsealing() -> Options {
+    Options {
+      unseal: true,
+      ..options()
+    }
+  }
+
+  /// No temporary object, and none of its versions, is left.
+  fn no_temporary_left(raw: &MemoryStore) {
+    let objects = raw.objects.lock().unwrap();
+    assert!(
+      objects.keys().all(|k| !k.starts_with(TMP_PREFIX)),
+      "{:?}",
+      objects.keys()
+    );
+  }
+
+  #[tokio::test]
+  async fn seal_then_unseal_gives_back_the_plaintext_metadata_and_times() {
+    let raw = Arc::new(MemoryStore::versioned());
+    let big: Vec<u8> = (0..at_rest::FRAME * 2 + 9).map(|i| i as u8).collect();
+    raw.insert("a", big.clone(), meta("5"), Some("image/png".into()));
+    raw.insert("b", Vec::new(), Vec::new(), None);
+    let listed = raw.raw("a").unwrap().modified_ms;
+
+    let report = migrate(raw.clone(), keyring(K1), &options()).await.unwrap();
+    assert_eq!(report.sealed, 2);
+    raw.insert(
+      ".donut-sync-at-rest/state.json",
+      b"x".to_vec(),
+      Vec::new(),
+      None,
+    );
+
+    // Unsealing needs the server's unsealing state, and sealing refuses it.
+    assert!(
+      migrate(raw.clone(), keyring(K1), &unsealing())
+        .await
+        .is_err()
+    );
+    let unseal_keys = keyring(&format!("unseal,{K1}"));
+    assert!(
+      migrate(raw.clone(), unseal_keys.clone(), &options())
+        .await
+        .is_err()
+    );
+
+    let dry = migrate(
+      raw.clone(),
+      unseal_keys.clone(),
+      &Options {
+        dry_run: true,
+        ..unsealing()
+      },
+    )
+    .await
+    .unwrap();
+    assert_eq!((dry.unsealed, dry.unsealed_bytes), (2, big.len() as u64));
+    let report = migrate(raw.clone(), unseal_keys.clone(), &unsealing())
+      .await
+      .unwrap();
+    assert_eq!((report.unsealed, report.failed), (2, 0));
+    let a = raw.raw("a").unwrap();
+    assert_eq!(a.body, big);
+    assert_eq!(a.content_type.as_deref(), Some("image/png"));
+    assert!(a.metadata.iter().all(|(name, _)| name != MARKER));
+    assert!(
+      a.metadata
+        .contains(&("updated-at".to_string(), "5".to_string()))
+    );
+    assert!(
+      a.metadata
+        .contains(&(ORIGINAL_MTIME.to_string(), listed.to_string()))
+    );
+    assert_eq!(raw.raw("b").unwrap().body, b"");
+    assert!(
+      raw
+        .keys()
+        .iter()
+        .all(|k| !k.starts_with(crate::sealer::INTERNAL_ROOT))
+    );
+    no_temporary_left(&raw);
+
+    // With the key gone, reads see plaintext at the time from before.
+    let plain = crate::served_store(raw.clone(), None);
+    assert_eq!(
+      plain.head_object("a").await.unwrap().last_modified_ms,
+      Some(listed)
+    );
+    let again = migrate(raw.clone(), unseal_keys, &unsealing())
+      .await
+      .unwrap();
+    assert_eq!((again.current, again.unsealed), (2, 0));
+  }
+
+  #[tokio::test]
+  async fn a_forged_marker_on_plaintext_is_not_taken_for_sealed() {
+    let raw = Arc::new(MemoryStore::default());
+    raw.insert(
+      "a",
+      b"plain".to_vec(),
+      vec![(MARKER.into(), "1:k1".into())],
+      None,
+    );
+    let report = migrate(raw.clone(), keyring(K1), &options()).await.unwrap();
+    assert_eq!(report.sealed, 1);
+    let store = crate::served_store(raw.clone(), Some(&keyring(K1)));
+    assert_eq!(store.get_object_text("a").await.unwrap(), "plain");
+  }
+
+  /// A device writes or deletes `key` right before the rewrite's copy.
+  fn race(raw: &MemoryStore, device: impl Fn(&MemoryStore) + Send + Sync + 'static) {
+    let fired = std::sync::atomic::AtomicBool::new(false);
+    *raw.copy_hook.lock().unwrap() = Some(Box::new(move |store, to| {
+      if to == "k" && !fired.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        device(store);
+      }
+    }));
+  }
+
+  async fn rewrite(raw: &Arc<MemoryStore>, keys: Arc<Keyring>, direction: Direction) -> Outcome {
+    let mut migration = Migration::sealing(raw.clone(), keys, false);
+    migration.direction = direction;
+    migration.object("k", None).await
+  }
+
+  #[tokio::test]
+  async fn a_write_or_delete_inside_the_copy_window_is_put_back() {
+    for direction in [Direction::Seal, Direction::Unseal] {
+      let (keys, setup) = match direction {
+        Direction::Seal => (keyring(K1), None),
+        Direction::Unseal => (keyring(&format!("unseal,{K1}")), Some(keyring(K1))),
+      };
+      let prepare = |raw: &Arc<MemoryStore>| {
+        raw.insert("k", b"old".to_vec(), meta("1"), None);
+        let raw = raw.clone();
+        let setup = setup.clone();
+        async move {
+          if let Some(setup) = setup {
+            migrate(raw, setup, &options()).await.unwrap();
+          }
+        }
+      };
+
+      let raw = Arc::new(MemoryStore::versioned());
+      prepare(&raw).await;
+      race(&raw, |store| {
+        store.insert("k", b"device".to_vec(), meta("2"), None);
+      });
+      assert!(matches!(
+        rewrite(&raw, keys.clone(), direction).await,
+        Outcome::Changed
+      ));
+      let current = raw.raw("k").unwrap();
+      assert_eq!(current.body, b"device", "{direction:?}");
+      assert!(
+        current
+          .metadata
+          .contains(&("updated-at".to_string(), "2".to_string()))
+      );
+      no_temporary_left(&raw);
+
+      let raw = Arc::new(MemoryStore::versioned());
+      prepare(&raw).await;
+      race(&raw, |store| store.remove("k"));
+      assert!(matches!(
+        rewrite(&raw, keys.clone(), direction).await,
+        Outcome::Changed
+      ));
+      assert!(raw.raw("k").is_none(), "the delete stands ({direction:?})");
+      no_temporary_left(&raw);
+    }
+  }
+
+  #[tokio::test]
+  async fn a_write_after_the_copy_stays_current() {
+    let raw = Arc::new(MemoryStore::versioned());
+    raw.insert("k", b"old".to_vec(), Vec::new(), None);
+    let migration = Migration::sealing(raw.clone(), keyring(K1), false);
+    assert!(matches!(
+      migration.object("k", None).await,
+      Outcome::Sealed(3)
+    ));
+    raw.insert("k", b"later".to_vec(), Vec::new(), None);
+    assert!(
+      !migration
+        .settle("k", Some("v1000"), Some("v0"))
+        .await
+        .unwrap()
+    );
+    assert_eq!(raw.raw("k").unwrap().body, b"later");
   }
 
   #[test]

@@ -12,8 +12,9 @@ use futures_util::StreamExt;
 use crate::at_rest::{self, Keyring, MARKER};
 use crate::config::Config;
 use crate::log;
-use crate::sealed_store::sealed_by;
+use crate::sealed_store::{SealedStore, sealed_by};
 use crate::store::{ListInput, Store, StoreError};
+use crate::time;
 
 pub const COMMAND: &str = "verify-at-rest";
 const CONTEXT: &str = "Verify";
@@ -141,11 +142,40 @@ pub struct Report {
   pub vanished: u64,
   pub sampled: u64,
   pub sample_failed: u64,
+  /// Marked as sealed, but the bytes are not: plaintext with a marker a
+  /// device set itself. Counted as plaintext too.
+  pub forged_marker: u64,
+  /// Keys the background sealer could not seal (its state).
+  pub sealer_failed: u64,
+  /// Older versions kept by the bucket, with their bytes, and delete markers.
+  /// `None` when the store keeps or lists no versions.
+  pub noncurrent: Option<Noncurrent>,
+  /// Verified for a rollback (`SYNC_AT_REST_KEY` has `unseal`).
+  pub unsealing: bool,
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Noncurrent {
+  pub versions: u64,
+  pub bytes: u64,
+  pub delete_markers: u64,
 }
 
 impl Report {
+  /// Sealing: nothing left in plaintext, and every sample opened. Unsealing:
+  /// nothing sealed left, this server's own objects included, so the key can
+  /// go.
   pub fn complete(&self) -> bool {
-    self.plaintext == 0 && self.unknown_key == 0 && self.invalid == 0 && self.sample_failed == 0
+    if self.unsealing {
+      return self.sealed.values().all(|s| s.objects == 0)
+        && self.invalid == 0
+        && self.internal == 0;
+    }
+    self.plaintext == 0
+      && self.unknown_key == 0
+      && self.invalid == 0
+      && self.sample_failed == 0
+      && self.sealer_failed == 0
   }
 
   fn line(&self) -> String {
@@ -160,14 +190,23 @@ impl Report {
       ));
     }
     line.push_str(&format!(
-      " unknown_key={} invalid={} internal={} vanished={} sampled={} sample_failed={}",
+      " unknown_key={} invalid={} forged_marker={} internal={} vanished={} sampled={} sample_failed={} sealer_failed={}",
       self.unknown_key,
       self.invalid,
+      self.forged_marker,
       self.internal,
       self.vanished,
       self.sampled,
-      self.sample_failed
+      self.sample_failed,
+      self.sealer_failed
     ));
+    match &self.noncurrent {
+      Some(n) => line.push_str(&format!(
+        " noncurrent_versions={} noncurrent_bytes={} delete_markers={}",
+        n.versions, n.bytes, n.delete_markers
+      )),
+      None => line.push_str(" noncurrent_versions=unsupported"),
+    }
     line
   }
 }
@@ -176,7 +215,12 @@ type Classified = Result<(Kind, u64), StoreError>;
 
 enum Kind {
   Plaintext,
-  Sealed { id: String, plain: u64 },
+  /// A marker over bytes that are not sealed.
+  Forged,
+  Sealed {
+    id: String,
+    plain: u64,
+  },
   Invalid(String),
   Vanished,
 }
@@ -191,13 +235,21 @@ async fn classify(store: &dyn Store, key: &str) -> Classified {
   let kind = match (head.metadata_value(MARKER), sealed_by(&head)) {
     (None, _) => Kind::Plaintext,
     (Some(marker), None) => Kind::Invalid(format!("unknown marker \"{marker}\"")),
-    (Some(_), Some(id)) => match at_rest::plain_len(id, stored) {
-      Some(plain) => Kind::Sealed {
-        id: id.to_string(),
-        plain,
-      },
-      None => Kind::Invalid(format!("size {stored} fits no sealed object")),
-    },
+    (Some(_), Some(id)) => {
+      let start = match store.get_range(key, at_rest::header_len(id)).await {
+        Ok(start) => start,
+        Err(StoreError::NotFound) => return Ok((Kind::Vanished, 0)),
+        Err(e) => return Err(e),
+      };
+      match at_rest::plain_len(id, stored) {
+        _ if !at_rest::header_names(&start, id) => Kind::Forged,
+        Some(plain) => Kind::Sealed {
+          id: id.to_string(),
+          plain,
+        },
+        None => Kind::Invalid(format!("size {stored} fits no sealed object")),
+      }
+    }
   };
   Ok((kind, stored))
 }
@@ -236,7 +288,10 @@ pub async fn verify(
       options.concurrency
     ),
   );
-  let mut report = Report::default();
+  let mut report = Report {
+    unsealing: keyring.unsealing(),
+    ..Report::default()
+  };
   // A uniform sample of sealed objects under keys the keyring holds.
   let mut sample: Vec<(String, u64)> = Vec::new();
   let mut candidates = 0u64;
@@ -275,8 +330,15 @@ pub async fn verify(
         report.objects += 1;
         report.stored_bytes += stored;
       }
+      if matches!(kind, Kind::Forged) {
+        report.forged_marker += 1;
+        log::warn(
+          CONTEXT,
+          &format!("Marked as sealed but not sealed key={key}"),
+        );
+      }
       match kind {
-        Kind::Plaintext => {
+        Kind::Plaintext | Kind::Forged => {
           report.plaintext += 1;
           report.plaintext_bytes += stored;
           if report.plaintext <= NAMED_PLAINTEXT {
@@ -358,6 +420,40 @@ pub async fn verify(
       );
     }
   }
+  let sealed_store = SealedStore::new(store.clone(), keyring.clone());
+  match crate::sealer::read_state(&sealed_store).await {
+    Ok(state) => {
+      report.sealer_failed = state.failed.len() as u64;
+      for failed in state.failed.iter().take(NAMED_PLAINTEXT as usize) {
+        log::warn(
+          CONTEXT,
+          &format!(
+            "Sealer could not seal key={} since={} err=\"{}\"",
+            failed.key,
+            time::iso_from_ms(failed.at),
+            failed.reason
+          ),
+        );
+      }
+    }
+    Err(e) => return Err(format!("Sealer state unreadable: {e}")),
+  }
+  report.noncurrent = store
+    .list_versions(options.prefix.as_deref().unwrap_or(""))
+    .await
+    .map_err(|e| format!("Versions not listed: {e}"))?
+    .map(|versions| {
+      let mut n = Noncurrent::default();
+      for version in versions.iter().filter(|v| !v.is_latest || v.delete_marker) {
+        if version.delete_marker {
+          n.delete_markers += 1;
+        } else {
+          n.versions += 1;
+          n.bytes += version.size;
+        }
+      }
+      n
+    });
   let line = format!(
     "Verify done complete={} {} elapsed_ms={}",
     report.complete(),
@@ -480,6 +576,85 @@ mod tests {
     let report = verify(raw, keys, &options).await.unwrap();
     assert!(report.complete());
     assert_eq!((report.objects, report.sampled), (50, 5));
+  }
+
+  #[tokio::test]
+  async fn forged_markers_versions_and_sealer_failures_are_reported() {
+    let raw = Arc::new(MemoryStore::versioned());
+    let keys = keyring(K1);
+    let sealed = SealedStore::new(raw.clone(), keys.clone());
+    sealed
+      .put_object("a", b"one".to_vec(), "text/plain", &[])
+      .await
+      .unwrap();
+    sealed
+      .put_object("a", b"two".to_vec(), "text/plain", &[])
+      .await
+      .unwrap();
+    raw.set("gone", "x");
+    raw.remove("gone");
+    raw.insert(
+      "forged",
+      b"not sealed at all, but long enough to read a header from".to_vec(),
+      vec![(MARKER.to_string(), "1:k1".to_string())],
+      None,
+    );
+    let state = crate::sealer::State {
+      backstop_since: Some(1),
+      failed: vec![crate::sealer::Failed {
+        key: "x".into(),
+        reason: "r".into(),
+        at: 1,
+      }],
+    };
+    sealed
+      .put_object(
+        crate::sealer::STATE,
+        serde_json::to_vec(&state).unwrap(),
+        "application/json",
+        &[],
+      )
+      .await
+      .unwrap();
+    let report = verify(raw, keys, &Options::default()).await.unwrap();
+    assert!(!report.complete());
+    assert_eq!((report.plaintext, report.forged_marker), (1, 1));
+    assert_eq!(report.sealer_failed, 1);
+    let n = report.noncurrent.unwrap();
+    assert_eq!(
+      (n.versions, n.delete_markers),
+      (2, 1),
+      "a's first version and gone's"
+    );
+  }
+
+  #[tokio::test]
+  async fn unsealing_is_complete_when_nothing_sealed_is_left() {
+    let raw = Arc::new(MemoryStore::default());
+    SealedStore::new(raw.clone(), keyring(K1))
+      .put_object("a", b"x".to_vec(), "text/plain", &[])
+      .await
+      .unwrap();
+    let unsealing = keyring(&format!("unseal,{K1}"));
+    let before = verify(raw.clone(), unsealing.clone(), &Options::default())
+      .await
+      .unwrap();
+    assert!(before.unsealing && !before.complete());
+    crate::migrate::migrate(
+      raw.clone(),
+      unsealing.clone(),
+      &crate::migrate::Options {
+        unseal: true,
+        concurrency: 2,
+        ..Default::default()
+      },
+    )
+    .await
+    .unwrap();
+    let after = verify(raw, unsealing, &Options::default()).await.unwrap();
+    assert!(after.complete(), "{after:?}");
+    assert_eq!((after.plaintext, after.internal), (1, 0));
+    assert_eq!(after.noncurrent, None, "this bucket keeps no versions");
   }
 
   #[test]

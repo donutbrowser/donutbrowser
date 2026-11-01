@@ -53,7 +53,12 @@ impl Key {
 /// The server keys. The first one encrypts; all of them decrypt.
 pub struct Keyring {
   keys: Vec<Key>,
+  unsealing: bool,
 }
+
+/// The entry of `SYNC_AT_REST_KEY` that turns sealing off: the server still
+/// reads sealed objects but writes plaintext, for `migrate-at-rest --unseal`.
+pub const UNSEAL_FLAG: &str = "unseal";
 
 fn key_id_valid(id: &str) -> bool {
   (1..=MAX_KEY_ID).contains(&id.len())
@@ -63,10 +68,16 @@ fn key_id_valid(id: &str) -> bool {
 }
 
 impl Keyring {
-  /// `id:base64,id:base64`, each key 32 bytes.
+  /// `id:base64,id:base64`, each key 32 bytes, optionally with an `unseal`
+  /// entry.
   pub fn parse(value: &str) -> Result<Self, String> {
     let mut keys: Vec<Key> = Vec::new();
+    let mut unsealing = false;
     for entry in value.split(',').map(str::trim).filter(|e| !e.is_empty()) {
+      if entry == UNSEAL_FLAG {
+        unsealing = true;
+        continue;
+      }
       let (id, encoded) = entry
         .split_once(':')
         .ok_or("SYNC_AT_REST_KEY entries are id:base64, e.g. k1:$(openssl rand -base64 32)")?;
@@ -94,7 +105,12 @@ impl Keyring {
     if keys.is_empty() {
       return Err("SYNC_AT_REST_KEY holds no key".to_string());
     }
-    Ok(Self { keys })
+    Ok(Self { keys, unsealing })
+  }
+
+  /// Sealed objects are still read, but nothing new is sealed.
+  pub fn unsealing(&self) -> bool {
+    self.unsealing
   }
 
   pub fn key_count(&self) -> usize {
@@ -158,8 +174,19 @@ fn nonce(index: u64, last: bool) -> Nonce {
   Nonce::assume_unique_for_key(bytes)
 }
 
-fn header_len(key_id: &str) -> u64 {
+pub fn header_len(key_id: &str) -> u64 {
   (MAGIC.len() + 2 + key_id.len() + SALT) as u64
+}
+
+/// Whether `start`, an object's first `header_len` bytes, is the header of
+/// an object sealed under `key_id`.
+pub fn header_names(start: &[u8], key_id: &str) -> bool {
+  let id_at = MAGIC.len() + 2;
+  start.len() as u64 == header_len(key_id)
+    && start.starts_with(MAGIC)
+    && start[MAGIC.len()] == VERSION
+    && start[MAGIC.len() + 1] as usize == key_id.len()
+    && &start[id_at..id_at + key_id.len()] == key_id.as_bytes()
 }
 
 fn frames(plain: u64) -> u64 {

@@ -216,7 +216,11 @@ impl SyncService {
   /// Notes the keys handed direct storage URLs, so the sealer seals what
   /// older apps write there.
   async fn note_direct_uploads(&self, keys: &[String], now: i64, expires_in: f64) {
-    if self.transfer.is_none() || keys.is_empty() {
+    let sealing = self
+      .transfer
+      .as_ref()
+      .is_some_and(|signer| !signer.keyring.unsealing());
+    if !sealing || keys.is_empty() {
       return;
     }
     if let Err(e) =

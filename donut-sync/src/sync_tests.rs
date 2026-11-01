@@ -714,10 +714,7 @@ async fn cleanup_orders_migrated_profiles_by_their_time_before_the_migration() {
     .await
     .unwrap();
   assert_eq!(report.sealed, 4);
-  let sealed: Arc<dyn Store> = Arc::new(crate::sealed_store::SealedStore::new(
-    raw.clone(),
-    keyring.clone(),
-  ));
+  let sealed = crate::served_store(raw.clone(), Some(&keyring));
   let service = service_on(sealed, Some(TransferSigner::new(&keyring)));
   let out = service.cleanup_excess_profiles("u1", 2).await.unwrap();
   assert_eq!(out["deletedProfiles"], json!(["pa", "pb"]));

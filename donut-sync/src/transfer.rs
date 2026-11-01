@@ -20,14 +20,15 @@ use sha2::Sha256;
 
 use crate::at_rest::Keyring;
 use crate::http::{BoxError, ResBody, drain, full};
+use crate::slots::{SLOT_WAIT, Slot, Slots};
 use crate::store::{Store, StoreError, Upload};
 use crate::time;
 use crate::transfer_parts;
 
 pub const PATH: &str = "/v1/transfer";
-/// Transfers streamed at a time; more wait their turn. Each holds a few
-/// frames in memory.
-const MAX_TRANSFERS: usize = 64;
+/// A request body that sends nothing for this long is dropped.
+const BODY_IDLE: std::time::Duration = std::time::Duration::from_secs(60);
+const RETRY_AFTER_SECS: u64 = 5;
 const META_PARAM: &str = "meta-";
 /// Query parameters a part request adds to a signed URL. The upload token
 /// authenticates them, so they are not part of the URL's signature.
@@ -39,7 +40,8 @@ pub struct TransferSigner {
   /// The current key's first; any of them verifies.
   keys: Vec<[u8; 32]>,
   pub(crate) keyring: Arc<Keyring>,
-  slots: Arc<tokio::sync::Semaphore>,
+  pub(crate) slots: Slots,
+  pub(crate) parts: transfer_parts::Ledger,
 }
 
 /// What a valid URL lets its holder do.
@@ -75,7 +77,8 @@ impl TransferSigner {
     Self {
       keys: keyring.url_keys(),
       keyring: keyring.clone(),
-      slots: Arc::new(tokio::sync::Semaphore::new(MAX_TRANSFERS)),
+      slots: Slots::default(),
+      parts: transfer_parts::Ledger::default(),
     }
   }
 
@@ -251,19 +254,19 @@ pub async fn serve(
     drain(body).await;
     return s3_error(403, "AccessDenied", "Request has expired");
   }
-  let slot = signer
-    .slots
-    .clone()
-    .acquire_owned()
-    .await
-    .expect("the semaphore is never closed");
+  let Some(slot) = signer.slots.acquire(&signed.grant.key, SLOT_WAIT).await else {
+    drain(body).await;
+    return busy();
+  };
   let response = match (&parts.method, signed.upload.is_some()) {
     (&Method::GET, false) => {
       drain(body).await;
       return download(store, &signed.grant.key, slot).await;
     }
     (&Method::PUT, false) => upload(store, signed.grant, parts, body).await,
-    (&Method::POST, false) => transfer_parts::start(store, signer, signed.grant, parts, body).await,
+    (&Method::POST, false) => {
+      transfer_parts::start(store, signer, signed.grant, signed.expires_ms, parts, body).await
+    }
     (&Method::PUT | &Method::POST | &Method::DELETE, true) => {
       transfer_parts::serve(store, signer, signed, parts, body).await
     }
@@ -273,6 +276,16 @@ pub async fn serve(
     }
   };
   drop(slot);
+  response
+}
+
+/// The server is at its limit: S3's answer, which clients retry.
+pub(crate) fn busy() -> Response<ResBody> {
+  let mut response = s3_error(503, "SlowDown", "Please reduce your request rate.");
+  response.headers_mut().insert(
+    header::RETRY_AFTER,
+    header::HeaderValue::from(RETRY_AFTER_SECS),
+  );
   response
 }
 
@@ -315,14 +328,28 @@ pub(crate) fn signed_metadata(
 }
 
 /// A request body as a store stream.
+/// A request body as a store stream. A client that sends nothing for
+/// `BODY_IDLE` ends it with an error.
 pub(crate) fn body_stream(body: Incoming) -> crate::store::ByteStream {
-  Box::pin(
-    body
-      .into_data_stream()
-      .map(|chunk: Result<Bytes, hyper::Error>| {
-        chunk.map_err(|e| StoreError::Transport(e.to_string()))
-      }),
-  )
+  let chunks = body.into_data_stream();
+  Box::pin(futures_util::stream::unfold(
+    Some(chunks),
+    |chunks| async move {
+      let mut chunks = chunks?;
+      match tokio::time::timeout(BODY_IDLE, chunks.next()).await {
+        Ok(Some(Ok(bytes))) => Some((Ok(bytes), Some(chunks))),
+        Ok(Some(Err(e))) => Some((Err(StoreError::Transport(e.to_string())), None)),
+        Ok(None) => None,
+        Err(_) => Some((
+          Err(StoreError::Transport(format!(
+            "the client sent nothing for {} s",
+            BODY_IDLE.as_secs()
+          ))),
+          None,
+        )),
+      }
+    },
+  ))
 }
 
 pub(crate) fn content_length(parts: &Parts) -> Option<u64> {
@@ -337,11 +364,7 @@ pub(crate) fn missing_length() -> Response<ResBody> {
   )
 }
 
-async fn download(
-  store: &Arc<dyn Store>,
-  key: &str,
-  slot: tokio::sync::OwnedSemaphorePermit,
-) -> Response<ResBody> {
+async fn download(store: &Arc<dyn Store>, key: &str, slot: Slot) -> Response<ResBody> {
   let object = match store.get_object(key).await {
     Ok(object) => object,
     Err(e) => return store_refusal(e),

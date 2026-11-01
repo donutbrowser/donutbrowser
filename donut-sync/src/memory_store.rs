@@ -1,5 +1,7 @@
 //! A bucket in memory, for unit tests. Hooks stand in for HEAD and LIST where
-//! a test needs answers the bucket itself would not give.
+//! a test needs answers the bucket itself would not give, and let a test act
+//! as a device in the middle of a copy. With `versioned`, it keeps every
+//! version and delete marker, as B2 does.
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -9,14 +11,19 @@ use async_trait::async_trait;
 use md5::{Digest, Md5};
 
 use crate::store::{
-  ByteStream, Download, HeadOutput, ListInput, ListObject, ListOutput, PendingUpload, Store,
-  StoreError, Upload, collect, once,
+  ByteStream, Copied, CopySpec, Download, HeadOutput, ListInput, ListObject, ListOutput,
+  ObjectVersion, PendingUpload, Store, StoreError, Upload, collect, once,
 };
 
 pub type HeadHook = Box<dyn Fn(&str) -> Result<HeadOutput, StoreError> + Send + Sync>;
 pub type ListHook = Box<dyn Fn(&ListInput) -> ListOutput + Send + Sync>;
+/// Runs before a copy to `to`, as a device writing at that moment would.
+pub type CopyHook = Box<dyn Fn(&MemoryStore, &str) + Send + Sync>;
 
-#[derive(Clone)]
+/// S3's smallest part, except the last.
+pub const MIN_PART: usize = 5 * 1024 * 1024;
+
+#[derive(Clone, Debug)]
 pub struct Object {
   pub body: Vec<u8>,
   pub metadata: Vec<(String, String)>,
@@ -24,8 +31,13 @@ pub struct Object {
   pub modified_ms: i64,
 }
 
-/// S3's smallest part, except the last.
-pub const MIN_PART: usize = 5 * 1024 * 1024;
+/// One version of a key: an object, or a delete marker (`None`).
+#[derive(Clone, Debug)]
+pub(crate) struct Entry {
+  version_id: String,
+  object: Option<Object>,
+  modified_ms: i64,
+}
 
 pub struct Multipart {
   key: String,
@@ -37,12 +49,15 @@ pub struct Multipart {
 
 #[derive(Default)]
 pub struct MemoryStore {
-  pub objects: Mutex<BTreeMap<String, Object>>,
+  /// Oldest version first.
+  pub(crate) objects: Mutex<BTreeMap<String, Vec<Entry>>>,
   pub calls: AtomicUsize,
   /// Each write is one second after the one before.
   pub clock: AtomicI64,
   pub head_hook: Option<HeadHook>,
   pub list_hook: Option<ListHook>,
+  pub copy_hook: Mutex<Option<CopyHook>>,
+  pub versioned: bool,
   pub uploads: Mutex<BTreeMap<String, Multipart>>,
 }
 
@@ -50,9 +65,52 @@ fn etag(body: &[u8]) -> String {
   format!("\"{}\"", hex::encode(Md5::digest(body)))
 }
 
+fn precondition_failed() -> StoreError {
+  StoreError::Service {
+    status: 412,
+    code: "PreconditionFailed".to_string(),
+    message: String::new(),
+  }
+}
+
 impl MemoryStore {
+  pub fn versioned() -> Self {
+    Self {
+      versioned: true,
+      ..Self::default()
+    }
+  }
+
   fn call(&self) {
     self.calls.fetch_add(1, Ordering::SeqCst);
+  }
+
+  fn tick(&self) -> i64 {
+    self.clock.fetch_add(1000, Ordering::SeqCst) + 1000
+  }
+
+  fn push(&self, key: &str, mut object: Option<Object>) -> String {
+    let modified_ms = self.tick();
+    if let Some(object) = &mut object {
+      object.modified_ms = modified_ms;
+    }
+    let version_id = format!("v{modified_ms}");
+    let entry = Entry {
+      version_id: version_id.clone(),
+      object,
+      modified_ms,
+    };
+    let mut objects = self.objects.lock().unwrap();
+    match objects.get_mut(key) {
+      Some(history) if self.versioned => history.push(entry),
+      _ if entry.object.is_none() && !self.versioned => {
+        objects.remove(key);
+      }
+      _ => {
+        objects.insert(key.to_string(), vec![entry]);
+      }
+    }
+    version_id
   }
 
   pub fn set(&self, key: &str, body: &str) {
@@ -65,21 +123,23 @@ impl MemoryStore {
     body: Vec<u8>,
     metadata: Vec<(String, String)>,
     content_type: Option<String>,
-  ) {
-    let modified_ms = self.tick();
-    self.objects.lock().unwrap().insert(
-      key.to_string(),
-      Object {
+  ) -> String {
+    self.push(
+      key,
+      Some(Object {
         body,
         metadata,
         content_type,
-        modified_ms,
-      },
-    );
+        modified_ms: 0,
+      }),
+    )
   }
 
-  fn tick(&self) -> i64 {
-    self.clock.fetch_add(1000, Ordering::SeqCst) + 1000
+  /// A device's delete: a delete marker where versions are kept.
+  pub fn remove(&self, key: &str) {
+    if self.raw(key).is_some() {
+      self.push(key, None);
+    }
   }
 
   pub fn get(&self, key: &str) -> Option<String> {
@@ -88,16 +148,36 @@ impl MemoryStore {
       .map(|o| String::from_utf8_lossy(&o.body).into_owned())
   }
 
+  /// The current object.
   pub fn raw(&self, key: &str) -> Option<Object> {
-    self.objects.lock().unwrap().get(key).cloned()
+    self.current(key).map(|(_, object)| object)
   }
 
+  fn current(&self, key: &str) -> Option<(String, Object)> {
+    let objects = self.objects.lock().unwrap();
+    let entry = objects.get(key)?.last()?;
+    Some((entry.version_id.clone(), entry.object.clone()?))
+  }
+
+  /// Every key with a current object.
   pub fn keys(&self) -> Vec<String> {
-    self.objects.lock().unwrap().keys().cloned().collect()
+    self
+      .objects
+      .lock()
+      .unwrap()
+      .iter()
+      .filter(|(_, history)| history.last().is_some_and(|e| e.object.is_some()))
+      .map(|(key, _)| key.clone())
+      .collect()
+  }
+
+  /// How many versions and delete markers `key` has.
+  pub fn version_count(&self, key: &str) -> usize {
+    self.objects.lock().unwrap().get(key).map_or(0, Vec::len)
   }
 
   fn head(&self, key: &str) -> Result<HeadOutput, StoreError> {
-    let object = self.raw(key).ok_or(StoreError::NotFound)?;
+    let (version_id, object) = self.current(key).ok_or(StoreError::NotFound)?;
     let mut metadata = object.metadata.clone();
     metadata.sort();
     Ok(HeadOutput {
@@ -106,6 +186,7 @@ impl MemoryStore {
       metadata,
       etag: Some(etag(&object.body)),
       content_type: object.content_type,
+      version_id: self.versioned.then_some(version_id),
     })
   }
 }
@@ -149,50 +230,97 @@ impl Store for MemoryStore {
 
   async fn delete_object(&self, key: &str) -> Result<(), StoreError> {
     self.call();
-    self.objects.lock().unwrap().remove(key);
+    self.remove(key);
     Ok(())
   }
 
   async fn delete_objects(&self, keys: &[String]) -> Result<(), StoreError> {
     self.call();
-    let mut objects = self.objects.lock().unwrap();
     for key in keys {
-      objects.remove(key);
+      self.remove(key);
     }
     Ok(())
   }
 
-  async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError> {
-    self.call();
-    let modified_ms = self.tick();
-    let mut objects = self.objects.lock().unwrap();
-    let object = objects.get(from).cloned().ok_or(StoreError::NotFound)?;
-    objects.insert(
-      to.to_string(),
-      Object {
-        modified_ms,
-        ..object
-      },
-    );
-    Ok(())
-  }
-
-  async fn copy_object_replacing(
+  async fn copy_object_with(
     &self,
     from: &str,
     to: &str,
-    content_type: Option<&str>,
-    metadata: &[(String, String)],
-  ) -> Result<(), StoreError> {
+    spec: CopySpec<'_>,
+  ) -> Result<Copied, StoreError> {
     self.call();
-    let body = self.raw(from).ok_or(StoreError::NotFound)?.body;
-    self.insert(
-      to,
-      body,
-      metadata.to_vec(),
-      content_type.map(str::to_string),
-    );
+    if let Some(hook) = self.copy_hook.lock().unwrap().as_ref() {
+      hook(self, to);
+    }
+    let source = match spec.source_version {
+      Some(version) => self
+        .objects
+        .lock()
+        .unwrap()
+        .get(from)
+        .and_then(|history| history.iter().find(|e| e.version_id == version).cloned())
+        .and_then(|e| e.object),
+      None => self.raw(from),
+    }
+    .ok_or(StoreError::NotFound)?;
+    if spec
+      .if_match
+      .is_some_and(|expected| etag(&source.body) != expected)
+    {
+      return Err(precondition_failed());
+    }
+    let (content_type, metadata) = match spec.replace {
+      Some((content_type, metadata)) => (content_type.map(str::to_string), metadata.to_vec()),
+      None => (source.content_type, source.metadata),
+    };
+    let version_id = self.insert(to, source.body, metadata, content_type);
+    Ok(Copied {
+      version_id: self.versioned.then_some(version_id),
+    })
+  }
+
+  async fn list_versions(&self, prefix: &str) -> Result<Option<Vec<ObjectVersion>>, StoreError> {
+    self.call();
+    if !self.versioned {
+      return Ok(None);
+    }
+    let objects = self.objects.lock().unwrap();
+    let mut out = Vec::new();
+    for (key, history) in objects.range(prefix.to_string()..) {
+      if !key.starts_with(prefix) {
+        break;
+      }
+      for (i, entry) in history.iter().enumerate().rev() {
+        out.push(ObjectVersion {
+          key: key.clone(),
+          version_id: entry.version_id.clone(),
+          is_latest: i + 1 == history.len(),
+          delete_marker: entry.object.is_none(),
+          size: entry.object.as_ref().map_or(0, |o| o.body.len() as u64),
+          last_modified_ms: Some(entry.modified_ms),
+        });
+      }
+    }
+    Ok(Some(out))
+  }
+
+  async fn delete_version(&self, key: &str, version_id: &str) -> Result<(), StoreError> {
+    self.call();
+    let mut objects = self.objects.lock().unwrap();
+    if let Some(history) = objects.get_mut(key) {
+      history.retain(|e| e.version_id != version_id);
+      if history.is_empty() {
+        objects.remove(key);
+      }
+    }
     Ok(())
+  }
+
+  async fn get_range(&self, key: &str, length: u64) -> Result<Vec<u8>, StoreError> {
+    self.call();
+    let mut body = self.raw(key).ok_or(StoreError::NotFound)?.body;
+    body.truncate(length as usize);
+    Ok(body)
   }
 
   async fn list_objects_v2(&self, input: &ListInput) -> Result<ListOutput, StoreError> {
@@ -212,10 +340,13 @@ impl Store for MemoryStore {
       .or_else(|| input.start_after.clone());
     let objects = self.objects.lock().unwrap();
     let mut out = ListOutput::default();
-    for (key, object) in objects.range(prefix.clone()..) {
+    for (key, history) in objects.range(prefix.clone()..) {
       if !key.starts_with(&prefix) {
         break;
       }
+      let Some(object) = history.last().and_then(|e| e.object.as_ref()) else {
+        continue;
+      };
       if after.as_ref().is_some_and(|after| key <= after) {
         continue;
       }
@@ -266,11 +397,7 @@ impl Store for MemoryStore {
     if let Some(expected) = upload.if_match
       && self.raw(key).map(|o| etag(&o.body)).as_deref() != Some(expected)
     {
-      return Err(StoreError::Service {
-        status: 412,
-        code: "PreconditionFailed".to_string(),
-        message: String::new(),
-      });
+      return Err(precondition_failed());
     }
     self.insert(
       key,
@@ -289,6 +416,7 @@ impl Store for MemoryStore {
   ) -> Result<String, StoreError> {
     self.call();
     let id = uuid::Uuid::new_v4().simple().to_string();
+    let initiated_ms = self.tick();
     self.uploads.lock().unwrap().insert(
       id.clone(),
       Multipart {
@@ -296,7 +424,7 @@ impl Store for MemoryStore {
         content_type: content_type.map(str::to_string),
         metadata: metadata.to_vec(),
         parts: BTreeMap::new(),
-        initiated_ms: self.tick(),
+        initiated_ms,
       },
     );
     Ok(id)

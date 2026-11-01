@@ -11,8 +11,8 @@ use reqwest::Method;
 use crate::jsval::js_number;
 use crate::sigv4::{self, Credentials};
 use crate::store::{
-  ByteStream, Download, HeadOutput, ListInput, ListObject, ListOutput, PendingUpload, Store,
-  StoreError, Upload,
+  ByteStream, Copied, CopySpec, Download, HeadOutput, ListInput, ListObject, ListOutput,
+  ObjectVersion, PendingUpload, Store, StoreError, Upload,
 };
 use crate::time;
 
@@ -553,7 +553,52 @@ fn head_of(headers: &reqwest::header::HeaderMap) -> HeadOutput {
     metadata,
     etag: header("etag"),
     content_type: header("content-type"),
+    version_id: header("x-amz-version-id"),
   }
+}
+
+type VersionsPage = (Vec<ObjectVersion>, Option<(String, String)>);
+
+/// A ListObjectVersions reply. `None` when the store answered with something
+/// else, as stores without versions do.
+fn parse_versions(body: &[u8]) -> Result<Option<VersionsPage>, StoreError> {
+  let text = std::str::from_utf8(body)
+    .map_err(|e| StoreError::Transport(format!("ListObjectVersions reply is not UTF-8: {e}")))?;
+  let text = hide_control_references(text);
+  let Ok(doc) = roxmltree::Document::parse(&text) else {
+    return Ok(None);
+  };
+  let root = doc.root_element();
+  if root.tag_name().name() != "ListVersionsResult" {
+    return Ok(None);
+  }
+  let mut versions = Vec::new();
+  let mut truncated = false;
+  for node in root.children().filter(|n| n.is_element()) {
+    let name = node.tag_name().name();
+    match name {
+      "Version" | "DeleteMarker" => versions.push(ObjectVersion {
+        key: restore_controls(child_text(node, "Key").unwrap_or("")),
+        version_id: child_text(node, "VersionId").unwrap_or("").to_string(),
+        is_latest: child_text(node, "IsLatest").is_some_and(|v| v.trim() == "true"),
+        delete_marker: name == "DeleteMarker",
+        size: child_text(node, "Size")
+          .and_then(|v| v.trim().parse().ok())
+          .unwrap_or(0),
+        last_modified_ms: child_text(node, "LastModified").and_then(time::parse_rfc3339_ms),
+      }),
+      "IsTruncated" => truncated = node.text().unwrap_or("").trim() == "true",
+      _ => {}
+    }
+  }
+  let next = if truncated {
+    child_text(root, "NextKeyMarker")
+      .zip(child_text(root, "NextVersionIdMarker"))
+      .map(|(key, id)| (key.to_string(), id.to_string()))
+  } else {
+    None
+  };
+  Ok(Some((versions, next)))
 }
 
 /// A refusal, read from a streamed response.
@@ -574,8 +619,8 @@ async fn refusal(response: reqwest::Response) -> StoreError {
 
 impl S3Store {
   /// CopyObject with `extra` headers.
-  async fn copy(&self, from: &str, to: &str, extra: &[(String, String)]) -> Result<(), StoreError> {
-    let source = format!(
+  async fn copy(&self, from: &str, to: &str, spec: CopySpec<'_>) -> Result<Copied, StoreError> {
+    let mut source = format!(
       "{}/{}",
       self.location.bucket,
       from
@@ -584,9 +629,29 @@ impl S3Store {
         .collect::<Vec<_>>()
         .join("/")
     );
+    if let Some(version) = spec.source_version {
+      source.push_str(&format!(
+        "?versionId={}",
+        sigv4::encode_uri_component(version)
+      ));
+    }
     let path = self.location.object_path(to);
     let mut headers = vec![("x-amz-copy-source".to_string(), source)];
-    headers.extend(extra.iter().cloned());
+    if let Some(etag) = spec.if_match {
+      headers.push(("x-amz-copy-source-if-match".to_string(), etag.to_string()));
+    }
+    if let Some((content_type, metadata)) = spec.replace {
+      headers.push((
+        "x-amz-metadata-directive".to_string(),
+        "REPLACE".to_string(),
+      ));
+      if let Some(content_type) = content_type {
+        headers.push(("content-type".to_string(), content_type.to_string()));
+      }
+      for (name, value) in metadata {
+        headers.push((format!("x-amz-meta-{name}"), value.clone()));
+      }
+    }
     let reply = self
       .expect_success(Method::PUT, &path, &[], &headers, &[])
       .await?;
@@ -598,7 +663,12 @@ impl S3Store {
         message,
       });
     }
-    Ok(())
+    Ok(Copied {
+      version_id: reply
+        .headers
+        .get("x-amz-version-id")
+        .map(|v| latin1(v.as_bytes())),
+    })
   }
 }
 
@@ -702,28 +772,76 @@ impl Store for S3Store {
       .map(|_| ())
   }
 
-  async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError> {
-    self.copy(from, to, &[]).await
-  }
-
-  async fn copy_object_replacing(
+  async fn copy_object_with(
     &self,
     from: &str,
     to: &str,
-    content_type: Option<&str>,
-    metadata: &[(String, String)],
-  ) -> Result<(), StoreError> {
-    let mut headers = vec![(
-      "x-amz-metadata-directive".to_string(),
-      "REPLACE".to_string(),
-    )];
-    if let Some(content_type) = content_type {
-      headers.push(("content-type".to_string(), content_type.to_string()));
+    spec: CopySpec<'_>,
+  ) -> Result<Copied, StoreError> {
+    self.copy(from, to, spec).await
+  }
+
+  async fn list_versions(&self, prefix: &str) -> Result<Option<Vec<ObjectVersion>>, StoreError> {
+    let path = self.location.bucket_path();
+    let mut out = Vec::new();
+    let mut marker: Option<(String, String)> = None;
+    loop {
+      let mut query = vec![
+        ("versions".to_string(), String::new()),
+        ("prefix".to_string(), prefix.to_string()),
+      ];
+      if let Some((key, id)) = &marker {
+        query.push(("key-marker".to_string(), key.clone()));
+        query.push(("version-id-marker".to_string(), id.clone()));
+      }
+      let reply = match self
+        .expect_success(Method::GET, &path, &query, &[], &[])
+        .await
+      {
+        Ok(reply) => reply,
+        Err(StoreError::NotFound) => return Ok(None),
+        Err(StoreError::Service { status, .. }) if status == 501 || status == 400 => {
+          return Ok(None);
+        }
+        Err(e) => return Err(e),
+      };
+      let Some((versions, next)) = parse_versions(&reply.body)? else {
+        return Ok(None);
+      };
+      out.extend(versions);
+      match next {
+        Some(next) if Some(&next) != marker.as_ref() => marker = Some(next),
+        _ => return Ok(Some(out)),
+      }
     }
-    for (name, value) in metadata {
-      headers.push((format!("x-amz-meta-{name}"), value.clone()));
+  }
+
+  async fn delete_version(&self, key: &str, version_id: &str) -> Result<(), StoreError> {
+    let path = self.location.object_path(key);
+    self
+      .expect_success(
+        Method::DELETE,
+        &path,
+        &[("versionId".to_string(), version_id.to_string())],
+        &[],
+        &[],
+      )
+      .await
+      .map(|_| ())
+  }
+
+  async fn get_range(&self, key: &str, length: u64) -> Result<Vec<u8>, StoreError> {
+    if length == 0 {
+      return Ok(Vec::new());
     }
-    self.copy(from, to, &headers).await
+    let path = self.location.object_path(key);
+    let headers = [("range".to_string(), format!("bytes=0-{}", length - 1))];
+    let mut reply = self
+      .expect_success(Method::GET, &path, &[], &headers, &[])
+      .await?;
+    // A store that ignores Range sends it all.
+    reply.body.truncate(length as usize);
+    Ok(reply.body)
   }
 
   async fn list_objects_v2(&self, input: &ListInput) -> Result<ListOutput, StoreError> {

@@ -231,7 +231,12 @@ fn keyrings_parse_strictly() {
   assert_eq!(keyring(&format!(" {K2} , {K1} ")).current().id(), "k2");
   let url_safe = keyring("a.b_c-1:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE");
   assert_eq!(url_safe.key_count(), 1);
+  assert!(!url_safe.unsealing());
+  let unsealing = keyring(&format!("unseal,{K1}"));
+  assert!(unsealing.unsealing());
+  assert_eq!(unsealing.current().id(), "k1");
   for bad in [
+    "unseal",
     "",
     ",",
     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
@@ -336,7 +341,8 @@ mod sealed_store {
 
   #[tokio::test]
   async fn reads_report_the_time_before_the_migration_and_copies_their_own() {
-    let (raw, store) = stores();
+    let (raw, sealed_store) = stores();
+    let store = crate::original_times::OriginalTimes::new(Arc::new(sealed_store));
     let sealed = seal(&keyring(K1), b"x");
     raw.insert(
       "a",
@@ -365,6 +371,11 @@ mod sealed_store {
         .contains(&("donut-orig-mtime".to_string(), "-".to_string()))
     );
     assert_eq!(copy.content_type.as_deref(), Some("text/plain"));
+    assert!(
+      copy
+        .metadata
+        .contains(&(MARKER.to_string(), "1:k1".to_string()))
+    );
     let head = store.head_object("b").await.unwrap();
     assert_eq!(head.last_modified_ms, Some(copy.modified_ms));
     assert_eq!(

@@ -16,10 +16,12 @@ pub mod log;
 mod memory_store;
 pub mod migrate;
 pub mod net;
+pub mod original_times;
 pub mod s3;
 pub mod sealed_store;
 pub mod sealer;
 pub mod sigv4;
+pub mod slots;
 pub mod store;
 pub mod subscribe;
 pub mod sync;
@@ -140,6 +142,16 @@ pub fn raw_store(config: &Config) -> Result<S3Store, String> {
   Storage::from_config(config)?.store()
 }
 
+/// The store as the routes see it: sealed at rest when there is a keyring,
+/// with the times objects had before the migration rewrote them.
+pub fn served_store(raw: Arc<dyn Store>, keyring: Option<&Arc<Keyring>>) -> Arc<dyn Store> {
+  let inner: Arc<dyn Store> = match keyring {
+    Some(keyring) => Arc::new(SealedStore::new(raw, keyring.clone())),
+    None => raw,
+  };
+  Arc::new(crate::original_times::OriginalTimes::new(inner))
+}
+
 /// Everything the server needs, connected and checked: storage reachable and
 /// the bucket created if it was missing.
 pub async fn build_state(config: &Config) -> Result<Arc<AppState>, String> {
@@ -158,23 +170,23 @@ pub async fn build_state(config: &Config) -> Result<Arc<AppState>, String> {
     .map(Keyring::parse)
     .transpose()?
     .map(Arc::new);
-  let (store, transfer): (Arc<dyn Store>, _) = match &keyring {
-    Some(keyring) => {
-      crate::log::log(
-        "SyncService",
-        &format!(
-          "Encryption at rest on key={} keys={}",
-          keyring.current().id(),
-          keyring.key_count()
-        ),
-      );
-      (
-        Arc::new(SealedStore::new(s3.clone(), keyring.clone())),
-        Some(TransferSigner::new(keyring)),
-      )
-    }
-    None => (s3.clone(), None),
-  };
+  if let Some(keyring) = &keyring {
+    let state = if keyring.unsealing() {
+      "unsealing (reads sealed objects, writes plaintext)"
+    } else {
+      "on"
+    };
+    crate::log::log(
+      "SyncService",
+      &format!(
+        "Encryption at rest {state} key={} keys={}",
+        keyring.current().id(),
+        keyring.key_count()
+      ),
+    );
+  }
+  let store = served_store(s3.clone(), keyring.as_ref());
+  let transfer = keyring.as_ref().map(TransferSigner::new);
   let presigner = Presigner::new(
     Location::parse(&public_endpoint, &storage.bucket, storage.force_path_style)?,
     storage.credentials,
@@ -204,7 +216,7 @@ pub async fn build_state(config: &Config) -> Result<Arc<AppState>, String> {
 
   sync.ensure_bucket_exists().await?;
   sync.warn_if_presign_endpoint_is_server_only();
-  if let Some(keyring) = keyring {
+  if let Some(keyring) = keyring.filter(|k| !k.unsealing()) {
     crate::sealer::spawn(s3, keyring);
   }
 

@@ -2,9 +2,9 @@
 //! sealed, reads opened, and plaintext objects from before still read as they
 //! are. HEAD answers with the plaintext size and without the marker.
 //!
-//! The migration rewrites objects in place, which gives them a new
-//! LastModified. It keeps the old one in `ORIGINAL_MTIME`, and reads report
-//! that time until a device writes the object again.
+//! In the unsealing state (`Keyring::unsealing`) sealed objects still read,
+//! but writes stay plaintext, so `migrate-at-rest --unseal` can empty the
+//! bucket of sealed objects before the key is removed.
 
 use std::sync::Arc;
 
@@ -12,14 +12,9 @@ use async_trait::async_trait;
 
 use crate::at_rest::{self, Keyring, MARKER};
 use crate::store::{
-  ByteStream, Download, HeadOutput, ListInput, ListOutput, PendingUpload, Store, StoreError, Upload,
+  ByteStream, Copied, CopySpec, Download, HeadOutput, ListInput, ListOutput, ObjectVersion,
+  PendingUpload, Store, StoreError, Upload,
 };
-
-/// User metadata (`x-amz-meta-donut-orig-mtime`): the object's LastModified
-/// before the migration rewrote it, in milliseconds.
-pub const ORIGINAL_MTIME: &str = "donut-orig-mtime";
-/// `ORIGINAL_MTIME` on a copy: the copy's own time counts.
-const COPIED: &str = "-";
 
 pub struct SealedStore {
   inner: Arc<dyn Store>,
@@ -31,19 +26,8 @@ pub fn sealed_by(head: &HeadOutput) -> Option<&str> {
   head.metadata_value(MARKER).and_then(at_rest::marker_key_id)
 }
 
-/// The time a migrated object had before its rewrite.
-pub fn original_mtime(head: &HeadOutput) -> Option<i64> {
-  head
-    .metadata_value(ORIGINAL_MTIME)
-    .and_then(|v| v.parse().ok())
-}
-
 /// `head` as the plaintext object would have it.
 fn reveal(mut head: HeadOutput) -> Result<HeadOutput, StoreError> {
-  if let Some(ms) = original_mtime(&head) {
-    head.last_modified_ms = Some(ms);
-  }
-  head.metadata.retain(|(name, _)| name != ORIGINAL_MTIME);
   if let Some(id) = sealed_by(&head) {
     let id = id.to_string();
     head.content_length = match head.content_length {
@@ -60,6 +44,10 @@ fn reveal(mut head: HeadOutput) -> Result<HeadOutput, StoreError> {
 impl SealedStore {
   pub fn new(inner: Arc<dyn Store>, keyring: Arc<Keyring>) -> Self {
     Self { inner, keyring }
+  }
+
+  fn sealing(&self) -> bool {
+    !self.keyring.unsealing()
   }
 
   fn with_marker(&self, metadata: &[(String, String)]) -> Vec<(String, String)> {
@@ -95,6 +83,12 @@ impl Store for SealedStore {
     content_type: &str,
     metadata: &[(String, String)],
   ) -> Result<(), StoreError> {
+    if !self.sealing() {
+      return self
+        .inner
+        .put_object(key, body, content_type, metadata)
+        .await;
+    }
     let sealed = at_rest::seal(&self.keyring, &body);
     self
       .inner
@@ -112,41 +106,56 @@ impl Store for SealedStore {
 
   /// Sealed objects copy as they are: the frames do not name their key. A
   /// copy is new, so it does not take the source's original time.
-  async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError> {
-    let head = self.inner.head_object(from).await?;
-    if head
-      .metadata_value(ORIGINAL_MTIME)
-      .is_none_or(|value| value == COPIED)
-    {
-      return self.inner.copy_object(from, to).await;
-    }
-    // Some stores merge on REPLACE instead of replacing, so the field is
-    // overwritten with a value reads ignore rather than left out.
-    let metadata: Vec<(String, String)> = head
-      .metadata
-      .into_iter()
-      .map(|(name, value)| match name == ORIGINAL_MTIME {
-        true => (name, COPIED.to_string()),
-        false => (name, value),
-      })
-      .collect();
-    self
-      .inner
-      .copy_object_replacing(from, to, head.content_type.as_deref(), &metadata)
-      .await
-  }
-
-  async fn copy_object_replacing(
+  /// A REPLACE copy takes the user's metadata; a sealed source keeps its
+  /// marker, which the copied frames need, from the same version.
+  async fn copy_object_with(
     &self,
     from: &str,
     to: &str,
-    content_type: Option<&str>,
-    metadata: &[(String, String)],
-  ) -> Result<(), StoreError> {
+    spec: CopySpec<'_>,
+  ) -> Result<Copied, StoreError> {
+    let Some((content_type, metadata)) = spec.replace else {
+      return self.inner.copy_object_with(from, to, spec).await;
+    };
+    let source = self.inner.head_object(from).await?;
+    if spec
+      .if_match
+      .is_some_and(|etag| source.etag.as_deref() != Some(etag))
+    {
+      return Err(StoreError::Service {
+        status: 412,
+        code: "PreconditionFailed".to_string(),
+        message: String::new(),
+      });
+    }
+    let mut metadata = metadata.to_vec();
+    if let Some(marker) = source.metadata_value(MARKER) {
+      metadata.push((MARKER.to_string(), marker.to_string()));
+    }
     self
       .inner
-      .copy_object_replacing(from, to, content_type, metadata)
+      .copy_object_with(
+        from,
+        to,
+        CopySpec {
+          if_match: spec.if_match.or(source.etag.as_deref()),
+          replace: Some((content_type, &metadata)),
+          ..spec
+        },
+      )
       .await
+  }
+
+  async fn list_versions(&self, prefix: &str) -> Result<Option<Vec<ObjectVersion>>, StoreError> {
+    self.inner.list_versions(prefix).await
+  }
+
+  async fn delete_version(&self, key: &str, version_id: &str) -> Result<(), StoreError> {
+    self.inner.delete_version(key, version_id).await
+  }
+
+  async fn get_range(&self, key: &str, length: u64) -> Result<Vec<u8>, StoreError> {
+    self.inner.get_range(key, length).await
   }
 
   async fn list_objects_v2(&self, input: &ListInput) -> Result<ListOutput, StoreError> {
@@ -171,6 +180,9 @@ impl Store for SealedStore {
     body: ByteStream,
     upload: Upload<'_>,
   ) -> Result<(), StoreError> {
+    if !self.sealing() {
+      return self.inner.put_object_stream(key, body, upload).await;
+    }
     let metadata = self.with_marker(upload.metadata);
     self
       .inner
@@ -186,8 +198,8 @@ impl Store for SealedStore {
       .await
   }
 
-  // Multipart parts pass through as they come: the caller (transfer.rs)
-  // seals each part as whole frames of one object.
+  // Multipart parts pass through as they come: the caller (transfer_parts.rs)
+  // seals each part as whole frames of one object, when sealing.
 
   async fn create_multipart(
     &self,
@@ -195,9 +207,13 @@ impl Store for SealedStore {
     content_type: Option<&str>,
     metadata: &[(String, String)],
   ) -> Result<String, StoreError> {
+    let metadata = match self.sealing() {
+      true => self.with_marker(metadata),
+      false => metadata.to_vec(),
+    };
     self
       .inner
-      .create_multipart(key, content_type, &self.with_marker(metadata))
+      .create_multipart(key, content_type, &metadata)
       .await
   }
 

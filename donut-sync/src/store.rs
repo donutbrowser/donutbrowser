@@ -8,7 +8,7 @@ use futures_util::Stream;
 
 pub type ByteStream = Pin<Box<dyn Stream<Item = Result<Bytes, StoreError>> + Send>>;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct HeadOutput {
   pub last_modified_ms: Option<i64>,
   pub content_length: Option<u64>,
@@ -16,6 +16,8 @@ pub struct HeadOutput {
   pub metadata: Vec<(String, String)>,
   pub etag: Option<String>,
   pub content_type: Option<String>,
+  /// The version this answer is about, where the bucket keeps versions.
+  pub version_id: Option<String>,
 }
 
 impl HeadOutput {
@@ -117,16 +119,24 @@ pub trait Store: Send + Sync {
   /// Deletes up to 1000 keys in one request; per-key failures are ignored.
   async fn delete_objects(&self, keys: &[String]) -> Result<(), StoreError>;
   /// Server-side copy, metadata included.
-  async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError>;
-  /// Server-side copy that stores `content_type` and `metadata` in place of
-  /// the source's (`x-amz-metadata-directive: REPLACE`).
-  async fn copy_object_replacing(
+  async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError> {
+    self
+      .copy_object_with(from, to, CopySpec::default())
+      .await
+      .map(|_| ())
+  }
+  async fn copy_object_with(
     &self,
     from: &str,
     to: &str,
-    content_type: Option<&str>,
-    metadata: &[(String, String)],
-  ) -> Result<(), StoreError>;
+    spec: CopySpec<'_>,
+  ) -> Result<Copied, StoreError>;
+  /// Every version and delete marker under `prefix`, newest first within a
+  /// key. `None` when the store keeps no versions or cannot list them.
+  async fn list_versions(&self, prefix: &str) -> Result<Option<Vec<ObjectVersion>>, StoreError>;
+  async fn delete_version(&self, key: &str, version_id: &str) -> Result<(), StoreError>;
+  /// The first `length` bytes as stored.
+  async fn get_range(&self, key: &str, length: u64) -> Result<Vec<u8>, StoreError>;
   async fn list_objects_v2(&self, input: &ListInput) -> Result<ListOutput, StoreError>;
   /// The object's body as it arrives, with what a HEAD would say.
   async fn get_object(&self, key: &str) -> Result<Download, StoreError>;
@@ -164,6 +174,36 @@ pub trait Store: Send + Sync {
   async fn abort_multipart(&self, key: &str, upload_id: &str) -> Result<(), StoreError>;
   /// Unfinished uploads under `prefix`.
   async fn list_multipart(&self, prefix: &str) -> Result<Vec<PendingUpload>, StoreError>;
+}
+
+/// A content type and user metadata.
+pub type Replacement<'a> = (Option<&'a str>, &'a [(String, String)]);
+
+/// How a server-side copy is made.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CopySpec<'a> {
+  /// Copy this version of the source, not the current one.
+  pub source_version: Option<&'a str>,
+  /// Copy only while the source has this ETag (412 otherwise, where the store
+  /// honors it).
+  pub if_match: Option<&'a str>,
+  /// Store this content type and user metadata instead of the source's.
+  pub replace: Option<Replacement<'a>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Copied {
+  pub version_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ObjectVersion {
+  pub key: String,
+  pub version_id: String,
+  pub is_latest: bool,
+  pub delete_marker: bool,
+  pub size: u64,
+  pub last_modified_ms: Option<i64>,
 }
 
 /// An unfinished multipart upload.

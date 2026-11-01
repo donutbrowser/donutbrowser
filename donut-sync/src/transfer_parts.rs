@@ -13,9 +13,15 @@
 //! ```
 //!
 //! The token T is signed and names the object, the storage upload and the
-//! sealing salt, so the server keeps no state between requests. A part may be
-//! sent again. Each part is sealed as whole frames of one object, numbered
+//! sealing salt. It lasts until `UPLOAD_GRACE_MS` after the URL that started
+//! the upload. Each part is sealed as whole frames of one object, numbered
 //! where the part starts, so the joined object reads like any sealed object.
+//!
+//! Sealing a part twice under the same nonces is safe only for the same
+//! bytes, so a part is read whole and hashed before anything reaches storage
+//! (`Ledger`): a part may be sent again with the same bytes, never with
+//! others. The ledger is in memory, so after a restart the parts of an upload
+//! started before it are refused, and the app starts the upload again.
 
 use base64::Engine;
 use bytes::Bytes;
@@ -24,14 +30,18 @@ use hyper::body::Incoming;
 use hyper::http::request::Parts;
 use hyper::{Method, Response, StatusCode, header};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tokio::sync::Semaphore;
 
 use crate::at_rest::{self, FRAME, Salt, Sealer};
 use crate::http::{ResBody, drain, full, json_response};
+use crate::slots::SLOT_WAIT;
 use crate::store::Store;
 use crate::time;
 use crate::transfer::{
-  Grant, Signed, TransferSigner, bad_signature, body_stream, content_length, header_text,
+  Grant, Signed, TransferSigner, bad_signature, body_stream, busy, content_length, header_text,
   missing_length, s3_error, signed_metadata, store_refusal,
 };
 
@@ -39,8 +49,12 @@ use crate::transfer::{
 /// within its timeout on a slow uplink. A whole number of frames, and above
 /// S3's 5 MB minimum part.
 pub const PART_SIZE: u64 = 8 * 1024 * 1024;
-/// How long an upload may take once started.
-const UPLOAD_TTL_MS: i64 = 24 * 3600 * 1000;
+/// How long an upload may go on after its URL expires.
+const UPLOAD_GRACE_MS: i64 = 2 * 3600 * 1000;
+/// Parts read into memory at a time (each up to `PART_SIZE`).
+const PART_BUFFERS: usize = 16;
+/// Parts the ledger remembers before it forgets expired uploads.
+const LEDGER_PRUNE_AT: usize = 100_000;
 pub const LENGTH_HEADER: &str = "x-donut-upload-length";
 /// S3's most parts in one upload.
 const MAX_PARTS: u64 = 10_000;
@@ -58,6 +72,53 @@ struct Token {
   length: u64,
   part_size: u64,
   expires_ms: i64,
+  /// Whether the parts are sealed: not when the server was unsealing at the
+  /// start (the object then has no marker either).
+  sealed: bool,
+  issued_ms: i64,
+}
+
+/// Each part's hash and its upload's expiry, by upload id and part number.
+type PartHashes = HashMap<(String, u64), ([u8; 32], i64)>;
+
+/// The hash of every part sent so far, while its upload lasts.
+pub struct Ledger {
+  started_ms: i64,
+  parts: Mutex<PartHashes>,
+  buffers: Arc<Semaphore>,
+}
+
+impl Default for Ledger {
+  fn default() -> Self {
+    Self {
+      started_ms: time::now_ms(),
+      parts: Mutex::new(HashMap::new()),
+      buffers: Arc::new(Semaphore::new(PART_BUFFERS)),
+    }
+  }
+}
+
+impl Ledger {
+  /// Notes the part's hash; `false` when it was sent before with other bytes.
+  fn claim(&self, token: &Token, part: u64, hash: [u8; 32]) -> bool {
+    let mut parts = self.parts.lock().unwrap();
+    if parts.len() > LEDGER_PRUNE_AT {
+      let now = time::now_ms();
+      parts.retain(|_, (_, expires)| *expires > now);
+    }
+    let entry = parts
+      .entry((token.upload_id.clone(), part))
+      .or_insert((hash, token.expires_ms));
+    entry.0 == hash
+  }
+
+  fn forget(&self, upload_id: &str) {
+    self
+      .parts
+      .lock()
+      .unwrap()
+      .retain(|(id, _), _| id != upload_id);
+  }
 }
 
 impl Token {
@@ -110,6 +171,7 @@ pub async fn start(
   store: &Arc<dyn Store>,
   signer: &TransferSigner,
   grant: Grant,
+  url_expires_ms: i64,
   parts: &Parts,
   body: Incoming,
 ) -> Response<ResBody> {
@@ -147,7 +209,9 @@ pub async fn start(
     salt: hex::encode(at_rest::new_salt()),
     length,
     part_size: PART_SIZE,
-    expires_ms: time::now_ms() + UPLOAD_TTL_MS,
+    expires_ms: url_expires_ms + UPLOAD_GRACE_MS,
+    sealed: !signer.keyring.unsealing(),
+    issued_ms: time::now_ms(),
   };
   json_response(
     200,
@@ -177,9 +241,16 @@ pub async fn serve(
   };
   match (&parts.method, signed.op.as_deref()) {
     (&Method::PUT, None) => part(store, signer, &token, signed.part.as_deref(), parts, body).await,
-    (&Method::POST, Some("complete")) => complete(store, &token, body).await,
+    (&Method::POST, Some("complete")) => {
+      let response = complete(store, &token, body).await;
+      if response.status().is_success() {
+        signer.parts.forget(&token.upload_id);
+      }
+      response
+    }
     (&Method::DELETE, None) => {
       drain(body).await;
+      signer.parts.forget(&token.upload_id);
       match store.abort_multipart(&token.key, &token.upload_id).await {
         Ok(()) => Response::builder()
           .status(StatusCode::NO_CONTENT)
@@ -225,27 +296,68 @@ async fn part(
       &format!("Part {number} must be {expected} bytes, not {length}."),
     );
   }
+  if token.issued_ms < signer.parts.started_ms {
+    drain(body).await;
+    return s3_error(
+      409,
+      "UploadInterrupted",
+      "The server restarted during this upload. Start it again.",
+    );
+  }
+  let Ok(Ok(_buffer)) =
+    tokio::time::timeout(SLOT_WAIT, signer.parts.buffers.clone().acquire_owned()).await
+  else {
+    drain(body).await;
+    return busy();
+  };
+  let bytes = match crate::store::collect(body_stream(body)).await {
+    Ok(bytes) if bytes.len() as u64 == length => bytes,
+    Ok(_) => return invalid("IncompleteBody", "The part is shorter than its length."),
+    Err(e) => return store_refusal(e),
+  };
+  if !signer
+    .parts
+    .claim(token, number, Sha256::digest(&bytes).into())
+  {
+    return s3_error(
+      409,
+      "PartChanged",
+      "This part was sent before with other bytes. Start the upload again.",
+    );
+  }
+  let body = crate::store::once(bytes);
+  if !token.sealed {
+    return uploaded(
+      store
+        .upload_part(&token.key, &token.upload_id, number as u32, body, length)
+        .await,
+    );
+  }
   let first_frame = (number - 1) * token.part_size / FRAME as u64;
   let sealer = token
     .salt()
     .and_then(|salt| Sealer::for_part(&signer.keyring, &token.key_id, &salt, first_frame));
   let Some(sealer) = sealer else {
-    drain(body).await;
     return invalid("InvalidUpload", "This upload's key is no longer held.");
   };
   let last = number == token.parts();
   let sealed_len = at_rest::sealed_part_len(&token.key_id, length, number == 1, last);
-  let sealed = at_rest::seal_part_stream(sealer, last, body_stream(body));
-  match store
-    .upload_part(
-      &token.key,
-      &token.upload_id,
-      number as u32,
-      sealed,
-      sealed_len,
-    )
-    .await
-  {
+  let sealed = at_rest::seal_part_stream(sealer, last, body);
+  uploaded(
+    store
+      .upload_part(
+        &token.key,
+        &token.upload_id,
+        number as u32,
+        sealed,
+        sealed_len,
+      )
+      .await,
+  )
+}
+
+fn uploaded(outcome: Result<String, crate::store::StoreError>) -> Response<ResBody> {
+  match outcome {
     Ok(etag) => Response::builder()
       .status(200)
       .header(header::ETAG, etag)
@@ -311,6 +423,8 @@ mod tests {
       length,
       part_size: PART_SIZE,
       expires_ms: 1000,
+      sealed: true,
+      issued_ms: 0,
     }
   }
 
@@ -341,6 +455,18 @@ mod tests {
 
   fn signer_other() -> TransferSigner {
     signer("k2:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=")
+  }
+
+  #[test]
+  fn a_part_may_be_sent_again_only_with_the_same_bytes() {
+    let ledger = Ledger::default();
+    let t = token(3 * PART_SIZE);
+    assert!(ledger.claim(&t, 1, [1; 32]));
+    assert!(ledger.claim(&t, 1, [1; 32]));
+    assert!(!ledger.claim(&t, 1, [2; 32]));
+    assert!(ledger.claim(&t, 2, [2; 32]));
+    ledger.forget("id");
+    assert!(ledger.claim(&t, 1, [2; 32]), "a new upload starts afresh");
   }
 
   #[test]

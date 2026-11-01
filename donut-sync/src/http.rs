@@ -285,6 +285,56 @@ const OBJECT_ROUTES: [&str; 12] = [
   "snapshots/restore-files",
 ];
 
+/// Headers a proxy in front of this server adds.
+const PROXY_HEADERS: [&str; 7] = [
+  "x-forwarded-proto",
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "forwarded",
+  "x-real-ip",
+  "cf-connecting-ip",
+  "cf-visitor",
+];
+
+/// A host only a private network reaches: loopback, a private or link-local
+/// address, `localhost`, `.local`, or a single label such as a container name.
+fn private_host(host: &str) -> bool {
+  let name = match host.strip_prefix('[') {
+    Some(rest) => rest.split(']').next().unwrap_or(rest),
+    None if host.matches(':').count() == 1 => host.split(':').next().unwrap_or(host),
+    None => host,
+  };
+  match name.parse::<std::net::IpAddr>() {
+    Ok(std::net::IpAddr::V4(ip)) => ip.is_loopback() || ip.is_private() || ip.is_link_local(),
+    Ok(std::net::IpAddr::V6(ip)) => {
+      ip.is_loopback() || ip.is_unique_local() || ip.is_unicast_link_local()
+    }
+    Err(_) => {
+      let name = name.to_ascii_lowercase();
+      name == "localhost"
+        || name.ends_with(".localhost")
+        || name.ends_with(".local")
+        || !name.contains('.')
+    }
+  }
+}
+
+/// The scheme devices use for `host`. This server speaks plain http, so a
+/// request with no proxy headers came straight to it. Behind a proxy it is
+/// https: the proxy's own `X-Forwarded-Proto` says http when the proxy
+/// reaches this server over plain http, while devices use https. Plain http
+/// stays for private hosts.
+fn scheme_for(host: &str, proxied: bool, forwarded_proto: Option<&str>) -> &'static str {
+  if forwarded_proto == Some("https") {
+    return "https";
+  }
+  if !proxied || private_host(host) {
+    "http"
+  } else {
+    "https"
+  }
+}
+
 /// How devices reach this server, for the transfer URLs of a sealed store:
 /// `SYNC_PUBLIC_URL`, or the address this request came to.
 fn origin(state: &AppState, parts: &Parts) -> String {
@@ -296,14 +346,17 @@ fn origin(state: &AppState, parts: &Parts) -> String {
       .and_then(|v| v.split(',').next().map(|s| s.trim().to_string()))
       .filter(|v| !v.is_empty())
   };
-  let scheme = match first("x-forwarded-proto").as_deref() {
-    Some("https") => "https",
-    _ => "http",
-  };
   let host = first("x-forwarded-host")
     .or_else(|| first("host"))
     .unwrap_or_else(|| "localhost".to_string());
-  format!("{scheme}://{host}")
+  let proxied = PROXY_HEADERS
+    .iter()
+    .any(|name| parts.headers.contains_key(*name));
+  let forwarded_proto = first("x-forwarded-proto").map(|p| p.to_ascii_lowercase());
+  format!(
+    "{}://{host}",
+    scheme_for(&host, proxied, forwarded_proto.as_deref())
+  )
 }
 
 async fn object_route_call(
@@ -439,6 +492,38 @@ async fn cleanup_excess_profiles(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn transfer_urls_use_https_behind_a_proxy_and_http_on_private_hosts() {
+    // Cloudflare in flexible mode, or Traefik reached over http: https.
+    assert_eq!(
+      scheme_for("sync.donutbrowser.com", true, Some("http")),
+      "https"
+    );
+    assert_eq!(scheme_for("sync.donutbrowser.com", true, None), "https");
+    assert_eq!(
+      scheme_for("sync.donutbrowser.com", true, Some("https")),
+      "https"
+    );
+    // Straight to this server: plain http.
+    assert_eq!(scheme_for("203.0.113.5:3929", false, None), "http");
+    assert_eq!(scheme_for("sync.example.com:3929", false, None), "http");
+    // Private hosts keep http, unless the proxy says https.
+    for host in [
+      "localhost:3929",
+      "127.0.0.1:3929",
+      "192.168.1.20",
+      "10.0.0.4:3929",
+      "[::1]:3929",
+      "[fd00::1]:3929",
+      "nas.local",
+      "donut-sync:3929",
+    ] {
+      assert_eq!(scheme_for(host, true, Some("http")), "http", "{host}");
+      assert_eq!(scheme_for(host, true, Some("https")), "https", "{host}");
+    }
+    assert_eq!(scheme_for("8.8.8.8", true, None), "https");
+  }
 
   #[test]
   fn route_paths_ignore_case_and_one_trailing_slash() {
