@@ -4289,7 +4289,6 @@
         "unknown": "Inconnu"
       },
       "chooseProfiles": "Choisir des profils",
-      "profileCount": "{{n}} profils",
       "searchProfiles": "Rechercher des profils",
       "noProfileMatch": "Aucun profil ne correspond",
       "clearProfiles": "Effacer la sélection",
@@ -4312,7 +4311,6 @@
       "noCap": "Sans plafond",
       "concurrency": "En même temps",
       "concurrencyDefault": "Par défaut",
-      "runOn": "Lancer sur {{n}}",
       "run": "Lancer",
       "stepKinds": {
         "think": "Réflexion",
@@ -4337,12 +4335,22 @@
       "needsYou": "En attente de votre réponse",
       "unknownProfile": "Profil supprimé",
       "progress": "{{done}} sur {{total}} terminées",
-      "failedCount": "{{n}} en échec",
       "fromRoutine": "Routine",
       "stopAll": "Tout arrêter",
       "retryFailed": "Relancer les échecs",
       "dismiss": "Retirer de la liste",
-      "empty": "Écrivez une tâche ci-dessus et choisissez les profils. Le navigateur de chaque profil fait le travail, et vous voyez chaque étape ici."
+      "empty": "Écrivez une tâche ci-dessus et choisissez les profils. Le navigateur de chaque profil fait le travail, et vous voyez chaque étape ici.",
+      "runOn_one": "Lancer sur {{count}} profil",
+      "runOn_many": "Lancer sur {{count}} profils",
+      "runOn_other": "Lancer sur {{count}} profils",
+      "profileCount_one": "{{count}} profil",
+      "profileCount_many": "{{count}} profils",
+      "profileCount_other": "{{count}} profils",
+      "stepCount_one": "{{count}} étape",
+      "stepCount_many": "{{count}} étapes",
+      "stepCount_other": "{{count}} étapes",
+      "filterLabel": "Afficher les profils par état",
+      "rowsLabel": "Profils de cette exécution"
     },
     "routines": {
       "updated": "Routine enregistrée",
@@ -4353,12 +4361,10 @@
       "profiles": "Profils",
       "creditCap": "Plafond de crédits par exécution",
       "onSchedule": "Exécuter selon un calendrier",
-      "scheduleNeedsPlan": "Les calendriers demandent un forfait avec l’automatisation planifiée. Vous pouvez toujours lancer une routine à la main.",
       "cron": "Expression cron",
       "cronHint": "Minute, heure, jour, mois, jour de la semaine. 0 9 * * 1-5 correspond à 09:00 en semaine.",
       "timezone": "Fuseau horaire",
       "noRuns": "Aucune exécution pour l’instant",
-      "scheduleSummary": "{{cron}} ({{timezone}})",
       "manual": "Lancement manuel",
       "hint": "Enregistrez une tâche une fois et relancez-la sur les mêmes profils, à la main ou selon un calendrier.",
       "new": "Nouvelle routine",
@@ -4366,10 +4372,21 @@
       "runAria": "Lancer {{name}}",
       "run": "Lancer",
       "history": "Exécutions",
-      "editAria": "Modifier {{name}}",
-      "deleteAria": "Supprimer {{name}}",
       "deleteTitle": "Supprimer {{name}} ?",
-      "deleteDescription": "La routine et son calendrier sont supprimés."
+      "deleteDescription": "La routine et son calendrier sont supprimés.",
+      "menuAria": "Plus d’options pour {{name}}",
+      "lastRun": "Dernière exécution {{when}}",
+      "every": {
+        "daily": "Chaque jour à {{time}}",
+        "weekdays": "En semaine à {{time}}",
+        "weekends": "Le week-end à {{time}}",
+        "weekly": "Chaque {{day}} à {{time}}",
+        "hourly": "Chaque heure à la minute {{minute}}",
+        "custom": "Selon la planification {{cron}}",
+        "minutes_one": "Chaque minute",
+        "minutes_many": "Toutes les {{count}} minutes",
+        "minutes_other": "Toutes les {{count}} minutes"
+      }
     }
   },
   "proxyDistribution": {

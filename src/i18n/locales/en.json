@@ -4241,7 +4241,6 @@
         "unknown": "Unknown"
       },
       "chooseProfiles": "Choose profiles",
-      "profileCount": "{{n}} profiles",
       "searchProfiles": "Search profiles",
       "noProfileMatch": "No profile matches",
       "clearProfiles": "Clear selection",
@@ -4264,7 +4263,6 @@
       "noCap": "No cap",
       "concurrency": "At once",
       "concurrencyDefault": "Default",
-      "runOn": "Run on {{n}}",
       "run": "Run",
       "stepKinds": {
         "think": "Thinking",
@@ -4289,12 +4287,19 @@
       "needsYou": "Waiting for your answer",
       "unknownProfile": "Deleted profile",
       "progress": "{{done}} of {{total}} finished",
-      "failedCount": "{{n}} failed",
       "fromRoutine": "Routine",
       "stopAll": "Stop all",
       "retryFailed": "Retry failed",
       "dismiss": "Remove from the list",
-      "empty": "Write a task above and choose the profiles. The browser of each profile does the work, and you see each step here."
+      "empty": "Write a task above and choose the profiles. The browser of each profile does the work, and you see each step here.",
+      "runOn_one": "Run on {{count}} profile",
+      "runOn_other": "Run on {{count}} profiles",
+      "profileCount_one": "{{count}} profile",
+      "profileCount_other": "{{count}} profiles",
+      "stepCount_one": "{{count}} step",
+      "stepCount_other": "{{count}} steps",
+      "filterLabel": "Show profiles by state",
+      "rowsLabel": "Profiles in this run"
     },
     "routines": {
       "updated": "Routine saved",
@@ -4305,12 +4310,10 @@
       "profiles": "Profiles",
       "creditCap": "Credit cap per run",
       "onSchedule": "Run on a schedule",
-      "scheduleNeedsPlan": "Schedules need a plan with scheduled automation. You can still run a routine by hand.",
       "cron": "Cron expression",
       "cronHint": "Minute, hour, day, month, weekday. 0 9 * * 1-5 is 09:00 on weekdays.",
       "timezone": "Time zone",
       "noRuns": "No runs yet",
-      "scheduleSummary": "{{cron}} ({{timezone}})",
       "manual": "Run by hand",
       "hint": "Save a task once and run it again on the same profiles, by hand or on a schedule.",
       "new": "New routine",
@@ -4318,10 +4321,20 @@
       "runAria": "Run {{name}}",
       "run": "Run",
       "history": "Runs",
-      "editAria": "Edit {{name}}",
-      "deleteAria": "Delete {{name}}",
       "deleteTitle": "Delete {{name}}?",
-      "deleteDescription": "The routine and its schedule are deleted."
+      "deleteDescription": "The routine and its schedule are deleted.",
+      "menuAria": "More for {{name}}",
+      "lastRun": "Last run {{when}}",
+      "every": {
+        "daily": "Every day at {{time}}",
+        "weekdays": "Weekdays at {{time}}",
+        "weekends": "Weekends at {{time}}",
+        "weekly": "Every {{day}} at {{time}}",
+        "hourly": "Every hour at minute {{minute}}",
+        "custom": "On schedule {{cron}}",
+        "minutes_one": "Every minute",
+        "minutes_other": "Every {{count}} minutes"
+      }
     }
   },
   "proxyDistribution": {

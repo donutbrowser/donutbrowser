@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuCheck, LuChevronsUpDown } from "react-icons/lu";
-import { StatusDot } from "@/components/cookie-bot-shared";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -20,10 +19,13 @@ import {
 } from "@/components/ui/popover";
 import {
   type AgentCredits,
+  type AgentRoutineSchedule,
   type AgentTaskStatus,
   creditsLeft,
-  statusTone,
+  cronWords,
+  STATE_FILL,
   TASK_STATUSES,
+  taskState,
 } from "@/lib/agent-tasks";
 import { cn } from "@/lib/utils";
 import type { BrowserProfile } from "@/types";
@@ -34,6 +36,56 @@ export function useNumber() {
     () => new Intl.NumberFormat(i18n.language).format,
     [i18n.language],
   );
+}
+
+/** A routine's schedule in words: "Weekdays at 09:00". */
+export function useScheduleWords() {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
+  return useMemo(() => {
+    const time = (hour: number, minute: number) =>
+      new Date(2026, 0, 5, hour, minute).toLocaleTimeString(language, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    // 2026-01-04 is a Sunday, so day 0 + n is weekday n.
+    const weekday = (day: number) =>
+      new Date(2026, 0, 4 + day).toLocaleDateString(language, {
+        weekday: "long",
+      });
+    const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return (schedule: AgentRoutineSchedule | null): string => {
+      if (!schedule) return t("agent.routines.manual");
+      const words = cronWords(schedule.cron);
+      let text: string;
+      switch (words.kind) {
+        case "daily":
+        case "weekdays":
+        case "weekends":
+          text = t(`agent.routines.every.${words.kind}`, {
+            time: time(words.hour, words.minute),
+          });
+          break;
+        case "weekly":
+          text = t("agent.routines.every.weekly", {
+            day: weekday(words.weekday),
+            time: time(words.hour, words.minute),
+          });
+          break;
+        case "hourly":
+          text = t("agent.routines.every.hourly", { minute: words.minute });
+          break;
+        case "minutes":
+          text = t("agent.routines.every.minutes", { count: words.every });
+          break;
+        default:
+          text = t("agent.routines.every.custom", { cron: schedule.cron });
+      }
+      return schedule.timezone && schedule.timezone !== local
+        ? `${text} (${schedule.timezone})`
+        : text;
+    };
+  }, [t, language]);
 }
 
 /** The credits left this period, as a number and a thin bar. */
@@ -93,6 +145,30 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([
   "missed",
 ]);
 
+/** A state's dot, in the state's one color. */
+export function StateDot({
+  status,
+  className,
+}: {
+  status: AgentTaskStatus | string;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-block size-2 shrink-0 rounded-full transition-colors duration-300 motion-reduce:transition-none",
+        STATE_FILL[taskState(status)],
+        className,
+      )}
+    />
+  );
+}
+
+export function statusLabelKey(status: AgentTaskStatus | string): string {
+  return `agent.tasks.status.${KNOWN_STATUSES.has(status) ? status : "unknown"}`;
+}
+
 export function TaskStatusLabel({
   status,
   className,
@@ -101,7 +177,6 @@ export function TaskStatusLabel({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const tone = statusTone(status);
   return (
     <span
       className={cn(
@@ -109,13 +184,8 @@ export function TaskStatusLabel({
         className,
       )}
     >
-      <StatusDot
-        tone={tone}
-        pulse={status === "running" || status === "launching"}
-      />
-      {t(
-        `agent.tasks.status.${KNOWN_STATUSES.has(status) ? status : "unknown"}`,
-      )}
+      <StateDot status={status} />
+      {t(statusLabelKey(status))}
     </span>
   );
 }
@@ -143,7 +213,7 @@ export function ProfilePicker({
       ? t("agent.tasks.chooseProfiles")
       : known.length === 1
         ? known[0].name
-        : t("agent.tasks.profileCount", { n: known.length });
+        : t("agent.tasks.profileCount", { count: known.length });
 
   const toggle = (profileId: string) => {
     onChange(

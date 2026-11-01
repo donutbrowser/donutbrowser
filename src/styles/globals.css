@@ -394,6 +394,17 @@
   }
 }
 
+/* A light that crosses a working segment of an agent run's strip
+   (`animate-[agent-sweep_...]`); the segment keeps its own color. */
+@keyframes agent-sweep {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: 100% 0;
+  }
+}
+
 /* Popups (popovers, menus, selects, tooltips) grow out of their trigger.
    `data-motion="on"` is set only for pointer users without reduced motion.
    Menus, selects and popovers only scale: they are fully opaque from the first

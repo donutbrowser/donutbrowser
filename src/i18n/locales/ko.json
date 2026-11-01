@@ -4241,7 +4241,6 @@
         "unknown": "알 수 없음"
       },
       "chooseProfiles": "프로필 선택",
-      "profileCount": "프로필 {{n}}개",
       "searchProfiles": "프로필 검색",
       "noProfileMatch": "일치하는 프로필이 없습니다",
       "clearProfiles": "선택 해제",
@@ -4264,7 +4263,6 @@
       "noCap": "한도 없음",
       "concurrency": "동시 실행",
       "concurrencyDefault": "기본값",
-      "runOn": "{{n}}개에서 실행",
       "run": "실행",
       "stepKinds": {
         "think": "생각 중",
@@ -4289,12 +4287,19 @@
       "needsYou": "답변을 기다리는 중",
       "unknownProfile": "삭제된 프로필",
       "progress": "{{total}}개 중 {{done}}개 완료",
-      "failedCount": "{{n}}개 실패",
       "fromRoutine": "루틴",
       "stopAll": "모두 중지",
       "retryFailed": "실패한 작업 다시 시도",
       "dismiss": "목록에서 제거",
-      "empty": "위에 작업을 적고 프로필을 고르세요. 각 프로필의 브라우저가 작업하고, 모든 단계가 여기에 표시됩니다."
+      "empty": "위에 작업을 적고 프로필을 고르세요. 각 프로필의 브라우저가 작업하고, 모든 단계가 여기에 표시됩니다.",
+      "runOn_one": "프로필 {{count}}개에서 실행",
+      "runOn_other": "프로필 {{count}}개에서 실행",
+      "profileCount_one": "프로필 {{count}}개",
+      "profileCount_other": "프로필 {{count}}개",
+      "stepCount_one": "{{count}}단계",
+      "stepCount_other": "{{count}}단계",
+      "filterLabel": "상태별 프로필 보기",
+      "rowsLabel": "이 실행의 프로필"
     },
     "routines": {
       "updated": "루틴을 저장했습니다",
@@ -4305,12 +4310,10 @@
       "profiles": "프로필",
       "creditCap": "실행당 크레딧 한도",
       "onSchedule": "일정에 따라 실행",
-      "scheduleNeedsPlan": "일정을 쓰려면 예약 자동화가 포함된 요금제가 필요합니다. 루틴은 직접 실행할 수 있습니다.",
       "cron": "cron 표현식",
       "cronHint": "분, 시, 일, 월, 요일. 0 9 * * 1-5는 평일 09:00입니다.",
       "timezone": "시간대",
       "noRuns": "아직 실행 기록이 없습니다",
-      "scheduleSummary": "{{cron}} ({{timezone}})",
       "manual": "직접 실행",
       "hint": "작업을 한 번 저장하고 같은 프로필에서 직접 또는 일정에 따라 다시 실행하세요.",
       "new": "새 루틴",
@@ -4318,10 +4321,20 @@
       "runAria": "{{name}} 실행",
       "run": "실행",
       "history": "실행 기록",
-      "editAria": "{{name}} 편집",
-      "deleteAria": "{{name}} 삭제",
       "deleteTitle": "{{name}}을(를) 삭제할까요?",
-      "deleteDescription": "루틴과 일정이 삭제됩니다."
+      "deleteDescription": "루틴과 일정이 삭제됩니다.",
+      "menuAria": "{{name}} 더 보기",
+      "lastRun": "마지막 실행 {{when}}",
+      "every": {
+        "daily": "매일 {{time}}",
+        "weekdays": "평일 {{time}}",
+        "weekends": "주말 {{time}}",
+        "weekly": "매주 {{day}} {{time}}",
+        "hourly": "매시 {{minute}}분",
+        "custom": "일정 {{cron}}",
+        "minutes_one": "매분",
+        "minutes_other": "{{count}}분마다"
+      }
     }
   },
   "proxyDistribution": {

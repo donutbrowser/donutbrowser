@@ -37,11 +37,14 @@ function positiveInt(value: string): number | null {
 export function TaskComposer({
   profiles,
   seedProfileIds,
+  compact,
   onStarted,
 }: {
   profiles: BrowserProfile[];
   /** Profiles chosen elsewhere, such as the profiles table selection. */
   seedProfileIds: string[] | null;
+  /** One line until it is used, so a run below keeps the room. */
+  compact: boolean;
   onStarted: (batch: AgentBatch) => void;
 }) {
   const { t } = useTranslation();
@@ -110,12 +113,17 @@ export function TaskComposer({
         ref={promptRef}
         id={`${formId}-prompt`}
         variant="soft"
-        rows={2}
+        rows={1}
         value={prompt}
         maxLength={MAX_PROMPT_CHARS}
         placeholder={t("agent.tasks.promptPlaceholder")}
         data-slot="agent-task-prompt"
-        className="min-h-20 resize-none rounded-xl px-3.5 py-3 text-sm leading-relaxed"
+        className={cn(
+          "max-h-48 resize-none rounded-xl px-3.5 py-2.5 text-sm leading-relaxed field-sizing-content",
+          compact && prompt.length === 0
+            ? "min-h-10 focus-visible:min-h-20"
+            : "min-h-20",
+        )}
         onChange={(event) => {
           setPrompt(event.target.value);
         }}
@@ -142,8 +150,9 @@ export function TaskComposer({
           inputMode="url"
           placeholder={t("agent.tasks.startUrlPlaceholder")}
           aria-invalid={urlInvalid}
+          variant="soft"
           data-slot="agent-task-url"
-          className="h-8 w-56 min-w-0 flex-1 text-xs md:text-xs"
+          className="h-8 w-60 min-w-0 shrink text-xs md:text-xs"
           onChange={(event) => {
             setStartUrl(event.target.value);
           }}
@@ -156,9 +165,10 @@ export function TaskComposer({
               size="sm"
               data-slot="agent-task-options"
               aria-label={t("agent.tasks.options")}
+              title={t("agent.tasks.options")}
               className={cn(
                 "h-8 rounded-lg px-2.5",
-                tuned && "text-foreground",
+                tuned && "bg-foreground/6 text-foreground",
               )}
             >
               <LuSettings2 className="size-3.5" />
@@ -246,8 +256,8 @@ export function TaskComposer({
           className="ml-auto h-8 gap-1.5 rounded-lg text-xs"
         >
           <LuSparkles className="size-3.5" aria-hidden="true" />
-          {chosen.length > 1
-            ? t("agent.tasks.runOn", { n: chosen.length })
+          {chosen.length > 0
+            ? t("agent.tasks.runOn", { count: chosen.length })
             : t("agent.tasks.run")}
         </RippleButton>
       </div>

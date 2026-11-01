@@ -649,6 +649,10 @@ export function AgentPage({
                   <AgentRoutinesPanel
                     profiles={profiles}
                     canSchedule={scheduled}
+                    finishedRuns={
+                      agentBatches.batches.filter((batch) => batch.finished)
+                        .length
+                    }
                     onRan={(batch) => {
                       agentBatches.adopt((current) =>
                         current.some((item) => item.id === batch.id)

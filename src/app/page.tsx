@@ -456,8 +456,8 @@ export default function Home() {
   const [cookieBotInitialTab, setCookieBotInitialTab] =
     useState<CookieBotTab>("overview");
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
-  const [agentInitialTab, setAgentInitialTab] =
-    useState<AgentTab>("conversation");
+  // Null until a tab is asked for: Tasks leads when the agent is on.
+  const [agentInitialTab, setAgentInitialTab] = useState<AgentTab | null>(null);
   const agentReady = useAgentAvailability(cloudUser);
   const [agentSeed, setAgentSeed] = useState<string[] | null>(null);
   const [createProfileDialogOpen, setCreateProfileDialogOpen] = useState(false);
@@ -3201,7 +3201,9 @@ export default function Home() {
                     closeSubPage(() => setAgentDialogOpen(false));
                   }}
                   subPage={currentPage === "agent"}
-                  initialTab={agentInitialTab}
+                  initialTab={
+                    agentInitialTab ?? (agentReady ? "tasks" : "conversation")
+                  }
                   onTabChange={setAgentInitialTab}
                   profiles={profiles}
                   cloudUser={cloudUser}

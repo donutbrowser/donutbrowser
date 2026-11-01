@@ -4241,7 +4241,6 @@
         "unknown": "不明"
       },
       "chooseProfiles": "プロファイルを選択",
-      "profileCount": "{{n}} 件のプロファイル",
       "searchProfiles": "プロファイルを検索",
       "noProfileMatch": "一致するプロファイルはありません",
       "clearProfiles": "選択を解除",
@@ -4264,7 +4263,6 @@
       "noCap": "上限なし",
       "concurrency": "同時実行数",
       "concurrencyDefault": "既定",
-      "runOn": "{{n}} 件で実行",
       "run": "実行",
       "stepKinds": {
         "think": "考え中",
@@ -4289,12 +4287,19 @@
       "needsYou": "あなたの回答を待っています",
       "unknownProfile": "削除されたプロファイル",
       "progress": "{{total}} 件中 {{done}} 件完了",
-      "failedCount": "{{n}} 件失敗",
       "fromRoutine": "ルーティン",
       "stopAll": "すべて停止",
       "retryFailed": "失敗分を再試行",
       "dismiss": "一覧から削除",
-      "empty": "上でタスクを書き、プロファイルを選んでください。各プロファイルのブラウザが作業し、ここで各手順を確認できます。"
+      "empty": "上でタスクを書き、プロファイルを選んでください。各プロファイルのブラウザが作業し、ここで各手順を確認できます。",
+      "runOn_one": "{{count}} 件のプロファイルで実行",
+      "runOn_other": "{{count}} 件のプロファイルで実行",
+      "profileCount_one": "{{count}} 件のプロファイル",
+      "profileCount_other": "{{count}} 件のプロファイル",
+      "stepCount_one": "{{count}} ステップ",
+      "stepCount_other": "{{count}} ステップ",
+      "filterLabel": "状態でプロファイルを表示",
+      "rowsLabel": "この実行のプロファイル"
     },
     "routines": {
       "updated": "ルーティンを保存しました",
@@ -4305,12 +4310,10 @@
       "profiles": "プロファイル",
       "creditCap": "1 回あたりのクレジット上限",
       "onSchedule": "スケジュールで実行",
-      "scheduleNeedsPlan": "スケジュールには予約自動化を含むプランが必要です。ルーティンは手動でも実行できます。",
       "cron": "cron 式",
       "cronHint": "分、時、日、月、曜日。0 9 * * 1-5 は平日の 09:00 です。",
       "timezone": "タイムゾーン",
       "noRuns": "まだ実行はありません",
-      "scheduleSummary": "{{cron}}({{timezone}})",
       "manual": "手動で実行",
       "hint": "タスクを一度保存して、同じプロファイルで手動またはスケジュールで繰り返し実行できます。",
       "new": "新しいルーティン",
@@ -4318,10 +4321,20 @@
       "runAria": "{{name}} を実行",
       "run": "実行",
       "history": "実行履歴",
-      "editAria": "{{name}} を編集",
-      "deleteAria": "{{name}} を削除",
       "deleteTitle": "{{name}} を削除しますか?",
-      "deleteDescription": "ルーティンとそのスケジュールが削除されます。"
+      "deleteDescription": "ルーティンとそのスケジュールが削除されます。",
+      "menuAria": "{{name}} のその他の操作",
+      "lastRun": "前回の実行: {{when}}",
+      "every": {
+        "daily": "毎日 {{time}}",
+        "weekdays": "平日 {{time}}",
+        "weekends": "週末 {{time}}",
+        "weekly": "毎週{{day}} {{time}}",
+        "hourly": "毎時 {{minute}} 分",
+        "custom": "スケジュール {{cron}}",
+        "minutes_one": "毎分",
+        "minutes_other": "{{count}} 分ごと"
+      }
     }
   },
   "proxyDistribution": {

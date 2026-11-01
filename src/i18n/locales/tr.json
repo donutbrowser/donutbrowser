@@ -4241,7 +4241,6 @@
         "unknown": "Bilinmiyor"
       },
       "chooseProfiles": "Profil seç",
-      "profileCount": "{{n}} profil",
       "searchProfiles": "Profil ara",
       "noProfileMatch": "Eşleşen profil yok",
       "clearProfiles": "Seçimi temizle",
@@ -4264,7 +4263,6 @@
       "noCap": "Sınır yok",
       "concurrency": "Aynı anda",
       "concurrencyDefault": "Varsayılan",
-      "runOn": "{{n}} profilde çalıştır",
       "run": "Çalıştır",
       "stepKinds": {
         "think": "Düşünüyor",
@@ -4289,12 +4287,19 @@
       "needsYou": "Yanıtını bekliyor",
       "unknownProfile": "Silinmiş profil",
       "progress": "{{total}} görevin {{done}} tanesi bitti",
-      "failedCount": "{{n}} başarısız",
       "fromRoutine": "Rutin",
       "stopAll": "Tümünü durdur",
       "retryFailed": "Başarısızları yeniden dene",
       "dismiss": "Listeden kaldır",
-      "empty": "Yukarıya bir görev yaz ve profilleri seç. Her profilin tarayıcısı işi yapar, her adımı burada görürsün."
+      "empty": "Yukarıya bir görev yaz ve profilleri seç. Her profilin tarayıcısı işi yapar, her adımı burada görürsün.",
+      "runOn_one": "{{count}} profilde çalıştır",
+      "runOn_other": "{{count}} profilde çalıştır",
+      "profileCount_one": "{{count}} profil",
+      "profileCount_other": "{{count}} profil",
+      "stepCount_one": "{{count}} adım",
+      "stepCount_other": "{{count}} adım",
+      "filterLabel": "Profilleri duruma göre göster",
+      "rowsLabel": "Bu çalıştırmadaki profiller"
     },
     "routines": {
       "updated": "Rutin kaydedildi",
@@ -4305,12 +4310,10 @@
       "profiles": "Profiller",
       "creditCap": "Çalıştırma başına kredi sınırı",
       "onSchedule": "Zamanlamaya göre çalıştır",
-      "scheduleNeedsPlan": "Zamanlamalar, zamanlanmış otomasyon içeren bir plan gerektirir. Bir rutini yine de elle çalıştırabilirsin.",
       "cron": "Cron ifadesi",
       "cronHint": "Dakika, saat, gün, ay, haftanın günü. 0 9 * * 1-5 hafta içi saat 09:00 demektir.",
       "timezone": "Saat dilimi",
       "noRuns": "Henüz çalıştırma yok",
-      "scheduleSummary": "{{cron}} ({{timezone}})",
       "manual": "Elle çalıştır",
       "hint": "Bir görevi bir kez kaydet ve aynı profillerde yeniden çalıştır, elle ya da zamanlamayla.",
       "new": "Yeni rutin",
@@ -4318,10 +4321,20 @@
       "runAria": "{{name}} çalıştır",
       "run": "Çalıştır",
       "history": "Çalıştırmalar",
-      "editAria": "{{name}} düzenle",
-      "deleteAria": "{{name}} sil",
       "deleteTitle": "{{name}} silinsin mi?",
-      "deleteDescription": "Rutin ve zamanlaması silinir."
+      "deleteDescription": "Rutin ve zamanlaması silinir.",
+      "menuAria": "{{name}} için daha fazlası",
+      "lastRun": "Son çalıştırma {{when}}",
+      "every": {
+        "daily": "Her gün {{time}}",
+        "weekdays": "Hafta içi {{time}}",
+        "weekends": "Hafta sonu {{time}}",
+        "weekly": "Her {{day}} {{time}}",
+        "hourly": "Her saat {{minute}}. dakikada",
+        "custom": "Zamanlamaya göre {{cron}}",
+        "minutes_one": "Her dakika",
+        "minutes_other": "{{count}} dakikada bir"
+      }
     }
   },
   "proxyDistribution": {

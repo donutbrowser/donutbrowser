@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuSparkles } from "react-icons/lu";
-import { BatchCard } from "@/components/agent-tasks/batch-card";
+import { RunView } from "@/components/agent-tasks/run-view";
 import { StepStream } from "@/components/agent-tasks/step-stream";
 import { TaskComposer } from "@/components/agent-tasks/task-composer";
 import { FadingScrollArea } from "@/components/ui/fading-scroll-area";
@@ -12,7 +12,9 @@ import type { BrowserProfile } from "@/types";
 
 interface Selection {
   batchId: string;
-  profileId: string;
+  profileId: string | null;
+  /** The newest run when this was picked: a newer run takes over. */
+  newest: string | undefined;
 }
 
 /**
@@ -40,17 +42,22 @@ export function AgentTasksPanel({
     [profiles],
   );
 
+  const newest = batches[0]?.id;
   const selection = useMemo(() => {
+    const kept = picked?.newest === newest ? picked : null;
     const batch =
-      batches.find((item) => item.id === picked?.batchId) ?? batches[0];
+      batches.find((item) => item.id === kept?.batchId) ?? batches[0];
     if (!batch) return null;
+    const own = kept?.batchId === batch.id ? kept.profileId : null;
     const task =
-      batch.tasks.find((item) => item.profileId === picked?.profileId) ??
+      batch.tasks.find((item) => item.profileId === own) ??
       batch.tasks.find((item) => item.status === "needs_approval") ??
       batch.tasks.find((item) => item.status === "running") ??
       batch.tasks[0];
     return task ? { batch, task } : null;
-  }, [batches, picked]);
+  }, [batches, picked, newest]);
+  const nameOf = (profileId: string) =>
+    profileNames.get(profileId) ?? t("agent.tasks.unknownProfile");
 
   return (
     // On a short window the whole panel scrolls; on a tall one the run list
@@ -62,12 +69,10 @@ export function AgentTasksPanel({
       <TaskComposer
         profiles={profiles}
         seedProfileIds={seedProfileIds}
+        compact={batches.length > 0}
         onStarted={(batch) => {
           onBatchStarted(batch);
-          setPicked({
-            batchId: batch.id,
-            profileId: batch.tasks[0]?.profileId ?? "",
-          });
+          setPicked({ batchId: batch.id, profileId: null, newest: batch.id });
         }}
       />
 
@@ -87,44 +92,35 @@ export function AgentTasksPanel({
           </p>
         </div>
       ) : (
-        <div className="flex min-h-[26rem] flex-1 flex-col gap-4 @3xl:flex-row">
-          <FadingScrollArea className="min-h-0 @3xl:w-[min(26rem,45%)] @3xl:shrink-0">
-            <div className="flex flex-col gap-5 pr-1">
-              {batches.map((batch) => (
-                <BatchCard
-                  key={batch.id}
-                  batch={batch}
-                  profileNames={profileNames}
-                  selectedProfileId={
-                    selection?.batch.id === batch.id
-                      ? selection.task.profileId
-                      : null
-                  }
-                  onSelect={(profileId) => {
-                    setPicked({ batchId: batch.id, profileId });
-                  }}
-                  onDismissed={(batchId) => {
-                    if (picked?.batchId === batchId) setPicked(null);
-                    onBatchDismissed(batchId);
-                  }}
-                />
-              ))}
-            </div>
-          </FadingScrollArea>
-          {selection && (
-            <div className="flex min-h-80 min-w-0 flex-1 flex-col rounded-2xl bg-foreground/3 p-4">
+        selection && (
+          <div className="flex flex-1 flex-col gap-4 @3xl:min-h-64 @3xl:flex-row">
+            <RunView
+              key={selection.batch.id}
+              batch={selection.batch}
+              batches={batches}
+              nameOf={nameOf}
+              openProfileId={selection.task.profileId}
+              onOpen={(profileId) => {
+                setPicked({ batchId: selection.batch.id, profileId, newest });
+              }}
+              onPickBatch={(batchId) => {
+                setPicked({ batchId, profileId: null, newest });
+              }}
+              onDismissed={(batchId) => {
+                if (picked?.batchId === batchId) setPicked(null);
+                onBatchDismissed(batchId);
+              }}
+            />
+            <div className="flex min-h-80 min-w-0 flex-col rounded-2xl bg-foreground/3 p-4 @3xl:min-h-0 @3xl:w-[min(30rem,46%)] @3xl:shrink-0">
               <StepStream
                 key={`${selection.batch.id}:${selection.task.profileId}`}
                 batch={selection.batch}
                 task={selection.task}
-                profileName={
-                  profileNames.get(selection.task.profileId) ??
-                  t("agent.tasks.unknownProfile")
-                }
+                profileName={nameOf(selection.task.profileId)}
               />
             </div>
-          )}
-        </div>
+          </div>
+        )
       )}
     </FadingScrollArea>
   );

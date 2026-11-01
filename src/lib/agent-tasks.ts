@@ -212,26 +212,87 @@ export function isTaskFinal(status: AgentTaskStatus): boolean {
   return !ACTIVE.has(status) && status !== "queued";
 }
 
-/** The tone of a task's dot, one per meaning. */
-export type TaskTone = "success" | "warning" | "destructive" | "muted" | "live";
+/**
+ * What a status means to the person, one color each: working is primary,
+ * needs you is warning, done is success, failed is destructive, and waiting
+ * or stopped is a quiet foreground tint.
+ */
+export const TASK_STATES = ["working", "needs_you", "done", "failed"] as const;
+export type TaskState = (typeof TASK_STATES)[number] | "idle";
 
-export function statusTone(status: AgentTaskStatus | string): TaskTone {
+export function taskState(status: AgentTaskStatus | string): TaskState {
   switch (status) {
-    case "done":
-      return "success";
-    case "needs_approval":
-    case "paused":
-    case "budget":
-    case "no_credits":
-      return "warning";
-    case "failed":
-      return "destructive";
     case "launching":
     case "running":
-      return "live";
+    case "paused":
+      return "working";
+    case "needs_approval":
+      return "needs_you";
+    case "done":
+      return "done";
+    case "failed":
+    case "no_credits":
+    case "budget":
+      return "failed";
     default:
-      return "muted";
+      return "idle";
   }
+}
+
+/** The fill of a state's dot or segment. */
+export const STATE_FILL: Record<TaskState, string> = {
+  working: "bg-primary",
+  needs_you: "bg-warning",
+  done: "bg-success",
+  failed: "bg-destructive",
+  idle: "bg-foreground/15",
+};
+
+/** The text color of a line that reports a state. */
+export const STATE_TEXT: Record<TaskState, string> = {
+  working: "text-muted-foreground",
+  needs_you: "text-warning-text",
+  done: "text-muted-foreground",
+  failed: "text-destructive-text",
+  idle: "text-muted-foreground",
+};
+
+/** A task the engine is moving right now; only these animate. */
+export function isTaskMoving(status: AgentTaskStatus | string): boolean {
+  return status === "running" || status === "launching";
+}
+
+export function stateCounts(
+  tasks: readonly { status: AgentTaskStatus | string }[],
+): Record<TaskState, number> {
+  const counts: Record<TaskState, number> = {
+    working: 0,
+    needs_you: 0,
+    done: 0,
+    failed: 0,
+    idle: 0,
+  };
+  for (const task of tasks) counts[taskState(task.status)] += 1;
+  return counts;
+}
+
+/**
+ * The rows of a run: a task that needs the person comes first, everything
+ * else keeps its place, so the list never shuffles while it works.
+ */
+export function rowsForAttention<T extends { status: AgentTaskStatus }>(
+  tasks: readonly T[],
+  filter: TaskState | null = null,
+): T[] {
+  const shown = filter
+    ? tasks.filter((task) => taskState(task.status) === filter)
+    : tasks.slice();
+  const waiting = shown.filter((task) => task.status === "needs_approval");
+  if (waiting.length === 0) return shown;
+  return [
+    ...waiting,
+    ...shown.filter((task) => task.status !== "needs_approval"),
+  ];
 }
 
 /** Finished share of a batch, 0 to 100. */
@@ -308,4 +369,81 @@ export function creditsLeft(
 export function isCron(value: string): boolean {
   const fields = value.trim().split(/\s+/);
   return fields.length >= 5 && fields.length <= 6;
+}
+
+/** One routine batch, from the runs the cloud lists per profile. */
+export interface AgentRoutineBatch {
+  batchId: string;
+  at: number | null;
+  runs: AgentRoutineRun[];
+  creditsUsed: number;
+}
+
+/** Runs grouped by the batch that started them, newest first. */
+export function groupRoutineRuns(
+  runs: readonly AgentRoutineRun[],
+): AgentRoutineBatch[] {
+  const groups = new Map<string, AgentRoutineBatch>();
+  for (const run of runs) {
+    const batchId = run.batchId ?? run.runId;
+    const at = Date.parse(run.createdAt ?? run.finishedAt ?? "");
+    let group = groups.get(batchId);
+    if (!group) {
+      group = { batchId, at: null, runs: [], creditsUsed: 0 };
+      groups.set(batchId, group);
+    }
+    group.runs.push(run);
+    group.creditsUsed += run.creditsUsed ?? 0;
+    if (Number.isFinite(at) && (group.at === null || at < group.at)) {
+      group.at = at;
+    }
+  }
+  return [...groups.values()].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+}
+
+export type CronWords =
+  | { kind: "daily" | "weekdays" | "weekends"; minute: number; hour: number }
+  | { kind: "weekly"; minute: number; hour: number; weekday: number }
+  | { kind: "hourly"; minute: number }
+  | { kind: "minutes"; every: number }
+  | { kind: "custom" };
+
+function cronNumber(field: string, max: number): number | null {
+  if (!/^\d+$/.test(field)) return null;
+  const value = Number(field);
+  return value <= max ? value : null;
+}
+
+/** The common cron shapes, so a schedule reads as words. */
+export function cronWords(cron: string): CronWords {
+  const fields = cron.trim().split(/\s+/);
+  if (fields.length !== 5) return { kind: "custom" };
+  const [minuteField, hourField, day, month, weekdayField] = fields;
+  if (day !== "*" || month !== "*") return { kind: "custom" };
+  const every = /^\*\/(\d+)$/.exec(minuteField);
+  if (every && hourField === "*" && weekdayField === "*") {
+    const n = Number(every[1]);
+    return n > 0 && n < 60 ? { kind: "minutes", every: n } : { kind: "custom" };
+  }
+  const minute = cronNumber(minuteField, 59);
+  if (minute === null) return { kind: "custom" };
+  if (hourField === "*") {
+    return weekdayField === "*"
+      ? { kind: "hourly", minute }
+      : { kind: "custom" };
+  }
+  const hour = cronNumber(hourField, 23);
+  if (hour === null) return { kind: "custom" };
+  switch (weekdayField) {
+    case "*":
+      return { kind: "daily", minute, hour };
+    case "1-5":
+      return { kind: "weekdays", minute, hour };
+    case "0,6":
+    case "6,0":
+      return { kind: "weekends", minute, hour };
+  }
+  const weekday = cronNumber(weekdayField, 7);
+  if (weekday === null) return { kind: "custom" };
+  return { kind: "weekly", minute, hour, weekday: weekday % 7 };
 }

@@ -28,6 +28,7 @@ import {
   controlAgentTask,
   hostOf,
   isTaskActive,
+  isTaskMoving,
 } from "@/lib/agent-tasks";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
 import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
@@ -40,7 +41,15 @@ const STEP_ICON = {
   observe: LuEye,
 } as const;
 
-function StepRow({ step, animate }: { step: AgentStep; animate: boolean }) {
+function StepRow({
+  step,
+  current,
+  animate,
+}: {
+  step: AgentStep;
+  current: boolean;
+  animate: boolean;
+}) {
   const { t } = useTranslation();
   const Icon = STEP_ICON[step.kind] ?? LuEye;
   const host = hostOf(step.url);
@@ -48,31 +57,42 @@ function StepRow({ step, animate }: { step: AgentStep; animate: boolean }) {
     <motion.li
       data-slot="agent-step"
       data-kind={step.kind}
-      initial={animate ? { opacity: 0.6, y: 4 } : false}
+      data-current={current ? "true" : undefined}
+      initial={animate ? { opacity: 0, y: 4 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={
         animate
           ? { duration: MOTION_DURATION.slow, ease: MOTION_EASE_OUT }
           : { duration: 0 }
       }
-      className="flex gap-3 py-1.5"
+      className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3 py-1.5"
     >
       <span
-        className={cn(
-          "mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg",
-          step.kind === "act"
-            ? "bg-primary/10 text-primary-text"
-            : "bg-foreground/5 text-muted-foreground",
-        )}
+        className="grid h-5 place-items-center"
         title={t(`agent.tasks.stepKinds.${step.kind}`)}
       >
-        <Icon className="size-3.5" aria-hidden="true" />
+        {current ? (
+          <span
+            aria-hidden="true"
+            className="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+          />
+        ) : (
+          <Icon
+            className={cn(
+              "size-3.5",
+              step.kind === "act" ? "text-foreground" : "text-muted-foreground",
+            )}
+            aria-hidden="true"
+          />
+        )}
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-col gap-0.5">
         <p
           className={cn(
-            "text-sm leading-relaxed break-words",
-            step.kind === "think" ? "text-muted-foreground" : "text-foreground",
+            "text-sm leading-5 break-words transition-colors duration-300 motion-reduce:transition-none",
+            current || step.kind === "act"
+              ? "text-foreground"
+              : "text-muted-foreground",
           )}
         >
           {step.text}
@@ -111,15 +131,16 @@ function ApprovalCard({ batch, task }: { batch: AgentBatch; task: AgentTask }) {
     <section
       data-slot="agent-approval"
       aria-label={t("agent.tasks.approvalTitle")}
-      className="flex flex-col gap-2.5 rounded-xl bg-warning/10 p-3"
+      className="flex shrink-0 flex-col gap-2 rounded-xl bg-warning/10 p-3"
     >
-      <span className="text-xs font-medium text-warning-text">
+      <span className="flex items-center gap-2 text-xs font-medium text-warning-text">
+        <span aria-hidden="true" className="size-2 rounded-full bg-warning" />
         {t("agent.tasks.approvalTitle")}
       </span>
-      <p className="text-sm break-words whitespace-pre-wrap text-foreground">
+      <p className="pl-4 text-sm break-words whitespace-pre-wrap text-foreground">
         {approval.question}
       </p>
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-1.5">
         <Button
           type="button"
           variant="subtle"
@@ -153,7 +174,7 @@ function Outcome({ task }: { task: AgentTask }) {
     return (
       <div
         data-slot="agent-result"
-        className="rounded-xl bg-success/10 p-3 text-sm break-words whitespace-pre-wrap text-foreground"
+        className="max-h-40 shrink-0 overflow-y-auto rounded-xl bg-success/10 p-3 text-sm break-words whitespace-pre-wrap text-foreground"
       >
         {task.result}
       </div>
@@ -174,7 +195,7 @@ function Outcome({ task }: { task: AgentTask }) {
     <div
       data-slot="agent-failure"
       className={cn(
-        "rounded-xl p-3 text-sm break-words",
+        "shrink-0 rounded-xl p-3 text-sm break-words",
         task.status === "failed"
           ? "bg-destructive/10 text-destructive-text"
           : "bg-warning/10 text-warning-text",
@@ -228,6 +249,7 @@ export function StepStream({
     }
   };
 
+  const moving = isTaskMoving(task.status);
   return (
     <section
       data-slot="agent-step-stream"
@@ -235,16 +257,23 @@ export function StepStream({
       aria-label={t("agent.tasks.streamLabel", { name: profileName })}
       className="flex min-h-0 flex-1 flex-col gap-3"
     >
-      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="truncate text-sm font-medium">{profileName}</span>
-        <TaskStatusLabel status={task.status} />
-        {task.creditsUsed > 0 && (
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {t("agent.tasks.credits", { n: format(task.creditsUsed) })}
+      <header className="flex shrink-0 items-start gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-sm font-medium">{profileName}</span>
+          <span className="flex flex-wrap items-center gap-x-2 text-xs tabular-nums text-muted-foreground">
+            <TaskStatusLabel status={task.status} />
+            {stepCount > 0 && (
+              <span>{t("agent.tasks.stepCount", { count: stepCount })}</span>
+            )}
+            {task.creditsUsed > 0 && (
+              <span>
+                {t("agent.tasks.credits", { n: format(task.creditsUsed) })}
+              </span>
+            )}
           </span>
-        )}
+        </div>
         {active && task.taskId && (
-          <div className="ml-auto flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-0.5">
             {task.status === "paused" ? (
               <Button
                 type="button"
@@ -252,11 +281,12 @@ export function StepStream({
                 size="sm"
                 disabled={busy !== null}
                 data-slot="agent-task-resume"
-                className="h-7 gap-1.5 rounded-lg text-xs"
+                aria-label={t("agent.tasks.resume")}
+                title={t("agent.tasks.resume")}
+                className="size-7 rounded-lg p-0"
                 onClick={() => void control("resume")}
               >
                 <LuPlay className="size-3.5" aria-hidden="true" />
-                {t("agent.tasks.resume")}
               </Button>
             ) : (
               <Button
@@ -265,11 +295,12 @@ export function StepStream({
                 size="sm"
                 disabled={busy !== null || task.status === "needs_approval"}
                 data-slot="agent-task-pause"
-                className="h-7 gap-1.5 rounded-lg text-xs"
+                aria-label={t("agent.tasks.pause")}
+                title={t("agent.tasks.pause")}
+                className="size-7 rounded-lg p-0"
                 onClick={() => void control("pause")}
               >
                 <LuPause className="size-3.5" aria-hidden="true" />
-                {t("agent.tasks.pause")}
               </Button>
             )}
             <Button
@@ -278,28 +309,40 @@ export function StepStream({
               size="sm"
               disabled={busy !== null}
               data-slot="agent-task-stop"
-              className="h-7 gap-1.5 rounded-lg text-xs hover:bg-destructive/10 hover:text-destructive-text"
+              aria-label={t("agent.tasks.stop")}
+              title={t("agent.tasks.stop")}
+              className="size-7 rounded-lg p-0 hover:bg-destructive/10 hover:text-destructive-text"
               onClick={() => void control("stop")}
             >
               <LuSquare className="size-3 fill-current" aria-hidden="true" />
-              {t("agent.tasks.stop")}
             </Button>
           </div>
         )}
       </header>
 
-      <FadingScrollArea className="min-h-0 flex-1">
-        <ol className="flex flex-col pr-1" aria-live="polite">
+      <FadingScrollArea className="-mx-1 min-h-0 flex-1 px-1">
+        <ol className="flex flex-col" aria-live="polite">
           {stepCount === 0 && active && (
-            <li className="py-6 text-center text-xs text-muted-foreground">
+            <li className="flex items-center gap-3 py-1.5 text-sm text-muted-foreground">
+              <span className="grid h-5 w-4 place-items-center">
+                <span
+                  aria-hidden="true"
+                  className="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+                />
+              </span>
               {task.status === "launching"
                 ? t("agent.tasks.launching")
                 : t("agent.tasks.waitingFirstStep")}
             </li>
           )}
           <AnimatePresence initial={false}>
-            {steps.map((step) => (
-              <StepRow key={step.index} step={step} animate={animate} />
+            {steps.map((step, index) => (
+              <StepRow
+                key={step.index}
+                step={step}
+                current={moving && index === stepCount - 1}
+                animate={animate}
+              />
             ))}
           </AnimatePresence>
         </ol>
@@ -311,7 +354,7 @@ export function StepStream({
 
       {active && task.taskId && (
         <form
-          className="flex shrink-0 items-center gap-2"
+          className="flex shrink-0 items-center gap-1.5"
           onSubmit={(event) => {
             event.preventDefault();
             if (steer.trim()) void control("steer", steer.trim());
@@ -322,6 +365,7 @@ export function StepStream({
           </Label>
           <Input
             id={steerId}
+            variant="soft"
             value={steer}
             maxLength={2000}
             placeholder={t("agent.tasks.steerPlaceholder")}

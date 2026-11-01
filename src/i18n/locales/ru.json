@@ -4339,7 +4339,6 @@
         "unknown": "Неизвестно"
       },
       "chooseProfiles": "Выбрать профили",
-      "profileCount": "Профилей: {{n}}",
       "searchProfiles": "Поиск профилей",
       "noProfileMatch": "Нет подходящих профилей",
       "clearProfiles": "Снять выбор",
@@ -4362,7 +4361,6 @@
       "noCap": "Без лимита",
       "concurrency": "Одновременно",
       "concurrencyDefault": "По умолчанию",
-      "runOn": "Запустить на {{n}}",
       "run": "Запустить",
       "stepKinds": {
         "think": "Размышляет",
@@ -4387,12 +4385,25 @@
       "needsYou": "Ждет вашего ответа",
       "unknownProfile": "Удаленный профиль",
       "progress": "Завершено {{done}} из {{total}}",
-      "failedCount": "С ошибкой: {{n}}",
       "fromRoutine": "Сценарий",
       "stopAll": "Остановить все",
       "retryFailed": "Повторить неудачные",
       "dismiss": "Убрать из списка",
-      "empty": "Напишите задачу выше и выберите профили. Браузер каждого профиля выполняет работу, а здесь видны все шаги."
+      "empty": "Напишите задачу выше и выберите профили. Браузер каждого профиля выполняет работу, а здесь видны все шаги.",
+      "runOn_one": "Запустить на {{count}} профиле",
+      "runOn_few": "Запустить на {{count}} профилях",
+      "runOn_many": "Запустить на {{count}} профилях",
+      "runOn_other": "Запустить на {{count}} профилях",
+      "profileCount_one": "{{count}} профиль",
+      "profileCount_few": "{{count}} профиля",
+      "profileCount_many": "{{count}} профилей",
+      "profileCount_other": "{{count}} профиля",
+      "stepCount_one": "{{count}} шаг",
+      "stepCount_few": "{{count}} шага",
+      "stepCount_many": "{{count}} шагов",
+      "stepCount_other": "{{count}} шага",
+      "filterLabel": "Показать профили по состоянию",
+      "rowsLabel": "Профили этого запуска"
     },
     "routines": {
       "updated": "Сценарий сохранен",
@@ -4403,12 +4414,10 @@
       "profiles": "Профили",
       "creditCap": "Лимит кредитов на запуск",
       "onSchedule": "Запускать по расписанию",
-      "scheduleNeedsPlan": "Для расписаний нужен тариф с запланированной автоматизацией. Запустить сценарий вручную можно и так.",
       "cron": "Выражение cron",
       "cronHint": "Минута, час, день, месяц, день недели. 0 9 * * 1-5 — это 09:00 по будням.",
       "timezone": "Часовой пояс",
       "noRuns": "Запусков пока нет",
-      "scheduleSummary": "{{cron}} ({{timezone}})",
       "manual": "Запуск вручную",
       "hint": "Сохраните задачу один раз и запускайте ее снова на тех же профилях, вручную или по расписанию.",
       "new": "Новый сценарий",
@@ -4416,10 +4425,22 @@
       "runAria": "Запустить {{name}}",
       "run": "Запустить",
       "history": "Запуски",
-      "editAria": "Изменить {{name}}",
-      "deleteAria": "Удалить {{name}}",
       "deleteTitle": "Удалить {{name}}?",
-      "deleteDescription": "Сценарий и его расписание будут удалены."
+      "deleteDescription": "Сценарий и его расписание будут удалены.",
+      "menuAria": "Ещё для {{name}}",
+      "lastRun": "Последний запуск {{when}}",
+      "every": {
+        "daily": "Каждый день в {{time}}",
+        "weekdays": "По будням в {{time}}",
+        "weekends": "По выходным в {{time}}",
+        "weekly": "Каждую неделю, {{day}}, в {{time}}",
+        "hourly": "Каждый час в {{minute}} мин.",
+        "custom": "По расписанию {{cron}}",
+        "minutes_one": "Каждую {{count}} минуту",
+        "minutes_few": "Каждые {{count}} минуты",
+        "minutes_many": "Каждые {{count}} минут",
+        "minutes_other": "Каждые {{count}} минуты"
+      }
     }
   },
   "proxyDistribution": {

@@ -7,6 +7,8 @@ import {
   appendStep,
   batchProgress,
   creditsLeft,
+  cronWords,
+  groupRoutineRuns,
   isCron,
   isTaskActive,
   isTaskFinal,
@@ -14,8 +16,10 @@ import {
   MAX_CONCURRENCY,
   MAX_PROMPT_CHARS,
   promptTitle,
-  statusTone,
+  rowsForAttention,
+  stateCounts,
   TASK_STATUSES,
+  taskState,
   upsertBatch,
 } from "./agent-tasks.ts";
 
@@ -60,11 +64,15 @@ test("a status is active, final or queued, and has one tone", () => {
       status === "queued",
     ].filter(Boolean);
     assert.equal(kinds.length, 1, status);
-    assert.ok(statusTone(status));
+    assert.ok(taskState(status));
   }
-  assert.equal(statusTone("done"), "success");
-  assert.equal(statusTone("failed"), "destructive");
-  assert.equal(statusTone("needs_approval"), "warning");
+  assert.equal(taskState("running"), "working");
+  assert.equal(taskState("launching"), "working");
+  assert.equal(taskState("done"), "done");
+  assert.equal(taskState("budget"), "failed");
+  assert.equal(taskState("needs_approval"), "needs_you");
+  assert.equal(taskState("queued"), "idle");
+  assert.equal(taskState("missed"), "idle");
 });
 
 test("progress, titles and credits read plainly", () => {
@@ -100,4 +108,81 @@ test("batches and steps merge without duplicates", () => {
     appendStep(steps, { index: 2 }).map((s) => s.index),
     [1, 2],
   );
+});
+
+test("a task that needs the person floats up; the rest keep their place", () => {
+  const tasks = [
+    { profileId: "a", status: "done" },
+    { profileId: "b", status: "running" },
+    { profileId: "c", status: "needs_approval" },
+    { profileId: "d", status: "failed" },
+  ];
+  assert.deepEqual(
+    rowsForAttention(tasks).map((task) => task.profileId),
+    ["c", "a", "b", "d"],
+  );
+  assert.deepEqual(
+    rowsForAttention(tasks, "failed").map((task) => task.profileId),
+    ["d"],
+  );
+  assert.deepEqual(stateCounts(tasks), {
+    working: 1,
+    needs_you: 1,
+    done: 1,
+    failed: 1,
+    idle: 0,
+  });
+});
+
+test("routine runs group by batch, newest first, with their credits", () => {
+  const run = (runId, batchId, createdAt, creditsUsed) => ({
+    runId,
+    batchId,
+    profileId: runId,
+    status: "done",
+    summary: null,
+    creditsUsed,
+    error: null,
+    createdAt,
+    finishedAt: null,
+  });
+  const groups = groupRoutineRuns([
+    run("1", "old", "2026-10-01T09:00:00Z", 5),
+    run("2", "new", "2026-10-02T09:00:00Z", 7),
+    run("3", "new", "2026-10-02T09:00:01Z", null),
+  ]);
+  assert.deepEqual(
+    groups.map((group) => [
+      group.batchId,
+      group.runs.length,
+      group.creditsUsed,
+    ]),
+    [
+      ["new", 2, 7],
+      ["old", 1, 5],
+    ],
+  );
+});
+
+test("common schedules read as words", () => {
+  assert.deepEqual(cronWords("0 9 * * 1-5"), {
+    kind: "weekdays",
+    minute: 0,
+    hour: 9,
+  });
+  assert.deepEqual(cronWords("30 7 * * *"), {
+    kind: "daily",
+    minute: 30,
+    hour: 7,
+  });
+  assert.deepEqual(cronWords("0 18 * * 7"), {
+    kind: "weekly",
+    minute: 0,
+    hour: 18,
+    weekday: 0,
+  });
+  assert.deepEqual(cronWords("15 * * * *"), { kind: "hourly", minute: 15 });
+  assert.deepEqual(cronWords("*/10 * * * *"), { kind: "minutes", every: 10 });
+  assert.deepEqual(cronWords("0 9 1 * *"), { kind: "custom" });
+  assert.deepEqual(cronWords("nonsense"), { kind: "custom" });
 });

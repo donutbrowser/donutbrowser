@@ -4241,7 +4241,6 @@
         "unknown": "Unbekannt"
       },
       "chooseProfiles": "Profile wählen",
-      "profileCount": "{{n}} Profile",
       "searchProfiles": "Profile suchen",
       "noProfileMatch": "Kein Profil passt",
       "clearProfiles": "Auswahl aufheben",
@@ -4264,7 +4263,6 @@
       "noCap": "Kein Limit",
       "concurrency": "Gleichzeitig",
       "concurrencyDefault": "Standard",
-      "runOn": "Auf {{n}} ausführen",
       "run": "Ausführen",
       "stepKinds": {
         "think": "Denkt nach",
@@ -4289,12 +4287,19 @@
       "needsYou": "Wartet auf deine Antwort",
       "unknownProfile": "Gelöschtes Profil",
       "progress": "{{done}} von {{total}} fertig",
-      "failedCount": "{{n}} fehlgeschlagen",
       "fromRoutine": "Routine",
       "stopAll": "Alle stoppen",
       "retryFailed": "Fehlgeschlagene wiederholen",
       "dismiss": "Aus der Liste entfernen",
-      "empty": "Schreib oben eine Aufgabe und wähle die Profile. Der Browser jedes Profils erledigt die Arbeit, und du siehst hier jeden Schritt."
+      "empty": "Schreib oben eine Aufgabe und wähle die Profile. Der Browser jedes Profils erledigt die Arbeit, und du siehst hier jeden Schritt.",
+      "runOn_one": "Auf {{count}} Profil ausführen",
+      "runOn_other": "Auf {{count}} Profilen ausführen",
+      "profileCount_one": "{{count}} Profil",
+      "profileCount_other": "{{count}} Profile",
+      "stepCount_one": "{{count}} Schritt",
+      "stepCount_other": "{{count}} Schritte",
+      "filterLabel": "Profile nach Status zeigen",
+      "rowsLabel": "Profile in diesem Lauf"
     },
     "routines": {
       "updated": "Routine gespeichert",
@@ -4305,12 +4310,10 @@
       "profiles": "Profile",
       "creditCap": "Credit-Limit pro Lauf",
       "onSchedule": "Nach Zeitplan ausführen",
-      "scheduleNeedsPlan": "Zeitpläne brauchen einen Plan mit geplanter Automatisierung. Eine Routine kannst du trotzdem von Hand starten.",
       "cron": "Cron-Ausdruck",
       "cronHint": "Minute, Stunde, Tag, Monat, Wochentag. 0 9 * * 1-5 ist werktags um 09:00.",
       "timezone": "Zeitzone",
       "noRuns": "Noch keine Läufe",
-      "scheduleSummary": "{{cron}} ({{timezone}})",
       "manual": "Von Hand starten",
       "hint": "Speichere eine Aufgabe einmal und führe sie erneut auf denselben Profilen aus, von Hand oder nach Zeitplan.",
       "new": "Neue Routine",
@@ -4318,10 +4321,20 @@
       "runAria": "{{name}} ausführen",
       "run": "Ausführen",
       "history": "Läufe",
-      "editAria": "{{name}} bearbeiten",
-      "deleteAria": "{{name}} löschen",
       "deleteTitle": "{{name}} löschen?",
-      "deleteDescription": "Die Routine und ihr Zeitplan werden gelöscht."
+      "deleteDescription": "Die Routine und ihr Zeitplan werden gelöscht.",
+      "menuAria": "Mehr für {{name}}",
+      "lastRun": "Zuletzt {{when}}",
+      "every": {
+        "daily": "Täglich um {{time}}",
+        "weekdays": "Werktags um {{time}}",
+        "weekends": "Am Wochenende um {{time}}",
+        "weekly": "Jeden {{day}} um {{time}}",
+        "hourly": "Stündlich zur Minute {{minute}}",
+        "custom": "Nach Zeitplan {{cron}}",
+        "minutes_one": "Jede Minute",
+        "minutes_other": "Alle {{count}} Minuten"
+      }
     }
   },
   "proxyDistribution": {

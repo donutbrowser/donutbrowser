@@ -2,12 +2,21 @@
 
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ProfilePicker } from "@/components/agent-tasks/parts";
+import { LuSettings2 } from "react-icons/lu";
+import {
+  ProfilePicker,
+  useScheduleWords,
+} from "@/components/agent-tasks/parts";
 import { AnimatedSwitch } from "@/components/ui/animated-switch";
 import { Button } from "@/components/ui/button";
+import { SoftFields } from "@/components/ui/field-variant";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ProBadge } from "@/components/ui/pro-badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { RippleButton } from "@/components/ui/ripple";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -22,6 +31,7 @@ import {
 } from "@/lib/agent-tasks";
 import { translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
+import { cn } from "@/lib/utils";
 import type { BrowserProfile } from "@/types";
 
 const LABEL = "text-xs font-medium text-muted-foreground";
@@ -117,6 +127,9 @@ export function RoutineEditor({
     }
   };
 
+  const scheduleWords = useScheduleWords();
+  const tuned = maxCredits.trim() !== "" || concurrency.trim() !== "";
+
   return (
     <form
       data-slot="agent-routine-editor"
@@ -126,23 +139,23 @@ export function RoutineEditor({
         void save();
       }}
     >
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${formId}-name`} className={LABEL}>
+      <SoftFields>
+        <Label htmlFor={`${formId}-name`} className="sr-only">
           {t("agent.routines.name")}
         </Label>
         <Input
           id={`${formId}-name`}
+          variant="bare"
           value={name}
           maxLength={120}
           placeholder={t("agent.routines.namePlaceholder")}
           data-slot="agent-routine-name"
+          className="h-8 text-base font-medium md:text-base"
           onChange={(event) => {
             setName(event.target.value);
           }}
         />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${formId}-prompt`} className={LABEL}>
+        <Label htmlFor={`${formId}-prompt`} className="sr-only">
           {t("agent.routines.prompt")}
         </Label>
         <Textarea
@@ -152,30 +165,13 @@ export function RoutineEditor({
           maxLength={MAX_PROMPT_CHARS}
           placeholder={t("agent.tasks.promptPlaceholder")}
           data-slot="agent-routine-prompt"
-          className="min-h-20 resize-none text-sm leading-relaxed"
+          className="min-h-20 resize-none rounded-xl px-3.5 py-3 text-sm leading-relaxed"
           onChange={(event) => {
             setPrompt(event.target.value);
           }}
         />
-      </div>
-      <div className="grid gap-3 @lg:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${formId}-url`} className={LABEL}>
-            {t("agent.tasks.startUrl")}
-          </Label>
-          <Input
-            id={`${formId}-url`}
-            value={startUrl}
-            inputMode="url"
-            aria-invalid={urlInvalid}
-            placeholder={t("agent.tasks.startUrlPlaceholder")}
-            onChange={(event) => {
-              setStartUrl(event.target.value);
-            }}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${formId}-profiles`} className={LABEL}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Label htmlFor={`${formId}-profiles`} className="sr-only">
             {t("agent.routines.profiles")}
           </Label>
           <ProfilePicker
@@ -184,94 +180,131 @@ export function RoutineEditor({
             selected={profileIds}
             onChange={setProfileIds}
           />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${formId}-credits`} className={LABEL}>
-            {t("agent.routines.creditCap")}
+          <Label htmlFor={`${formId}-url`} className="sr-only">
+            {t("agent.tasks.startUrl")}
           </Label>
           <Input
-            id={`${formId}-credits`}
-            type="number"
-            min={1}
-            value={maxCredits}
-            placeholder={t("agent.tasks.noCap")}
+            id={`${formId}-url`}
+            value={startUrl}
+            inputMode="url"
+            aria-invalid={urlInvalid}
+            placeholder={t("agent.tasks.startUrlPlaceholder")}
+            className="h-8 w-60 min-w-0 shrink text-xs md:text-xs"
             onChange={(event) => {
-              setMaxCredits(event.target.value);
+              setStartUrl(event.target.value);
             }}
           />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="subtle"
+                size="sm"
+                aria-label={t("agent.tasks.options")}
+                title={t("agent.tasks.options")}
+                className={cn(
+                  "h-8 rounded-lg px-2.5",
+                  tuned && "bg-foreground/6 text-foreground",
+                )}
+              >
+                <LuSettings2 className="size-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="grid w-72 grid-cols-2 gap-2 p-3"
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`${formId}-credits`} className={LABEL}>
+                  {t("agent.routines.creditCap")}
+                </Label>
+                <Input
+                  id={`${formId}-credits`}
+                  type="number"
+                  min={1}
+                  value={maxCredits}
+                  placeholder={t("agent.tasks.noCap")}
+                  className="h-8 text-xs md:text-xs"
+                  onChange={(event) => {
+                    setMaxCredits(event.target.value);
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`${formId}-concurrency`} className={LABEL}>
+                  {t("agent.tasks.concurrency")}
+                </Label>
+                <Input
+                  id={`${formId}-concurrency`}
+                  type="number"
+                  min={1}
+                  max={MAX_CONCURRENCY}
+                  value={concurrency}
+                  placeholder={t("agent.tasks.concurrencyDefault")}
+                  className="h-8 text-xs md:text-xs"
+                  onChange={(event) => {
+                    setConcurrency(event.target.value);
+                  }}
+                />
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${formId}-concurrency`} className={LABEL}>
-            {t("agent.tasks.concurrency")}
-          </Label>
-          <Input
-            id={`${formId}-concurrency`}
-            type="number"
-            min={1}
-            max={MAX_CONCURRENCY}
-            value={concurrency}
-            placeholder={t("agent.tasks.concurrencyDefault")}
-            onChange={(event) => {
-              setConcurrency(event.target.value);
-            }}
-          />
-        </div>
-      </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <AnimatedSwitch
-            id={`${formId}-scheduled`}
-            checked={scheduled}
-            disabled={!canSchedule}
-            data-slot="agent-routine-scheduled"
-            onCheckedChange={setScheduled}
-          />
-          <Label htmlFor={`${formId}-scheduled`} className="text-sm">
-            {t("agent.routines.onSchedule")}
-          </Label>
-          {!canSchedule && <ProBadge />}
-        </div>
-        {!canSchedule && (
-          <p className="text-xs text-muted-foreground">
-            {t("agent.routines.scheduleNeedsPlan")}
-          </p>
-        )}
-        {scheduled && (
-          <div className="grid gap-3 @lg:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`${formId}-cron`} className={LABEL}>
-                {t("agent.routines.cron")}
-              </Label>
-              <Input
-                id={`${formId}-cron`}
-                value={cron}
-                aria-invalid={cronInvalid}
-                data-slot="agent-routine-cron"
-                className="font-mono"
-                onChange={(event) => {
-                  setCron(event.target.value);
-                }}
+        {canSchedule && (
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-2">
+              <AnimatedSwitch
+                id={`${formId}-scheduled`}
+                checked={scheduled}
+                data-slot="agent-routine-scheduled"
+                onCheckedChange={setScheduled}
               />
-              <span className="text-[11px] text-muted-foreground">
-                {t("agent.routines.cronHint")}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`${formId}-timezone`} className={LABEL}>
-                {t("agent.routines.timezone")}
+              <Label htmlFor={`${formId}-scheduled`} className="text-sm">
+                {t("agent.routines.onSchedule")}
               </Label>
-              <Input
-                id={`${formId}-timezone`}
-                value={timezone}
-                onChange={(event) => {
-                  setTimezone(event.target.value);
-                }}
-              />
+              {scheduled && !cronInvalid && (
+                <span className="truncate text-xs text-muted-foreground">
+                  {scheduleWords({ cron, timezone })}
+                </span>
+              )}
             </div>
+            {scheduled && (
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={`${formId}-cron`} className="sr-only">
+                    {t("agent.routines.cron")}
+                  </Label>
+                  <Input
+                    id={`${formId}-cron`}
+                    value={cron}
+                    aria-invalid={cronInvalid}
+                    data-slot="agent-routine-cron"
+                    className="h-8 w-40 font-mono text-xs md:text-xs"
+                    onChange={(event) => {
+                      setCron(event.target.value);
+                    }}
+                  />
+                  <span className="text-[11px] text-muted-foreground">
+                    {t("agent.routines.cronHint")}
+                  </span>
+                </div>
+                <Label htmlFor={`${formId}-timezone`} className="sr-only">
+                  {t("agent.routines.timezone")}
+                </Label>
+                <Input
+                  id={`${formId}-timezone`}
+                  value={timezone}
+                  className="h-8 w-48 text-xs md:text-xs"
+                  onChange={(event) => {
+                    setTimezone(event.target.value);
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
-      </div>
+      </SoftFields>
 
       <div className="flex items-center justify-end gap-2">
         <Button

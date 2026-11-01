@@ -4241,7 +4241,6 @@
         "unknown": "Không rõ"
       },
       "chooseProfiles": "Chọn hồ sơ",
-      "profileCount": "{{n}} hồ sơ",
       "searchProfiles": "Tìm hồ sơ",
       "noProfileMatch": "Không có hồ sơ phù hợp",
       "clearProfiles": "Bỏ chọn",
@@ -4264,7 +4263,6 @@
       "noCap": "Không giới hạn",
       "concurrency": "Cùng lúc",
       "concurrencyDefault": "Mặc định",
-      "runOn": "Chạy trên {{n}}",
       "run": "Chạy",
       "stepKinds": {
         "think": "Đang nghĩ",
@@ -4289,12 +4287,19 @@
       "needsYou": "Đang chờ câu trả lời của bạn",
       "unknownProfile": "Hồ sơ đã xóa",
       "progress": "Xong {{done}} / {{total}}",
-      "failedCount": "{{n}} thất bại",
       "fromRoutine": "Quy trình",
       "stopAll": "Dừng tất cả",
       "retryFailed": "Thử lại các tác vụ lỗi",
       "dismiss": "Xóa khỏi danh sách",
-      "empty": "Viết một tác vụ ở trên và chọn hồ sơ. Trình duyệt của mỗi hồ sơ làm việc, và bạn thấy từng bước ở đây."
+      "empty": "Viết một tác vụ ở trên và chọn hồ sơ. Trình duyệt của mỗi hồ sơ làm việc, và bạn thấy từng bước ở đây.",
+      "runOn_one": "Chạy trên {{count}} hồ sơ",
+      "runOn_other": "Chạy trên {{count}} hồ sơ",
+      "profileCount_one": "{{count}} hồ sơ",
+      "profileCount_other": "{{count}} hồ sơ",
+      "stepCount_one": "{{count}} bước",
+      "stepCount_other": "{{count}} bước",
+      "filterLabel": "Hiện hồ sơ theo trạng thái",
+      "rowsLabel": "Các hồ sơ trong lần chạy này"
     },
     "routines": {
       "updated": "Đã lưu quy trình",
@@ -4305,12 +4310,10 @@
       "profiles": "Hồ sơ",
       "creditCap": "Giới hạn tín dụng mỗi lần chạy",
       "onSchedule": "Chạy theo lịch",
-      "scheduleNeedsPlan": "Lịch chạy cần gói có tự động hóa theo lịch. Bạn vẫn có thể chạy quy trình thủ công.",
       "cron": "Biểu thức cron",
       "cronHint": "Phút, giờ, ngày, tháng, thứ. 0 9 * * 1-5 là 09:00 các ngày trong tuần.",
       "timezone": "Múi giờ",
       "noRuns": "Chưa có lần chạy nào",
-      "scheduleSummary": "{{cron}} ({{timezone}})",
       "manual": "Chạy thủ công",
       "hint": "Lưu một tác vụ một lần và chạy lại trên cùng các hồ sơ, thủ công hoặc theo lịch.",
       "new": "Quy trình mới",
@@ -4318,10 +4321,20 @@
       "runAria": "Chạy {{name}}",
       "run": "Chạy",
       "history": "Lần chạy",
-      "editAria": "Sửa {{name}}",
-      "deleteAria": "Xóa {{name}}",
       "deleteTitle": "Xóa {{name}}?",
-      "deleteDescription": "Quy trình và lịch của nó sẽ bị xóa."
+      "deleteDescription": "Quy trình và lịch của nó sẽ bị xóa.",
+      "menuAria": "Thêm cho {{name}}",
+      "lastRun": "Lần chạy gần nhất {{when}}",
+      "every": {
+        "daily": "Hằng ngày lúc {{time}}",
+        "weekdays": "Các ngày trong tuần lúc {{time}}",
+        "weekends": "Cuối tuần lúc {{time}}",
+        "weekly": "Mỗi {{day}} lúc {{time}}",
+        "hourly": "Mỗi giờ vào phút {{minute}}",
+        "custom": "Theo lịch {{cron}}",
+        "minutes_one": "Mỗi phút",
+        "minutes_other": "Mỗi {{count}} phút"
+      }
     }
   },
   "proxyDistribution": {

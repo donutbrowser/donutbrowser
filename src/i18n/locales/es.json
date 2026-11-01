@@ -4289,7 +4289,6 @@
         "unknown": "Desconocido"
       },
       "chooseProfiles": "Elegir perfiles",
-      "profileCount": "{{n}} perfiles",
       "searchProfiles": "Buscar perfiles",
       "noProfileMatch": "Ningún perfil coincide",
       "clearProfiles": "Quitar selección",
@@ -4312,7 +4311,6 @@
       "noCap": "Sin límite",
       "concurrency": "A la vez",
       "concurrencyDefault": "Predeterminado",
-      "runOn": "Ejecutar en {{n}}",
       "run": "Ejecutar",
       "stepKinds": {
         "think": "Pensando",
@@ -4337,12 +4335,22 @@
       "needsYou": "Esperando tu respuesta",
       "unknownProfile": "Perfil eliminado",
       "progress": "{{done}} de {{total}} terminadas",
-      "failedCount": "{{n}} fallidas",
       "fromRoutine": "Rutina",
       "stopAll": "Detener todo",
       "retryFailed": "Reintentar fallidas",
       "dismiss": "Quitar de la lista",
-      "empty": "Escribe una tarea arriba y elige los perfiles. El navegador de cada perfil hace el trabajo y aquí ves cada paso."
+      "empty": "Escribe una tarea arriba y elige los perfiles. El navegador de cada perfil hace el trabajo y aquí ves cada paso.",
+      "runOn_one": "Ejecutar en {{count}} perfil",
+      "runOn_many": "Ejecutar en {{count}} perfiles",
+      "runOn_other": "Ejecutar en {{count}} perfiles",
+      "profileCount_one": "{{count}} perfil",
+      "profileCount_many": "{{count}} perfiles",
+      "profileCount_other": "{{count}} perfiles",
+      "stepCount_one": "{{count}} paso",
+      "stepCount_many": "{{count}} pasos",
+      "stepCount_other": "{{count}} pasos",
+      "filterLabel": "Mostrar perfiles por estado",
+      "rowsLabel": "Perfiles de esta ejecución"
     },
     "routines": {
       "updated": "Rutina guardada",
@@ -4353,12 +4361,10 @@
       "profiles": "Perfiles",
       "creditCap": "Límite de créditos por ejecución",
       "onSchedule": "Ejecutar según un horario",
-      "scheduleNeedsPlan": "Los horarios necesitan un plan con automatización programada. Aun así puedes ejecutar una rutina a mano.",
       "cron": "Expresión cron",
       "cronHint": "Minuto, hora, día, mes, día de la semana. 0 9 * * 1-5 son las 09:00 en días laborables.",
       "timezone": "Zona horaria",
       "noRuns": "Aún no hay ejecuciones",
-      "scheduleSummary": "{{cron}} ({{timezone}})",
       "manual": "Ejecutar a mano",
       "hint": "Guarda una tarea una vez y vuelve a ejecutarla en los mismos perfiles, a mano o según un horario.",
       "new": "Nueva rutina",
@@ -4366,10 +4372,21 @@
       "runAria": "Ejecutar {{name}}",
       "run": "Ejecutar",
       "history": "Ejecuciones",
-      "editAria": "Editar {{name}}",
-      "deleteAria": "Eliminar {{name}}",
       "deleteTitle": "¿Eliminar {{name}}?",
-      "deleteDescription": "Se eliminan la rutina y su horario."
+      "deleteDescription": "Se eliminan la rutina y su horario.",
+      "menuAria": "Más opciones de {{name}}",
+      "lastRun": "Última ejecución {{when}}",
+      "every": {
+        "daily": "Cada día a las {{time}}",
+        "weekdays": "Entre semana a las {{time}}",
+        "weekends": "Los fines de semana a las {{time}}",
+        "weekly": "Cada {{day}} a las {{time}}",
+        "hourly": "Cada hora en el minuto {{minute}}",
+        "custom": "Según la programación {{cron}}",
+        "minutes_one": "Cada minuto",
+        "minutes_many": "Cada {{count}} minutos",
+        "minutes_other": "Cada {{count}} minutos"
+      }
     }
   },
   "proxyDistribution": {
