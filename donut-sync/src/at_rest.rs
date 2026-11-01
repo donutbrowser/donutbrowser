@@ -105,6 +105,10 @@ impl Keyring {
     &self.keys[0]
   }
 
+  pub fn holds(&self, id: &str) -> bool {
+    self.find(id).is_some()
+  }
+
   fn find(&self, id: &str) -> Option<&Key> {
     self.keys.iter().find(|k| k.id == id)
   }

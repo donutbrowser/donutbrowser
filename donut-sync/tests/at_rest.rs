@@ -372,6 +372,17 @@ async fn migration_seals_everything_in_place_and_a_rerun_does_nothing() {
   env.push(("SYNC_AT_REST_KEY", K1));
   let total: usize = objects.iter().map(|(_, v)| v.len()).sum();
 
+  let (code, out) = run_command(&["verify-at-rest"], &env);
+  assert_eq!(code, 1, "{out}");
+  assert!(out.contains("complete=false"), "{out}");
+  assert!(
+    out.contains(&format!(
+      "plaintext=25 plaintext_bytes={}",
+      objects.iter().map(|(_, v)| v.len()).sum::<usize>()
+    )),
+    "{out}"
+  );
+
   let (code, out) = run_command(&["migrate-at-rest", "--dry-run"], &env);
   assert_eq!(code, 0, "{out}");
   assert!(
@@ -414,6 +425,14 @@ async fn migration_seals_everything_in_place_and_a_rerun_does_nothing() {
   let (code, out) = run_command(&["migrate-at-rest"], &env);
   assert_eq!(code, 0, "{out}");
   assert!(out.contains("current=25 sealed=0"), "{out}");
+  let (code, out) = run_command(&["verify-at-rest", "--sample", "10"], &env);
+  assert_eq!(code, 0, "{out}");
+  assert!(out.contains("complete=true objects=25"), "{out}");
+  assert!(
+    out.contains("plaintext=0 plaintext_bytes=0 sealed[k1]=25"),
+    "{out}"
+  );
+  assert!(out.contains("sampled=10 sample_failed=0"), "{out}");
 
   // The server reads what the migration wrote. Self-hosted keys are bare.
   let server = Server::start(&bucket, &[("SYNC_AT_REST_KEY", Some(K1))]).await;

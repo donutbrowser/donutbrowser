@@ -22,7 +22,8 @@ also read.
 
 With `SYNC_AT_REST_KEY` set, the server encrypts every object it stores, and
 transfers go through it instead of straight to storage. Objects stored before
-stay readable; `donut-sync migrate-at-rest --help` encrypts them in place.
+stay readable; `donut-sync migrate-at-rest --help` encrypts them in place, and
+`donut-sync verify-at-rest` checks that none is left in plaintext.
 
 ## Test
 

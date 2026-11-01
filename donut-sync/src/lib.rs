@@ -24,6 +24,7 @@ pub mod subscribe;
 pub mod sync;
 pub mod time;
 pub mod transfer;
+pub mod verify;
 
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
@@ -300,8 +301,10 @@ pub async fn run() -> i32 {
   let _ = dotenvy::dotenv();
   let config = Config::from_env();
   let args: Vec<String> = std::env::args().skip(1).collect();
-  if args.first().map(String::as_str) == Some(migrate::COMMAND) {
-    return migrate::run(&config, &args[1..]).await;
+  match args.first().map(String::as_str) {
+    Some(migrate::COMMAND) => return migrate::run(&config, &args[1..]).await,
+    Some(verify::COMMAND) => return verify::run(&config, &args[1..]).await,
+    _ => {}
   }
   if let Err(message) = validate_env(&config) {
     eprintln!("{message}");
