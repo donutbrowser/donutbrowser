@@ -70,6 +70,7 @@ donutbrowser/
 │   │   ├── mcp_integrations.rs      # 20-client MCP installer: remote endpoint with bearer, format-preserving JSONC/TOML edits
 │   │   ├── automation_rate_limiter.rs # Shared REST/MCP automation quota
 │   │   ├── agent_console.rs         # The person's side of connected MCP agents: activity, questions, notes, take-over, pause
+│   │   ├── agent_tasks/             # Agent tasks and routines (hidden unless the `agent` entitlement): Wayfern engine over CDP, multi-profile batches, agent token, cloud runs
 │   │   ├── recipes.rs               # Thin client for cloud recipes; storage and replay stay in the cloud
 │   │   ├── agent_schedules.rs       # Thin client for scheduled recipes (paid plans; the cloud checks the plan)
 │   │   ├── cloud_api.rs             # Signed-in JSON calls to Donut cloud, with token refresh and error codes
@@ -107,7 +108,8 @@ donutbrowser/
 │   ├── tests/                      # Integration tests
 │   └── Cargo.toml                  # Rust dependencies
 ├── donut-sync/                     # Sync server in Rust (self-hostable): auth, presigned S3 URLs, team rules
-│   ├── src/                        # http.rs routing, sync.rs object routes, auth.rs, s3.rs + sigv4.rs, subscribe.rs (SSE)
+│   ├── src/                        # http.rs routing, sync.rs object routes, auth.rs, s3.rs + sigv4.rs, subscribe.rs (SSE),
+│   │                               # at_rest.rs + sealed_store.rs + transfer.rs (optional encryption at rest, SYNC_AT_REST_KEY), migrate.rs (migrate/verify-at-rest)
 │   └── tests/                      # End-to-end tests: the binary against the compose S3 server
 │   └── src/                        # Controllers, services, auth, S3 sync
 ├── e2e/                            # Isolated native UI/sync/Wayfern E2E system
