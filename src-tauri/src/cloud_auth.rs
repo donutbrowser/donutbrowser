@@ -145,6 +145,11 @@ pub struct Entitlements {
   /// stale or edited copy here can open a screen but never run anything.
   #[serde(rename = "scheduledAutomation", default)]
   pub scheduled_automation: bool,
+  /// Natural-language tasks and routines that Wayfern's engine runs. A hidden
+  /// rollout flag the cloud sets per account, on any plan including free.
+  /// Never derived from the plan: a backend that omits it means `false`.
+  #[serde(default)]
+  pub agent: bool,
   #[serde(rename = "profileLimit", default)]
   pub profile_limit: i64,
   #[serde(rename = "requestsPerHour", default)]
@@ -176,6 +181,7 @@ fn derive_entitlements(
       remote_interactive: false,
       remote_control: false,
       scheduled_automation: false,
+      agent: false,
       profile_limit: 0,
       requests_per_hour: 0,
       remote_browser_hours: 0,
@@ -220,6 +226,7 @@ fn derive_entitlements(
     remote_control,
     // Every plan that is sold with it; an unknown one waits for the server.
     scheduled_automation: matches!(plan, "solo" | "pro" | "team" | "enterprise"),
+    agent: false,
     profile_limit,
     requests_per_hour: if browser_automation {
       DEFAULT_REQUESTS_PER_HOUR
@@ -2357,6 +2364,22 @@ mod tests {
       refusal_message("Failed to request wayfern token: timeout"),
       "Failed to request wayfern token: timeout"
     );
+  }
+
+  #[test]
+  fn the_agent_flag_is_off_unless_the_server_sends_it() {
+    let older: Entitlements = serde_json::from_str(r#"{"active":true,"browserAutomation":true}"#)
+      .expect("an older backend omits agent");
+    assert!(!older.agent);
+    let granted: Entitlements =
+      serde_json::from_str(r#"{"active":false,"agent":true}"#).expect("a free account with agent");
+    assert!(granted.agent);
+    for plan in ["free", "solo", "pro", "team", "enterprise", "mystery"] {
+      assert!(
+        !derive_entitlements(plan, Some("monthly"), "active", 20).agent,
+        "{plan} must not imply agent"
+      );
+    }
   }
 
   fn active_solo() -> Entitlements {

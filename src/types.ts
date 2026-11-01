@@ -156,6 +156,11 @@ export interface Entitlements {
    * every save and every fire.
    */
   scheduledAutomation: boolean;
+  /**
+   * Natural-language tasks and routines run by Wayfern's engine. A hidden
+   * rollout flag the cloud sets per account, on any plan. Missing = false.
+   */
+  agent: boolean;
   profileLimit: number;
   requestsPerHour: number;
   /**
@@ -187,6 +192,7 @@ export type ServerEntitlements = Omit<
   | "remoteInteractive"
   | "remoteControl"
   | "scheduledAutomation"
+  | "agent"
 > &
   Partial<
     Pick<
@@ -196,6 +202,7 @@ export type ServerEntitlements = Omit<
       | "remoteInteractive"
       | "remoteControl"
       | "scheduledAutomation"
+      | "agent"
     >
   >;
 

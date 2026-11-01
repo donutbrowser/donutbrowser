@@ -23,6 +23,7 @@ const NONE: Entitlements = {
   remoteInteractive: false,
   remoteControl: false,
   scheduledAutomation: false,
+  agent: false,
   profileLimit: 0,
   requestsPerHour: 0,
   remoteBrowserHours: 0,
@@ -122,6 +123,7 @@ export function getEntitlements(
       // is the true answer rather than a conservative guess.
       remoteControl: server.remoteControl ?? false,
       scheduledAutomation: server.scheduledAutomation ?? false,
+      agent: server.agent ?? false,
       remoteBrowserHours: server.remoteBrowserHours ?? 0,
     };
   }
@@ -143,6 +145,8 @@ export function getEntitlements(
     remoteInteractive: caps.remoteInteractive,
     remoteControl: caps.remoteControl,
     scheduledAutomation: caps.scheduledAutomation,
+    // A hidden rollout flag: only the server grants it, never the plan.
+    agent: false,
     profileLimit: user.profileLimit,
     requestsPerHour: caps.browserAutomation ? DEFAULT_REQUESTS_PER_HOUR : 0,
     remoteBrowserHours: 0,
@@ -172,6 +176,15 @@ export function canUseScheduledAutomation(
 ): boolean {
   const entitlements = getEntitlements(user);
   return entitlements.active && entitlements.scheduledAutomation;
+}
+
+/**
+ * Whether the account has the agent rollout flag. Any plan, including free;
+ * signed out is never. The UI also needs a Wayfern that supports the engine.
+ */
+export function hasAgentAccess(user: CloudUser | null | undefined): boolean {
+  if (!user) return false;
+  return getEntitlements(user).agent;
 }
 
 export function canUseCookieBot(user: CloudUser | null | undefined): boolean {
