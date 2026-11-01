@@ -110,12 +110,12 @@ export function TaskComposer({
         ref={promptRef}
         id={`${formId}-prompt`}
         variant="soft"
-        rows={3}
+        rows={2}
         value={prompt}
         maxLength={MAX_PROMPT_CHARS}
         placeholder={t("agent.tasks.promptPlaceholder")}
         data-slot="agent-task-prompt"
-        className="min-h-24 resize-none rounded-xl px-3.5 py-3 text-sm leading-relaxed"
+        className="min-h-20 resize-none rounded-xl px-3.5 py-3 text-sm leading-relaxed"
         onChange={(event) => {
           setPrompt(event.target.value);
         }}

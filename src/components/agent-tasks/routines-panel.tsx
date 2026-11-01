@@ -346,33 +346,25 @@ export function AgentRoutinesPanel({
                         {t("common.buttons.delete")}
                       </Button>
                     </div>
-                    <AnimatePresence initial={false}>
-                      {open && (
-                        <motion.div
-                          initial={animate ? { opacity: 0, height: 0 } : false}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={
-                            animate
-                              ? { opacity: 0, height: 0 }
-                              : { opacity: 0, transition: { duration: 0 } }
-                          }
-                          transition={
-                            animate
-                              ? {
-                                  duration: MOTION_DURATION.base,
-                                  ease: MOTION_EASE_OUT,
-                                }
-                              : { duration: 0 }
-                          }
-                          className="overflow-hidden"
-                        >
-                          <RunHistory
-                            routineId={routine.id}
-                            profileNames={profileNames}
-                          />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {open && (
+                      <motion.div
+                        initial={animate ? { opacity: 0.6, y: -2 } : false}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={
+                          animate
+                            ? {
+                                duration: MOTION_DURATION.base,
+                                ease: MOTION_EASE_OUT,
+                              }
+                            : { duration: 0 }
+                        }
+                      >
+                        <RunHistory
+                          routineId={routine.id}
+                          profileNames={profileNames}
+                        />
+                      </motion.div>
+                    )}
                   </motion.div>
                 );
               })}

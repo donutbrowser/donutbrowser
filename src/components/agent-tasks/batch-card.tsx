@@ -127,7 +127,7 @@ export function BatchCard({
   return (
     <motion.article
       layout={animate ? "position" : false}
-      initial={animate ? { opacity: 0, y: 6 } : false}
+      initial={animate ? { opacity: 0.6, y: 6 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={animate ? MOTION_SPRING.gentle : { duration: 0 }}
       data-slot="agent-batch"

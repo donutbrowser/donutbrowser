@@ -53,7 +53,9 @@ export function AgentTasksPanel({
   }, [batches, picked]);
 
   return (
-    <div
+    // On a short window the whole panel scrolls; on a tall one the run list
+    // and the step stream fill it and scroll on their own.
+    <FadingScrollArea
       data-slot="agent-tasks"
       className="@container flex min-h-0 flex-1 flex-col gap-4"
     >
@@ -85,7 +87,7 @@ export function AgentTasksPanel({
           </p>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 @3xl:flex-row">
+        <div className="flex min-h-[26rem] flex-1 flex-col gap-4 @3xl:flex-row">
           <FadingScrollArea className="min-h-0 @3xl:w-[min(26rem,45%)] @3xl:shrink-0">
             <div className="flex flex-col gap-5 pr-1">
               {batches.map((batch) => (
@@ -110,7 +112,7 @@ export function AgentTasksPanel({
             </div>
           </FadingScrollArea>
           {selection && (
-            <div className="flex min-h-72 min-w-0 flex-1 flex-col rounded-2xl bg-foreground/3 p-4">
+            <div className="flex min-h-80 min-w-0 flex-1 flex-col rounded-2xl bg-foreground/3 p-4">
               <StepStream
                 key={`${selection.batch.id}:${selection.task.profileId}`}
                 batch={selection.batch}
@@ -124,6 +126,6 @@ export function AgentTasksPanel({
           )}
         </div>
       )}
-    </div>
+    </FadingScrollArea>
   );
 }

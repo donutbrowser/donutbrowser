@@ -48,7 +48,7 @@ function StepRow({ step, animate }: { step: AgentStep; animate: boolean }) {
     <motion.li
       data-slot="agent-step"
       data-kind={step.kind}
-      initial={animate ? { opacity: 0, y: 4 } : false}
+      initial={animate ? { opacity: 0.6, y: 4 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={
         animate
@@ -208,8 +208,10 @@ export function StepStream({
 
   useEffect(() => {
     if (stepCount === 0) return;
-    endRef.current?.scrollIntoView({
-      block: "end",
+    // Only the list scrolls; scrollIntoView would move the page too.
+    const box = endRef.current?.parentElement;
+    box?.scrollTo({
+      top: box.scrollHeight,
       behavior: animate ? "smooth" : "auto",
     });
   }, [stepCount, animate]);
