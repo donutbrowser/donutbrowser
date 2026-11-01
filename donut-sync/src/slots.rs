@@ -11,9 +11,9 @@ use std::time::Duration;
 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-const MAX_TRANSFERS: usize = 64;
-const MAX_PER_NAMESPACE: usize = 8;
-pub const SLOT_WAIT: Duration = Duration::from_secs(20);
+const MAX_TRANSFERS: usize = 192;
+const MAX_PER_NAMESPACE: usize = 32;
+pub const SLOT_WAIT: Duration = Duration::from_secs(60);
 const MAX_HOLD: Duration = Duration::from_secs(600);
 /// Accounts whose semaphores are kept while idle.
 const NAMESPACES_KEPT: usize = 10_000;
@@ -110,7 +110,7 @@ mod tests {
 
   #[tokio::test]
   async fn one_account_cannot_take_every_slot() {
-    let slots = Slots::new(10, MAX_HOLD);
+    let slots = Slots::new(MAX_PER_NAMESPACE + 2, MAX_HOLD);
     let mut held = Vec::new();
     for _ in 0..MAX_PER_NAMESPACE {
       held.push(slots.acquire("users/a/x", WAIT).await.unwrap());
@@ -120,7 +120,7 @@ mod tests {
     held.push(slots.acquire("users/c/x", WAIT).await.unwrap());
     assert!(
       slots.acquire("users/d/x", WAIT).await.is_none(),
-      "all 10 in use"
+      "every slot in use"
     );
     held.pop();
     assert!(slots.acquire("users/d/x", WAIT).await.is_some());

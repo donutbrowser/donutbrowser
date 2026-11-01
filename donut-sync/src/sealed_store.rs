@@ -12,8 +12,8 @@ use async_trait::async_trait;
 
 use crate::at_rest::{self, Keyring, MARKER};
 use crate::store::{
-  ByteStream, Copied, CopySpec, Download, HeadOutput, ListInput, ListOutput, ObjectVersion,
-  PendingUpload, Store, StoreError, Upload,
+  ByteStream, Copied, CopySpec, Download, HeadOutput, ListInput, ListOutput, PendingUpload, Store,
+  StoreError, Upload, VersionMarker, VersionsPage,
 };
 
 pub struct SealedStore {
@@ -96,7 +96,7 @@ impl Store for SealedStore {
       .await
   }
 
-  async fn delete_object(&self, key: &str) -> Result<(), StoreError> {
+  async fn delete_object(&self, key: &str) -> Result<Option<String>, StoreError> {
     self.inner.delete_object(key).await
   }
 
@@ -146,8 +146,12 @@ impl Store for SealedStore {
       .await
   }
 
-  async fn list_versions(&self, prefix: &str) -> Result<Option<Vec<ObjectVersion>>, StoreError> {
-    self.inner.list_versions(prefix).await
+  async fn list_versions(
+    &self,
+    prefix: &str,
+    after: Option<&VersionMarker>,
+  ) -> Result<Option<VersionsPage>, StoreError> {
+    self.inner.list_versions(prefix, after).await
   }
 
   async fn delete_version(&self, key: &str, version_id: &str) -> Result<(), StoreError> {

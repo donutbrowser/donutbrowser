@@ -160,6 +160,7 @@ pub struct SyncService {
   cloud: bool,
   backend: Option<Arc<Backend>>,
   group_cache: Mutex<HashMap<String, (Group, Instant)>>,
+  direct_uploads: Option<Arc<crate::sealer::DirectUploads>>,
 }
 
 pub struct SyncOptions {
@@ -175,6 +176,11 @@ pub struct SyncOptions {
 
 impl SyncService {
   pub fn new(store: Arc<dyn Store>, options: SyncOptions) -> Self {
+    let direct_uploads = options
+      .transfer
+      .as_ref()
+      .filter(|signer| !signer.keyring.unsealing())
+      .map(|_| Arc::new(crate::sealer::DirectUploads::default()));
     Self {
       store,
       presigner: options.presigner,
@@ -184,6 +190,7 @@ impl SyncService {
       cloud: options.cloud,
       backend: options.backend,
       group_cache: Mutex::new(HashMap::new()),
+      direct_uploads,
     }
   }
 
@@ -215,21 +222,15 @@ impl SyncService {
 
   /// Notes the keys handed direct storage URLs, so the sealer seals what
   /// older apps write there.
-  async fn note_direct_uploads(&self, keys: &[String], now: i64, expires_in: f64) {
-    let sealing = self
-      .transfer
-      .as_ref()
-      .is_some_and(|signer| !signer.keyring.unsealing());
-    if !sealing || keys.is_empty() {
-      return;
+  fn note_direct_uploads(&self, keys: &[String], now: i64, expires_in: f64) {
+    if let Some(direct) = &self.direct_uploads {
+      direct.note(keys, expires_ms(now, expires_in));
     }
-    if let Err(e) =
-      crate::sealer::note_direct_uploads(self.store.as_ref(), keys, expires_ms(now, expires_in))
-        .await
-    {
-      // The hourly backstop pass still finds these objects.
-      log::warn(CONTEXT, &format!("Direct uploads not noted err=\"{e}\""));
-    }
+  }
+
+  /// Set while sealing: the keys handed direct URLs, for the sealer.
+  pub fn direct_uploads(&self) -> Option<&Arc<crate::sealer::DirectUploads>> {
+    self.direct_uploads.as_ref()
   }
 
   fn get_url(&self, origin: &str, key: &str, expires_in: f64, now: i64) -> String {
@@ -534,9 +535,7 @@ impl SyncService {
       .presigner
       .put_url(scoped, expires_in, metadata_or_none, now);
     let transfer = self.transfer_json(origin, scoped, expires_in, metadata_or_none, now);
-    self
-      .note_direct_uploads(&[scoped.to_string()], now, expires_in)
-      .await;
+    self.note_direct_uploads(&[scoped.to_string()], now, expires_in);
 
     if ctx.mode == Mode::Cloud && field_starts_with(raw_key, "profiles/")? {
       self.report_profile_usage_async(ctx);
@@ -751,7 +750,7 @@ impl SyncService {
       out_items.push(Value::Object(item));
       direct.push(scoped.to_string());
     }
-    self.note_direct_uploads(&direct, now, expires_in).await;
+    self.note_direct_uploads(&direct, now, expires_in);
 
     if ctx.mode == Mode::Cloud {
       let mut any_profile = false;
@@ -1222,11 +1221,10 @@ impl SyncService {
           .await
           .map_err(store_error)?;
         let mut last_modified = first.contents.first().and_then(|o| o.last_modified_ms);
-        // A sealed store reports a migrated object's time from before the
-        // migration, which only a HEAD reads.
-        if self.transfer.is_some()
-          && let Some(object) = first.contents.first()
-        {
+        // A migrated object's time from before the migration is in its
+        // metadata, which only a HEAD reads; it stays there after the key is
+        // removed.
+        if let Some(object) = first.contents.first() {
           last_modified = self
             .store
             .head_object(&object.key)

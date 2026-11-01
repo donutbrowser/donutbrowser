@@ -20,8 +20,9 @@
 //! Sealing a part twice under the same nonces is safe only for the same
 //! bytes, so a part is read whole and hashed before anything reaches storage
 //! (`Ledger`): a part may be sent again with the same bytes, never with
-//! others. The ledger is in memory, so after a restart the parts of an upload
-//! started before it are refused, and the app starts the upload again.
+//! others. The ledger is in memory, so only the process that started an
+//! upload takes its parts: after a restart, or while a deploy runs the old
+//! and new process side by side, the app is told to start the upload again.
 
 use base64::Engine;
 use bytes::Bytes;
@@ -75,7 +76,8 @@ struct Token {
   /// Whether the parts are sealed: not when the server was unsealing at the
   /// start (the object then has no marker either).
   sealed: bool,
-  issued_ms: i64,
+  /// The process that started the upload: its ledger holds the parts.
+  instance: String,
 }
 
 /// Each part's hash and its upload's expiry, by upload id and part number.
@@ -83,7 +85,7 @@ type PartHashes = HashMap<(String, u64), ([u8; 32], i64)>;
 
 /// The hash of every part sent so far, while its upload lasts.
 pub struct Ledger {
-  started_ms: i64,
+  instance: String,
   parts: Mutex<PartHashes>,
   buffers: Arc<Semaphore>,
 }
@@ -91,7 +93,7 @@ pub struct Ledger {
 impl Default for Ledger {
   fn default() -> Self {
     Self {
-      started_ms: time::now_ms(),
+      instance: uuid::Uuid::new_v4().simple().to_string(),
       parts: Mutex::new(HashMap::new()),
       buffers: Arc::new(Semaphore::new(PART_BUFFERS)),
     }
@@ -162,6 +164,14 @@ impl Token {
   }
 }
 
+fn interrupted() -> Response<ResBody> {
+  s3_error(
+    409,
+    "UploadInterrupted",
+    "The server restarted during this upload. Start it again.",
+  )
+}
+
 fn invalid(code: &str, message: &str) -> Response<ResBody> {
   s3_error(400, code, message)
 }
@@ -211,7 +221,7 @@ pub async fn start(
     part_size: PART_SIZE,
     expires_ms: url_expires_ms + UPLOAD_GRACE_MS,
     sealed: !signer.keyring.unsealing(),
-    issued_ms: time::now_ms(),
+    instance: signer.parts.instance.clone(),
   };
   json_response(
     200,
@@ -242,6 +252,12 @@ pub async fn serve(
   match (&parts.method, signed.op.as_deref()) {
     (&Method::PUT, None) => part(store, signer, &token, signed.part.as_deref(), parts, body).await,
     (&Method::POST, Some("complete")) => {
+      // Its parts went through another process's ledger; a mode change
+      // (sealing or not) is a new process too.
+      if token.instance != signer.parts.instance {
+        drain(body).await;
+        return interrupted();
+      }
       let response = complete(store, &token, body).await;
       if response.status().is_success() {
         signer.parts.forget(&token.upload_id);
@@ -296,13 +312,9 @@ async fn part(
       &format!("Part {number} must be {expected} bytes, not {length}."),
     );
   }
-  if token.issued_ms < signer.parts.started_ms {
+  if token.instance != signer.parts.instance {
     drain(body).await;
-    return s3_error(
-      409,
-      "UploadInterrupted",
-      "The server restarted during this upload. Start it again.",
-    );
+    return interrupted();
   }
   let Ok(Ok(_buffer)) =
     tokio::time::timeout(SLOT_WAIT, signer.parts.buffers.clone().acquire_owned()).await
@@ -424,7 +436,7 @@ mod tests {
       part_size: PART_SIZE,
       expires_ms: 1000,
       sealed: true,
-      issued_ms: 0,
+      instance: "i".to_string(),
     }
   }
 

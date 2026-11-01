@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{SYNC_TOKEN, Server, bucket, http, post, raw_store, run_command, storage_env};
+use common::{SYNC_TOKEN, Server, fresh_bucket, http, post, raw_store, run_command, storage_env};
 use donut_sync::store::{Store, Upload, collect, once};
 use serde_json::{Value, json};
 
@@ -16,7 +16,7 @@ fn sample(len: usize) -> Vec<u8> {
 }
 
 async fn sealed_server(name: &str, keys: &str) -> (Server, String) {
-  let bucket = bucket(name);
+  let bucket = fresh_bucket(name).await;
   (
     Server::start(&bucket, &[("SYNC_AT_REST_KEY", Some(keys))]).await,
     bucket,
@@ -47,7 +47,7 @@ async fn upload(server: &Server, key: &str, body: Vec<u8>, updated_at: Option<&s
     presign["url"]
       .as_str()
       .unwrap()
-      .starts_with(common::S3_ENDPOINT)
+      .starts_with(&common::storage().endpoint)
   );
   assert_eq!(presign["transfer"]["partSize"], json!(8 * 1024 * 1024));
   let url = presign["transfer"]["url"].as_str().unwrap().to_string();
@@ -123,7 +123,7 @@ async fn transfers_go_through_the_server_and_are_sealed_in_storage() {
   // Older apps still upload to storage directly, so its address is named.
   assert_eq!(
     readyz,
-    json!({ "status": "ready", "s3": true, "storageEndpoint": common::S3_ENDPOINT })
+    json!({ "status": "ready", "s3": true, "storageEndpoint": &common::storage().endpoint })
   );
   assert!(
     server
@@ -277,13 +277,13 @@ async fn transfer_urls_refuse_what_s3_would_refuse() {
 
 #[tokio::test]
 async fn without_the_key_nothing_changes() {
-  let server = Server::start(&bucket("plain"), &[]).await;
+  let server = Server::start(&fresh_bucket("plain").await, &[]).await;
   let (_, presign) = call(&server, "presign-upload", json!({ "key": "k" })).await;
   assert!(
     presign["url"]
       .as_str()
       .unwrap()
-      .starts_with("http://127.0.0.1:8987/")
+      .starts_with(&format!("{}/", common::storage().endpoint))
   );
   let response = http()
     .get(format!("{}/v1/transfer?key=k", server.url))
@@ -321,7 +321,7 @@ async fn seed_plaintext(bucket: &str, objects: &[(&str, Vec<u8>)]) {
 
 #[tokio::test]
 async fn plaintext_and_sealed_objects_read_side_by_side() {
-  let bucket = bucket("mixed");
+  let bucket = fresh_bucket("mixed").await;
   let old = sample(100_000);
   seed_plaintext(&bucket, &[("proxies/old.json", old.clone())]).await;
   let server = Server::start(&bucket, &[("SYNC_AT_REST_KEY", Some(K1))]).await;
@@ -369,7 +369,7 @@ async fn plaintext_and_sealed_objects_read_side_by_side() {
 
 #[tokio::test]
 async fn migration_seals_everything_in_place_and_a_rerun_does_nothing() {
-  let bucket = bucket("migrate");
+  let bucket = fresh_bucket("migrate").await;
   let objects: Vec<(String, Vec<u8>)> = (0..25)
     .map(|i| (format!("profiles/p/files/{i:02}"), sample(i * 9_000)))
     .collect();
@@ -548,7 +548,7 @@ async fn migration_seals_everything_in_place_and_a_rerun_does_nothing() {
 
 #[tokio::test]
 async fn a_bad_key_stops_the_server_at_start() {
-  let storage = storage_env(&bucket("badkey"));
+  let storage = storage_env(&fresh_bucket("badkey").await);
   let mut env: Vec<(&str, &str)> = storage.iter().map(|(k, v)| (*k, v.as_str())).collect();
   env.push(("SYNC_TOKEN", SYNC_TOKEN));
   env.push(("SYNC_AT_REST_KEY", "k1:AAAA"));
@@ -766,6 +766,25 @@ async fn older_apps_upload_directly_and_the_sealer_seals_it() {
   // Readable before it is sealed.
   assert_eq!(download(&server, key).await, (200, plain.clone()));
 
+  // The server notes presigned keys in memory and writes them every 10 s.
+  let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+  loop {
+    let pending = raw
+      .list_objects_v2(&donut_sync::store::ListInput {
+        prefix: Some(".donut-sync-at-rest/pending/".to_string()),
+        ..Default::default()
+      })
+      .await
+      .unwrap();
+    if !pending.contents.is_empty() {
+      break;
+    }
+    assert!(
+      std::time::Instant::now() < deadline,
+      "no pending record written"
+    );
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+  }
   let keyring = std::sync::Arc::new(donut_sync::at_rest::Keyring::parse(K1).unwrap());
   let sealer = donut_sync::sealer::Sealer::new(raw.clone(), keyring)
     .await
@@ -795,7 +814,7 @@ async fn older_apps_upload_directly_and_the_sealer_seals_it() {
 
 #[tokio::test]
 async fn a_rollback_unseals_everything_and_the_key_can_go() {
-  let bucket = bucket("unseal");
+  let bucket = fresh_bucket("unseal").await;
   let key_sealed = "profiles/p/files/sealed";
   let key_parts = "profiles/p/files/parts";
   let small = sample(70_000);
@@ -886,4 +905,85 @@ async fn a_rollback_unseals_everything_and_the_key_can_go() {
   assert_eq!(second(&after), second(&before));
   assert_eq!(after["metadata"]["updated-at"], "3");
   assert!(after["metadata"].get("donut-at-rest").is_none());
+}
+
+/// What settling a rewrite relies on, checked against the store the suite
+/// runs on: version ids on HEAD, copy and delete, versions listed newest
+/// first, copies of a given version, and a copy conditional on the source.
+#[tokio::test]
+async fn the_store_keeps_what_a_settle_needs() {
+  use donut_sync::store::{CopySpec, StoreError, versions_of};
+  let bucket = fresh_bucket("capabilities").await;
+  let raw = raw_store(&bucket);
+  raw.create_bucket().await.ok();
+  raw
+    .put_object("k", b"one".to_vec(), "text/plain", &[])
+    .await
+    .unwrap();
+  let first = raw.head_object("k").await.unwrap();
+  raw
+    .put_object("k", b"two".to_vec(), "text/plain", &[])
+    .await
+    .unwrap();
+  let second = raw.head_object("k").await.unwrap();
+
+  // A copy that names a source ETag the source no longer has.
+  let stale = raw
+    .copy_object_with(
+      "k",
+      "copy",
+      CopySpec {
+        if_match: first.etag.as_deref(),
+        ..CopySpec::default()
+      },
+    )
+    .await;
+  let honored = matches!(stale, Err(StoreError::Service { status: 412, .. }));
+  println!("copy_source_if_match_honored={honored}");
+
+  let Some(history) = versions_of(&raw, "k").await.unwrap() else {
+    println!("versions=unsupported");
+    return;
+  };
+  println!("versions=supported");
+  assert!(
+    honored,
+    "a store that keeps versions must honor a conditional copy"
+  );
+  let (Some(v1), Some(v2)) = (first.version_id.clone(), second.version_id.clone()) else {
+    panic!("HEAD gave no version id: {first:?} {second:?}");
+  };
+  let ids: Vec<&str> = history.iter().map(|v| v.version_id.as_str()).collect();
+  assert_eq!(ids, [v2.as_str(), v1.as_str()], "newest first");
+  assert!(history[0].is_latest && !history[1].is_latest);
+
+  let copied = raw
+    .copy_object_with(
+      "k",
+      "k",
+      CopySpec {
+        source_version: Some(&v1),
+        ..CopySpec::default()
+      },
+    )
+    .await
+    .unwrap();
+  let restored = copied.version_id.expect("a copy names its new version");
+  assert_eq!(
+    collect(raw.get_object("k").await.unwrap().body)
+      .await
+      .unwrap(),
+    b"one"
+  );
+  let marker = raw
+    .delete_object("k")
+    .await
+    .unwrap()
+    .expect("a delete names its marker");
+  let history = versions_of(&raw, "k").await.unwrap().unwrap();
+  assert_eq!(history[0].version_id, marker);
+  assert!(history[0].delete_marker);
+  assert_eq!(history[1].version_id, restored);
+  donut_sync::migrate::purge(&raw, "k").await.unwrap();
+  assert!(versions_of(&raw, "k").await.unwrap().unwrap().is_empty());
 }

@@ -12,7 +12,8 @@ use md5::{Digest, Md5};
 
 use crate::store::{
   ByteStream, Copied, CopySpec, Download, HeadOutput, ListInput, ListObject, ListOutput,
-  ObjectVersion, PendingUpload, Store, StoreError, Upload, collect, once,
+  ObjectVersion, PendingUpload, Store, StoreError, Upload, VersionMarker, VersionsPage, collect,
+  once,
 };
 
 pub type HeadHook = Box<dyn Fn(&str) -> Result<HeadOutput, StoreError> + Send + Sync>;
@@ -58,6 +59,10 @@ pub struct MemoryStore {
   pub list_hook: Option<ListHook>,
   pub copy_hook: Mutex<Option<CopyHook>>,
   pub versioned: bool,
+  /// Like B2: a PUT with If-Match is refused (501), never conditional.
+  pub ignores_if_match: bool,
+  /// Versions per listed page; 0 is 1000.
+  pub version_page: usize,
   pub uploads: Mutex<BTreeMap<String, Multipart>>,
 }
 
@@ -136,10 +141,10 @@ impl MemoryStore {
   }
 
   /// A device's delete: a delete marker where versions are kept.
-  pub fn remove(&self, key: &str) {
-    if self.raw(key).is_some() {
-      self.push(key, None);
-    }
+  pub fn remove(&self, key: &str) -> Option<String> {
+    self.raw(key)?;
+    let id = self.push(key, None);
+    self.versioned.then_some(id)
   }
 
   pub fn get(&self, key: &str) -> Option<String> {
@@ -228,10 +233,9 @@ impl Store for MemoryStore {
     Ok(())
   }
 
-  async fn delete_object(&self, key: &str) -> Result<(), StoreError> {
+  async fn delete_object(&self, key: &str) -> Result<Option<String>, StoreError> {
     self.call();
-    self.remove(key);
-    Ok(())
+    Ok(self.remove(key))
   }
 
   async fn delete_objects(&self, keys: &[String]) -> Result<(), StoreError> {
@@ -279,11 +283,20 @@ impl Store for MemoryStore {
     })
   }
 
-  async fn list_versions(&self, prefix: &str) -> Result<Option<Vec<ObjectVersion>>, StoreError> {
+  async fn list_versions(
+    &self,
+    prefix: &str,
+    after: Option<&VersionMarker>,
+  ) -> Result<Option<VersionsPage>, StoreError> {
     self.call();
     if !self.versioned {
       return Ok(None);
     }
+    let page = if self.version_page == 0 {
+      1000
+    } else {
+      self.version_page
+    };
     let objects = self.objects.lock().unwrap();
     let mut out = Vec::new();
     for (key, history) in objects.range(prefix.to_string()..) {
@@ -301,7 +314,24 @@ impl Store for MemoryStore {
         });
       }
     }
-    Ok(Some(out))
+    let start = match after {
+      Some((key, id)) => out
+        .iter()
+        .position(|v| v.key == *key && v.version_id == *id)
+        .map_or(out.len(), |at| at + 1),
+      None => 0,
+    };
+    let versions: Vec<ObjectVersion> = out.into_iter().skip(start).collect();
+    let next = (versions.len() > page).then(|| {
+      (
+        versions[page - 1].key.clone(),
+        versions[page - 1].version_id.clone(),
+      )
+    });
+    Ok(Some(VersionsPage {
+      versions: versions.into_iter().take(page).collect(),
+      next,
+    }))
   }
 
   async fn delete_version(&self, key: &str, version_id: &str) -> Result<(), StoreError> {
@@ -393,6 +423,13 @@ impl Store for MemoryStore {
     let body = collect(body).await?;
     if body.len() as u64 != upload.length {
       return Err(StoreError::Transport("length mismatch".to_string()));
+    }
+    if upload.if_match.is_some() && self.ignores_if_match {
+      return Err(StoreError::Service {
+        status: 501,
+        code: "NotImplemented".to_string(),
+        message: String::new(),
+      });
     }
     if let Some(expected) = upload.if_match
       && self.raw(key).map(|o| etag(&o.body)).as_deref() != Some(expected)

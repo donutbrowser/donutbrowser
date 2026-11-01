@@ -23,6 +23,33 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
 /// only when nothing arrives for a full minute.
 const READ_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// Transfers through a sync server's own URLs (a server that encrypts at
+/// rest) at a time, across every profile this app syncs: such a server
+/// serves a limited number per account, and more only wait there.
+const SERVER_TRANSFERS: usize = 6;
+static SERVER_TRANSFER_SLOTS: std::sync::LazyLock<std::sync::Arc<tokio::sync::Semaphore>> =
+  std::sync::LazyLock::new(|| std::sync::Arc::new(tokio::sync::Semaphore::new(SERVER_TRANSFERS)));
+/// The path of a sync server's own transfer URLs.
+const SERVER_TRANSFER_PATH: &str = "/v1/transfer?";
+
+/// How long a busy answer (503, 429) is tried again before the transfer
+/// fails, and the longest single wait.
+const BUSY_BUDGET: Duration = Duration::from_secs(300);
+const BUSY_WAIT_MAX: Duration = Duration::from_secs(30);
+
+/// What a busy answer asks to wait, in seconds.
+fn retry_after(response: &reqwest::Response) -> Option<Duration> {
+  response
+    .headers()
+    .get(reqwest::header::RETRY_AFTER)?
+    .to_str()
+    .ok()?
+    .trim()
+    .parse()
+    .ok()
+    .map(Duration::from_secs)
+}
+
 /// Tries per part of an upload in parts. The file's own retries come on top.
 const PART_ATTEMPTS: u32 = 3;
 const PART_RETRY_DELAY: Duration = Duration::from_secs(1);
@@ -275,6 +302,16 @@ impl SyncClient {
     content_type: Option<&str>,
     metadata: Option<&std::collections::HashMap<String, String>>,
   ) -> SyncResult<()> {
+    let _slot = match transfer {
+      Some(_) => Some(
+        SERVER_TRANSFER_SLOTS
+          .clone()
+          .acquire_owned()
+          .await
+          .expect("the semaphore is never closed"),
+      ),
+      None => None,
+    };
     match transfer {
       Some(transfer) if data.len() as u64 > transfer.part_size => {
         self
@@ -308,17 +345,47 @@ impl SyncClient {
     req
   }
 
+  /// Sends `build()`. For a sync server's own transfer URL, again while the
+  /// answer is busy (503, 429), waiting what Retry-After asks or a growing
+  /// backoff, for at most `BUSY_BUDGET`: that server limits transfers per
+  /// account. Storage's own answers go back at once, to the file's retries.
+  async fn send_patiently(
+    &self,
+    url: &str,
+    build: impl Fn() -> reqwest::RequestBuilder,
+  ) -> SyncResult<reqwest::Response> {
+    let patient = url.contains(SERVER_TRANSFER_PATH);
+    let started = std::time::Instant::now();
+    let mut backoff = Duration::from_secs(1);
+    loop {
+      // The storage host here may come from a presigned URL, so on a
+      // self-hosted server it is whatever the server signed against,
+      // frequently an address only the server can resolve. `reqwest`'s own
+      // Display collapses that to "error sending request"; report the
+      // innermost cause and the host it names.
+      let response = build()
+        .send()
+        .await
+        .map_err(|e| SyncError::NetworkError(super::preflight::transport_reason_for(url, &e)))?;
+      let busy = matches!(response.status().as_u16(), 429 | 503);
+      let wait = retry_after(&response).unwrap_or(backoff).min(BUSY_WAIT_MAX);
+      if !patient || !busy || started.elapsed() + wait > BUSY_BUDGET {
+        return Ok(response);
+      }
+      log::debug!("Transfer busy, waiting wait_ms={}", wait.as_millis());
+      tokio::time::sleep(wait).await;
+      backoff = (backoff * 2).min(BUSY_WAIT_MAX);
+    }
+  }
+
   /// Sends a request of an upload in parts; any answer but a success is an
   /// error carrying the server's own words.
   async fn send_part_request(
     &self,
     url: &str,
-    req: reqwest::RequestBuilder,
+    build: impl Fn() -> reqwest::RequestBuilder,
   ) -> SyncResult<reqwest::Response> {
-    let response = req
-      .send()
-      .await
-      .map_err(|e| SyncError::NetworkError(super::preflight::transport_reason_for(url, &e)))?;
+    let response = self.send_patiently(url, build).await?;
     if !response.status().is_success() {
       let status = response.status();
       let body = response.text().await.unwrap_or_default();
@@ -339,15 +406,17 @@ impl SyncClient {
     content_type: Option<&str>,
     metadata: Option<&std::collections::HashMap<String, String>>,
   ) -> SyncResult<()> {
-    let start = Self::with_upload_headers(
-      self
-        .client
-        .post(&transfer.url)
-        .header(UPLOAD_LENGTH_HEADER, data.len().to_string())
-        .header("Content-Length", "0"),
-      content_type,
-      metadata,
-    );
+    let start = || {
+      Self::with_upload_headers(
+        self
+          .client
+          .post(&transfer.url)
+          .header(UPLOAD_LENGTH_HEADER, data.len().to_string())
+          .header("Content-Length", "0"),
+        content_type,
+        metadata,
+      )
+    };
     let started: PartsStarted = self
       .send_part_request(&transfer.url, start)
       .await?
@@ -392,11 +461,13 @@ impl SyncClient {
       let mut attempt = 0;
       let etag = loop {
         attempt += 1;
-        let req = self
-          .client
-          .put(&url)
-          .header("Content-Length", chunk.len().to_string())
-          .body(chunk.to_vec());
+        let req = || {
+          self
+            .client
+            .put(&url)
+            .header("Content-Length", chunk.len().to_string())
+            .body(chunk.to_vec())
+        };
         match self.send_part_request(&url, req).await {
           Ok(response) => {
             break response
@@ -421,10 +492,12 @@ impl SyncClient {
       &transfer.url,
       &[("upload", &started.upload), ("op", "complete")],
     )?;
-    let req = self
-      .client
-      .post(&complete)
-      .json(&serde_json::json!({ "parts": etags }));
+    let req = || {
+      self
+        .client
+        .post(&complete)
+        .json(&serde_json::json!({ "parts": etags }))
+    };
     self.send_part_request(&complete, req).await.map(|_| ())
   }
 
@@ -436,24 +509,18 @@ impl SyncClient {
     content_type: Option<&str>,
     metadata: Option<&std::collections::HashMap<String, String>>,
   ) -> SyncResult<()> {
-    let req = Self::with_upload_headers(
-      self
-        .client
-        .put(presigned_url)
-        .header("Content-Length", data.len().to_string())
-        .body(data.to_vec()),
-      content_type,
-      metadata,
-    );
-
-    // The storage host here comes from the presigned URL, so on a self-hosted
-    // server it is whatever the server signed against, frequently an address
-    // only the server can resolve. `reqwest`'s own Display collapses that to
-    // "error sending request", which is why this failure used to be
-    // undiagnosable; report the innermost cause and the host it names.
-    let response = req.send().await.map_err(|e| {
-      SyncError::NetworkError(super::preflight::transport_reason_for(presigned_url, &e))
-    })?;
+    let req = || {
+      Self::with_upload_headers(
+        self
+          .client
+          .put(presigned_url)
+          .header("Content-Length", data.len().to_string())
+          .body(data.to_vec()),
+        content_type,
+        metadata,
+      )
+    };
+    let response = self.send_patiently(presigned_url, req).await?;
 
     if !response.status().is_success() {
       let status = response.status();
@@ -467,9 +534,19 @@ impl SyncClient {
   }
 
   pub async fn download_bytes(&self, presigned_url: &str) -> SyncResult<Vec<u8>> {
-    let response = self.client.get(presigned_url).send().await.map_err(|e| {
-      SyncError::NetworkError(super::preflight::transport_reason_for(presigned_url, &e))
-    })?;
+    let _slot = match presigned_url.contains(SERVER_TRANSFER_PATH) {
+      true => Some(
+        SERVER_TRANSFER_SLOTS
+          .clone()
+          .acquire_owned()
+          .await
+          .expect("the semaphore is never closed"),
+      ),
+      false => None,
+    };
+    let response = self
+      .send_patiently(presigned_url, || self.client.get(presigned_url))
+      .await?;
 
     if !response.status().is_success() {
       return Err(SyncError::NetworkError(format!(
@@ -850,6 +927,41 @@ mod tests {
       )
       .await
       .is_err());
+  }
+
+  #[tokio::test]
+  async fn a_busy_server_is_waited_for_as_it_asks() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(ResponseTemplate::new(503).insert_header("retry-after", "1"))
+      .up_to_n_times(2)
+      .with_priority(1)
+      .mount(&server)
+      .await;
+    Mock::given(method("GET"))
+      .respond_with(ResponseTemplate::new(200).set_body_bytes(b"done".to_vec()))
+      .expect(1)
+      .mount(&server)
+      .await;
+    let started = std::time::Instant::now();
+    let url = format!("{}/v1/transfer?key=k&expires=1&sig=s", server.uri());
+    assert_eq!(client().download_bytes(&url).await.unwrap(), b"done");
+    assert!(
+      started.elapsed() >= Duration::from_secs(2),
+      "waited Retry-After twice"
+    );
+  }
+
+  #[tokio::test]
+  async fn a_busy_storage_url_fails_at_once_for_the_file_retries() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+      .respond_with(ResponseTemplate::new(503).insert_header("retry-after", "30"))
+      .expect(1)
+      .mount(&server)
+      .await;
+    let url = format!("{}/bucket/k?X-Amz-Signature=s", server.uri());
+    assert!(client().download_bytes(&url).await.is_err());
   }
 
   #[test]

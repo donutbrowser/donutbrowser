@@ -1,5 +1,11 @@
 //! Runs the real binary against the S3 test server of
 //! `donut-sync/docker-compose.yml` (rclone on port 8987).
+//!
+//! The at-rest suite can run against a real S3 store instead, to check what
+//! it relies on there (versions, conditional copies): set
+//! `DONUT_SYNC_TEST_S3_ENDPOINT`, `_REGION`, `_ACCESS_KEY_ID`,
+//! `_SECRET_ACCESS_KEY` and `_BUCKET` (a scratch bucket each test empties
+//! first, so run with `--test-threads=1`).
 
 #![allow(dead_code)]
 
@@ -15,27 +21,86 @@ use donut_sync::store::{Store, StoreError};
 pub const S3_ENDPOINT: &str = "http://127.0.0.1:8987";
 pub const SYNC_TOKEN: &str = "test-sync-token-0123456789abcdef";
 
+/// Where the at-rest suite's storage is: the compose server, or what the
+/// `DONUT_SYNC_TEST_S3_*` variables name.
+pub struct Storage {
+  pub endpoint: String,
+  pub region: String,
+  pub access_key_id: String,
+  pub secret_access_key: String,
+  /// One bucket for every test, emptied before each.
+  pub bucket: Option<String>,
+}
+
+pub fn storage() -> Storage {
+  let var = |name: &str, default: &str| {
+    std::env::var(format!("DONUT_SYNC_TEST_S3_{name}"))
+      .ok()
+      .filter(|v| !v.is_empty())
+      .unwrap_or_else(|| default.to_string())
+  };
+  Storage {
+    endpoint: var("ENDPOINT", S3_ENDPOINT),
+    region: var("REGION", "us-east-1"),
+    access_key_id: var("ACCESS_KEY_ID", "minioadmin"),
+    secret_access_key: var("SECRET_ACCESS_KEY", "minioadmin"),
+    bucket: std::env::var("DONUT_SYNC_TEST_S3_BUCKET")
+      .ok()
+      .filter(|v| !v.is_empty()),
+  }
+}
+
 /// The test storage, without the server: what is really stored.
 pub fn raw_store(bucket: &str) -> S3Store {
+  let storage = storage();
   S3Store::new(
-    Location::parse(S3_ENDPOINT, bucket, true).unwrap(),
+    Location::parse(&storage.endpoint, bucket, true).unwrap(),
     Credentials {
-      access_key_id: "minioadmin".to_string(),
-      secret_access_key: "minioadmin".to_string(),
+      access_key_id: storage.access_key_id,
+      secret_access_key: storage.secret_access_key,
     },
-    "us-east-1".to_string(),
+    storage.region,
   )
 }
 
 /// The storage settings the server takes, for a command run to its exit.
 pub fn storage_env(bucket: &str) -> Vec<(&'static str, String)> {
+  let storage = storage();
   vec![
-    ("S3_ENDPOINT", S3_ENDPOINT.to_string()),
-    ("S3_ACCESS_KEY_ID", "minioadmin".to_string()),
-    ("S3_SECRET_ACCESS_KEY", "minioadmin".to_string()),
+    ("S3_ENDPOINT", storage.endpoint),
+    ("S3_REGION", storage.region),
+    ("S3_ACCESS_KEY_ID", storage.access_key_id),
+    ("S3_SECRET_ACCESS_KEY", storage.secret_access_key),
     ("S3_BUCKET", bucket.to_string()),
     ("S3_FORCE_PATH_STYLE", "true".to_string()),
   ]
+}
+
+/// A bucket of the test's own, or the fixed one, emptied of every version
+/// and unfinished upload.
+pub async fn fresh_bucket(name: &str) -> String {
+  let Some(fixed) = storage().bucket else {
+    return bucket(name);
+  };
+  let raw = raw_store(&fixed);
+  loop {
+    let Some(page) = raw.list_versions("", None).await.unwrap() else {
+      break;
+    };
+    if page.versions.is_empty() {
+      break;
+    }
+    for version in page.versions {
+      raw
+        .delete_version(&version.key, &version.version_id)
+        .await
+        .unwrap();
+    }
+  }
+  for upload in raw.list_multipart("").await.unwrap_or_default() {
+    let _ = raw.abort_multipart(&upload.key, &upload.upload_id).await;
+  }
+  fixed
 }
 
 pub fn http() -> reqwest::Client {
@@ -45,13 +110,10 @@ pub fn http() -> reqwest::Client {
 
 /// Waits for the S3 test server, or fails with how to start it.
 pub async fn wait_for_s3() {
-  let store = S3Store::new(
-    Location::parse(S3_ENDPOINT, "probe-availability", true).unwrap(),
-    Credentials {
-      access_key_id: "minioadmin".to_string(),
-      secret_access_key: "minioadmin".to_string(),
-    },
-    "us-east-1".to_string(),
+  let store = raw_store(
+    &storage()
+      .bucket
+      .unwrap_or_else(|| "probe-availability".to_string()),
   );
   let deadline = Instant::now() + Duration::from_secs(30);
   loop {
@@ -87,9 +149,10 @@ impl Server {
     let port = free_port();
     let mut env: Vec<(String, String)> = vec![
       ("SYNC_TOKEN".into(), SYNC_TOKEN.into()),
-      ("S3_ENDPOINT".into(), S3_ENDPOINT.into()),
-      ("S3_ACCESS_KEY_ID".into(), "minioadmin".into()),
-      ("S3_SECRET_ACCESS_KEY".into(), "minioadmin".into()),
+      ("S3_ENDPOINT".into(), storage().endpoint),
+      ("S3_REGION".into(), storage().region),
+      ("S3_ACCESS_KEY_ID".into(), storage().access_key_id),
+      ("S3_SECRET_ACCESS_KEY".into(), storage().secret_access_key),
       ("S3_BUCKET".into(), bucket.into()),
       ("S3_FORCE_PATH_STYLE".into(), "true".into()),
       ("PORT".into(), port.to_string()),

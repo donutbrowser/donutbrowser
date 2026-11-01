@@ -115,7 +115,8 @@ pub trait Store: Send + Sync {
     content_type: &str,
     metadata: &[(String, String)],
   ) -> Result<(), StoreError>;
-  async fn delete_object(&self, key: &str) -> Result<(), StoreError>;
+  /// Returns the delete marker's version id, where the bucket keeps versions.
+  async fn delete_object(&self, key: &str) -> Result<Option<String>, StoreError>;
   /// Deletes up to 1000 keys in one request; per-key failures are ignored.
   async fn delete_objects(&self, keys: &[String]) -> Result<(), StoreError>;
   /// Server-side copy, metadata included.
@@ -131,9 +132,14 @@ pub trait Store: Send + Sync {
     to: &str,
     spec: CopySpec<'_>,
   ) -> Result<Copied, StoreError>;
-  /// Every version and delete marker under `prefix`, newest first within a
-  /// key. `None` when the store keeps no versions or cannot list them.
-  async fn list_versions(&self, prefix: &str) -> Result<Option<Vec<ObjectVersion>>, StoreError>;
+  /// One page of the versions and delete markers under `prefix`, newest first
+  /// within a key, from `after` on. `None` when the store keeps no versions
+  /// or cannot list them.
+  async fn list_versions(
+    &self,
+    prefix: &str,
+    after: Option<&VersionMarker>,
+  ) -> Result<Option<VersionsPage>, StoreError>;
   async fn delete_version(&self, key: &str, version_id: &str) -> Result<(), StoreError>;
   /// The first `length` bytes as stored.
   async fn get_range(&self, key: &str, length: u64) -> Result<Vec<u8>, StoreError>;
@@ -194,6 +200,35 @@ pub struct CopySpec<'a> {
 #[derive(Debug, Clone, Default)]
 pub struct Copied {
   pub version_id: Option<String>,
+}
+
+/// Where the next page of versions starts: a key and a version id.
+pub type VersionMarker = (String, String);
+
+#[derive(Debug, Clone, Default)]
+pub struct VersionsPage {
+  pub versions: Vec<ObjectVersion>,
+  pub next: Option<VersionMarker>,
+}
+
+/// Every version of `key`, newest first; `None` without versions.
+pub async fn versions_of(
+  store: &dyn Store,
+  key: &str,
+) -> Result<Option<Vec<ObjectVersion>>, StoreError> {
+  let mut out = Vec::new();
+  let mut after: Option<VersionMarker> = None;
+  loop {
+    let Some(page) = store.list_versions(key, after.as_ref()).await? else {
+      return Ok(None);
+    };
+    out.extend(page.versions.into_iter().filter(|v| v.key == key));
+    match page.next {
+      // Keys after `key` itself only share its prefix.
+      Some(next) if next.0 == key && Some(&next) != after.as_ref() => after = Some(next),
+      _ => return Ok(Some(out)),
+    }
+  }
 }
 
 #[derive(Debug, Clone, PartialEq)]

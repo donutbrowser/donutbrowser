@@ -18,7 +18,7 @@ use serde_json::{Value, json};
 
 use crate::at_rest::Keyring;
 use crate::log;
-use crate::migrate::{Migration, Outcome, TMP_PREFIX, honors_if_match, purge};
+use crate::migrate::{Migration, Outcome, Settle, TMP_PREFIX, honors_if_match, purge};
 use crate::sealed_store::SealedStore;
 use crate::store::{ListInput, Store, StoreError};
 use crate::time;
@@ -44,6 +44,61 @@ const ABANDONED_MS: i64 = 4 * 3600 * 1000;
 /// Failed keys kept in the state, newest first.
 const MAX_FAILED: usize = 1000;
 const CONCURRENCY: usize = 4;
+
+/// How often the keys handed direct URLs are written as one record. A crash
+/// loses at most this window; the hourly backstop pass covers it.
+const FLUSH_EVERY: Duration = Duration::from_secs(10);
+
+/// Keys handed direct storage URLs, gathered in memory until the next flush,
+/// so a presign costs no storage write.
+#[derive(Default)]
+pub struct DirectUploads {
+  pending: std::sync::Mutex<(Vec<String>, i64)>,
+}
+
+impl DirectUploads {
+  pub fn note(&self, keys: &[String], expires_ms: i64) {
+    let mut pending = self.pending.lock().unwrap();
+    pending.0.extend_from_slice(keys);
+    pending.1 = pending.1.max(expires_ms);
+  }
+
+  /// Writes what was noted as one record; `store` is the sealed store.
+  pub async fn flush(&self, store: &dyn Store) -> Result<(), StoreError> {
+    let (keys, expires_ms) = std::mem::take(&mut *self.pending.lock().unwrap());
+    if keys.is_empty() {
+      return Ok(());
+    }
+    let outcome = note_direct_uploads(store, &keys, expires_ms).await;
+    if outcome.is_err() {
+      self.note(&keys, expires_ms);
+    }
+    outcome
+  }
+}
+
+/// Flushes `uploads` every `FLUSH_EVERY` for as long as the server runs.
+pub fn spawn_flusher(store: Arc<dyn Store>, uploads: Arc<DirectUploads>) {
+  tokio::spawn(async move {
+    let mut failing = false;
+    loop {
+      tokio::time::sleep(FLUSH_EVERY).await;
+      match uploads.flush(store.as_ref()).await {
+        Ok(()) if failing => {
+          failing = false;
+          log::log(CONTEXT, "Direct uploads noted again");
+        }
+        Ok(()) => {}
+        Err(e) if !failing => {
+          failing = true;
+          // The keys stay in memory for the next flush.
+          log::warn(CONTEXT, &format!("Direct uploads not noted err=\"{e}\""));
+        }
+        Err(_) => {}
+      }
+    }
+  });
+}
 
 /// Notes `keys`, which devices may write in plaintext through direct storage
 /// URLs until `expires_ms`. `store` is the sealed store: the record is sealed.
@@ -82,6 +137,17 @@ pub struct Failed {
   pub reason: String,
   /// When it first failed.
   pub at: i64,
+  /// Set when the rewrite is in place but a device's version may lie under
+  /// it: a later pass settles it with these ids, and does not rewrite again.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub settle: Option<Settle>,
+}
+
+/// A key that failed in a pass.
+pub struct Failure {
+  pub key: String,
+  pub reason: String,
+  pub settle: Option<Settle>,
 }
 
 /// What the sealer keeps between passes, sealed in `STATE`.
@@ -94,18 +160,27 @@ pub struct State {
 }
 
 impl State {
-  /// `failures` from a pass over `checked`: keys that sealed leave the list,
-  /// keys that failed join it (keeping when they first failed).
-  fn note(&mut self, checked: &[String], failures: Vec<(String, String)>, now_ms: i64) {
+  /// `failures` from a pass that retried `retried`: retried keys that
+  /// worked leave the list, keys that failed join it (keeping when they
+  /// first failed).
+  pub fn note(&mut self, retried: &[String], failures: Vec<Failure>, now_ms: i64) {
     let first: Vec<(String, i64)> = self.failed.iter().map(|f| (f.key.clone(), f.at)).collect();
-    self.failed.retain(|f| !checked.contains(&f.key));
-    for (key, reason) in failures {
+    self.failed.retain(|f| !retried.contains(&f.key));
+    for failure in failures {
       let at = first
         .iter()
-        .find(|(k, _)| *k == key)
+        .find(|(k, _)| *k == failure.key)
         .map_or(now_ms, |(_, at)| *at);
-      self.failed.retain(|f| f.key != key);
-      self.failed.insert(0, Failed { key, reason, at });
+      self.failed.retain(|f| f.key != failure.key);
+      self.failed.insert(
+        0,
+        Failed {
+          key: failure.key,
+          reason: failure.reason,
+          at,
+          settle: failure.settle,
+        },
+      );
     }
     self.failed.truncate(MAX_FAILED);
   }
@@ -117,6 +192,61 @@ pub async fn read_state(store: &dyn Store) -> Result<State, StoreError> {
     Ok(text) => Ok(serde_json::from_str(&text).unwrap_or_default()),
     Err(StoreError::NotFound) => Ok(State::default()),
     Err(e) => Err(e),
+  }
+}
+
+pub async fn save_state(store: &dyn Store, state: &State) -> Result<(), StoreError> {
+  store
+    .put_object(
+      STATE,
+      serde_json::to_vec(state).expect("the state serializes"),
+      "application/json",
+      &[],
+    )
+    .await
+}
+
+/// Tries the failed keys again: a settle where the rewrite is in place, a
+/// whole rewrite otherwise. Returns the ones that still fail.
+pub(crate) async fn retry_failed(migration: &Migration, failed: &[Failed]) -> Vec<Failure> {
+  let mut still = Vec::new();
+  for failed in failed {
+    match &failed.settle {
+      Some(settle) => {
+        if let Err(reason) = migration.settle(&failed.key, settle).await {
+          still.push(Failure {
+            key: failed.key.clone(),
+            reason,
+            settle: Some(settle.clone()),
+          });
+        }
+      }
+      None => {
+        if let Some(failure) = failure_of(
+          failed.key.clone(),
+          migration.object(&failed.key, None).await,
+        ) {
+          still.push(failure);
+        }
+      }
+    }
+  }
+  still
+}
+
+fn failure_of(key: String, outcome: Outcome) -> Option<Failure> {
+  match outcome {
+    Outcome::Failed(reason) => Some(Failure {
+      key,
+      reason,
+      settle: None,
+    }),
+    Outcome::Unsettled { settle, reason } => Some(Failure {
+      key,
+      reason,
+      settle: Some(settle),
+    }),
+    _ => None,
   }
 }
 
@@ -145,12 +275,12 @@ impl Sealer {
     })
   }
 
-  /// Seals `keys`; returns the ones that failed, with why.
+  /// Seals `keys`; returns the ones that failed.
   async fn seal_all(
     &self,
     keys: Vec<(String, Option<i64>)>,
     report: &mut PassReport,
-  ) -> Vec<(String, String)> {
+  ) -> Vec<Failure> {
     let outcomes: Vec<(String, Outcome)> = futures_util::stream::iter(keys)
       .map(|(key, listed)| async move {
         let outcome = self.migration.object(&key, listed).await;
@@ -162,148 +292,154 @@ impl Sealer {
     let mut failures = Vec::new();
     for (key, outcome) in outcomes {
       report.checked += 1;
-      match outcome {
-        Outcome::Sealed(_) | Outcome::Rotated(_) => report.sealed += 1,
-        Outcome::Failed(err) => {
-          log::warn(
-            CONTEXT,
-            &format!("Object not sealed key={key} err=\"{err}\""),
-          );
-          report.failed += 1;
-          failures.push((key, err));
-        }
-        Outcome::Current | Outcome::Changed | Outcome::Unsealed(_) => {}
+      if matches!(outcome, Outcome::Sealed(_) | Outcome::Rotated(_)) {
+        report.sealed += 1;
+      }
+      if let Some(failure) = failure_of(key, outcome) {
+        log::warn(
+          CONTEXT,
+          &format!(
+            "Object not sealed key={} err=\"{}\"",
+            failure.key, failure.reason
+          ),
+        );
+        report.failed += 1;
+        failures.push(failure);
       }
     }
     failures
   }
 
-  async fn list(&self, prefix: Option<&str>) -> Result<Vec<(String, Option<i64>)>, StoreError> {
-    let mut out = Vec::new();
-    let mut token = None;
-    loop {
-      let page = self
-        .raw
-        .list_objects_v2(&ListInput {
-          prefix: prefix.map(str::to_string),
-          max_keys: Some("1000".to_string()),
-          continuation_token: token.clone(),
-          ..ListInput::default()
-        })
-        .await?;
-      out.extend(
-        page
-          .contents
-          .into_iter()
-          .map(|object| (object.key, object.last_modified_ms)),
-      );
-      token = page.next_continuation_token.filter(|_| page.is_truncated);
-      if token.is_none() {
-        return Ok(out);
-      }
-    }
-  }
-
-  async fn save_state(&self, state: &State) -> Result<(), StoreError> {
-    self
-      .sealed
-      .put_object(
-        STATE,
-        serde_json::to_vec(state).expect("the state serializes"),
-        "application/json",
-        &[],
-      )
-      .await
+  /// One page of the listing under `prefix`.
+  async fn page(
+    &self,
+    prefix: Option<&str>,
+    token: Option<String>,
+  ) -> Result<(Vec<(String, Option<i64>)>, Option<String>), StoreError> {
+    let page = self
+      .raw
+      .list_objects_v2(&ListInput {
+        prefix: prefix.map(str::to_string),
+        max_keys: Some("1000".to_string()),
+        continuation_token: token,
+        ..ListInput::default()
+      })
+      .await?;
+    let next = page.next_continuation_token.filter(|_| page.is_truncated);
+    Ok((
+      page
+        .contents
+        .into_iter()
+        .map(|object| (object.key, object.last_modified_ms))
+        .collect(),
+      next,
+    ))
   }
 
   /// Seals the keys of each record whose URLs are dead, then drops the
   /// record. Keys that fail are kept in the state for the backstop.
   pub async fn pending_pass(&self, now_ms: i64) -> Result<PassReport, StoreError> {
     let mut report = PassReport::default();
-    let mut checked = Vec::new();
     let mut failures = Vec::new();
-    for (record, _) in self.list(Some(PENDING)).await? {
-      report.records += 1;
-      if !record_expiry(&record).is_some_and(|expiry| now_ms > expiry + RECORD_GRACE_MS) {
-        continue;
-      }
-      let keys: Vec<String> = match self.sealed.get_object_text(&record).await {
-        Ok(text) => serde_json::from_str::<Value>(&text)
-          .ok()
-          .and_then(|v| v["keys"].as_array().cloned())
-          .unwrap_or_default()
-          .iter()
-          .filter_map(|k| k.as_str().map(str::to_string))
-          .collect(),
-        Err(StoreError::NotFound) => continue,
-        Err(e) => {
-          log::warn(
-            CONTEXT,
-            &format!("Record unreadable key={record} err=\"{e}\""),
-          );
-          report.failed += 1;
+    let mut token = None;
+    loop {
+      let (records, next) = self.page(Some(PENDING), token).await?;
+      for (record, _) in records {
+        report.records += 1;
+        if !record_expiry(&record).is_some_and(|expiry| now_ms > expiry + RECORD_GRACE_MS) {
           continue;
         }
-      };
-      failures.extend(
-        self
-          .seal_all(
-            keys.iter().map(|k| (k.clone(), None)).collect(),
-            &mut report,
-          )
-          .await,
-      );
-      checked.extend(keys);
-      purge(self.raw.as_ref(), &record).await?;
-      report.records_done += 1;
+        let keys: Vec<String> = match self.sealed.get_object_text(&record).await {
+          Ok(text) => serde_json::from_str::<Value>(&text)
+            .ok()
+            .and_then(|v| v["keys"].as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|k| k.as_str().map(str::to_string))
+            .collect(),
+          Err(StoreError::NotFound) => continue,
+          Err(e) => {
+            log::warn(
+              CONTEXT,
+              &format!("Record unreadable key={record} err=\"{e}\""),
+            );
+            report.failed += 1;
+            continue;
+          }
+        };
+        failures.extend(
+          self
+            .seal_all(keys.into_iter().map(|k| (k, None)).collect(), &mut report)
+            .await,
+        );
+        purge(self.raw.as_ref(), &record).await?;
+        report.records_done += 1;
+      }
+      token = next;
+      if token.is_none() {
+        break;
+      }
     }
     if !failures.is_empty() {
       let mut state = read_state(&self.sealed).await?;
-      state.note(&checked, failures, now_ms);
-      self.save_state(&state).await?;
+      state.note(&[], failures, now_ms);
+      save_state(&self.sealed, &state).await?;
     }
     Ok(report)
   }
 
-  /// Seals everything written since the last pass and retries what failed,
-  /// then cleans up after interrupted rewrites and uploads.
+  /// Retries what failed, seals everything written since the last pass,
+  /// page by page, then cleans up after interrupted rewrites and uploads.
   pub async fn backstop(&self, now_ms: i64) -> Result<PassReport, StoreError> {
     let mut state = read_state(&self.sealed).await?;
     let since = state.backstop_since.unwrap_or(now_ms - FIRST_BACKSTOP_MS);
-    let listed = self.list(None).await?;
-    let mut candidates: Vec<(String, Option<i64>)> = listed
-      .iter()
-      .filter(|(key, modified)| {
-        !key.starts_with(INTERNAL_ROOT)
-          && modified.is_none_or(|ms| ms >= since - BACKSTOP_OVERLAP_MS)
-      })
-      .cloned()
-      .collect();
-    for failed in &state.failed {
-      if !candidates.iter().any(|(key, _)| *key == failed.key) {
-        candidates.push((failed.key.clone(), None));
+    let mut report = PassReport::default();
+    let retried: Vec<String> = state.failed.iter().map(|f| f.key.clone()).collect();
+    let mut failures = retry_failed(&self.migration, &state.failed).await;
+    report.checked += retried.len() as u64;
+    report.failed += failures.len() as u64;
+    let mut token = None;
+    loop {
+      let (objects, next) = self.page(None, token).await?;
+      let recent: Vec<(String, Option<i64>)> = objects
+        .into_iter()
+        .filter(|(key, modified)| {
+          !key.starts_with(INTERNAL_ROOT)
+            && !retried.contains(key)
+            && modified.is_none_or(|ms| ms >= since - BACKSTOP_OVERLAP_MS)
+        })
+        .collect();
+      failures.extend(self.seal_all(recent, &mut report).await);
+      token = next;
+      if token.is_none() {
+        break;
       }
     }
-    let checked: Vec<String> = candidates.iter().map(|(key, _)| key.clone()).collect();
-    let mut report = PassReport::default();
-    let failures = self.seal_all(candidates, &mut report).await;
     // The pass moves on even when some keys fail: they stay in the list.
-    state.note(&checked, failures, now_ms);
+    state.note(&retried, failures, now_ms);
     state.backstop_since = Some(now_ms);
-    self.save_state(&state).await?;
+    save_state(&self.sealed, &state).await?;
 
-    for (key, modified) in &listed {
-      if key.starts_with(TMP_PREFIX) && modified.is_some_and(|ms| now_ms - ms > TMP_STALE_MS) {
-        match purge(self.raw.as_ref(), key).await {
-          Ok(()) => log::log(
-            CONTEXT,
-            &format!("Stale temporary object removed key={key}"),
-          ),
-          Err(e) => log::warn(
-            CONTEXT,
-            &format!("Stale temporary object not removed key={key} err=\"{e}\""),
-          ),
+    let mut token = None;
+    loop {
+      let (temporary, next) = self.page(Some(TMP_PREFIX), token).await?;
+      for (key, modified) in temporary {
+        if modified.is_some_and(|ms| now_ms - ms > TMP_STALE_MS) {
+          match purge(self.raw.as_ref(), &key).await {
+            Ok(()) => log::log(
+              CONTEXT,
+              &format!("Stale temporary object removed key={key}"),
+            ),
+            Err(e) => log::warn(
+              CONTEXT,
+              &format!("Stale temporary object not removed key={key} err=\"{e}\""),
+            ),
+          }
         }
+      }
+      token = next;
+      if token.is_none() {
+        break;
       }
     }
     match self.raw.list_multipart("").await {
@@ -546,6 +682,28 @@ mod tests {
     sealer.backstop(now + ABANDONED_MS + 1).await.unwrap();
     assert_eq!(raw.version_count(&tmp), 0);
     assert!(raw.list_multipart("").await.unwrap().is_empty());
+  }
+
+  #[tokio::test]
+  async fn presigns_are_noted_as_one_record_per_flush() {
+    let (raw, sealed, _) = setup(MemoryStore::default()).await;
+    let direct = DirectUploads::default();
+    direct.flush(&sealed).await.unwrap();
+    assert!(raw.keys().is_empty(), "nothing noted, nothing written");
+    direct.note(&["a".to_string()], 5_000);
+    direct.note(&["b".to_string(), "c".to_string()], 7_000);
+    direct.flush(&sealed).await.unwrap();
+    let records: Vec<String> = raw
+      .keys()
+      .into_iter()
+      .filter(|k| k.starts_with(PENDING))
+      .collect();
+    assert_eq!(records.len(), 1);
+    assert_eq!(record_expiry(&records[0]), Some(7_000));
+    let body = sealed.get_object_text(&records[0]).await.unwrap();
+    assert_eq!(body, r#"{"keys":["a","b","c"]}"#);
+    direct.flush(&sealed).await.unwrap();
+    assert_eq!(raw.keys().len(), 1);
   }
 
   #[test]

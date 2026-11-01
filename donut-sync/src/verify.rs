@@ -273,6 +273,34 @@ async fn open_fully(
   Ok(())
 }
 
+/// The bucket's older versions under `prefix`, page by page; `None`
+/// without versions.
+async fn noncurrent(store: &dyn Store, prefix: &str) -> Result<Option<Noncurrent>, String> {
+  let mut n = Noncurrent::default();
+  let mut after = None;
+  loop {
+    let Some(page) = store
+      .list_versions(prefix, after.as_ref())
+      .await
+      .map_err(|e| format!("Versions not listed: {e}"))?
+    else {
+      return Ok(None);
+    };
+    for version in page.versions {
+      if version.delete_marker {
+        n.delete_markers += 1;
+      } else if !version.is_latest {
+        n.versions += 1;
+        n.bytes += version.size;
+      }
+    }
+    after = page.next;
+    if after.is_none() {
+      return Ok(Some(n));
+    }
+  }
+}
+
 pub async fn verify(
   store: Arc<dyn Store>,
   keyring: Arc<Keyring>,
@@ -438,22 +466,7 @@ pub async fn verify(
     }
     Err(e) => return Err(format!("Sealer state unreadable: {e}")),
   }
-  report.noncurrent = store
-    .list_versions(options.prefix.as_deref().unwrap_or(""))
-    .await
-    .map_err(|e| format!("Versions not listed: {e}"))?
-    .map(|versions| {
-      let mut n = Noncurrent::default();
-      for version in versions.iter().filter(|v| !v.is_latest || v.delete_marker) {
-        if version.delete_marker {
-          n.delete_markers += 1;
-        } else {
-          n.versions += 1;
-          n.bytes += version.size;
-        }
-      }
-      n
-    });
+  report.noncurrent = noncurrent(store.as_ref(), options.prefix.as_deref().unwrap_or("")).await?;
   let line = format!(
     "Verify done complete={} {} elapsed_ms={}",
     report.complete(),
@@ -605,6 +618,7 @@ mod tests {
         key: "x".into(),
         reason: "r".into(),
         at: 1,
+        settle: None,
       }],
     };
     sealed

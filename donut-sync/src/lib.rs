@@ -219,6 +219,9 @@ pub async fn build_state(config: &Config) -> Result<Arc<AppState>, String> {
   if let Some(keyring) = keyring.filter(|k| !k.unsealing()) {
     crate::sealer::spawn(s3, keyring);
   }
+  if let Some(direct) = sync.direct_uploads() {
+    crate::sealer::spawn_flusher(sync.store().clone(), direct.clone());
+  }
 
   Ok(Arc::new(AppState {
     guard,
@@ -353,6 +356,14 @@ pub async fn run() -> i32 {
   };
   let port = listener.local_addr().map_or(port, |a| a.port());
   println!("Donut Sync service running on port {port}");
-  serve(listener, state, stop_signal()).await;
+  serve(listener, state.clone(), stop_signal()).await;
+  if let Some(direct) = state.sync.direct_uploads()
+    && let Err(e) = direct.flush(state.sync.store().as_ref()).await
+  {
+    log::warn(
+      "Sealer",
+      &format!("Direct uploads not noted at exit err=\"{e}\""),
+    );
+  }
   0
 }

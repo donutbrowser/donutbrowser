@@ -719,3 +719,39 @@ async fn cleanup_orders_migrated_profiles_by_their_time_before_the_migration() {
   let out = service.cleanup_excess_profiles("u1", 2).await.unwrap();
   assert_eq!(out["deletedProfiles"], json!(["pa", "pb"]));
 }
+
+/// After a rollback (sealed, unsealed, key removed) profile ages are still
+/// the ones from before any rewrite.
+#[tokio::test]
+async fn cleanup_keeps_the_original_order_after_a_rollback() {
+  let raw = Arc::new(MemoryStore::default());
+  for id in ["pd", "pc", "pb", "pa"] {
+    raw.set(&format!("users/u1/profiles/{id}/metadata.json"), "{}");
+  }
+  let sealing = Arc::new(
+    crate::at_rest::Keyring::parse("k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap(),
+  );
+  let options = crate::migrate::Options {
+    concurrency: 1,
+    ..Default::default()
+  };
+  crate::migrate::migrate(raw.clone(), sealing, &options)
+    .await
+    .unwrap();
+  let unsealing = Arc::new(
+    crate::at_rest::Keyring::parse("unseal,k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+      .unwrap(),
+  );
+  let unseal = crate::migrate::Options {
+    unseal: true,
+    ..options
+  };
+  let report = crate::migrate::migrate(raw.clone(), unsealing, &unseal)
+    .await
+    .unwrap();
+  assert_eq!(report.unsealed, 4);
+  // The key is gone: the plain service, as the server runs without it.
+  let service = service_on(crate::served_store(raw.clone(), None), None);
+  let out = service.cleanup_excess_profiles("u1", 2).await.unwrap();
+  assert_eq!(out["deletedProfiles"], json!(["pa", "pb"]));
+}

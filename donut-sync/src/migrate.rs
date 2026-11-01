@@ -34,7 +34,12 @@ use crate::config::Config;
 use crate::log;
 use crate::original_times::{ORIGINAL_MTIME, original_mtime};
 use crate::sealed_store::sealed_by;
-use crate::store::{ByteStream, CopySpec, HeadOutput, ListInput, Store, StoreError, Upload};
+use crate::sealer::{Failed, Failure, read_state, retry_failed, save_state};
+use crate::store::{
+  ByteStream, CopySpec, HeadOutput, ListInput, Store, StoreError, Upload, versions_of,
+};
+use crate::time;
+use serde::{Deserialize, Serialize};
 
 pub const COMMAND: &str = "migrate-at-rest";
 const CONTEXT: &str = "Migrate";
@@ -43,6 +48,8 @@ pub const TMP_PREFIX: &str = ".donut-sync-at-rest/tmp/";
 const PROGRESS_EVERY: Duration = Duration::from_secs(10);
 /// Tries per object: storage has transient failures.
 const ATTEMPTS: u32 = 3;
+/// Put-backs in a row before a settle gives up on a history that keeps moving.
+const SETTLE_ROUNDS: usize = 3;
 
 const USAGE: &str = "Usage: donut-sync migrate-at-rest [--unseal] [--dry-run] [--prefix P] [--concurrency N] [--max-mib-per-sec N] [--checkpoint FILE]
 
@@ -172,6 +179,12 @@ pub(crate) enum Outcome {
   Rotated(u64),
   Unsealed(u64),
   Changed,
+  /// Rewritten, but a device's version may lie under the rewrite: settle it
+  /// later with these ids.
+  Unsettled {
+    settle: Settle,
+    reason: String,
+  },
   Failed(String),
 }
 
@@ -247,14 +260,14 @@ fn precondition_failed(error: &StoreError) -> bool {
 /// Deletes `key` with every version it has, where the bucket keeps versions,
 /// so a temporary object leaves nothing behind.
 pub async fn purge(store: &dyn Store, key: &str) -> Result<(), StoreError> {
-  match store.list_versions(key).await? {
+  match versions_of(store, key).await? {
     Some(versions) => {
-      for version in versions.iter().filter(|v| v.key == key) {
+      for version in versions {
         store.delete_version(key, &version.version_id).await?;
       }
       Ok(())
     }
-    None => store.delete_object(key).await,
+    None => store.delete_object(key).await.map(|_| ()),
   }
 }
 
@@ -415,66 +428,126 @@ impl Migration {
     let Some(ours) = placed? else {
       return Ok(Outcome::Changed);
     };
-    match self
-      .settle(key, head.version_id.as_deref(), ours.as_deref())
-      .await?
-    {
-      true => Ok(Outcome::Changed),
-      false => Ok(done),
+    // From here the copy is in place: an error must not send the object
+    // back to the HEAD above, which would take our copy for current and
+    // leave a device's version under it.
+    let settle = Settle {
+      read: head.version_id.clone(),
+      ours,
+    };
+    Ok(match self.settle(key, &settle).await {
+      Ok(true) => Outcome::Changed,
+      Ok(false) => done,
+      Err(reason) => Outcome::Unsettled { settle, reason },
+    })
+  }
+
+  /// `settle_once`, tried again on a transient failure.
+  pub(crate) async fn settle(&self, key: &str, settle: &Settle) -> Result<bool, String> {
+    let mut attempt = 0;
+    loop {
+      attempt += 1;
+      match self.settle_once(key, settle).await {
+        Ok(restored) => return Ok(restored),
+        Err(SettleError::Store(e)) if attempt < ATTEMPTS => {
+          log::warn(CONTEXT, &format!("Settle retry key={key} err=\"{e}\""));
+          tokio::time::sleep(Duration::from_millis(500 << attempt)).await;
+        }
+        Err(e) => return Err(e.to_string()),
+      }
     }
   }
 
   /// After the copy: a version made between the read and the copy (a
-  /// device's write or delete) is put back as the current one. `true` when
-  /// one was. Needs a bucket that keeps versions.
-  async fn settle(
-    &self,
-    key: &str,
-    read: Option<&str>,
-    ours: Option<&str>,
-  ) -> Result<bool, StoreError> {
-    let (Some(read), Some(ours)) = (read, ours) else {
-      return Ok(false);
-    };
-    let Some(versions) = self.store.list_versions(key).await? else {
-      return Ok(false);
-    };
-    let history: Vec<_> = versions.iter().filter(|v| v.key == key).collect();
-    let (Some(at_ours), Some(at_read)) = (
-      history.iter().position(|v| v.version_id == ours),
-      history.iter().position(|v| v.version_id == read),
-    ) else {
-      return Ok(false);
-    };
-    // Newest first: anything before ours came after it and stays current.
-    if at_ours != 0 || at_read <= at_ours + 1 {
-      return Ok(false);
+  /// device's write or delete) is put back as the current one, and again for
+  /// a version made while that was put back, until the history holds still.
+  /// `true` when one was. A bucket without versions has nothing to settle.
+  async fn settle_once(&self, key: &str, settle: &Settle) -> Result<bool, SettleError> {
+    let (mut read, mut ours) = (settle.read.clone(), settle.ours.clone());
+    let mut restored = false;
+    for _ in 0..SETTLE_ROUNDS {
+      let Some(history) = versions_of(self.store.as_ref(), key).await? else {
+        return Ok(restored);
+      };
+      let (Some(read_id), Some(ours_id)) = (read.as_deref(), ours.as_deref()) else {
+        return Err(SettleError::Unknown(
+          "the bucket keeps versions but gave no version id",
+        ));
+      };
+      let Some(at_ours) = history.iter().position(|v| v.version_id == ours_id) else {
+        return Err(SettleError::Unknown("our version is not listed"));
+      };
+      let at_read = history
+        .iter()
+        .position(|v| v.version_id == read_id)
+        .unwrap_or(history.len());
+      // Newest first: anything before ours came after it and stays current.
+      if at_ours != 0 || at_read <= at_ours + 1 {
+        return Ok(restored);
+      }
+      let lost = &history[at_ours + 1];
+      let put_back = if lost.delete_marker {
+        let marker = self.store.delete_object(key).await?;
+        log::warn(
+          CONTEXT,
+          &format!("Delete made during the rewrite put back key={key}"),
+        );
+        marker
+      } else {
+        let copied = self
+          .store
+          .copy_object_with(
+            key,
+            key,
+            CopySpec {
+              source_version: Some(&lost.version_id),
+              ..CopySpec::default()
+            },
+          )
+          .await?;
+        log::warn(
+          CONTEXT,
+          &format!("Write made during the rewrite put back key={key}"),
+        );
+        copied.version_id
+      };
+      restored = true;
+      // Next round: a version between this put-back and ours came while it
+      // was being put back.
+      read = ours;
+      ours = put_back;
     }
-    let lost = history[at_ours + 1];
-    if lost.delete_marker {
-      self.store.delete_object(key).await?;
-      log::warn(
-        CONTEXT,
-        &format!("Delete made during the rewrite put back key={key}"),
-      );
-    } else {
-      self
-        .store
-        .copy_object_with(
-          key,
-          key,
-          CopySpec {
-            source_version: Some(&lost.version_id),
-            ..CopySpec::default()
-          },
-        )
-        .await?;
-      log::warn(
-        CONTEXT,
-        &format!("Write made during the rewrite put back key={key}"),
-      );
+    Err(SettleError::Unknown("the versions kept changing"))
+  }
+}
+
+/// The versions a rewrite read and wrote, to settle it later if it could
+/// not be settled at once.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Settle {
+  pub read: Option<String>,
+  pub ours: Option<String>,
+}
+
+enum SettleError {
+  /// Storage failed; trying again may help.
+  Store(StoreError),
+  /// Needs a person or a later pass.
+  Unknown(&'static str),
+}
+
+impl From<StoreError> for SettleError {
+  fn from(e: StoreError) -> Self {
+    SettleError::Store(e)
+  }
+}
+
+impl std::fmt::Display for SettleError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      SettleError::Store(e) => write!(f, "{e}"),
+      SettleError::Unknown(why) => write!(f, "{why}"),
     }
-    Ok(true)
   }
 }
 
@@ -581,6 +654,7 @@ pub async fn migrate(
       start_after.as_deref().unwrap_or("-"),
     ),
   );
+  let state_store = crate::sealed_store::SealedStore::new(store.clone(), keyring.clone());
   let migration = Migration {
     store: store.clone(),
     keyring,
@@ -595,6 +669,22 @@ pub async fn migrate(
     }),
   };
   let mut report = Report::default();
+  // Rewrites an earlier run or the sealer left unsettled are settled first.
+  let (retried, mut unsettled) = if options.dry_run {
+    (Vec::new(), Vec::new())
+  } else {
+    let state = read_state(&state_store)
+      .await
+      .map_err(|e| format!("Sealer state unreadable: {e}"))?;
+    let open: Vec<Failed> = state
+      .failed
+      .into_iter()
+      .filter(|f| f.settle.is_some())
+      .collect();
+    let retried: Vec<String> = open.iter().map(|f| f.key.clone()).collect();
+    (retried, retry_failed(&migration, &open).await)
+  };
+  report.failed += unsettled.len() as u64;
   let mut token: Option<String> = None;
   let mut last_progress = Instant::now();
   let mut checkpoint_held = false;
@@ -642,6 +732,19 @@ pub async fn migrate(
           report.unsealed_bytes += bytes;
         }
         Outcome::Changed => report.changed += 1,
+        Outcome::Unsettled { settle, reason } => {
+          report.failed += 1;
+          checkpoint_held = true;
+          log::warn(
+            CONTEXT,
+            &format!("Rewrite not settled key={key} err=\"{reason}\""),
+          );
+          unsettled.push(Failure {
+            key,
+            reason,
+            settle: Some(settle),
+          });
+        }
         Outcome::Failed(err) => {
           report.failed += 1;
           checkpoint_held = true;
@@ -675,6 +778,15 @@ pub async fn migrate(
         ),
       );
     }
+  }
+  if !retried.is_empty() || !unsettled.is_empty() {
+    let mut state = read_state(&state_store)
+      .await
+      .map_err(|e| format!("Sealer state unreadable: {e}"))?;
+    state.note(&retried, unsettled, time::now_ms());
+    save_state(&state_store, &state)
+      .await
+      .map_err(|e| format!("Sealer state not saved: {e}"))?;
   }
   // A whole bucket unsealed: this server's own objects (sealed records and
   // state) go too, so nothing sealed is left when the key is removed.
@@ -1004,7 +1116,9 @@ mod tests {
 
       let raw = Arc::new(MemoryStore::versioned());
       prepare(&raw).await;
-      race(&raw, |store| store.remove("k"));
+      race(&raw, |store| {
+        store.remove("k");
+      });
       assert!(matches!(
         rewrite(&raw, keys.clone(), direction).await,
         Outcome::Changed
@@ -1017,20 +1131,104 @@ mod tests {
   #[tokio::test]
   async fn a_write_after_the_copy_stays_current() {
     let raw = Arc::new(MemoryStore::versioned());
-    raw.insert("k", b"old".to_vec(), Vec::new(), None);
+    let read = raw.insert("k", b"old".to_vec(), Vec::new(), None);
     let migration = Migration::sealing(raw.clone(), keyring(K1), false);
     assert!(matches!(
       migration.object("k", None).await,
       Outcome::Sealed(3)
     ));
+    let ours = raw.head_object("k").await.unwrap().version_id;
     raw.insert("k", b"later".to_vec(), Vec::new(), None);
-    assert!(
-      !migration
-        .settle("k", Some("v1000"), Some("v0"))
-        .await
-        .unwrap()
-    );
+    let settle = Settle {
+      read: Some(read),
+      ours,
+    };
+    assert!(!migration.settle("k", &settle).await.unwrap());
     assert_eq!(raw.raw("k").unwrap().body, b"later");
+  }
+
+  /// A store that keeps versions but names none, as no S3 store should.
+  #[tokio::test]
+  async fn missing_version_ids_are_recorded_not_ignored() {
+    let raw = Arc::new(MemoryStore::versioned());
+    raw.insert("k", b"old".to_vec(), Vec::new(), None);
+    let migration = Migration::sealing(raw.clone(), keyring(K1), false);
+    let settle = Settle {
+      read: None,
+      ours: None,
+    };
+    let reason = migration.settle("k", &settle).await.unwrap_err();
+    assert!(reason.contains("no version id"), "{reason}");
+  }
+
+  /// Settle keeps putting back until the history holds still: here a third
+  /// write lands while the first put-back is made.
+  #[tokio::test]
+  async fn a_write_during_the_put_back_is_put_back_too() {
+    let raw = Arc::new(MemoryStore::versioned());
+    raw.insert("k", b"old".to_vec(), Vec::new(), None);
+    // The device writes inside the rewrite's copy, and again inside the
+    // put-back's copy.
+    let copies = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = copies.clone();
+    *raw.copy_hook.lock().unwrap() = Some(Box::new(move |store, to| {
+      if to != "k" {
+        return;
+      }
+      match seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) {
+        0 => {
+          store.insert("k", b"first".to_vec(), Vec::new(), None);
+        }
+        1 => {
+          store.insert("k", b"second".to_vec(), Vec::new(), None);
+        }
+        _ => {}
+      }
+    }));
+    let migration = Migration::sealing(raw.clone(), keyring(K1), false);
+    assert!(matches!(
+      migration.object("k", None).await,
+      Outcome::Changed
+    ));
+    assert_eq!(raw.raw("k").unwrap().body, b"second");
+    assert_eq!(copies.load(std::sync::atomic::Ordering::SeqCst), 3);
+  }
+
+  /// The settle fails after the copy: the object is not rewritten again from
+  /// a HEAD, and the ids are kept for a later pass, which settles it.
+  #[tokio::test]
+  async fn an_unsettled_rewrite_is_recorded_and_settled_later() {
+    let raw = Arc::new(MemoryStore {
+      ignores_if_match: true,
+      ..MemoryStore::versioned()
+    });
+    raw.insert("k", b"old".to_vec(), Vec::new(), None);
+    let fail = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let failing = fail.clone();
+    *raw.copy_hook.lock().unwrap() = Some(Box::new(move |store, to| {
+      if to == "k" && failing.load(std::sync::atomic::Ordering::SeqCst) {
+        store.insert("k", b"device".to_vec(), Vec::new(), None);
+      }
+    }));
+    // Every put-back copy also races a device write, so the history never
+    // holds still within SETTLE_ROUNDS.
+    let keys = keyring(K1);
+    let report = migrate(raw.clone(), keys.clone(), &options())
+      .await
+      .unwrap();
+    assert_eq!(report.failed, 1);
+    let state_store = crate::sealed_store::SealedStore::new(raw.clone(), keys.clone());
+    let state = read_state(&state_store).await.unwrap();
+    assert_eq!(state.failed.len(), 1);
+    assert!(state.failed[0].settle.is_some());
+    // A later run settles it without a new rewrite.
+    fail.store(false, std::sync::atomic::Ordering::SeqCst);
+    let report = migrate(raw.clone(), keys, &options()).await.unwrap();
+    assert_eq!(report.failed, 0, "{report:?}");
+    assert!(read_state(&state_store).await.unwrap().failed.is_empty());
+    // The device's write stands, and this run sealed it.
+    let served = crate::served_store(raw.clone(), Some(&keyring(K1)));
+    assert_eq!(served.get_object_text("k").await.unwrap(), "device");
   }
 
   #[test]

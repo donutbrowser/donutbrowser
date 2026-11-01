@@ -12,7 +12,7 @@ use crate::jsval::js_number;
 use crate::sigv4::{self, Credentials};
 use crate::store::{
   ByteStream, Copied, CopySpec, Download, HeadOutput, ListInput, ListObject, ListOutput,
-  ObjectVersion, PendingUpload, Store, StoreError, Upload,
+  ObjectVersion, PendingUpload, Store, StoreError, Upload, VersionMarker, VersionsPage,
 };
 use crate::time;
 
@@ -557,11 +557,11 @@ fn head_of(headers: &reqwest::header::HeaderMap) -> HeadOutput {
   }
 }
 
-type VersionsPage = (Vec<ObjectVersion>, Option<(String, String)>);
+type ParsedVersions = (Vec<ObjectVersion>, Option<VersionMarker>);
 
 /// A ListObjectVersions reply. `None` when the store answered with something
 /// else, as stores without versions do.
-fn parse_versions(body: &[u8]) -> Result<Option<VersionsPage>, StoreError> {
+fn parse_versions(body: &[u8]) -> Result<Option<ParsedVersions>, StoreError> {
   let text = std::str::from_utf8(body)
     .map_err(|e| StoreError::Transport(format!("ListObjectVersions reply is not UTF-8: {e}")))?;
   let text = hide_control_references(text);
@@ -735,12 +735,17 @@ impl Store for S3Store {
       .map(|_| ())
   }
 
-  async fn delete_object(&self, key: &str) -> Result<(), StoreError> {
+  async fn delete_object(&self, key: &str) -> Result<Option<String>, StoreError> {
     let path = self.location.object_path(key);
-    self
+    let reply = self
       .expect_success(Method::DELETE, &path, &[], &[], &[])
-      .await
-      .map(|_| ())
+      .await?;
+    Ok(
+      reply
+        .headers
+        .get("x-amz-version-id")
+        .map(|v| latin1(v.as_bytes())),
+    )
   }
 
   async fn delete_objects(&self, keys: &[String]) -> Result<(), StoreError> {
@@ -781,39 +786,37 @@ impl Store for S3Store {
     self.copy(from, to, spec).await
   }
 
-  async fn list_versions(&self, prefix: &str) -> Result<Option<Vec<ObjectVersion>>, StoreError> {
+  async fn list_versions(
+    &self,
+    prefix: &str,
+    after: Option<&VersionMarker>,
+  ) -> Result<Option<VersionsPage>, StoreError> {
     let path = self.location.bucket_path();
-    let mut out = Vec::new();
-    let mut marker: Option<(String, String)> = None;
-    loop {
-      let mut query = vec![
-        ("versions".to_string(), String::new()),
-        ("prefix".to_string(), prefix.to_string()),
-      ];
-      if let Some((key, id)) = &marker {
-        query.push(("key-marker".to_string(), key.clone()));
-        query.push(("version-id-marker".to_string(), id.clone()));
-      }
-      let reply = match self
-        .expect_success(Method::GET, &path, &query, &[], &[])
-        .await
-      {
-        Ok(reply) => reply,
-        Err(StoreError::NotFound) => return Ok(None),
-        Err(StoreError::Service { status, .. }) if status == 501 || status == 400 => {
-          return Ok(None);
-        }
-        Err(e) => return Err(e),
-      };
-      let Some((versions, next)) = parse_versions(&reply.body)? else {
-        return Ok(None);
-      };
-      out.extend(versions);
-      match next {
-        Some(next) if Some(&next) != marker.as_ref() => marker = Some(next),
-        _ => return Ok(Some(out)),
-      }
+    let mut query = vec![
+      ("versions".to_string(), String::new()),
+      ("prefix".to_string(), prefix.to_string()),
+    ];
+    if let Some((key, id)) = after {
+      query.push(("key-marker".to_string(), key.clone()));
+      query.push(("version-id-marker".to_string(), id.clone()));
     }
+    let reply = match self
+      .expect_success(Method::GET, &path, &query, &[], &[])
+      .await
+    {
+      Ok(reply) => reply,
+      Err(StoreError::NotFound) => return Ok(None),
+      Err(StoreError::Service { status, .. }) if status == 501 || status == 400 => {
+        return Ok(None);
+      }
+      Err(e) => return Err(e),
+    };
+    Ok(
+      parse_versions(&reply.body)?.map(|(versions, next)| VersionsPage {
+        versions,
+        next: next.filter(|next| Some(next) != after),
+      }),
+    )
   }
 
   async fn delete_version(&self, key: &str, version_id: &str) -> Result<(), StoreError> {
