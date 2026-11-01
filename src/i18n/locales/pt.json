@@ -541,7 +541,8 @@
       "distributeProxies": "Distribuir proxies",
       "runCount": "Executar {{count}}",
       "stopCount": "Parar {{count}}",
-      "enableSync": "Ativar sincronização"
+      "enableSync": "Ativar sincronização",
+      "runTask": "Executar uma tarefa do agente"
     },
     "passwordProtectedBadge": "Protegido por Senha",
     "launchHook": {
@@ -2970,7 +2971,25 @@
     "entityInUse": "Em uso por {{count}} perfis. Mude-os para outro proxy ou VPN primeiro.",
     "syncPasswordBlocksRemoteRun": "A senha da criptografia de sincronização criptografa as configurações sincronizadas deste perfil, e um host remoto não consegue descriptografá-las. Para executá-lo remotamente, remova a senha nas configurações de Criptografia de sincronização.",
     "appProxyInvalid": "Informe o proxy como esquema://host:porta, com usuário:senha@ opcional antes do host. O esquema é http, https, socks5 ou socks5h.",
-    "appProxyUnreachable": "O Donut não conseguiu se conectar pelo proxy {{proxy}}. Verifique o proxy em Configurações, em Rede."
+    "appProxyUnreachable": "O Donut não conseguiu se conectar pelo proxy {{proxy}}. Verifique o proxy em Configurações, em Rede.",
+    "agentNotEntitled": "O agente não está disponível nesta conta.",
+    "noCredits": "Não há mais créditos para o agente.",
+    "taskBudget": "A tarefa atingiu seu limite de créditos.",
+    "agentUnsupported": "Esta versão do navegador não executa o agente. Atualize o Wayfern.",
+    "agentBusy": "Este perfil já está executando uma tarefa.",
+    "agentTokenRequired": "O agente não conseguiu entrar. Tente de novo.",
+    "agentEngineFailed": "O agente não conseguiu fazer isso.",
+    "agentBrowserUnreachable": "O navegador do perfil não respondeu.",
+    "agentBrowserClosed": "O navegador fechou antes do fim da tarefa.",
+    "agentPromptEmpty": "Escreva uma tarefa primeiro.",
+    "agentStartUrlInvalid": "A página inicial deve ser um endereço http ou https.",
+    "agentRoutineInvalid": "A rotina não é válida. Verifique os campos.",
+    "agentRoutineNotFound": "Essa rotina não existe mais.",
+    "agentNoProfiles": "Escolha pelo menos um perfil.",
+    "agentTooManyProfiles": "Perfis demais para uma execução. O limite é 500.",
+    "agentTaskNotFound": "Essa tarefa não está mais em execução.",
+    "agentBatchNotFound": "Essa execução não está mais na lista.",
+    "agentActionInvalid": "O agente não conhece essa ação."
   },
   "rail": {
     "profiles": "Perfis",
@@ -3973,7 +3992,9 @@
       "profiles": "Perfis",
       "activity": "Atividade",
       "recipes": "Receitas",
-      "schedules": "Agendamentos"
+      "schedules": "Agendamentos",
+      "tasks": "Tarefas",
+      "routines": "Rotinas"
     },
     "header": {
       "quota": "Restam {{left}} de {{limit}} chamadas nesta hora",
@@ -4245,6 +4266,110 @@
         "testFailed": "O aviso de teste falhou (status do webhook {{status}}).",
         "secretRotated": "Novo segredo de assinatura criado."
       }
+    },
+    "credits": {
+      "unlimited": "Créditos ilimitados",
+      "detail": "{{used}} de {{total}} créditos usados neste período",
+      "left": "{{n}} créditos restantes",
+      "meter": "Créditos restantes neste período"
+    },
+    "tasks": {
+      "status": {
+        "queued": "Na fila",
+        "launching": "Iniciando",
+        "running": "Trabalhando",
+        "paused": "Pausada",
+        "needs_approval": "Precisa de você",
+        "done": "Concluída",
+        "failed": "Falhou",
+        "stopped": "Parada",
+        "no_credits": "Sem créditos",
+        "budget": "Limite de créditos atingido",
+        "missed": "Perdida",
+        "unknown": "Desconhecido"
+      },
+      "chooseProfiles": "Escolher perfis",
+      "profileCount": "{{n}} perfis",
+      "searchProfiles": "Buscar perfis",
+      "noProfileMatch": "Nenhum perfil corresponde",
+      "clearProfiles": "Limpar seleção",
+      "allProfiles": "Selecionar todos",
+      "promptLabel": "Tarefa",
+      "promptPlaceholder": "Diga ao agente o que fazer, com suas palavras",
+      "startUrl": "Página inicial",
+      "startUrlPlaceholder": "Página inicial (opcional)",
+      "options": "Opções da tarefa",
+      "autonomy": "Quando ele age",
+      "autonomyOptions": {
+        "ask": "Perguntar antes de passos importantes",
+        "auto": "Agir por conta própria"
+      },
+      "autonomyHints": {
+        "ask": "Ele para e pergunta antes de enviar, comprar ou submeter.",
+        "auto": "Ele vai até o fim sem perguntar."
+      },
+      "creditCap": "Limite de créditos",
+      "noCap": "Sem limite",
+      "concurrency": "Ao mesmo tempo",
+      "concurrencyDefault": "Padrão",
+      "runOn": "Executar em {{n}}",
+      "run": "Executar",
+      "stepKinds": {
+        "think": "Pensando",
+        "act": "Ação",
+        "observe": "Visto"
+      },
+      "approvalTitle": "O agente pergunta",
+      "decline": "Recusar",
+      "approve": "Aprovar",
+      "endedNoCredits": "Parada: sem créditos.",
+      "endedBudget": "Parada no limite de créditos.",
+      "streamLabel": "Passos em {{name}}",
+      "credits": "{{n}} créditos",
+      "resume": "Retomar",
+      "pause": "Pausar",
+      "stop": "Parar",
+      "launching": "Iniciando o navegador…",
+      "waitingFirstStep": "Aguardando o primeiro passo…",
+      "steerLabel": "Mensagem ao agente",
+      "steerPlaceholder": "Oriente o agente, por exemplo: só os não lidos",
+      "steerSend": "Enviar",
+      "needsYou": "Aguardando sua resposta",
+      "unknownProfile": "Perfil excluído",
+      "progress": "{{done}} de {{total}} concluídas",
+      "failedCount": "{{n}} falharam",
+      "fromRoutine": "Rotina",
+      "stopAll": "Parar todas",
+      "retryFailed": "Repetir as que falharam",
+      "dismiss": "Remover da lista",
+      "empty": "Escreva uma tarefa acima e escolha os perfis. O navegador de cada perfil faz o trabalho, e você vê cada passo aqui."
+    },
+    "routines": {
+      "updated": "Rotina salva",
+      "created": "Rotina criada",
+      "name": "Nome",
+      "namePlaceholder": "Verificar a caixa de entrada pela manhã",
+      "prompt": "Tarefa",
+      "profiles": "Perfis",
+      "creditCap": "Limite de créditos por execução",
+      "onSchedule": "Executar em uma agenda",
+      "scheduleNeedsPlan": "Agendas precisam de um plano com automação agendada. Você ainda pode executar uma rotina manualmente.",
+      "cron": "Expressão cron",
+      "cronHint": "Minuto, hora, dia, mês, dia da semana. 0 9 * * 1-5 é 09:00 nos dias úteis.",
+      "timezone": "Fuso horário",
+      "noRuns": "Nenhuma execução ainda",
+      "scheduleSummary": "{{cron}} ({{timezone}})",
+      "manual": "Execução manual",
+      "hint": "Salve uma tarefa uma vez e execute-a de novo nos mesmos perfis, manualmente ou em uma agenda.",
+      "new": "Nova rotina",
+      "empty": "Nenhuma rotina ainda",
+      "runAria": "Executar {{name}}",
+      "run": "Executar",
+      "history": "Execuções",
+      "editAria": "Editar {{name}}",
+      "deleteAria": "Excluir {{name}}",
+      "deleteTitle": "Excluir {{name}}?",
+      "deleteDescription": "A rotina e sua agenda são excluídas."
     }
   },
   "proxyDistribution": {

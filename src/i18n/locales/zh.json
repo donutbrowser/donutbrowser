@@ -540,7 +540,8 @@
       "distributeProxies": "分配代理",
       "runCount": "运行 {{count}} 个",
       "stopCount": "停止 {{count}} 个",
-      "enableSync": "启用同步"
+      "enableSync": "启用同步",
+      "runTask": "运行智能体任务"
     },
     "passwordProtectedBadge": "密码保护",
     "launchHook": {
@@ -2950,7 +2951,25 @@
     "entityInUse": "有 {{count}} 个配置文件正在使用。请先将它们改用其他代理或 VPN。",
     "syncPasswordBlocksRemoteRun": "同步加密密码加密了此配置文件已同步的设置，远程主机无法解密。要远程运行，请在同步加密设置中删除密码。",
     "appProxyInvalid": "请按 协议://主机:端口 的格式输入代理，可在主机前加上 用户名:密码@。协议为 http、https、socks5 或 socks5h。",
-    "appProxyUnreachable": "Donut 无法通过其代理 {{proxy}} 连接。请在设置的“网络”中检查代理。"
+    "appProxyUnreachable": "Donut 无法通过其代理 {{proxy}} 连接。请在设置的“网络”中检查代理。",
+    "agentNotEntitled": "此账户无法使用智能体。",
+    "noCredits": "智能体额度已用完。",
+    "taskBudget": "任务已达到额度上限。",
+    "agentUnsupported": "此浏览器版本无法运行智能体。请更新 Wayfern。",
+    "agentBusy": "此配置文件已在运行任务。",
+    "agentTokenRequired": "智能体无法登录。请重试。",
+    "agentEngineFailed": "智能体无法完成该操作。",
+    "agentBrowserUnreachable": "配置文件的浏览器没有响应。",
+    "agentBrowserClosed": "任务结束前浏览器已关闭。",
+    "agentPromptEmpty": "请先写下任务。",
+    "agentStartUrlInvalid": "起始页必须是 http 或 https 地址。",
+    "agentRoutineInvalid": "例程无效。请检查各字段。",
+    "agentRoutineNotFound": "该例程已不存在。",
+    "agentNoProfiles": "请至少选择一个配置文件。",
+    "agentTooManyProfiles": "单次运行的配置文件过多。上限为 500。",
+    "agentTaskNotFound": "该任务已不在运行。",
+    "agentBatchNotFound": "该运行已不在列表中。",
+    "agentActionInvalid": "智能体不认识该操作。"
   },
   "rail": {
     "profiles": "配置文件",
@@ -3925,7 +3944,9 @@
       "profiles": "配置文件",
       "activity": "活动",
       "recipes": "配方",
-      "schedules": "计划"
+      "schedules": "计划",
+      "tasks": "任务",
+      "routines": "例程"
     },
     "header": {
       "quota": "本小时剩余 {{left}} / {{limit}} 次调用",
@@ -4197,6 +4218,110 @@
         "testFailed": "测试通知失败（Webhook 状态 {{status}}）。",
         "secretRotated": "已生成新的签名密钥。"
       }
+    },
+    "credits": {
+      "unlimited": "无限额度",
+      "detail": "本周期已用 {{used}} / {{total}} 额度",
+      "left": "剩余 {{n}} 额度",
+      "meter": "本周期剩余额度"
+    },
+    "tasks": {
+      "status": {
+        "queued": "排队中",
+        "launching": "正在启动",
+        "running": "进行中",
+        "paused": "已暂停",
+        "needs_approval": "需要你确认",
+        "done": "完成",
+        "failed": "失败",
+        "stopped": "已停止",
+        "no_credits": "额度用完",
+        "budget": "已达额度上限",
+        "missed": "已错过",
+        "unknown": "未知"
+      },
+      "chooseProfiles": "选择配置文件",
+      "profileCount": "{{n}} 个配置文件",
+      "searchProfiles": "搜索配置文件",
+      "noProfileMatch": "没有匹配的配置文件",
+      "clearProfiles": "清除选择",
+      "allProfiles": "全选",
+      "promptLabel": "任务",
+      "promptPlaceholder": "用你自己的话告诉智能体要做什么",
+      "startUrl": "起始页",
+      "startUrlPlaceholder": "起始页(可选)",
+      "options": "任务选项",
+      "autonomy": "何时行动",
+      "autonomyOptions": {
+        "ask": "重要步骤前先询问",
+        "auto": "自主执行"
+      },
+      "autonomyHints": {
+        "ask": "在提交、购买或发送前会停下来询问。",
+        "auto": "不询问,一直执行到结束。"
+      },
+      "creditCap": "额度上限",
+      "noCap": "不设上限",
+      "concurrency": "同时运行",
+      "concurrencyDefault": "默认",
+      "runOn": "在 {{n}} 个上运行",
+      "run": "运行",
+      "stepKinds": {
+        "think": "思考",
+        "act": "操作",
+        "observe": "看到"
+      },
+      "approvalTitle": "智能体询问",
+      "decline": "拒绝",
+      "approve": "批准",
+      "endedNoCredits": "已停止:额度用完。",
+      "endedBudget": "已在额度上限处停止。",
+      "streamLabel": "{{name}} 上的步骤",
+      "credits": "{{n}} 额度",
+      "resume": "继续",
+      "pause": "暂停",
+      "stop": "停止",
+      "launching": "正在启动浏览器…",
+      "waitingFirstStep": "等待第一步…",
+      "steerLabel": "给智能体的消息",
+      "steerPlaceholder": "引导智能体,例如:只看未读的",
+      "steerSend": "发送",
+      "needsYou": "等待你的回答",
+      "unknownProfile": "已删除的配置文件",
+      "progress": "已完成 {{done}} / {{total}}",
+      "failedCount": "{{n}} 个失败",
+      "fromRoutine": "例程",
+      "stopAll": "全部停止",
+      "retryFailed": "重试失败项",
+      "dismiss": "从列表中移除",
+      "empty": "在上方写下任务并选择配置文件。每个配置文件的浏览器会完成工作,你可以在这里看到每一步。"
+    },
+    "routines": {
+      "updated": "例程已保存",
+      "created": "例程已创建",
+      "name": "名称",
+      "namePlaceholder": "早间收件箱检查",
+      "prompt": "任务",
+      "profiles": "配置文件",
+      "creditCap": "每次运行的额度上限",
+      "onSchedule": "按计划运行",
+      "scheduleNeedsPlan": "计划需要包含定时自动化的套餐。你仍可手动运行例程。",
+      "cron": "Cron 表达式",
+      "cronHint": "分钟、小时、日、月、星期。0 9 * * 1-5 表示工作日 09:00。",
+      "timezone": "时区",
+      "noRuns": "还没有运行记录",
+      "scheduleSummary": "{{cron}}({{timezone}})",
+      "manual": "手动运行",
+      "hint": "保存一次任务,然后在相同的配置文件上手动或按计划再次运行。",
+      "new": "新建例程",
+      "empty": "还没有例程",
+      "runAria": "运行 {{name}}",
+      "run": "运行",
+      "history": "运行记录",
+      "editAria": "编辑 {{name}}",
+      "deleteAria": "删除 {{name}}",
+      "deleteTitle": "删除 {{name}}?",
+      "deleteDescription": "例程及其计划将被删除。"
     }
   },
   "proxyDistribution": {

@@ -68,6 +68,7 @@ import { WayfernTermsDialog } from "@/components/wayfern-terms-dialog";
 import { WelcomeDialog } from "@/components/welcome-dialog";
 import { WindowResizeWarningDialog } from "@/components/window-resize-warning-dialog";
 import { useAgentConsole } from "@/hooks/use-agent-console";
+import { useAgentAvailability } from "@/hooks/use-agent-tasks";
 import { useAppUpdateNotifications } from "@/hooks/use-app-update-notifications";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { useCommercialTrial } from "@/hooks/use-commercial-trial";
@@ -457,6 +458,8 @@ export default function Home() {
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [agentInitialTab, setAgentInitialTab] =
     useState<AgentTab>("conversation");
+  const agentReady = useAgentAvailability(cloudUser);
+  const [agentSeed, setAgentSeed] = useState<string[] | null>(null);
   const [createProfileDialogOpen, setCreateProfileDialogOpen] = useState(false);
   const teamReadOnly = isTeamLauncher(cloudUser);
   const teamReadOnlyRef = useRef(teamReadOnly);
@@ -2305,6 +2308,12 @@ export default function Home() {
     void executeBulkRun(targets);
   }, [selectedProfiles, profiles, runningProfiles, executeBulkRun, t]);
 
+  const handleRunAgentTask = useCallback(() => {
+    setAgentSeed([...selectedProfiles]);
+    setAgentInitialTab("tasks");
+    handleRailNavigate("agent");
+  }, [selectedProfiles, handleRailNavigate]);
+
   const handleBulkStop = useCallback(() => {
     if (selectedProfiles.length === 0) return;
     const targets = profiles.filter(
@@ -3053,6 +3062,7 @@ export default function Home() {
                     onBulkCopyCookies={handleBulkCopyCookies}
                     onBulkRun={handleBulkRun}
                     onBulkStop={handleBulkStop}
+                    onRunAgentTask={agentReady ? handleRunAgentTask : undefined}
                     bulkActionsUnlocked={automationUnlocked}
                     onBulkExtensionGroupAssignment={
                       handleBulkExtensionGroupAssignment
@@ -3203,6 +3213,8 @@ export default function Home() {
                   onOpenAccount={() => {
                     handleRailNavigate("account");
                   }}
+                  agentReady={agentReady}
+                  agentSeed={agentSeed}
                 />
               )}
 

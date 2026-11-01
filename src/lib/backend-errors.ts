@@ -283,6 +283,24 @@ export type BackendErrorCode =
   | "AGENT_NOTE_EMPTY"
   | "AGENT_TEXT_TOO_LONG"
   | "AGENT_SESSION_NOT_FOUND"
+  | "AGENT_NOT_ENTITLED"
+  | "NO_CREDITS"
+  | "TASK_BUDGET"
+  | "AGENT_UNSUPPORTED"
+  | "AGENT_BUSY"
+  | "AGENT_TOKEN_REQUIRED"
+  | "AGENT_ENGINE_FAILED"
+  | "AGENT_BROWSER_UNREACHABLE"
+  | "AGENT_BROWSER_CLOSED"
+  | "AGENT_PROMPT_EMPTY"
+  | "AGENT_START_URL_INVALID"
+  | "AGENT_ROUTINE_INVALID"
+  | "AGENT_ROUTINE_NOT_FOUND"
+  | "AGENT_NO_PROFILES"
+  | "AGENT_TOO_MANY_PROFILES"
+  | "AGENT_TASK_NOT_FOUND"
+  | "AGENT_BATCH_NOT_FOUND"
+  | "AGENT_ACTION_INVALID"
   | "FEEDBACK_MESSAGE_EMPTY"
   | "FEEDBACK_MESSAGE_TOO_LONG"
   | "FEEDBACK_EMAIL_INVALID"
@@ -1065,6 +1083,42 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       });
     case "AGENT_SESSION_NOT_FOUND":
       return t("backendErrors.agentSessionNotFound");
+    case "AGENT_NOT_ENTITLED":
+      return t("backendErrors.agentNotEntitled");
+    case "NO_CREDITS":
+      return t("backendErrors.noCredits");
+    case "TASK_BUDGET":
+      return t("backendErrors.taskBudget");
+    case "AGENT_UNSUPPORTED":
+      return t("backendErrors.agentUnsupported");
+    case "AGENT_BUSY":
+      return t("backendErrors.agentBusy");
+    case "AGENT_TOKEN_REQUIRED":
+      return t("backendErrors.agentTokenRequired");
+    case "AGENT_ENGINE_FAILED":
+      return t("backendErrors.agentEngineFailed");
+    case "AGENT_BROWSER_UNREACHABLE":
+      return t("backendErrors.agentBrowserUnreachable");
+    case "AGENT_BROWSER_CLOSED":
+      return t("backendErrors.agentBrowserClosed");
+    case "AGENT_PROMPT_EMPTY":
+      return t("backendErrors.agentPromptEmpty");
+    case "AGENT_START_URL_INVALID":
+      return t("backendErrors.agentStartUrlInvalid");
+    case "AGENT_ROUTINE_INVALID":
+      return t("backendErrors.agentRoutineInvalid");
+    case "AGENT_ROUTINE_NOT_FOUND":
+      return t("backendErrors.agentRoutineNotFound");
+    case "AGENT_NO_PROFILES":
+      return t("backendErrors.agentNoProfiles");
+    case "AGENT_TOO_MANY_PROFILES":
+      return t("backendErrors.agentTooManyProfiles");
+    case "AGENT_TASK_NOT_FOUND":
+      return t("backendErrors.agentTaskNotFound");
+    case "AGENT_BATCH_NOT_FOUND":
+      return t("backendErrors.agentBatchNotFound");
+    case "AGENT_ACTION_INVALID":
+      return t("backendErrors.agentActionInvalid");
     case "FEEDBACK_MESSAGE_EMPTY":
       return t("backendErrors.feedbackMessageEmpty");
     case "FEEDBACK_MESSAGE_TOO_LONG":

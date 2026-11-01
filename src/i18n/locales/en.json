@@ -540,7 +540,8 @@
       "distributeProxies": "Distribute proxies",
       "runCount": "Run {{count}}",
       "stopCount": "Stop {{count}}",
-      "enableSync": "Enable sync"
+      "enableSync": "Enable sync",
+      "runTask": "Run an agent task"
     },
     "passwordProtectedBadge": "Password Protected",
     "launchHook": {
@@ -2950,7 +2951,25 @@
     "entityInUse": "In use by {{count}} profiles. Move them to another proxy or VPN first.",
     "syncPasswordBlocksRemoteRun": "The sync encryption password encrypts this profile's synced settings, and a remote host cannot decrypt them. To run it remotely, remove the password in the Sync encryption settings.",
     "appProxyInvalid": "Enter the proxy as scheme://host:port, with an optional user:password@ before the host. The scheme is http, https, socks5 or socks5h.",
-    "appProxyUnreachable": "Donut could not connect through its proxy {{proxy}}. Check the proxy in Settings, under Network."
+    "appProxyUnreachable": "Donut could not connect through its proxy {{proxy}}. Check the proxy in Settings, under Network.",
+    "agentNotEntitled": "The agent is not available on this account.",
+    "noCredits": "No credits are left for the agent.",
+    "taskBudget": "The task reached its credit cap.",
+    "agentUnsupported": "This browser version cannot run the agent. Update Wayfern.",
+    "agentBusy": "This profile is already running a task.",
+    "agentTokenRequired": "The agent could not sign in. Try again.",
+    "agentEngineFailed": "The agent could not do that.",
+    "agentBrowserUnreachable": "The browser of the profile did not answer.",
+    "agentBrowserClosed": "The browser closed before the task ended.",
+    "agentPromptEmpty": "Write a task first.",
+    "agentStartUrlInvalid": "The start page must be an http or https address.",
+    "agentRoutineInvalid": "The routine is not valid. Check its fields.",
+    "agentRoutineNotFound": "That routine no longer exists.",
+    "agentNoProfiles": "Choose at least one profile.",
+    "agentTooManyProfiles": "Too many profiles for one run. The limit is 500.",
+    "agentTaskNotFound": "That task is no longer running.",
+    "agentBatchNotFound": "That run is no longer in the list.",
+    "agentActionInvalid": "The agent does not know that action."
   },
   "rail": {
     "profiles": "Profiles",
@@ -3925,7 +3944,9 @@
       "profiles": "Profiles",
       "activity": "Activity",
       "recipes": "Recipes",
-      "schedules": "Schedules"
+      "schedules": "Schedules",
+      "tasks": "Tasks",
+      "routines": "Routines"
     },
     "header": {
       "quota": "{{left}} of {{limit}} calls left this hour",
@@ -4197,6 +4218,110 @@
         "testFailed": "The test notice failed (webhook status {{status}}).",
         "secretRotated": "New signing secret made."
       }
+    },
+    "credits": {
+      "unlimited": "Unlimited credits",
+      "detail": "{{used}} of {{total}} credits used this period",
+      "left": "{{n}} credits left",
+      "meter": "Credits left this period"
+    },
+    "tasks": {
+      "status": {
+        "queued": "Queued",
+        "launching": "Starting",
+        "running": "Working",
+        "paused": "Paused",
+        "needs_approval": "Needs you",
+        "done": "Done",
+        "failed": "Failed",
+        "stopped": "Stopped",
+        "no_credits": "Out of credits",
+        "budget": "Credit cap reached",
+        "missed": "Missed",
+        "unknown": "Unknown"
+      },
+      "chooseProfiles": "Choose profiles",
+      "profileCount": "{{n}} profiles",
+      "searchProfiles": "Search profiles",
+      "noProfileMatch": "No profile matches",
+      "clearProfiles": "Clear selection",
+      "allProfiles": "Select all",
+      "promptLabel": "Task",
+      "promptPlaceholder": "Tell the agent what to do, in your own words",
+      "startUrl": "Start page",
+      "startUrlPlaceholder": "Start page (optional)",
+      "options": "Task options",
+      "autonomy": "When it acts",
+      "autonomyOptions": {
+        "ask": "Ask before important steps",
+        "auto": "Act on its own"
+      },
+      "autonomyHints": {
+        "ask": "It stops and asks before it submits, buys or sends.",
+        "auto": "It runs to the end without asking."
+      },
+      "creditCap": "Credit cap",
+      "noCap": "No cap",
+      "concurrency": "At once",
+      "concurrencyDefault": "Default",
+      "runOn": "Run on {{n}}",
+      "run": "Run",
+      "stepKinds": {
+        "think": "Thinking",
+        "act": "Action",
+        "observe": "Seen"
+      },
+      "approvalTitle": "The agent asks",
+      "decline": "Decline",
+      "approve": "Approve",
+      "endedNoCredits": "Stopped: no credits left.",
+      "endedBudget": "Stopped at the credit cap.",
+      "streamLabel": "Steps on {{name}}",
+      "credits": "{{n}} credits",
+      "resume": "Resume",
+      "pause": "Pause",
+      "stop": "Stop",
+      "launching": "Starting the browser…",
+      "waitingFirstStep": "Waiting for the first step…",
+      "steerLabel": "Message to the agent",
+      "steerPlaceholder": "Steer the agent, for example: only the unread ones",
+      "steerSend": "Send",
+      "needsYou": "Waiting for your answer",
+      "unknownProfile": "Deleted profile",
+      "progress": "{{done}} of {{total}} finished",
+      "failedCount": "{{n}} failed",
+      "fromRoutine": "Routine",
+      "stopAll": "Stop all",
+      "retryFailed": "Retry failed",
+      "dismiss": "Remove from the list",
+      "empty": "Write a task above and choose the profiles. The browser of each profile does the work, and you see each step here."
+    },
+    "routines": {
+      "updated": "Routine saved",
+      "created": "Routine created",
+      "name": "Name",
+      "namePlaceholder": "Morning inbox check",
+      "prompt": "Task",
+      "profiles": "Profiles",
+      "creditCap": "Credit cap per run",
+      "onSchedule": "Run on a schedule",
+      "scheduleNeedsPlan": "Schedules need a plan with scheduled automation. You can still run a routine by hand.",
+      "cron": "Cron expression",
+      "cronHint": "Minute, hour, day, month, weekday. 0 9 * * 1-5 is 09:00 on weekdays.",
+      "timezone": "Time zone",
+      "noRuns": "No runs yet",
+      "scheduleSummary": "{{cron}} ({{timezone}})",
+      "manual": "Run by hand",
+      "hint": "Save a task once and run it again on the same profiles, by hand or on a schedule.",
+      "new": "New routine",
+      "empty": "No routines yet",
+      "runAria": "Run {{name}}",
+      "run": "Run",
+      "history": "Runs",
+      "editAria": "Edit {{name}}",
+      "deleteAria": "Delete {{name}}",
+      "deleteTitle": "Delete {{name}}?",
+      "deleteDescription": "The routine and its schedule are deleted."
     }
   },
   "proxyDistribution": {

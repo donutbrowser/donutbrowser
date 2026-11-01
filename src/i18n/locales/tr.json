@@ -540,7 +540,8 @@
       "distributeProxies": "Proxy'leri dağıt",
       "runCount": "{{count}} çalıştır",
       "stopCount": "{{count}} durdur",
-      "enableSync": "Eşitlemeyi aç"
+      "enableSync": "Eşitlemeyi aç",
+      "runTask": "Ajan görevi çalıştır"
     },
     "passwordProtectedBadge": "Parola Korumalı",
     "launchHook": {
@@ -2950,7 +2951,25 @@
     "entityInUse": "{{count}} profil tarafından kullanılıyor. Önce onları başka bir proxy'ye veya VPN'e geçirin.",
     "syncPasswordBlocksRemoteRun": "Eşitleme şifrelemesi parolası bu profilin eşitlenen ayarlarını şifreler ve uzak sunucu bunları çözemez. Uzakta çalıştırmak için Eşitleme şifrelemesi ayarlarından parolayı kaldırın.",
     "appProxyInvalid": "Proxy'yi şema://sunucu:port biçiminde girin; sunucudan önce isteğe bağlı kullanıcı:parola@ ekleyebilirsiniz. Şema http, https, socks5 veya socks5h olmalıdır.",
-    "appProxyUnreachable": "Donut, {{proxy}} proxy'si üzerinden bağlanamadı. Proxy'yi Ayarlar'da, Ağ bölümünde denetleyin."
+    "appProxyUnreachable": "Donut, {{proxy}} proxy'si üzerinden bağlanamadı. Proxy'yi Ayarlar'da, Ağ bölümünde denetleyin.",
+    "agentNotEntitled": "Ajan bu hesapta kullanılamıyor.",
+    "noCredits": "Ajan için kredi kalmadı.",
+    "taskBudget": "Görev kredi sınırına ulaştı.",
+    "agentUnsupported": "Bu tarayıcı sürümü ajanı çalıştıramaz. Wayfern'i güncelle.",
+    "agentBusy": "Bu profil zaten bir görev çalıştırıyor.",
+    "agentTokenRequired": "Ajan oturum açamadı. Yeniden dene.",
+    "agentEngineFailed": "Ajan bunu yapamadı.",
+    "agentBrowserUnreachable": "Profilin tarayıcısı yanıt vermedi.",
+    "agentBrowserClosed": "Tarayıcı, görev bitmeden kapandı.",
+    "agentPromptEmpty": "Önce bir görev yaz.",
+    "agentStartUrlInvalid": "Başlangıç sayfası bir http veya https adresi olmalı.",
+    "agentRoutineInvalid": "Rutin geçerli değil. Alanlarını kontrol et.",
+    "agentRoutineNotFound": "Bu rutin artık yok.",
+    "agentNoProfiles": "En az bir profil seç.",
+    "agentTooManyProfiles": "Bir çalıştırma için çok fazla profil. Sınır 500.",
+    "agentTaskNotFound": "Bu görev artık çalışmıyor.",
+    "agentBatchNotFound": "Bu çalıştırma artık listede değil.",
+    "agentActionInvalid": "Ajan bu eylemi bilmiyor."
   },
   "rail": {
     "profiles": "Profiller",
@@ -3925,7 +3944,9 @@
       "profiles": "Profiller",
       "activity": "Etkinlik",
       "recipes": "Tarifler",
-      "schedules": "Zamanlamalar"
+      "schedules": "Zamanlamalar",
+      "tasks": "Görevler",
+      "routines": "Rutinler"
     },
     "header": {
       "quota": "Bu saat için {{limit}} çağrıdan {{left}} kaldı",
@@ -4197,6 +4218,110 @@
         "testFailed": "Test bildirimi başarısız oldu (webhook durumu {{status}}).",
         "secretRotated": "Yeni imza anahtarı oluşturuldu."
       }
+    },
+    "credits": {
+      "unlimited": "Sınırsız kredi",
+      "detail": "Bu dönemde {{total}} kredinin {{used}} tanesi kullanıldı",
+      "left": "{{n}} kredi kaldı",
+      "meter": "Bu dönemde kalan kredi"
+    },
+    "tasks": {
+      "status": {
+        "queued": "Sırada",
+        "launching": "Başlatılıyor",
+        "running": "Çalışıyor",
+        "paused": "Duraklatıldı",
+        "needs_approval": "Seni bekliyor",
+        "done": "Tamamlandı",
+        "failed": "Başarısız",
+        "stopped": "Durduruldu",
+        "no_credits": "Kredi kalmadı",
+        "budget": "Kredi sınırına ulaşıldı",
+        "missed": "Kaçırıldı",
+        "unknown": "Bilinmiyor"
+      },
+      "chooseProfiles": "Profil seç",
+      "profileCount": "{{n}} profil",
+      "searchProfiles": "Profil ara",
+      "noProfileMatch": "Eşleşen profil yok",
+      "clearProfiles": "Seçimi temizle",
+      "allProfiles": "Tümünü seç",
+      "promptLabel": "Görev",
+      "promptPlaceholder": "Ajana ne yapacağını kendi sözlerinle anlat",
+      "startUrl": "Başlangıç sayfası",
+      "startUrlPlaceholder": "Başlangıç sayfası (isteğe bağlı)",
+      "options": "Görev seçenekleri",
+      "autonomy": "Ne zaman harekete geçer",
+      "autonomyOptions": {
+        "ask": "Önemli adımlardan önce sor",
+        "auto": "Kendi başına hareket et"
+      },
+      "autonomyHints": {
+        "ask": "Göndermeden, satın almadan veya onaylamadan önce durup sorar.",
+        "auto": "Sormadan sonuna kadar çalışır."
+      },
+      "creditCap": "Kredi sınırı",
+      "noCap": "Sınır yok",
+      "concurrency": "Aynı anda",
+      "concurrencyDefault": "Varsayılan",
+      "runOn": "{{n}} profilde çalıştır",
+      "run": "Çalıştır",
+      "stepKinds": {
+        "think": "Düşünüyor",
+        "act": "Eylem",
+        "observe": "Görüldü"
+      },
+      "approvalTitle": "Ajan soruyor",
+      "decline": "Reddet",
+      "approve": "Onayla",
+      "endedNoCredits": "Durduruldu: kredi kalmadı.",
+      "endedBudget": "Kredi sınırında durduruldu.",
+      "streamLabel": "{{name}} üzerindeki adımlar",
+      "credits": "{{n}} kredi",
+      "resume": "Devam et",
+      "pause": "Duraklat",
+      "stop": "Durdur",
+      "launching": "Tarayıcı başlatılıyor…",
+      "waitingFirstStep": "İlk adım bekleniyor…",
+      "steerLabel": "Ajana mesaj",
+      "steerPlaceholder": "Ajanı yönlendir, örneğin: yalnızca okunmamışlar",
+      "steerSend": "Gönder",
+      "needsYou": "Yanıtını bekliyor",
+      "unknownProfile": "Silinmiş profil",
+      "progress": "{{total}} görevin {{done}} tanesi bitti",
+      "failedCount": "{{n}} başarısız",
+      "fromRoutine": "Rutin",
+      "stopAll": "Tümünü durdur",
+      "retryFailed": "Başarısızları yeniden dene",
+      "dismiss": "Listeden kaldır",
+      "empty": "Yukarıya bir görev yaz ve profilleri seç. Her profilin tarayıcısı işi yapar, her adımı burada görürsün."
+    },
+    "routines": {
+      "updated": "Rutin kaydedildi",
+      "created": "Rutin oluşturuldu",
+      "name": "Ad",
+      "namePlaceholder": "Sabah gelen kutusu kontrolü",
+      "prompt": "Görev",
+      "profiles": "Profiller",
+      "creditCap": "Çalıştırma başına kredi sınırı",
+      "onSchedule": "Zamanlamaya göre çalıştır",
+      "scheduleNeedsPlan": "Zamanlamalar, zamanlanmış otomasyon içeren bir plan gerektirir. Bir rutini yine de elle çalıştırabilirsin.",
+      "cron": "Cron ifadesi",
+      "cronHint": "Dakika, saat, gün, ay, haftanın günü. 0 9 * * 1-5 hafta içi saat 09:00 demektir.",
+      "timezone": "Saat dilimi",
+      "noRuns": "Henüz çalıştırma yok",
+      "scheduleSummary": "{{cron}} ({{timezone}})",
+      "manual": "Elle çalıştır",
+      "hint": "Bir görevi bir kez kaydet ve aynı profillerde yeniden çalıştır, elle ya da zamanlamayla.",
+      "new": "Yeni rutin",
+      "empty": "Henüz rutin yok",
+      "runAria": "{{name}} çalıştır",
+      "run": "Çalıştır",
+      "history": "Çalıştırmalar",
+      "editAria": "{{name}} düzenle",
+      "deleteAria": "{{name}} sil",
+      "deleteTitle": "{{name}} silinsin mi?",
+      "deleteDescription": "Rutin ve zamanlaması silinir."
     }
   },
   "proxyDistribution": {

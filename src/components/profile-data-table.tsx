@@ -37,6 +37,7 @@ import {
   LuRefreshCw,
   LuShuffle,
   LuSlidersHorizontal,
+  LuSparkles,
   LuSquare,
   LuTrash2,
   LuTriangleAlert,
@@ -2108,6 +2109,8 @@ interface ProfilesDataTableProps {
   onBulkCopyCookies?: () => void;
   onBulkRun?: () => void;
   onBulkStop?: () => void;
+  /** Start an agent task on the selection. Set only when the agent is on. */
+  onRunAgentTask?: () => void;
   bulkActionsUnlocked?: boolean;
   onBulkExtensionGroupAssignment?: () => void;
   onAssignExtensionGroup?: (profileIds: string[]) => void;
@@ -2185,6 +2188,7 @@ export function ProfilesDataTable({
   onBulkCopyCookies,
   onBulkRun,
   onBulkStop,
+  onRunAgentTask,
   bulkActionsUnlocked = false,
   onBulkExtensionGroupAssignment,
   onAssignExtensionGroup,
@@ -4788,6 +4792,15 @@ export function ProfilesDataTable({
               <ProBadge className="pointer-events-none absolute -top-2 -right-2" />
             )}
           </span>
+        )}
+        {onRunAgentTask && (
+          <DataTableActionBarAction
+            data-bulk-action="agent-task"
+            tooltip={t("profiles.actionBar.runTask")}
+            onClick={onRunAgentTask}
+          >
+            <LuSparkles />
+          </DataTableActionBarAction>
         )}
         <DataTableActionBarAction
           tooltip={t("bulkEdit.action")}

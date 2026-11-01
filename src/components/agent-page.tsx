@@ -26,6 +26,9 @@ import {
 import { AgentProfiles } from "@/components/agent-profiles";
 import { AgentRecipes } from "@/components/agent-recipes";
 import { AgentSchedules } from "@/components/agent-schedules";
+import { CreditsMeter } from "@/components/agent-tasks/parts";
+import { AgentRoutinesPanel } from "@/components/agent-tasks/routines-panel";
+import { AgentTasksPanel } from "@/components/agent-tasks/tasks-panel";
 import { AnimatedSwitch } from "@/components/ui/animated-switch";
 import {
   AnimatedTabs,
@@ -52,6 +55,7 @@ import { ProBadge } from "@/components/ui/pro-badge";
 import { RippleButton } from "@/components/ui/ripple";
 import { Textarea } from "@/components/ui/textarea";
 import type { AgentConsole } from "@/hooks/use-agent-console";
+import { useAgentBatches, useAgentCredits } from "@/hooks/use-agent-tasks";
 import { MAX_TEXT_CHARS, profileRollup, quotaLeft } from "@/lib/agent-console";
 import {
   canUseRemoteControl,
@@ -64,6 +68,8 @@ import { cn } from "@/lib/utils";
 import type { BrowserProfile, CloudUser } from "@/types";
 
 export type AgentTab =
+  | "tasks"
+  | "routines"
   | "conversation"
   | "profiles"
   | "activity"
@@ -78,6 +84,9 @@ const TABS: AgentTab[] = [
   "schedules",
 ];
 
+/** Tasks and routines run by Wayfern's engine; shown only with the agent. */
+const AGENT_TABS: AgentTab[] = ["tasks", "routines"];
+
 interface AgentPageProps {
   isOpen: boolean;
   onClose: () => void;
@@ -91,6 +100,10 @@ interface AgentPageProps {
   /** Opens Integrations on its remote tab. */
   onConnectAgent: () => void;
   onOpenAccount: () => void;
+  /** The account has the agent and the installed Wayfern runs it. */
+  agentReady: boolean;
+  /** Profiles to start a task on, from the profiles table selection. */
+  agentSeed: string[] | null;
 }
 
 function useRemoteStatus(isOpen: boolean) {
@@ -288,10 +301,15 @@ export function AgentPage({
   agentConsole,
   onConnectAgent,
   onOpenAccount,
+  agentReady,
+  agentSeed,
 }: AgentPageProps) {
   const { t } = useTranslation();
   const now = useNow();
   const { remote, known: remoteKnown } = useRemoteStatus(isOpen);
+  const tabs = agentReady ? [...AGENT_TABS, ...TABS] : TABS;
+  const agentBatches = useAgentBatches(agentReady && isOpen);
+  const credits = useAgentCredits(agentReady && isOpen, agentBatches.batches);
 
   const [activeTab, setActiveTab] = useState<AgentTab>(initialTab);
   const [adoptedInitialTab, setAdoptedInitialTab] = useState(initialTab);
@@ -299,6 +317,9 @@ export function AgentPage({
     setAdoptedInitialTab(initialTab);
     setActiveTab(initialTab);
   }
+  const shownTab: AgentTab = tabs.includes(activeTab)
+    ? activeTab
+    : "conversation";
   const changeTab = useCallback(
     (tab: AgentTab) => {
       setActiveTab(tab);
@@ -535,9 +556,10 @@ export function AgentPage({
                   </>
                 )}
               </div>
-              {blocker === null && (
+              {(blocker === null || agentReady) && (
                 <div className="flex flex-wrap items-center gap-3">
-                  {quota && (
+                  {agentReady && <CreditsMeter credits={credits} />}
+                  {blocker === null && quota && (
                     <span
                       data-testid="agent-quota"
                       className={cn(
@@ -553,16 +575,20 @@ export function AgentPage({
                       })}
                     </span>
                   )}
-                  <PauseControl agentConsole={agentConsole} />
-                  <RippleButton
-                    size="sm"
-                    className="flex h-8 items-center gap-1.5 rounded-lg text-xs"
-                    data-testid="agent-connect"
-                    onClick={onConnectAgent}
-                  >
-                    <LuPlug className="size-3.5" aria-hidden="true" />
-                    {t("agent.header.connect")}
-                  </RippleButton>
+                  {blocker === null && (
+                    <>
+                      <PauseControl agentConsole={agentConsole} />
+                      <RippleButton
+                        size="sm"
+                        className="flex h-8 items-center gap-1.5 rounded-lg text-xs"
+                        data-testid="agent-connect"
+                        onClick={onConnectAgent}
+                      >
+                        <LuPlug className="size-3.5" aria-hidden="true" />
+                        {t("agent.header.connect")}
+                      </RippleButton>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -570,14 +596,14 @@ export function AgentPage({
             {blocker === null && <PausedBanner agentConsole={agentConsole} />}
 
             <AnimatedTabs
-              value={activeTab}
+              value={shownTab}
               onValueChange={(value) => {
                 changeTab(value as AgentTab);
               }}
               className="flex min-h-0 flex-1 flex-col"
             >
               <AnimatedTabsList className="shrink-0">
-                {TABS.map((tab) => (
+                {tabs.map((tab) => (
                   <AnimatedTabsTrigger
                     key={tab}
                     value={tab}
@@ -593,6 +619,47 @@ export function AgentPage({
                   </AnimatedTabsTrigger>
                 ))}
               </AnimatedTabsList>
+
+              {agentReady && (
+                <AnimatedTabsContent
+                  value="tasks"
+                  className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
+                >
+                  <AgentTasksPanel
+                    profiles={profiles}
+                    batches={agentBatches.batches}
+                    seedProfileIds={agentSeed}
+                    onBatchStarted={(batch) => {
+                      agentBatches.adopt((current) =>
+                        current.some((item) => item.id === batch.id)
+                          ? current
+                          : [batch, ...current],
+                      );
+                    }}
+                    onBatchDismissed={agentBatches.forget}
+                  />
+                </AnimatedTabsContent>
+              )}
+
+              {agentReady && (
+                <AnimatedTabsContent
+                  value="routines"
+                  className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
+                >
+                  <AgentRoutinesPanel
+                    profiles={profiles}
+                    canSchedule={scheduled}
+                    onRan={(batch) => {
+                      agentBatches.adopt((current) =>
+                        current.some((item) => item.id === batch.id)
+                          ? current
+                          : [batch, ...current],
+                      );
+                      changeTab("tasks");
+                    }}
+                  />
+                </AnimatedTabsContent>
+              )}
 
               <AnimatedTabsContent
                 value="conversation"

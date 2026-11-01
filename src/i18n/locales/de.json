@@ -540,7 +540,8 @@
       "distributeProxies": "Proxys verteilen",
       "runCount": "{{count}} starten",
       "stopCount": "{{count}} stoppen",
-      "enableSync": "Synchronisierung aktivieren"
+      "enableSync": "Synchronisierung aktivieren",
+      "runTask": "Agenten-Aufgabe ausführen"
     },
     "passwordProtectedBadge": "Passwortgeschützt",
     "launchHook": {
@@ -2950,7 +2951,25 @@
     "entityInUse": "Wird von {{count}} Profilen verwendet. Weisen Sie ihnen zuerst einen anderen Proxy oder ein anderes VPN zu.",
     "syncPasswordBlocksRemoteRun": "Das Passwort der Sync-Verschlüsselung verschlüsselt die synchronisierten Einstellungen dieses Profils, und ein Remote-Host kann sie nicht entschlüsseln. Um es remote auszuführen, entfernen Sie das Passwort in den Einstellungen der Sync-Verschlüsselung.",
     "appProxyInvalid": "Gib den Proxy als schema://host:port ein, optional mit benutzer:passwort@ vor dem Host. Das Schema ist http, https, socks5 oder socks5h.",
-    "appProxyUnreachable": "Donut konnte keine Verbindung über seinen Proxy {{proxy}} herstellen. Prüfe den Proxy in den Einstellungen unter Netzwerk."
+    "appProxyUnreachable": "Donut konnte keine Verbindung über seinen Proxy {{proxy}} herstellen. Prüfe den Proxy in den Einstellungen unter Netzwerk.",
+    "agentNotEntitled": "Der Agent ist für dieses Konto nicht verfügbar.",
+    "noCredits": "Für den Agenten sind keine Credits mehr übrig.",
+    "taskBudget": "Die Aufgabe hat ihr Credit-Limit erreicht.",
+    "agentUnsupported": "Diese Browserversion kann den Agenten nicht ausführen. Aktualisiere Wayfern.",
+    "agentBusy": "Dieses Profil führt bereits eine Aufgabe aus.",
+    "agentTokenRequired": "Der Agent konnte sich nicht anmelden. Versuche es erneut.",
+    "agentEngineFailed": "Der Agent konnte das nicht tun.",
+    "agentBrowserUnreachable": "Der Browser des Profils hat nicht geantwortet.",
+    "agentBrowserClosed": "Der Browser wurde geschlossen, bevor die Aufgabe fertig war.",
+    "agentPromptEmpty": "Schreib zuerst eine Aufgabe.",
+    "agentStartUrlInvalid": "Die Startseite muss eine http- oder https-Adresse sein.",
+    "agentRoutineInvalid": "Die Routine ist ungültig. Prüfe ihre Felder.",
+    "agentRoutineNotFound": "Diese Routine gibt es nicht mehr.",
+    "agentNoProfiles": "Wähle mindestens ein Profil.",
+    "agentTooManyProfiles": "Zu viele Profile für einen Lauf. Das Limit ist 500.",
+    "agentTaskNotFound": "Diese Aufgabe läuft nicht mehr.",
+    "agentBatchNotFound": "Dieser Lauf ist nicht mehr in der Liste.",
+    "agentActionInvalid": "Der Agent kennt diese Aktion nicht."
   },
   "rail": {
     "profiles": "Profile",
@@ -3925,7 +3944,9 @@
       "profiles": "Profile",
       "activity": "Aktivität",
       "recipes": "Rezepte",
-      "schedules": "Zeitpläne"
+      "schedules": "Zeitpläne",
+      "tasks": "Aufgaben",
+      "routines": "Routinen"
     },
     "header": {
       "quota": "Noch {{left}} von {{limit}} Aufrufen in dieser Stunde",
@@ -4197,6 +4218,110 @@
         "testFailed": "Die Testbenachrichtigung ist fehlgeschlagen (Webhook-Status {{status}}).",
         "secretRotated": "Neuer Signaturschlüssel erstellt."
       }
+    },
+    "credits": {
+      "unlimited": "Unbegrenzte Credits",
+      "detail": "{{used}} von {{total}} Credits in diesem Zeitraum verbraucht",
+      "left": "{{n}} Credits übrig",
+      "meter": "Verbleibende Credits in diesem Zeitraum"
+    },
+    "tasks": {
+      "status": {
+        "queued": "In Warteschlange",
+        "launching": "Wird gestartet",
+        "running": "Arbeitet",
+        "paused": "Pausiert",
+        "needs_approval": "Braucht dich",
+        "done": "Fertig",
+        "failed": "Fehlgeschlagen",
+        "stopped": "Gestoppt",
+        "no_credits": "Keine Credits mehr",
+        "budget": "Credit-Limit erreicht",
+        "missed": "Verpasst",
+        "unknown": "Unbekannt"
+      },
+      "chooseProfiles": "Profile wählen",
+      "profileCount": "{{n}} Profile",
+      "searchProfiles": "Profile suchen",
+      "noProfileMatch": "Kein Profil passt",
+      "clearProfiles": "Auswahl aufheben",
+      "allProfiles": "Alle auswählen",
+      "promptLabel": "Aufgabe",
+      "promptPlaceholder": "Sag dem Agenten in eigenen Worten, was er tun soll",
+      "startUrl": "Startseite",
+      "startUrlPlaceholder": "Startseite (optional)",
+      "options": "Aufgabenoptionen",
+      "autonomy": "Wann er handelt",
+      "autonomyOptions": {
+        "ask": "Vor wichtigen Schritten fragen",
+        "auto": "Selbstständig handeln"
+      },
+      "autonomyHints": {
+        "ask": "Er hält an und fragt, bevor er etwas absendet, kauft oder verschickt.",
+        "auto": "Er läuft ohne Rückfrage bis zum Ende."
+      },
+      "creditCap": "Credit-Limit",
+      "noCap": "Kein Limit",
+      "concurrency": "Gleichzeitig",
+      "concurrencyDefault": "Standard",
+      "runOn": "Auf {{n}} ausführen",
+      "run": "Ausführen",
+      "stepKinds": {
+        "think": "Denkt nach",
+        "act": "Aktion",
+        "observe": "Gesehen"
+      },
+      "approvalTitle": "Der Agent fragt",
+      "decline": "Ablehnen",
+      "approve": "Zustimmen",
+      "endedNoCredits": "Gestoppt: keine Credits mehr.",
+      "endedBudget": "Am Credit-Limit gestoppt.",
+      "streamLabel": "Schritte in {{name}}",
+      "credits": "{{n}} Credits",
+      "resume": "Fortsetzen",
+      "pause": "Pausieren",
+      "stop": "Stoppen",
+      "launching": "Browser wird gestartet…",
+      "waitingFirstStep": "Warte auf den ersten Schritt…",
+      "steerLabel": "Nachricht an den Agenten",
+      "steerPlaceholder": "Steuere den Agenten, zum Beispiel: nur die ungelesenen",
+      "steerSend": "Senden",
+      "needsYou": "Wartet auf deine Antwort",
+      "unknownProfile": "Gelöschtes Profil",
+      "progress": "{{done}} von {{total}} fertig",
+      "failedCount": "{{n}} fehlgeschlagen",
+      "fromRoutine": "Routine",
+      "stopAll": "Alle stoppen",
+      "retryFailed": "Fehlgeschlagene wiederholen",
+      "dismiss": "Aus der Liste entfernen",
+      "empty": "Schreib oben eine Aufgabe und wähle die Profile. Der Browser jedes Profils erledigt die Arbeit, und du siehst hier jeden Schritt."
+    },
+    "routines": {
+      "updated": "Routine gespeichert",
+      "created": "Routine erstellt",
+      "name": "Name",
+      "namePlaceholder": "Posteingang am Morgen prüfen",
+      "prompt": "Aufgabe",
+      "profiles": "Profile",
+      "creditCap": "Credit-Limit pro Lauf",
+      "onSchedule": "Nach Zeitplan ausführen",
+      "scheduleNeedsPlan": "Zeitpläne brauchen einen Plan mit geplanter Automatisierung. Eine Routine kannst du trotzdem von Hand starten.",
+      "cron": "Cron-Ausdruck",
+      "cronHint": "Minute, Stunde, Tag, Monat, Wochentag. 0 9 * * 1-5 ist werktags um 09:00.",
+      "timezone": "Zeitzone",
+      "noRuns": "Noch keine Läufe",
+      "scheduleSummary": "{{cron}} ({{timezone}})",
+      "manual": "Von Hand starten",
+      "hint": "Speichere eine Aufgabe einmal und führe sie erneut auf denselben Profilen aus, von Hand oder nach Zeitplan.",
+      "new": "Neue Routine",
+      "empty": "Noch keine Routinen",
+      "runAria": "{{name}} ausführen",
+      "run": "Ausführen",
+      "history": "Läufe",
+      "editAria": "{{name}} bearbeiten",
+      "deleteAria": "{{name}} löschen",
+      "deleteTitle": "{{name}} löschen?",
+      "deleteDescription": "Die Routine und ihr Zeitplan werden gelöscht."
     }
   },
   "proxyDistribution": {

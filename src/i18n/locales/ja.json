@@ -540,7 +540,8 @@
       "distributeProxies": "プロキシを配分",
       "runCount": "{{count}} 件を実行",
       "stopCount": "{{count}} 件を停止",
-      "enableSync": "同期を有効にする"
+      "enableSync": "同期を有効にする",
+      "runTask": "エージェントタスクを実行"
     },
     "passwordProtectedBadge": "パスワード保護",
     "launchHook": {
@@ -2950,7 +2951,25 @@
     "entityInUse": "{{count}} 件のプロファイルで使用中です。先に別のプロキシまたはVPNに切り替えてください。",
     "syncPasswordBlocksRemoteRun": "同期暗号化のパスワードがこのプロファイルの同期済み設定を暗号化しているため、リモートホストでは復号できません。リモートで実行するには、同期暗号化の設定でパスワードを削除してください。",
     "appProxyInvalid": "プロキシを scheme://host:port の形式で入力してください。ホストの前に user:password@ を付けることもできます。スキームは http、https、socks5、socks5h のいずれかです。",
-    "appProxyUnreachable": "Donut はプロキシ {{proxy}} 経由で接続できませんでした。設定の「ネットワーク」でプロキシを確認してください。"
+    "appProxyUnreachable": "Donut はプロキシ {{proxy}} 経由で接続できませんでした。設定の「ネットワーク」でプロキシを確認してください。",
+    "agentNotEntitled": "このアカウントではエージェントを使用できません。",
+    "noCredits": "エージェントのクレジットが残っていません。",
+    "taskBudget": "タスクがクレジット上限に達しました。",
+    "agentUnsupported": "このブラウザのバージョンではエージェントを実行できません。Wayfern を更新してください。",
+    "agentBusy": "このプロファイルはすでにタスクを実行中です。",
+    "agentTokenRequired": "エージェントがサインインできませんでした。もう一度お試しください。",
+    "agentEngineFailed": "エージェントはその操作を実行できませんでした。",
+    "agentBrowserUnreachable": "プロファイルのブラウザが応答しませんでした。",
+    "agentBrowserClosed": "タスクの完了前にブラウザが閉じました。",
+    "agentPromptEmpty": "先にタスクを書いてください。",
+    "agentStartUrlInvalid": "開始ページは http または https のアドレスにしてください。",
+    "agentRoutineInvalid": "ルーティンが正しくありません。各項目を確認してください。",
+    "agentRoutineNotFound": "そのルーティンはもう存在しません。",
+    "agentNoProfiles": "プロファイルを 1 つ以上選んでください。",
+    "agentTooManyProfiles": "1 回の実行にはプロファイルが多すぎます。上限は 500 です。",
+    "agentTaskNotFound": "そのタスクはもう実行されていません。",
+    "agentBatchNotFound": "その実行はもう一覧にありません。",
+    "agentActionInvalid": "エージェントはその操作を知りません。"
   },
   "rail": {
     "profiles": "プロファイル",
@@ -3925,7 +3944,9 @@
       "profiles": "プロファイル",
       "activity": "アクティビティ",
       "recipes": "レシピ",
-      "schedules": "スケジュール"
+      "schedules": "スケジュール",
+      "tasks": "タスク",
+      "routines": "ルーティン"
     },
     "header": {
       "quota": "この 1 時間の残り呼び出し: {{left}} / {{limit}}",
@@ -4197,6 +4218,110 @@
         "testFailed": "テスト通知に失敗しました（Webhook のステータス {{status}}）。",
         "secretRotated": "新しい署名シークレットを作成しました。"
       }
+    },
+    "credits": {
+      "unlimited": "クレジット無制限",
+      "detail": "今期 {{total}} クレジット中 {{used}} を使用",
+      "left": "残り {{n}} クレジット",
+      "meter": "今期の残りクレジット"
+    },
+    "tasks": {
+      "status": {
+        "queued": "待機中",
+        "launching": "起動中",
+        "running": "作業中",
+        "paused": "一時停止中",
+        "needs_approval": "対応が必要",
+        "done": "完了",
+        "failed": "失敗",
+        "stopped": "停止",
+        "no_credits": "クレジット切れ",
+        "budget": "クレジット上限に到達",
+        "missed": "未実行",
+        "unknown": "不明"
+      },
+      "chooseProfiles": "プロファイルを選択",
+      "profileCount": "{{n}} 件のプロファイル",
+      "searchProfiles": "プロファイルを検索",
+      "noProfileMatch": "一致するプロファイルはありません",
+      "clearProfiles": "選択を解除",
+      "allProfiles": "すべて選択",
+      "promptLabel": "タスク",
+      "promptPlaceholder": "エージェントにしてほしいことを書いてください",
+      "startUrl": "開始ページ",
+      "startUrlPlaceholder": "開始ページ(任意)",
+      "options": "タスクのオプション",
+      "autonomy": "実行のしかた",
+      "autonomyOptions": {
+        "ask": "重要な操作の前に確認する",
+        "auto": "自分の判断で進める"
+      },
+      "autonomyHints": {
+        "ask": "送信、購入、確定の前に止まって確認します。",
+        "auto": "確認せずに最後まで進めます。"
+      },
+      "creditCap": "クレジット上限",
+      "noCap": "上限なし",
+      "concurrency": "同時実行数",
+      "concurrencyDefault": "既定",
+      "runOn": "{{n}} 件で実行",
+      "run": "実行",
+      "stepKinds": {
+        "think": "考え中",
+        "act": "操作",
+        "observe": "確認"
+      },
+      "approvalTitle": "エージェントからの確認",
+      "decline": "拒否",
+      "approve": "承認",
+      "endedNoCredits": "停止しました:クレジットが残っていません。",
+      "endedBudget": "クレジット上限で停止しました。",
+      "streamLabel": "{{name}} の手順",
+      "credits": "{{n}} クレジット",
+      "resume": "再開",
+      "pause": "一時停止",
+      "stop": "停止",
+      "launching": "ブラウザを起動しています…",
+      "waitingFirstStep": "最初の手順を待っています…",
+      "steerLabel": "エージェントへのメッセージ",
+      "steerPlaceholder": "エージェントに指示する(例:未読のものだけ)",
+      "steerSend": "送信",
+      "needsYou": "あなたの回答を待っています",
+      "unknownProfile": "削除されたプロファイル",
+      "progress": "{{total}} 件中 {{done}} 件完了",
+      "failedCount": "{{n}} 件失敗",
+      "fromRoutine": "ルーティン",
+      "stopAll": "すべて停止",
+      "retryFailed": "失敗分を再試行",
+      "dismiss": "一覧から削除",
+      "empty": "上でタスクを書き、プロファイルを選んでください。各プロファイルのブラウザが作業し、ここで各手順を確認できます。"
+    },
+    "routines": {
+      "updated": "ルーティンを保存しました",
+      "created": "ルーティンを作成しました",
+      "name": "名前",
+      "namePlaceholder": "朝の受信箱チェック",
+      "prompt": "タスク",
+      "profiles": "プロファイル",
+      "creditCap": "1 回あたりのクレジット上限",
+      "onSchedule": "スケジュールで実行",
+      "scheduleNeedsPlan": "スケジュールには予約自動化を含むプランが必要です。ルーティンは手動でも実行できます。",
+      "cron": "cron 式",
+      "cronHint": "分、時、日、月、曜日。0 9 * * 1-5 は平日の 09:00 です。",
+      "timezone": "タイムゾーン",
+      "noRuns": "まだ実行はありません",
+      "scheduleSummary": "{{cron}}({{timezone}})",
+      "manual": "手動で実行",
+      "hint": "タスクを一度保存して、同じプロファイルで手動またはスケジュールで繰り返し実行できます。",
+      "new": "新しいルーティン",
+      "empty": "まだルーティンはありません",
+      "runAria": "{{name}} を実行",
+      "run": "実行",
+      "history": "実行履歴",
+      "editAria": "{{name}} を編集",
+      "deleteAria": "{{name}} を削除",
+      "deleteTitle": "{{name}} を削除しますか?",
+      "deleteDescription": "ルーティンとそのスケジュールが削除されます。"
     }
   },
   "proxyDistribution": {

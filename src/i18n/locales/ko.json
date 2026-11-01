@@ -540,7 +540,8 @@
       "distributeProxies": "프록시 배분",
       "runCount": "{{count}}개 실행",
       "stopCount": "{{count}}개 중지",
-      "enableSync": "동기화 사용"
+      "enableSync": "동기화 사용",
+      "runTask": "에이전트 작업 실행"
     },
     "passwordProtectedBadge": "비밀번호 보호됨",
     "launchHook": {
@@ -2950,7 +2951,25 @@
     "entityInUse": "프로필 {{count}}개에서 사용 중입니다. 먼저 다른 프록시나 VPN으로 바꾸세요.",
     "syncPasswordBlocksRemoteRun": "동기화 암호화 비밀번호가 이 프로필의 동기화된 설정을 암호화하므로 원격 호스트가 복호화할 수 없습니다. 원격으로 실행하려면 동기화 암호화 설정에서 비밀번호를 제거하세요.",
     "appProxyInvalid": "프록시를 scheme://host:port 형식으로 입력하세요. 호스트 앞에 user:password@를 넣을 수 있습니다. 스킴은 http, https, socks5, socks5h 중 하나입니다.",
-    "appProxyUnreachable": "Donut이 프록시 {{proxy}}를 통해 연결하지 못했습니다. 설정의 네트워크에서 프록시를 확인하세요."
+    "appProxyUnreachable": "Donut이 프록시 {{proxy}}를 통해 연결하지 못했습니다. 설정의 네트워크에서 프록시를 확인하세요.",
+    "agentNotEntitled": "이 계정에서는 에이전트를 사용할 수 없습니다.",
+    "noCredits": "에이전트 크레딧이 남아 있지 않습니다.",
+    "taskBudget": "작업이 크레딧 한도에 도달했습니다.",
+    "agentUnsupported": "이 브라우저 버전은 에이전트를 실행할 수 없습니다. Wayfern을 업데이트하세요.",
+    "agentBusy": "이 프로필은 이미 작업을 실행 중입니다.",
+    "agentTokenRequired": "에이전트가 로그인하지 못했습니다. 다시 시도하세요.",
+    "agentEngineFailed": "에이전트가 그 작업을 하지 못했습니다.",
+    "agentBrowserUnreachable": "프로필의 브라우저가 응답하지 않았습니다.",
+    "agentBrowserClosed": "작업이 끝나기 전에 브라우저가 닫혔습니다.",
+    "agentPromptEmpty": "먼저 작업을 적어 주세요.",
+    "agentStartUrlInvalid": "시작 페이지는 http 또는 https 주소여야 합니다.",
+    "agentRoutineInvalid": "루틴이 올바르지 않습니다. 항목을 확인하세요.",
+    "agentRoutineNotFound": "그 루틴은 더 이상 없습니다.",
+    "agentNoProfiles": "프로필을 하나 이상 선택하세요.",
+    "agentTooManyProfiles": "한 번 실행하기에 프로필이 너무 많습니다. 한도는 500개입니다.",
+    "agentTaskNotFound": "그 작업은 더 이상 실행 중이 아닙니다.",
+    "agentBatchNotFound": "그 실행은 더 이상 목록에 없습니다.",
+    "agentActionInvalid": "에이전트가 모르는 동작입니다."
   },
   "rail": {
     "profiles": "프로필",
@@ -3925,7 +3944,9 @@
       "profiles": "프로필",
       "activity": "활동",
       "recipes": "레시피",
-      "schedules": "일정"
+      "schedules": "일정",
+      "tasks": "작업",
+      "routines": "루틴"
     },
     "header": {
       "quota": "이번 시간 남은 호출: {{left}}/{{limit}}",
@@ -4197,6 +4218,110 @@
         "testFailed": "테스트 알림이 실패했습니다(웹훅 상태 {{status}}).",
         "secretRotated": "새 서명 비밀 값을 만들었습니다."
       }
+    },
+    "credits": {
+      "unlimited": "무제한 크레딧",
+      "detail": "이번 기간 {{total}} 크레딧 중 {{used}} 사용",
+      "left": "{{n}} 크레딧 남음",
+      "meter": "이번 기간 남은 크레딧"
+    },
+    "tasks": {
+      "status": {
+        "queued": "대기 중",
+        "launching": "시작 중",
+        "running": "작업 중",
+        "paused": "일시 중지됨",
+        "needs_approval": "확인 필요",
+        "done": "완료",
+        "failed": "실패",
+        "stopped": "중지됨",
+        "no_credits": "크레딧 없음",
+        "budget": "크레딧 한도 도달",
+        "missed": "놓침",
+        "unknown": "알 수 없음"
+      },
+      "chooseProfiles": "프로필 선택",
+      "profileCount": "프로필 {{n}}개",
+      "searchProfiles": "프로필 검색",
+      "noProfileMatch": "일치하는 프로필이 없습니다",
+      "clearProfiles": "선택 해제",
+      "allProfiles": "모두 선택",
+      "promptLabel": "작업",
+      "promptPlaceholder": "에이전트가 할 일을 직접 적어 주세요",
+      "startUrl": "시작 페이지",
+      "startUrlPlaceholder": "시작 페이지(선택)",
+      "options": "작업 옵션",
+      "autonomy": "실행 방식",
+      "autonomyOptions": {
+        "ask": "중요한 단계 전에 묻기",
+        "auto": "스스로 진행"
+      },
+      "autonomyHints": {
+        "ask": "제출, 구매, 전송 전에 멈추고 묻습니다.",
+        "auto": "묻지 않고 끝까지 진행합니다."
+      },
+      "creditCap": "크레딧 한도",
+      "noCap": "한도 없음",
+      "concurrency": "동시 실행",
+      "concurrencyDefault": "기본값",
+      "runOn": "{{n}}개에서 실행",
+      "run": "실행",
+      "stepKinds": {
+        "think": "생각 중",
+        "act": "동작",
+        "observe": "확인함"
+      },
+      "approvalTitle": "에이전트의 질문",
+      "decline": "거절",
+      "approve": "승인",
+      "endedNoCredits": "중지됨: 크레딧이 없습니다.",
+      "endedBudget": "크레딧 한도에서 중지됨.",
+      "streamLabel": "{{name}}의 단계",
+      "credits": "{{n}} 크레딧",
+      "resume": "재개",
+      "pause": "일시 중지",
+      "stop": "중지",
+      "launching": "브라우저를 시작하는 중…",
+      "waitingFirstStep": "첫 단계를 기다리는 중…",
+      "steerLabel": "에이전트에게 보낼 메시지",
+      "steerPlaceholder": "에이전트에게 지시하기(예: 읽지 않은 것만)",
+      "steerSend": "보내기",
+      "needsYou": "답변을 기다리는 중",
+      "unknownProfile": "삭제된 프로필",
+      "progress": "{{total}}개 중 {{done}}개 완료",
+      "failedCount": "{{n}}개 실패",
+      "fromRoutine": "루틴",
+      "stopAll": "모두 중지",
+      "retryFailed": "실패한 작업 다시 시도",
+      "dismiss": "목록에서 제거",
+      "empty": "위에 작업을 적고 프로필을 고르세요. 각 프로필의 브라우저가 작업하고, 모든 단계가 여기에 표시됩니다."
+    },
+    "routines": {
+      "updated": "루틴을 저장했습니다",
+      "created": "루틴을 만들었습니다",
+      "name": "이름",
+      "namePlaceholder": "아침 받은편지함 확인",
+      "prompt": "작업",
+      "profiles": "프로필",
+      "creditCap": "실행당 크레딧 한도",
+      "onSchedule": "일정에 따라 실행",
+      "scheduleNeedsPlan": "일정을 쓰려면 예약 자동화가 포함된 요금제가 필요합니다. 루틴은 직접 실행할 수 있습니다.",
+      "cron": "cron 표현식",
+      "cronHint": "분, 시, 일, 월, 요일. 0 9 * * 1-5는 평일 09:00입니다.",
+      "timezone": "시간대",
+      "noRuns": "아직 실행 기록이 없습니다",
+      "scheduleSummary": "{{cron}} ({{timezone}})",
+      "manual": "직접 실행",
+      "hint": "작업을 한 번 저장하고 같은 프로필에서 직접 또는 일정에 따라 다시 실행하세요.",
+      "new": "새 루틴",
+      "empty": "아직 루틴이 없습니다",
+      "runAria": "{{name}} 실행",
+      "run": "실행",
+      "history": "실행 기록",
+      "editAria": "{{name}} 편집",
+      "deleteAria": "{{name}} 삭제",
+      "deleteTitle": "{{name}}을(를) 삭제할까요?",
+      "deleteDescription": "루틴과 일정이 삭제됩니다."
     }
   },
   "proxyDistribution": {

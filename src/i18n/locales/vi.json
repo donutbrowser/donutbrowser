@@ -540,7 +540,8 @@
       "distributeProxies": "Phân bổ proxy",
       "runCount": "Chạy {{count}}",
       "stopCount": "Dừng {{count}}",
-      "enableSync": "Bật đồng bộ"
+      "enableSync": "Bật đồng bộ",
+      "runTask": "Chạy tác vụ của tác tử"
     },
     "passwordProtectedBadge": "Được bảo vệ bằng mật khẩu",
     "launchHook": {
@@ -2950,7 +2951,25 @@
     "entityInUse": "Đang được {{count}} hồ sơ sử dụng. Hãy chuyển chúng sang proxy hoặc VPN khác trước.",
     "syncPasswordBlocksRemoteRun": "Mật khẩu mã hóa đồng bộ mã hóa các cài đặt đã đồng bộ của hồ sơ này, và máy chủ từ xa không thể giải mã chúng. Để chạy từ xa, hãy xóa mật khẩu trong cài đặt Mã hóa đồng bộ.",
     "appProxyInvalid": "Nhập proxy theo dạng lược_đồ://máy_chủ:cổng, có thể thêm người_dùng:mật_khẩu@ trước máy chủ. Lược đồ là http, https, socks5 hoặc socks5h.",
-    "appProxyUnreachable": "Donut không thể kết nối qua proxy {{proxy}}. Hãy kiểm tra proxy trong Cài đặt, mục Mạng."
+    "appProxyUnreachable": "Donut không thể kết nối qua proxy {{proxy}}. Hãy kiểm tra proxy trong Cài đặt, mục Mạng.",
+    "agentNotEntitled": "Tác tử không khả dụng cho tài khoản này.",
+    "noCredits": "Tác tử đã hết tín dụng.",
+    "taskBudget": "Tác vụ đã chạm giới hạn tín dụng.",
+    "agentUnsupported": "Phiên bản trình duyệt này không chạy được tác tử. Hãy cập nhật Wayfern.",
+    "agentBusy": "Hồ sơ này đang chạy một tác vụ.",
+    "agentTokenRequired": "Tác tử không đăng nhập được. Hãy thử lại.",
+    "agentEngineFailed": "Tác tử không làm được việc đó.",
+    "agentBrowserUnreachable": "Trình duyệt của hồ sơ không phản hồi.",
+    "agentBrowserClosed": "Trình duyệt đã đóng trước khi tác vụ xong.",
+    "agentPromptEmpty": "Hãy viết một tác vụ trước.",
+    "agentStartUrlInvalid": "Trang bắt đầu phải là địa chỉ http hoặc https.",
+    "agentRoutineInvalid": "Quy trình không hợp lệ. Hãy kiểm tra các trường.",
+    "agentRoutineNotFound": "Quy trình đó không còn nữa.",
+    "agentNoProfiles": "Chọn ít nhất một hồ sơ.",
+    "agentTooManyProfiles": "Quá nhiều hồ sơ cho một lần chạy. Giới hạn là 500.",
+    "agentTaskNotFound": "Tác vụ đó không còn chạy.",
+    "agentBatchNotFound": "Lần chạy đó không còn trong danh sách.",
+    "agentActionInvalid": "Tác tử không biết hành động đó."
   },
   "rail": {
     "profiles": "Profile",
@@ -3925,7 +3944,9 @@
       "profiles": "Hồ sơ",
       "activity": "Hoạt động",
       "recipes": "Công thức",
-      "schedules": "Lịch chạy"
+      "schedules": "Lịch chạy",
+      "tasks": "Tác vụ",
+      "routines": "Quy trình"
     },
     "header": {
       "quota": "Còn {{left}}/{{limit}} lượt gọi trong giờ này",
@@ -4197,6 +4218,110 @@
         "testFailed": "Thông báo thử thất bại (trạng thái webhook {{status}}).",
         "secretRotated": "Đã tạo khóa ký mới."
       }
+    },
+    "credits": {
+      "unlimited": "Tín dụng không giới hạn",
+      "detail": "Đã dùng {{used}} / {{total}} tín dụng trong kỳ này",
+      "left": "Còn {{n}} tín dụng",
+      "meter": "Tín dụng còn lại trong kỳ này"
+    },
+    "tasks": {
+      "status": {
+        "queued": "Đang chờ",
+        "launching": "Đang khởi động",
+        "running": "Đang làm",
+        "paused": "Tạm dừng",
+        "needs_approval": "Cần bạn",
+        "done": "Xong",
+        "failed": "Thất bại",
+        "stopped": "Đã dừng",
+        "no_credits": "Hết tín dụng",
+        "budget": "Đã chạm giới hạn tín dụng",
+        "missed": "Bị lỡ",
+        "unknown": "Không rõ"
+      },
+      "chooseProfiles": "Chọn hồ sơ",
+      "profileCount": "{{n}} hồ sơ",
+      "searchProfiles": "Tìm hồ sơ",
+      "noProfileMatch": "Không có hồ sơ phù hợp",
+      "clearProfiles": "Bỏ chọn",
+      "allProfiles": "Chọn tất cả",
+      "promptLabel": "Tác vụ",
+      "promptPlaceholder": "Nói cho tác tử biết cần làm gì, bằng lời của bạn",
+      "startUrl": "Trang bắt đầu",
+      "startUrlPlaceholder": "Trang bắt đầu (không bắt buộc)",
+      "options": "Tùy chọn tác vụ",
+      "autonomy": "Khi nào nó hành động",
+      "autonomyOptions": {
+        "ask": "Hỏi trước các bước quan trọng",
+        "auto": "Tự hành động"
+      },
+      "autonomyHints": {
+        "ask": "Nó dừng lại và hỏi trước khi gửi, mua hoặc xác nhận.",
+        "auto": "Nó chạy đến cuối mà không hỏi."
+      },
+      "creditCap": "Giới hạn tín dụng",
+      "noCap": "Không giới hạn",
+      "concurrency": "Cùng lúc",
+      "concurrencyDefault": "Mặc định",
+      "runOn": "Chạy trên {{n}}",
+      "run": "Chạy",
+      "stepKinds": {
+        "think": "Đang nghĩ",
+        "act": "Hành động",
+        "observe": "Đã thấy"
+      },
+      "approvalTitle": "Tác tử hỏi",
+      "decline": "Từ chối",
+      "approve": "Đồng ý",
+      "endedNoCredits": "Đã dừng: hết tín dụng.",
+      "endedBudget": "Đã dừng ở giới hạn tín dụng.",
+      "streamLabel": "Các bước trên {{name}}",
+      "credits": "{{n}} tín dụng",
+      "resume": "Tiếp tục",
+      "pause": "Tạm dừng",
+      "stop": "Dừng",
+      "launching": "Đang khởi động trình duyệt…",
+      "waitingFirstStep": "Đang chờ bước đầu tiên…",
+      "steerLabel": "Tin nhắn cho tác tử",
+      "steerPlaceholder": "Điều hướng tác tử, ví dụ: chỉ những thư chưa đọc",
+      "steerSend": "Gửi",
+      "needsYou": "Đang chờ câu trả lời của bạn",
+      "unknownProfile": "Hồ sơ đã xóa",
+      "progress": "Xong {{done}} / {{total}}",
+      "failedCount": "{{n}} thất bại",
+      "fromRoutine": "Quy trình",
+      "stopAll": "Dừng tất cả",
+      "retryFailed": "Thử lại các tác vụ lỗi",
+      "dismiss": "Xóa khỏi danh sách",
+      "empty": "Viết một tác vụ ở trên và chọn hồ sơ. Trình duyệt của mỗi hồ sơ làm việc, và bạn thấy từng bước ở đây."
+    },
+    "routines": {
+      "updated": "Đã lưu quy trình",
+      "created": "Đã tạo quy trình",
+      "name": "Tên",
+      "namePlaceholder": "Kiểm tra hộp thư buổi sáng",
+      "prompt": "Tác vụ",
+      "profiles": "Hồ sơ",
+      "creditCap": "Giới hạn tín dụng mỗi lần chạy",
+      "onSchedule": "Chạy theo lịch",
+      "scheduleNeedsPlan": "Lịch chạy cần gói có tự động hóa theo lịch. Bạn vẫn có thể chạy quy trình thủ công.",
+      "cron": "Biểu thức cron",
+      "cronHint": "Phút, giờ, ngày, tháng, thứ. 0 9 * * 1-5 là 09:00 các ngày trong tuần.",
+      "timezone": "Múi giờ",
+      "noRuns": "Chưa có lần chạy nào",
+      "scheduleSummary": "{{cron}} ({{timezone}})",
+      "manual": "Chạy thủ công",
+      "hint": "Lưu một tác vụ một lần và chạy lại trên cùng các hồ sơ, thủ công hoặc theo lịch.",
+      "new": "Quy trình mới",
+      "empty": "Chưa có quy trình nào",
+      "runAria": "Chạy {{name}}",
+      "run": "Chạy",
+      "history": "Lần chạy",
+      "editAria": "Sửa {{name}}",
+      "deleteAria": "Xóa {{name}}",
+      "deleteTitle": "Xóa {{name}}?",
+      "deleteDescription": "Quy trình và lịch của nó sẽ bị xóa."
     }
   },
   "proxyDistribution": {
