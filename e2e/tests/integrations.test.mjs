@@ -1027,6 +1027,360 @@ test("the agent console keeps notes, take-overs and the pause for connected agen
   });
 });
 
+const AGENT_PROFILE_ID = "00000000-0000-4000-8000-0000000a9e01";
+const AGENT_ROUTINE_ID = "00000000-0000-4000-8000-0000000a9e02";
+
+test("the agent stays off without the entitlement", async () => {
+  await withApp("integrations-agent-off", async (app) => {
+    // Signed out there is no agent: no probe, no cloud call, every command
+    // refuses by code.
+    assert.deepEqual(await app.invoke("get_agent_engine_status"), {
+      supported: false,
+      checked: true,
+    });
+    const refused = "AGENT_NOT_ENTITLED";
+    await assertCommandErrorCode(app, "get_agent_credits", refused);
+    await assertCommandErrorCode(app, "list_agent_batches", refused);
+    await assertCommandErrorCode(app, "start_agent_batch", refused, {
+      request: { profileIds: [AGENT_PROFILE_ID], prompt: "Check the inbox" },
+    });
+    await assertCommandErrorCode(app, "get_agent_task_steps", refused, {
+      batchId: "b",
+      profileId: AGENT_PROFILE_ID,
+    });
+    await assertCommandErrorCode(app, "control_agent_task", refused, {
+      batchId: "b",
+      profileId: AGENT_PROFILE_ID,
+      action: "stop",
+    });
+    await assertCommandErrorCode(app, "answer_agent_approval", refused, {
+      batchId: "b",
+      profileId: AGENT_PROFILE_ID,
+      approvalId: "a",
+      approve: true,
+    });
+    await assertCommandErrorCode(app, "stop_agent_batch", refused, {
+      batchId: "b",
+    });
+    await assertCommandErrorCode(app, "retry_agent_batch", refused, {
+      batchId: "b",
+    });
+    await assertCommandErrorCode(app, "dismiss_agent_batch", refused, {
+      batchId: "b",
+    });
+    await assertCommandErrorCode(app, "list_agent_routines", refused);
+    const routine = {
+      name: "Inbox",
+      prompt: "Check the inbox",
+      profileIds: [AGENT_PROFILE_ID],
+    };
+    await assertCommandErrorCode(app, "create_agent_routine", refused, {
+      routine,
+    });
+    await assertCommandErrorCode(app, "update_agent_routine", refused, {
+      id: AGENT_ROUTINE_ID,
+      routine,
+    });
+    await assertCommandErrorCode(app, "delete_agent_routine", refused, {
+      id: AGENT_ROUTINE_ID,
+    });
+    await assertCommandErrorCode(app, "list_agent_routine_runs", refused, {
+      id: AGENT_ROUTINE_ID,
+    });
+    await assertCommandErrorCode(app, "run_agent_routine", refused, {
+      id: AGENT_ROUTINE_ID,
+    });
+  });
+});
+
+test("agent tasks and routines follow the engine contract", async () => {
+  await withApp(
+    "integrations-agent-tasks",
+    async (app) => {
+      await seedTerms(app);
+      assert.deepEqual(await app.invoke("get_agent_engine_status"), {
+        supported: true,
+        checked: true,
+      });
+      const credits = await app.invoke("get_agent_credits");
+      assert.equal(credits.allowance, 10000);
+      assert.equal(credits.balance, credits.allowance - credits.used);
+
+      const profile = (name) =>
+        app.invoke("create_browser_profile_new", {
+          name,
+          browserStr: "wayfern",
+          version: "150.0.7871.100",
+          releaseType: "stable",
+          proxyId: null,
+          vpnId: null,
+          wayfernConfig: { fingerprint: "{}" },
+          groupId: null,
+          ephemeral: false,
+          dnsBlocklist: null,
+          launchHook: null,
+        });
+      const profiles = [
+        await profile("Agent One"),
+        await profile("Agent Two"),
+        await profile("Agent Three"),
+      ];
+      const ids = profiles.map((p) => p.id);
+      const start = (request) =>
+        app.invoke("start_agent_batch", {
+          request: { autonomy: "auto", ...request },
+        });
+      const batchOf = async (id) =>
+        (await app.invoke("list_agent_batches")).find((b) => b.id === id);
+      const settle = (id, description) =>
+        app.waitFor(
+          async () => {
+            const batch = await batchOf(id);
+            return batch?.finished ? batch : null;
+          },
+          { timeoutMs: 30_000, description },
+        );
+      const taskIn = async (id, profileId, status) =>
+        app.waitFor(
+          async () => {
+            const task = (await batchOf(id))?.tasks.find(
+              (t) => t.profileId === profileId,
+            );
+            return task?.status === status ? task : null;
+          },
+          { timeoutMs: 20_000, description: `${profileId} ${status}` },
+        );
+
+      // What the engine never sees: an empty prompt, a non-web start page, no
+      // profiles.
+      await assertCommandErrorCode(app, "start_agent_batch", "AGENT_PROMPT_EMPTY", {
+        request: { profileIds: ids, prompt: "   " },
+      });
+      await assertCommandErrorCode(
+        app,
+        "start_agent_batch",
+        "AGENT_START_URL_INVALID",
+        {
+          request: {
+            profileIds: ids,
+            prompt: "Read it",
+            startUrl: "file:///etc/hosts",
+          },
+        },
+      );
+      await assertCommandErrorCode(app, "start_agent_batch", "AGENT_NO_PROFILES", {
+        request: { profileIds: [], prompt: "Read it" },
+      });
+
+      // One prompt on three profiles, two at a time, each with its own stream.
+      const batch = await start({
+        profileIds: ids,
+        prompt: "Find the cheapest flight to Tirana",
+        startUrl: "https://flights.example.test",
+        concurrency: 2,
+      });
+      assert.equal(batch.tasks.length, 3);
+      assert.equal(batch.concurrency, 2);
+      assert.equal(batch.headless, false, "a task is watched, not headless");
+      const done = await settle(batch.id, "the three tasks");
+      assert.equal(done.tally.done, 3);
+      assert.equal(done.tally.creditsUsed, 3 * 42);
+      for (const task of done.tasks) {
+        assert.equal(task.status, "done");
+        assert.match(task.result, /cheapest/);
+        assert.equal(task.stepCount, 6);
+      }
+      const steps = await app.invoke("get_agent_task_steps", {
+        batchId: batch.id,
+        profileId: ids[0],
+      });
+      assert.deepEqual(
+        steps.map((s) => s.kind),
+        ["think", "act", "observe", "act", "observe", "think"],
+      );
+      assert.equal(steps[1].url, "https://flights.example.test");
+      await assertCommandErrorCode(
+        app,
+        "get_agent_task_steps",
+        "AGENT_TASK_NOT_FOUND",
+        { batchId: "missing", profileId: ids[0] },
+      );
+
+      // Asking before acting: the task waits for the person.
+      const asking = await start({
+        profileIds: [ids[0]],
+        prompt: "[approval] Submit the search",
+        autonomy: "ask",
+      });
+      const waiting = await taskIn(asking.id, ids[0], "needs_approval");
+      assert.match(waiting.approval.question, /Submit/);
+      await app.invoke("answer_agent_approval", {
+        batchId: asking.id,
+        profileId: ids[0],
+        approvalId: waiting.approval.approvalId,
+        approve: true,
+      });
+      assert.equal((await settle(asking.id, "the approved task")).tally.done, 1);
+
+      // One task per browser; steer, pause, resume and stop a slow one.
+      const slow = await start({
+        profileIds: [ids[1]],
+        prompt: "[slow] Read every message",
+      });
+      await taskIn(slow.id, ids[1], "running");
+      await assertCommandErrorCode(app, "start_agent_batch", "AGENT_BUSY", {
+        request: { profileIds: [ids[1]], prompt: "Something else" },
+      });
+      await assertCommandErrorCode(
+        app,
+        "control_agent_task",
+        "AGENT_ACTION_INVALID",
+        { batchId: slow.id, profileId: ids[1], action: "dance" },
+      );
+      await assertCommandErrorCode(app, "control_agent_task", "AGENT_NOTE_EMPTY", {
+        batchId: slow.id,
+        profileId: ids[1],
+        action: "steer",
+        message: "  ",
+      });
+      await app.invoke("control_agent_task", {
+        batchId: slow.id,
+        profileId: ids[1],
+        action: "steer",
+        message: "Only the unread ones",
+      });
+      await app.waitFor(
+        async () =>
+          (
+            await app.invoke("get_agent_task_steps", {
+              batchId: slow.id,
+              profileId: ids[1],
+            })
+          ).some((s) => s.text === "Noted: Only the unread ones"),
+        { description: "the steer reached the engine" },
+      );
+      await app.invoke("control_agent_task", {
+        batchId: slow.id,
+        profileId: ids[1],
+        action: "pause",
+      });
+      await taskIn(slow.id, ids[1], "paused");
+      await app.invoke("control_agent_task", {
+        batchId: slow.id,
+        profileId: ids[1],
+        action: "resume",
+      });
+      await taskIn(slow.id, ids[1], "running");
+      await assertCommandErrorCode(app, "dismiss_agent_batch", "AGENT_BUSY", {
+        batchId: slow.id,
+      });
+      await app.invoke("stop_agent_batch", { batchId: slow.id });
+      assert.equal((await settle(slow.id, "the stopped task")).tally.stopped, 1);
+
+      // Failures are retried on request, and only failures.
+      const failing = await start({
+        profileIds: [ids[0], ids[2]],
+        prompt: "[fail] Open the report",
+      });
+      const failed = await settle(failing.id, "the failed tasks");
+      assert.equal(failed.tally.failed, 2);
+      assert.equal(failed.tasks[0].error, "The page did not load");
+      assert.equal(
+        await app.invoke("retry_agent_batch", { batchId: failing.id }),
+        2,
+      );
+      await app.waitFor(
+        async () => {
+          const again = await batchOf(failing.id);
+          return again.finished && again.tally.failed === 2;
+        },
+        { timeoutMs: 30_000, description: "the retried tasks" },
+      );
+      await app.invoke("dismiss_agent_batch", { batchId: failing.id });
+      assert.equal(await batchOf(failing.id), undefined);
+      await assertCommandErrorCode(
+        app,
+        "retry_agent_batch",
+        "AGENT_BATCH_NOT_FOUND",
+        { batchId: failing.id },
+      );
+
+      // Routines: stored in the cloud, run headless, each run reported back.
+      await assertCommandErrorCode(
+        app,
+        "create_agent_routine",
+        "AGENT_SCHEDULE_INVALID",
+        {
+          routine: {
+            name: "Morning",
+            prompt: "Check the inbox",
+            profileIds: ids,
+            schedule: { cron: "every morning", timezone: "UTC" },
+          },
+        },
+      );
+      const routine = await app.invoke("create_agent_routine", {
+        routine: {
+          name: "  Morning inbox  ",
+          prompt: "Check the inbox",
+          startUrl: "https://mail.example.test",
+          profileIds: [ids[0], ids[2]],
+          schedule: { cron: "0 9 * * 1-5", timezone: "UTC" },
+          maxCreditsPerRun: 200,
+          concurrency: 1,
+          enabled: true,
+        },
+      });
+      assert.equal(routine.name, "Morning inbox");
+      const renamed = await app.invoke("update_agent_routine", {
+        id: routine.id,
+        routine: {
+          name: "Inbox sweep",
+          prompt: routine.prompt,
+          startUrl: routine.startUrl,
+          profileIds: routine.profileIds,
+          schedule: null,
+          maxCreditsPerRun: 200,
+          concurrency: 1,
+          enabled: true,
+        },
+      });
+      assert.equal(renamed.schedule, null);
+      assert.deepEqual(
+        (await app.invoke("list_agent_routines")).map((r) => r.name),
+        ["Inbox sweep"],
+      );
+      const run = await app.invoke("run_agent_routine", { id: routine.id });
+      assert.equal(run.routineId, routine.id);
+      assert.equal(run.headless, true, "a routine runs headless");
+      assert.equal(run.concurrency, 1);
+      assert.equal(run.maxCredits, 200);
+      assert.ok(run.tasks.every((task) => task.runId));
+      assert.equal((await settle(run.id, "the routine run")).tally.done, 2);
+      const history = await app.waitFor(
+        async () => {
+          const runs = await app.invoke("list_agent_routine_runs", {
+            id: routine.id,
+          });
+          return runs.every((r) => r.status === "done") ? runs : null;
+        },
+        { description: "the runs reported to the cloud" },
+      );
+      assert.equal(history.length, 2);
+      assert.ok(history.every((r) => r.creditsUsed === 42));
+      await app.invoke("delete_agent_routine", { id: routine.id });
+      assert.deepEqual(await app.invoke("list_agent_routines"), []);
+      await assertCommandErrorCode(
+        app,
+        "delete_agent_routine",
+        "AGENT_ROUTINE_NOT_FOUND",
+        { id: routine.id },
+      );
+    },
+    { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
+  );
+});
+
 test("the remote-control bridge refuses a signed-out desktop and stays off", async () => {
   await withApp("integrations-mcp-remote", async (app) => {
     await seedTerms(app);

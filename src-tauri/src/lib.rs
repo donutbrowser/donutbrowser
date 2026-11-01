@@ -245,6 +245,7 @@ mod window_decorations;
 // mod theme_detector; // removed: theme detection handled in webview via CSS prefers-color-scheme
 mod agent_console;
 mod agent_schedules;
+mod agent_tasks;
 mod agent_uploads;
 mod autostart;
 mod cloud_api;
@@ -2882,6 +2883,7 @@ pub fn run_with_builder(
       if let Err(e) = events::set_global_emitter(emitter) {
         log::warn!("Setting the global event emitter failed err=\"{e}\"");
       }
+      agent_tasks::init(&handle);
 
       #[cfg(all(windows, not(feature = "e2e")))]
       {
@@ -3793,6 +3795,22 @@ pub fn run_with_builder(
       agent_schedules::run_agent_schedule_now,
       agent_schedules::list_agent_schedule_runs,
       agent_schedules::test_agent_schedule_notice,
+      agent_tasks::get_agent_engine_status,
+      agent_tasks::get_agent_credits,
+      agent_tasks::start_agent_batch,
+      agent_tasks::list_agent_batches,
+      agent_tasks::get_agent_task_steps,
+      agent_tasks::control_agent_task,
+      agent_tasks::answer_agent_approval,
+      agent_tasks::stop_agent_batch,
+      agent_tasks::retry_agent_batch,
+      agent_tasks::dismiss_agent_batch,
+      agent_tasks::list_agent_routines,
+      agent_tasks::create_agent_routine,
+      agent_tasks::update_agent_routine,
+      agent_tasks::delete_agent_routine,
+      agent_tasks::list_agent_routine_runs,
+      agent_tasks::run_agent_routine,
       start_mcp_remote_bridge,
       stop_mcp_remote_bridge,
       get_mcp_remote_status,

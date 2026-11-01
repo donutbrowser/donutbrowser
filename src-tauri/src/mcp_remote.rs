@@ -818,10 +818,32 @@ enum BridgeFrame {
   EndSession {
     session_id: String,
   },
+  /// The cloud fired a scheduled agent routine. Answered only when `cid` is set.
+  RunRoutine {
+    cid: Option<String>,
+    params: serde_json::Value,
+  },
 }
+
+const RUN_ROUTINE: &str = "agent/runRoutine";
 
 fn parse_frame(text: &str) -> Option<BridgeFrame> {
   let value: serde_json::Value = serde_json::from_str(text).ok()?;
+  if value.get("t").is_none()
+    && value.get("method").and_then(serde_json::Value::as_str) == Some(RUN_ROUTINE)
+  {
+    return Some(BridgeFrame::RunRoutine {
+      cid: value
+        .get("cid")
+        .and_then(serde_json::Value::as_str)
+        .filter(|cid| !cid.is_empty())
+        .map(str::to_string),
+      params: value
+        .get("params")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null),
+    });
+  }
   match value.get("t").and_then(serde_json::Value::as_str)? {
     "hello" => Some(BridgeFrame::Hello {
       protocol: value
@@ -908,12 +930,56 @@ fn dispatch(
         McpServer::instance().end_session(&session_id).await;
       });
     }
+    BridgeFrame::RunRoutine { cid, params } => {
+      let tx = tx.clone();
+      tokio::spawn(async move {
+        let outcome = crate::agent_tasks::run_routine_from_cloud(&params).await;
+        if let Err(e) = &outcome {
+          log::warn!("Agent routine fire refused err={e}");
+        }
+        if let Some(cid) = cid {
+          let _ = tx
+            .send(encode(&run_routine_result(
+              &cid,
+              serde_json::Value::Null,
+              outcome,
+            )))
+            .await;
+        }
+      });
+    }
     BridgeFrame::Rpc {
       cid,
       session_id,
       toolsets,
       payload,
     } => {
+      if let Some(request) = serde_json::from_slice::<serde_json::Value>(&payload)
+        .ok()
+        .filter(|request| {
+          request.get("method").and_then(serde_json::Value::as_str) == Some(RUN_ROUTINE)
+        })
+      {
+        let tx = tx.clone();
+        tokio::spawn(async move {
+          let params = request
+            .get("params")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+          let id = request
+            .get("id")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+          let outcome = crate::agent_tasks::run_routine_from_cloud(&params).await;
+          if let Err(e) = &outcome {
+            log::warn!("Agent routine fire refused err={e}");
+          }
+          let _ = tx
+            .send(encode(&run_routine_result(&cid, id, outcome)))
+            .await;
+        });
+        return;
+      }
       let Ok(permit) = Arc::clone(permits).try_acquire_owned() else {
         log::warn!("Remote control relayed call refused: busy in_flight={MAX_IN_FLIGHT}");
         let _ = tx.try_send(encode(&serde_json::json!({
@@ -934,6 +1000,23 @@ fn dispatch(
       });
     }
   }
+}
+
+/// The answer to a fired routine, as a JSON-RPC body in a result frame.
+fn run_routine_result(
+  cid: &str,
+  id: serde_json::Value,
+  outcome: Result<serde_json::Value, String>,
+) -> serde_json::Value {
+  let body = match outcome {
+    Ok(result) => serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+    Err(code) => serde_json::json!({
+      "jsonrpc": "2.0",
+      "id": id,
+      "error": { "code": -32000, "message": code },
+    }),
+  };
+  serde_json::json!({ "t": "result", "cid": cid, "status": "ok", "payload": body })
 }
 
 fn encode(value: &serde_json::Value) -> Message {
@@ -984,6 +1067,37 @@ fn result_frame(cid: &str, outcome: McpOutcome) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn a_fired_routine_is_read_bare_or_inside_a_call() {
+    match parse_frame(r#"{"method":"agent/runRoutine","params":{"routineId":"r1","batchId":"b1"}}"#)
+    {
+      Some(BridgeFrame::RunRoutine { cid, params }) => {
+        assert!(cid.is_none());
+        assert_eq!(params["routineId"], "r1");
+        assert_eq!(params["batchId"], "b1");
+      }
+      _ => panic!("a bare fire is a routine run"),
+    }
+    assert!(matches!(
+      parse_frame(
+        r#"{"t":"rpc","cid":"c9","payload":{"jsonrpc":"2.0","id":4,"method":"agent/runRoutine","params":{}}}"#
+      ),
+      Some(BridgeFrame::Rpc { .. })
+    ));
+    assert!(parse_frame(r#"{"method":"agent/other"}"#).is_none());
+    let refused = run_routine_result(
+      "c9",
+      serde_json::json!(4),
+      Err(r#"{"code":"AGENT_NOT_ENTITLED"}"#.to_string()),
+    );
+    assert_eq!(refused["cid"], "c9");
+    assert_eq!(refused["payload"]["id"], 4);
+    assert!(refused["payload"]["error"]["message"]
+      .as_str()
+      .unwrap()
+      .contains("AGENT_NOT_ENTITLED"));
+  }
 
   #[test]
   fn bridge_url_is_the_websocket_scheme_of_the_cloud_api() {
