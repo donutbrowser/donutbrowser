@@ -6,7 +6,8 @@
 //!
 //! The script follows markers in the prompt: `[approval]` asks before the
 //! form step, `[fail]` fails on the third step, `[slow]` paces steps slowly
-//! enough to watch.
+//! enough to watch, and `[mixed]` gives each task of a run its own pace and
+//! ending: some fail, one in nine asks, the rest finish.
 
 use super::cloud::{Credits, Routine, RoutineDraft, RoutineRun, StartedBatch, StartedRun};
 use super::engine::{EngineError, EngineLink, Request};
@@ -30,6 +31,8 @@ pub fn token() -> AgentToken {
 
 static ROUTINES: Mutex<Vec<Routine>> = Mutex::new(Vec::new());
 static RUNS: Mutex<Vec<(String, RoutineRun)>> = Mutex::new(Vec::new());
+/// How many `[mixed]` tasks started, so each one gets its own script.
+static MIXED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 const ALLOWANCE: i64 = 10_000;
 const ALREADY_USED: i64 = 1_250;
@@ -265,11 +268,16 @@ async fn script(profile_id: String, params: Value, mut control: mpsc::UnboundedR
     .unwrap_or_default()
     .to_string();
   let start_url = params.get("startUrl").cloned().unwrap_or(Value::Null);
-  let pace = if prompt.contains("[slow]") {
-    Duration::from_millis(1_500)
-  } else {
-    Duration::from_millis(200)
+  let mixed = prompt
+    .contains("[mixed]")
+    .then(|| MIXED.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+  let pace = match mixed {
+    Some(nth) => Duration::from_millis(900 + nth * 389 % 1_800),
+    None if prompt.contains("[slow]") => Duration::from_millis(1_500),
+    None => Duration::from_millis(200),
   };
+  let fails = prompt.contains("[fail]") || mixed.is_some_and(|nth| nth % 7 == 4);
+  let asks = prompt.contains("[approval]") || mixed.is_some_and(|nth| nth % 9 == 2);
   let emit = |method: &str, mut payload: Value| {
     payload["taskId"] = Value::from(task_id.as_str());
     super::on_engine_event(&profile_id, method, &payload);
@@ -312,10 +320,10 @@ async fn script(profile_id: String, params: Value, mut control: mpsc::UnboundedR
     index += 1;
     credits += 7;
     emit("Wayfern.agentCredits", json!({ "creditsUsed": credits }));
-    if position == 2 && prompt.contains("[fail]") {
+    if position == 2 && fails {
       return finish("failed", credits, None, Some("The page did not load"));
     }
-    if position == 3 && prompt.contains("[approval]") {
+    if position == 3 && asks {
       emit(
         "Wayfern.agentApproval",
         json!({ "approvalId": format!("{task_id}-a1"), "question": "Submit the search form on this page?" }),

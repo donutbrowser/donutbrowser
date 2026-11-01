@@ -7908,6 +7908,38 @@ async function captureSettled(app, label) {
   await app.capture(label);
 }
 
+/** The same screen in the dark and the light theme. */
+async function captureBothThemes(app, label) {
+  const mode = await app.execute(
+    `return document.documentElement.classList.contains("light") ? "light" : "dark";`,
+  );
+  for (const theme of ["dark", "light"]) {
+    await app.execute(
+      `const root = document.documentElement;
+       root.classList.remove("light", "dark");
+       root.classList.add(arguments[0]);`,
+      [theme],
+    );
+    await captureSettled(app, `${label}-${theme}`);
+  }
+  await app.execute(
+    `const root = document.documentElement;
+     root.classList.remove("light", "dark");
+     root.classList.add(arguments[0]);`,
+    [mode],
+  );
+}
+
+/** A key press on an element, the way the browser dispatches one. */
+async function pressKeyOn(app, selector, key) {
+  await app.execute(
+    `document.querySelector(arguments[0]).dispatchEvent(
+       new KeyboardEvent("keydown", { key: arguments[1], bubbles: true }),
+     );`,
+    [selector, key],
+  );
+}
+
 test("agent tasks run on many profiles, ask before acting, and routines repeat them", async () => {
   await withApp(
     "ui-agent-tasks",
@@ -7941,7 +7973,7 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
         await app.execute(
           `return document.querySelector('[data-slot="agent-profile-picker"]').innerText;`,
         ),
-        new RegExp(en.agent.tasks.profileCount.replace("{{n}}", "4")),
+        new RegExp(en.agent.tasks.profileCount_other.replace("{{count}}", "4")),
       );
       // A free account with the agent gets tasks and credits; the paid tabs
       // keep their locks.
@@ -7958,7 +7990,13 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
         '[data-slot="agent-task-url"]',
         "https://flights.example.test",
       );
-      await captureSettled(app, "agent-task-composer");
+      assert.equal(
+        await app.execute(
+          `return document.querySelector('[data-slot="agent-task-run"]').innerText.trim();`,
+        ),
+        en.agent.tasks.runOn_other.replace("{{count}}", "4"),
+      );
+      await captureBothThemes(app, "agent-task-composer");
       await app.clickSelector('[data-slot="agent-task-run"]');
       await app.waitFor(
         () =>
@@ -7972,7 +8010,7 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
       await app.execute(
         `document.querySelector('[data-slot="agent-batch-tile"]:nth-child(2)').click();`,
       );
-      await captureSettled(app, "agent-batch-running");
+      await captureBothThemes(app, "agent-batch-4-running");
       await app.waitFor(
         () =>
           app.execute(
@@ -7990,7 +8028,7 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
             .replace("{{total}}", "4"),
         ),
       );
-      await captureSettled(app, "agent-batch-done");
+      await captureBothThemes(app, "agent-batch-4-done");
 
       // Asking before acting: the question waits inline.
       await app.clickSelector('[data-slot="agent-profile-picker"]');
@@ -8009,7 +8047,7 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
           ),
         { timeoutMs: 30_000, description: "the approval" },
       );
-      await captureSettled(app, "agent-task-approval");
+      await captureBothThemes(app, "agent-batch-1-approval");
       await app.clickSelector('[data-slot="agent-approval-approve"]');
       await app.waitFor(
         () =>
@@ -8032,7 +8070,7 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
       );
       await app.clickSelector('[data-slot="agent-profile-all"]');
       await dismissSurface(app);
-      await captureSettled(app, "agent-routine-editor");
+      await captureBothThemes(app, "agent-routine-editor");
       await app.clickSelector('[data-slot="agent-routine-save"]');
       await app.waitFor(
         () =>
@@ -8059,7 +8097,155 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
           ),
         { description: "four runs in the history" },
       );
-      await captureSettled(app, "agent-routines");
+      await captureBothThemes(app, "agent-routines");
+    },
+    { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
+  );
+});
+
+test("an agent run on many profiles stays calm: strip, filters, keys and the one that asks", async () => {
+  await withApp(
+    "ui-agent-many",
+    async (app) => {
+      const ids = [];
+      for (let index = 1; index <= 25; index += 1) {
+        const profile = await createUiProfile(
+          app,
+          `Store ${String(index).padStart(2, "0")}`,
+        );
+        ids.push(profile.id);
+      }
+      await signInWithAgent(app, agentUser(true));
+      await app.waitForText("Store 25");
+      await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
+      // With the agent, Tasks leads and is the default tab.
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const tabs = [...document.querySelectorAll('[data-testid^="agent-tab-"]')];
+             return tabs[0]?.dataset.testid === "agent-tab-tasks" &&
+               tabs[0].getAttribute("data-state") === "active";`,
+          ),
+        { description: "Tasks first and chosen" },
+      );
+      await app.invoke("start_agent_batch", {
+        request: {
+          profileIds: ids,
+          prompt: "[mixed] Check each order and note the delivery date",
+          startUrl: "https://shop.example.test",
+          autonomy: "ask",
+          maxCredits: null,
+          concurrency: 20,
+        },
+      });
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-batch-tile"]')?.dataset.state === "needs_you" &&
+              Boolean(document.querySelector('[data-slot="agent-batch-filter"][data-state="failed"]'));`,
+          ),
+        { timeoutMs: 45_000, description: "a profile that asks, first" },
+      );
+      const shape = await app.execute(`return {
+        segments: document.querySelectorAll('[data-slot="agent-batch-strip"] > span').length,
+        rows: document.querySelectorAll('[data-slot="agent-batch-tile"]').length,
+      };`);
+      assert.equal(shape.segments, 25, "one segment per profile");
+      assert.ok(
+        shape.rows < 25,
+        `only the rows on screen render (${shape.rows})`,
+      );
+      await captureBothThemes(app, "agent-batch-25-running");
+
+      // A count filters the rows; a second click shows them all again.
+      const failedFilter =
+        '[data-slot="agent-batch-filter"][data-state="failed"]';
+      await app.execute(`document.querySelector(arguments[0]).click();`, [
+        failedFilter,
+      ]);
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const rows = [...document.querySelectorAll('[data-slot="agent-batch-tile"]')];
+             return rows.length > 0 && rows.every((row) => row.dataset.state === "failed");`,
+          ),
+        { description: "only the failed profiles" },
+      );
+      await app.execute(`document.querySelector(arguments[0]).click();`, [
+        failedFilter,
+      ]);
+
+      // Arrows move through the rows and Enter opens the one chosen.
+      const rows = '[data-slot="agent-batch-rows"]';
+      await app.execute(`document.querySelector(arguments[0]).focus();`, [
+        rows,
+      ]);
+      await pressKeyOn(app, rows, "Home");
+      await pressKeyOn(app, rows, "ArrowDown");
+      await pressKeyOn(app, rows, "ArrowDown");
+      await pressKeyOn(app, rows, "Enter");
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const third = document.querySelectorAll('[data-slot="agent-batch-tile"]')[2];
+             return third?.getAttribute("aria-selected") === "true" &&
+               document.querySelector('[data-slot="agent-step-stream"]')?.dataset.profileId === third.dataset.profileId;`,
+          ),
+        { description: "the third row open" },
+      );
+      await pressKeyOn(app, rows, "End");
+      await pressKeyOn(app, rows, "Enter");
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const open = document.querySelector('[data-slot="agent-batch-tile"][aria-selected="true"]');
+             return Boolean(open) && open.getBoundingClientRect().bottom <= document.querySelector(arguments[0]).getBoundingClientRect().bottom + 1;`,
+            [rows],
+          ),
+        { description: "the last row scrolled into view and open" },
+      );
+
+      // The one that asks is answered from its own detail.
+      await app.execute(
+        `document.querySelector('[data-slot="agent-batch-rows"]').scrollTop = 0;`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const first = document.querySelector('[data-slot="agent-batch-tile"]');
+             if (first?.dataset.state !== "needs_you") return false;
+             first.click();
+             return Boolean(document.querySelector('[data-slot="agent-approval"]'));`,
+          ),
+        { description: "the approval in the detail" },
+      );
+      await captureBothThemes(app, "agent-batch-25-approval");
+      // Every profile that asks floats up in turn until all are answered.
+      await app.waitFor(
+        () =>
+          app.execute(`
+            if (document.querySelector('[data-slot="agent-batch"]')?.dataset.finished === "true") return true;
+            const approve = document.querySelector('[data-slot="agent-approval-approve"]:not([disabled])');
+            if (approve) {
+              approve.click();
+              return false;
+            }
+            const first = document.querySelector('[data-slot="agent-batch-tile"]');
+            if (first?.dataset.state === "needs_you") first.click();
+            return false;
+          `),
+        {
+          timeoutMs: 90_000,
+          description: "every question answered and the run finished",
+        },
+      );
+      assert.ok(
+        await app.execute(
+          `return Boolean(document.querySelector('[data-slot="agent-batch-retry"]'));`,
+        ),
+        "failed profiles can be retried",
+      );
+      await captureBothThemes(app, "agent-batch-25-done");
     },
     { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
   );

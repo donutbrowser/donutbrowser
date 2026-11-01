@@ -1305,6 +1305,7 @@ test("agent tasks and routines follow the engine contract", async () => {
       });
       const failed = await settle(failing.id, "the failed tasks");
       assert.equal(failed.tally.failed, 2);
+      assert.equal(failed.tally.creditsUsed, 2 * 21);
       assert.equal(failed.tasks[0].error, "The page did not load");
       assert.equal(
         await app.invoke("retry_agent_batch", { batchId: failing.id }),
@@ -1313,10 +1314,12 @@ test("agent tasks and routines follow the engine contract", async () => {
       await app.waitFor(
         async () => {
           const again = await batchOf(failing.id);
-          return again.finished && again.tally.failed === 2;
+          return again.finished && again.tally.failed === 2 ? again : null;
         },
         { timeoutMs: 30_000, description: "the retried tasks" },
       );
+      // A retry spends credits again; the first attempts still count.
+      assert.equal((await batchOf(failing.id)).tally.creditsUsed, 4 * 21);
       await app.invoke("dismiss_agent_batch", { batchId: failing.id });
       assert.equal(await batchOf(failing.id), undefined);
       await assertCommandErrorCode(
