@@ -2969,7 +2969,10 @@
     "agentTooManyProfiles": "Quá nhiều hồ sơ cho một lần chạy. Giới hạn là 500.",
     "agentTaskNotFound": "Tác vụ đó không còn chạy.",
     "agentBatchNotFound": "Lần chạy đó không còn trong danh sách.",
-    "agentActionInvalid": "Tác tử không biết hành động đó."
+    "agentActionInvalid": "Tác tử không biết hành động đó.",
+    "siteStorageNotFound": "Dữ liệu trang này không còn trong hồ sơ.",
+    "siteStorageUnsafePath": "Dữ liệu trang này trỏ ra ngoài thư mục hồ sơ, nên Donut không thay đổi nó.",
+    "siteStorageIoFailed": "Donut không thể thay đổi dữ liệu trang: {{detail}}"
   },
   "rail": {
     "profiles": "Profile",
@@ -4942,5 +4945,28 @@
     "onDisk": "Trên máy tính này, hồ sơ tạm thời ghi dữ liệu vào ổ đĩa. Donut xóa dữ liệu đó khi trình duyệt đóng. Hãy cài WinFsp để giữ dữ liệu trong bộ nhớ.",
     "winfspError": "WinFsp không khởi động được, nên hồ sơ tạm thời ghi dữ liệu vào ổ đĩa. Donut xóa dữ liệu đó khi trình duyệt đóng.",
     "download": "Tải WinFsp"
+  },
+  "siteStorage": {
+    "title": "Dữ liệu trang quá lớn",
+    "description": "Mỗi trang bên dưới lưu hơn {{size}}. Một trang lớn như vậy có thể làm trình duyệt thoát ngay sau khi mở. Sửa sẽ chuyển dữ liệu của trang sang một bên trong hồ sơ. Cookie, đăng nhập, tiện ích và các trang khác được giữ nguyên.",
+    "repair": "Sửa",
+    "stopFirst": "Hãy dừng trình duyệt để sửa.",
+    "repaired": "Đã chuyển dữ liệu của {{site}} sang một bên",
+    "deleted": "Đã xóa dữ liệu trang cũ",
+    "backupsTitle": "Dữ liệu trang đã chuyển sang một bên",
+    "backupMeta": "{{size}}, chuyển lúc {{date}}",
+    "deleteTitle": "Xóa dữ liệu cũ của {{site}}?",
+    "deleteDescription": "Thao tác này xóa vĩnh viễn {{size}} dữ liệu mà lần sửa đã chuyển sang một bên.",
+    "unknownSite": "Trang không xác định ({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "Hệ thống tệp",
+      "storage_bucket": "Bucket lưu trữ"
+    },
+    "notice": {
+      "title": "{{name}} đã đóng ngay sau khi khởi chạy: {{site}} lưu {{size}}",
+      "description": "Một trang lớn như vậy có thể làm trình duyệt thoát. Sửa sẽ chuyển dữ liệu của trang sang một bên trong hồ sơ. Cookie, đăng nhập và các trang khác được giữ nguyên."
+    }
   }
 }

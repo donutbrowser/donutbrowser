@@ -1536,6 +1536,94 @@ test("a storage state file moves cookies and Local Storage into a closed profile
   });
 });
 
+test("oversized site data is found, moved aside without touching logins, and its backup deleted", async () => {
+  await withApp("entities-site-storage", async (app) => {
+    const profile = await createProfile(app, "Site Storage");
+    const dataDir = path.join(
+      app.dataRoot,
+      "data",
+      "profiles",
+      profile.id,
+      "profile",
+    );
+    const site = path.join(
+      dataDir,
+      "Default",
+      "IndexedDB",
+      "https_studio.example_0",
+    );
+    await mkdir(path.join(site, "1.indexeddb.blob"), { recursive: true });
+    // Sparse: 3 GiB to the size check, nothing on the disk.
+    const big = await open(path.join(site, "1.indexeddb.blob", "blob"), "w");
+    await big.truncate(3 * 1024 ** 3);
+    await big.close();
+    await mkdir(path.join(dataDir, "Default", "Network"), { recursive: true });
+    await writeFile(
+      path.join(dataDir, "Default", "Network", "Cookies"),
+      "cookie-db",
+    );
+    await writeFile(path.join(dataDir, "Default", "Login Data"), "logins");
+
+    const report = await app.invoke("get_profile_site_storage", {
+      profileId: profile.id,
+    });
+    assert.equal(report.threshold_bytes, 2 * 1024 ** 3);
+    assert.equal(report.oversized.length, 1);
+    const [oversized] = report.oversized;
+    assert.equal(oversized.origin, "https://studio.example");
+    assert.equal(oversized.kind, "indexed_db");
+    assert.equal(oversized.bytes, 3 * 1024 ** 3);
+
+    assert.match(
+      await app.invokeError("repair_profile_site_storage", {
+        profileId: profile.id,
+        storageIds: ["Default/IndexedDB/../../Local State"],
+      }),
+      /SITE_STORAGE_NOT_FOUND/,
+    );
+
+    const repaired = await app.invoke("repair_profile_site_storage", {
+      profileId: profile.id,
+      storageIds: [oversized.id],
+    });
+    assert.deepEqual(repaired.oversized, []);
+    assert.equal(repaired.backups.length, 1);
+    assert.equal(repaired.backups[0].origin, "https://studio.example");
+    assert.equal(existsSync(site), false);
+    const idb = await readdir(path.join(dataDir, "Default", "IndexedDB"));
+    assert.equal(idb.length, 1);
+    assert.match(idb[0], /^https_studio\.example_0\.donut-backup-\d{8}-\d{6}$/);
+    assert.equal(
+      await readFile(
+        path.join(dataDir, "Default", "Network", "Cookies"),
+        "utf8",
+      ),
+      "cookie-db",
+    );
+    assert.equal(
+      await readFile(path.join(dataDir, "Default", "Login Data"), "utf8"),
+      "logins",
+    );
+
+    const cleaned = await app.invoke("delete_profile_site_storage_backup", {
+      profileId: profile.id,
+      backupId: repaired.backups[0].id,
+    });
+    assert.deepEqual(cleaned.backups, []);
+    assert.deepEqual(
+      await readdir(path.join(dataDir, "Default", "IndexedDB")),
+      [],
+    );
+    assert.match(
+      await app.invokeError("delete_profile_site_storage_backup", {
+        profileId: profile.id,
+        backupId: repaired.backups[0].id,
+      }),
+      /SITE_STORAGE_NOT_FOUND/,
+    );
+  });
+});
+
 test("2FA keys stay sealed on this device, hand out codes, and go with their profile", async () => {
   await withApp("entities-two-factor", async (app) => {
     const secret = "JBSWY3DPEHPK3PXP";

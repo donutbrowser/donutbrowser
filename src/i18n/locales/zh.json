@@ -2969,7 +2969,10 @@
     "agentTooManyProfiles": "单次运行的配置文件过多。上限为 500。",
     "agentTaskNotFound": "该任务已不在运行。",
     "agentBatchNotFound": "该运行已不在列表中。",
-    "agentActionInvalid": "智能体不认识该操作。"
+    "agentActionInvalid": "智能体不认识该操作。",
+    "siteStorageNotFound": "此网站数据已不在配置文件中。",
+    "siteStorageUnsafePath": "此网站数据指向配置文件夹之外,因此 Donut 未作更改。",
+    "siteStorageIoFailed": "Donut 无法更改网站数据:{{detail}}"
   },
   "rail": {
     "profiles": "配置文件",
@@ -4942,5 +4945,28 @@
     "onDisk": "在这台电脑上,临时配置文件会把数据写入磁盘。浏览器关闭时 Donut 会清除这些数据。安装 WinFsp 可将数据保留在内存中。",
     "winfspError": "WinFsp 未能启动,因此临时配置文件会把数据写入磁盘。浏览器关闭时 Donut 会清除这些数据。",
     "download": "下载 WinFsp"
+  },
+  "siteStorage": {
+    "title": "网站数据过大",
+    "description": "下面每个网站存储的数据都超过 {{size}}。这么大的网站数据可能会让浏览器在打开后不久退出。“修复”会把该网站的数据移到配置文件内的一旁。Cookie、登录信息、扩展和其他网站都会保留。",
+    "repair": "修复",
+    "stopFirst": "请先停止浏览器再修复。",
+    "repaired": "已将 {{site}} 的数据移到一旁",
+    "deleted": "已删除旧的网站数据",
+    "backupsTitle": "已移到一旁的网站数据",
+    "backupMeta": "{{size}},移动于 {{date}}",
+    "deleteTitle": "删除 {{site}} 的旧数据?",
+    "deleteDescription": "这会永久删除修复时移到一旁的 {{size}} 数据。",
+    "unknownSite": "未知网站({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "文件系统",
+      "storage_bucket": "存储桶"
+    },
+    "notice": {
+      "title": "{{name}} 启动后不久就关闭了:{{site}} 存储了 {{size}}",
+      "description": "这么大的网站数据可能会让浏览器退出。“修复”会把该网站的数据移到配置文件内的一旁。Cookie、登录信息和其他网站都会保留。"
+    }
   }
 }

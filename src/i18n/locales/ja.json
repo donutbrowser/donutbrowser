@@ -2969,7 +2969,10 @@
     "agentTooManyProfiles": "1 回の実行にはプロファイルが多すぎます。上限は 500 です。",
     "agentTaskNotFound": "そのタスクはもう実行されていません。",
     "agentBatchNotFound": "その実行はもう一覧にありません。",
-    "agentActionInvalid": "エージェントはその操作を知りません。"
+    "agentActionInvalid": "エージェントはその操作を知りません。",
+    "siteStorageNotFound": "このサイトデータはもうプロファイルにありません。",
+    "siteStorageUnsafePath": "このサイトデータはプロファイルフォルダーの外を指しているため、Donut は変更しませんでした。",
+    "siteStorageIoFailed": "Donut はサイトデータを変更できませんでした: {{detail}}"
   },
   "rail": {
     "profiles": "プロファイル",
@@ -4942,5 +4945,28 @@
     "onDisk": "このコンピューターでは、一時的なプロファイルはデータをディスクに書き込みます。ブラウザを閉じると Donut がそのデータを消去します。データをメモリに保持するには WinFsp をインストールしてください。",
     "winfspError": "WinFsp が起動しなかったため、一時的なプロファイルはデータをディスクに書き込みます。ブラウザを閉じると Donut がそのデータを消去します。",
     "download": "WinFsp をダウンロード"
+  },
+  "siteStorage": {
+    "title": "サイトデータが大きすぎます",
+    "description": "以下の各サイトは {{size}} を超えるデータを保存しています。これほど大きなサイトデータがあると、ブラウザーが起動直後に終了することがあります。「修復」はサイトのデータをプロファイル内で別の場所に移します。Cookie、ログイン、拡張機能、他のサイトはそのまま残ります。",
+    "repair": "修復",
+    "stopFirst": "修復するにはブラウザーを停止してください。",
+    "repaired": "{{site}} のデータを移動しました",
+    "deleted": "古いサイトデータを削除しました",
+    "backupsTitle": "移動したサイトデータ",
+    "backupMeta": "{{size}}、{{date}} に移動",
+    "deleteTitle": "{{site}} の古いデータを削除しますか?",
+    "deleteDescription": "修復で移動した {{size}} のデータを完全に削除します。",
+    "unknownSite": "不明なサイト ({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "ファイルシステム",
+      "storage_bucket": "ストレージバケット"
+    },
+    "notice": {
+      "title": "{{name}} は起動直後に終了しました: {{site}} が {{size}} を保存しています",
+      "description": "これほど大きなサイトデータはブラウザーを終了させることがあります。「修復」はサイトのデータをプロファイル内で別の場所に移します。Cookie、ログイン、他のサイトはそのまま残ります。"
+    }
   }
 }

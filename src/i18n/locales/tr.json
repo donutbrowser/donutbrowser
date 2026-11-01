@@ -2969,7 +2969,10 @@
     "agentTooManyProfiles": "Bir çalıştırma için çok fazla profil. Sınır 500.",
     "agentTaskNotFound": "Bu görev artık çalışmıyor.",
     "agentBatchNotFound": "Bu çalıştırma artık listede değil.",
-    "agentActionInvalid": "Ajan bu eylemi bilmiyor."
+    "agentActionInvalid": "Ajan bu eylemi bilmiyor.",
+    "siteStorageNotFound": "Bu site verisi artık profilde değil.",
+    "siteStorageUnsafePath": "Bu site verisi profil klasörünün dışını gösteriyor, bu yüzden Donut onu değiştirmedi.",
+    "siteStorageIoFailed": "Donut site verisini değiştiremedi: {{detail}}"
   },
   "rail": {
     "profiles": "Profiller",
@@ -4942,5 +4945,28 @@
     "onDisk": "Bu bilgisayarda geçici profiller verilerini diske yazar. Donut, tarayıcı kapandığında bu verileri siler. Verileri bellekte tutmak için WinFsp'yi yükleyin.",
     "winfspError": "WinFsp başlamadı, bu yüzden geçici profiller verilerini diske yazar. Donut, tarayıcı kapandığında bu verileri siler.",
     "download": "WinFsp'yi indir"
+  },
+  "siteStorage": {
+    "title": "Site verisi çok büyük",
+    "description": "Aşağıdaki her site {{size}} boyutundan fazla veri saklıyor. Bu kadar büyük bir site, tarayıcının açıldıktan kısa süre sonra kapanmasına neden olabilir. Onar, sitenin verisini profilin içinde kenara taşır. Çerezler, oturumlar, uzantılar ve diğer siteler kalır.",
+    "repair": "Onar",
+    "stopFirst": "Onarmak için tarayıcıyı durdurun.",
+    "repaired": "{{site}} verisi kenara taşındı",
+    "deleted": "Eski site verisi silindi",
+    "backupsTitle": "Kenara taşınan site verisi",
+    "backupMeta": "{{size}}, {{date}} tarihinde taşındı",
+    "deleteTitle": "{{site}} için eski veri silinsin mi?",
+    "deleteDescription": "Bu, bir onarımın kenara taşıdığı {{size}} veriyi kalıcı olarak siler.",
+    "unknownSite": "Bilinmeyen site ({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "Dosya Sistemi",
+      "storage_bucket": "Depolama kovası"
+    },
+    "notice": {
+      "title": "{{name}} başlatıldıktan kısa süre sonra kapandı: {{site}} {{size}} saklıyor",
+      "description": "Bu kadar büyük bir site tarayıcıyı kapatabilir. Onar, sitenin verisini profilde kenara taşır. Çerezler, oturumlar ve diğer siteler kalır."
+    }
   }
 }

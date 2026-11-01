@@ -2969,7 +2969,10 @@
     "agentTooManyProfiles": "Too many profiles for one run. The limit is 500.",
     "agentTaskNotFound": "That task is no longer running.",
     "agentBatchNotFound": "That run is no longer in the list.",
-    "agentActionInvalid": "The agent does not know that action."
+    "agentActionInvalid": "The agent does not know that action.",
+    "siteStorageNotFound": "This site data is no longer in the profile.",
+    "siteStorageUnsafePath": "This site data links outside the profile folder, so Donut did not change it.",
+    "siteStorageIoFailed": "Donut could not change the site data: {{detail}}"
   },
   "rail": {
     "profiles": "Profiles",
@@ -4942,5 +4945,28 @@
     "onDisk": "On this computer, ephemeral profiles write their data to disk. Donut erases it when the browser closes. Install WinFsp to keep the data in memory.",
     "winfspError": "WinFsp did not start, so ephemeral profiles write their data to disk. Donut erases it when the browser closes.",
     "download": "Download WinFsp"
+  },
+  "siteStorage": {
+    "title": "Oversized site data",
+    "description": "Each site below stores more than {{size}}. A site this large can make the browser quit soon after it opens. Repair moves the site's data aside inside the profile. Cookies, logins, extensions and other sites stay.",
+    "repair": "Repair",
+    "stopFirst": "Stop the browser to repair.",
+    "repaired": "Data of {{site}} moved aside",
+    "deleted": "Old site data deleted",
+    "backupsTitle": "Site data moved aside",
+    "backupMeta": "{{size}}, moved {{date}}",
+    "deleteTitle": "Delete the old data of {{site}}?",
+    "deleteDescription": "This permanently deletes {{size}} of data that a repair moved aside.",
+    "unknownSite": "Unknown site ({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "File System",
+      "storage_bucket": "Storage bucket"
+    },
+    "notice": {
+      "title": "{{name}} closed soon after launch: {{site}} stores {{size}}",
+      "description": "A site this large can make the browser quit. Repair moves the site's data aside in the profile. Cookies, logins and other sites stay."
+    }
   }
 }

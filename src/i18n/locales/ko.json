@@ -2969,7 +2969,10 @@
     "agentTooManyProfiles": "한 번 실행하기에 프로필이 너무 많습니다. 한도는 500개입니다.",
     "agentTaskNotFound": "그 작업은 더 이상 실행 중이 아닙니다.",
     "agentBatchNotFound": "그 실행은 더 이상 목록에 없습니다.",
-    "agentActionInvalid": "에이전트가 모르는 동작입니다."
+    "agentActionInvalid": "에이전트가 모르는 동작입니다.",
+    "siteStorageNotFound": "이 사이트 데이터는 더 이상 프로필에 없습니다.",
+    "siteStorageUnsafePath": "이 사이트 데이터가 프로필 폴더 밖을 가리켜 Donut이 변경하지 않았습니다.",
+    "siteStorageIoFailed": "Donut이 사이트 데이터를 변경하지 못했습니다: {{detail}}"
   },
   "rail": {
     "profiles": "프로필",
@@ -4942,5 +4945,28 @@
     "onDisk": "이 컴퓨터에서는 임시 프로필이 데이터를 디스크에 기록합니다. 브라우저를 닫으면 Donut이 데이터를 지웁니다. 데이터를 메모리에 유지하려면 WinFsp를 설치하세요.",
     "winfspError": "WinFsp가 시작되지 않아 임시 프로필이 데이터를 디스크에 기록합니다. 브라우저를 닫으면 Donut이 데이터를 지웁니다.",
     "download": "WinFsp 다운로드"
+  },
+  "siteStorage": {
+    "title": "사이트 데이터가 너무 큽니다",
+    "description": "아래의 각 사이트는 {{size}}보다 많은 데이터를 저장합니다. 이렇게 큰 사이트 데이터는 브라우저가 열린 직후 종료되게 할 수 있습니다. 복구는 사이트 데이터를 프로필 안의 다른 곳으로 옮깁니다. 쿠키, 로그인, 확장 프로그램과 다른 사이트는 그대로 유지됩니다.",
+    "repair": "복구",
+    "stopFirst": "복구하려면 브라우저를 중지하세요.",
+    "repaired": "{{site}}의 데이터를 옮겼습니다",
+    "deleted": "이전 사이트 데이터를 삭제했습니다",
+    "backupsTitle": "옮겨 둔 사이트 데이터",
+    "backupMeta": "{{size}}, {{date}}에 옮김",
+    "deleteTitle": "{{site}}의 이전 데이터를 삭제할까요?",
+    "deleteDescription": "복구로 옮겨 둔 {{size}}의 데이터를 영구히 삭제합니다.",
+    "unknownSite": "알 수 없는 사이트 ({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "파일 시스템",
+      "storage_bucket": "스토리지 버킷"
+    },
+    "notice": {
+      "title": "{{name}}이(가) 실행 직후 종료되었습니다: {{site}}이(가) {{size}}를 저장합니다",
+      "description": "이렇게 큰 사이트 데이터는 브라우저를 종료시킬 수 있습니다. 복구는 사이트 데이터를 프로필 안의 다른 곳으로 옮깁니다. 쿠키, 로그인과 다른 사이트는 그대로 유지됩니다."
+    }
   }
 }

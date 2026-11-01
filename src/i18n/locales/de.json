@@ -2969,7 +2969,10 @@
     "agentTooManyProfiles": "Zu viele Profile für einen Lauf. Das Limit ist 500.",
     "agentTaskNotFound": "Diese Aufgabe läuft nicht mehr.",
     "agentBatchNotFound": "Dieser Lauf ist nicht mehr in der Liste.",
-    "agentActionInvalid": "Der Agent kennt diese Aktion nicht."
+    "agentActionInvalid": "Der Agent kennt diese Aktion nicht.",
+    "siteStorageNotFound": "Diese Websitedaten sind nicht mehr im Profil.",
+    "siteStorageUnsafePath": "Diese Websitedaten verweisen außerhalb des Profilordners, daher hat Donut sie nicht geändert.",
+    "siteStorageIoFailed": "Donut konnte die Websitedaten nicht ändern: {{detail}}"
   },
   "rail": {
     "profiles": "Profile",
@@ -4942,5 +4945,28 @@
     "onDisk": "Auf diesem Computer schreiben flüchtige Profile ihre Daten auf den Datenträger. Donut löscht sie, wenn der Browser geschlossen wird. Installieren Sie WinFsp, um die Daten im Arbeitsspeicher zu halten.",
     "winfspError": "WinFsp ist nicht gestartet, daher schreiben flüchtige Profile ihre Daten auf den Datenträger. Donut löscht sie, wenn der Browser geschlossen wird.",
     "download": "WinFsp herunterladen"
+  },
+  "siteStorage": {
+    "title": "Zu große Websitedaten",
+    "description": "Jede Website unten speichert mehr als {{size}}. So viele Daten können den Browser kurz nach dem Start beenden. Reparieren verschiebt die Daten der Website innerhalb des Profils zur Seite. Cookies, Anmeldungen, Erweiterungen und andere Websites bleiben erhalten.",
+    "repair": "Reparieren",
+    "stopFirst": "Beende den Browser, um zu reparieren.",
+    "repaired": "Daten von {{site}} zur Seite verschoben",
+    "deleted": "Alte Websitedaten gelöscht",
+    "backupsTitle": "Zur Seite verschobene Websitedaten",
+    "backupMeta": "{{size}}, verschoben {{date}}",
+    "deleteTitle": "Alte Daten von {{site}} löschen?",
+    "deleteDescription": "Dadurch werden {{size}} Daten, die eine Reparatur zur Seite verschoben hat, endgültig gelöscht.",
+    "unknownSite": "Unbekannte Website ({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "Dateisystem",
+      "storage_bucket": "Speicher-Bucket"
+    },
+    "notice": {
+      "title": "{{name}} wurde kurz nach dem Start beendet: {{site}} speichert {{size}}",
+      "description": "So viele Daten einer Website können den Browser beenden. Reparieren verschiebt die Daten der Website im Profil zur Seite. Cookies, Anmeldungen und andere Websites bleiben erhalten."
+    }
   }
 }

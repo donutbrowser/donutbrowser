@@ -43,7 +43,7 @@ pub fn origins_on_disk(profile_data: &Path) -> Vec<String> {
   origins
 }
 
-fn origin_of_folder(name: &str) -> Option<String> {
+pub(crate) fn origin_of_folder(name: &str) -> Option<String> {
   // Older browsers name the folder `<origin>.indexeddb.leveldb`; 152 names it
   // after the origin alone and keeps one folder per database inside.
   if name.contains(".indexeddb.") && !name.ends_with(".indexeddb.leveldb") {

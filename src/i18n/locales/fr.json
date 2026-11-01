@@ -2989,7 +2989,10 @@
     "agentTooManyProfiles": "Trop de profils pour une exécution. La limite est de 500.",
     "agentTaskNotFound": "Cette tâche n’est plus en cours.",
     "agentBatchNotFound": "Cette exécution n’est plus dans la liste.",
-    "agentActionInvalid": "L’agent ne connaît pas cette action."
+    "agentActionInvalid": "L’agent ne connaît pas cette action.",
+    "siteStorageNotFound": "Ces données de site ne sont plus dans le profil.",
+    "siteStorageUnsafePath": "Ces données de site pointent hors du dossier du profil, Donut ne les a donc pas modifiées.",
+    "siteStorageIoFailed": "Donut n'a pas pu modifier les données du site : {{detail}}"
   },
   "rail": {
     "profiles": "Profils",
@@ -4996,5 +4999,28 @@
     "onDisk": "Sur cet ordinateur, les profils éphémères écrivent leurs données sur le disque. Donut les efface à la fermeture du navigateur. Installez WinFsp pour garder les données en mémoire.",
     "winfspError": "WinFsp n'a pas démarré, donc les profils éphémères écrivent leurs données sur le disque. Donut les efface à la fermeture du navigateur.",
     "download": "Télécharger WinFsp"
+  },
+  "siteStorage": {
+    "title": "Données de site trop volumineuses",
+    "description": "Chaque site ci-dessous stocke plus de {{size}}. Un site aussi volumineux peut faire quitter le navigateur peu après son ouverture. Réparer met de côté les données du site dans le profil. Les cookies, les connexions, les extensions et les autres sites restent.",
+    "repair": "Réparer",
+    "stopFirst": "Arrêtez le navigateur pour réparer.",
+    "repaired": "Données de {{site}} mises de côté",
+    "deleted": "Anciennes données du site supprimées",
+    "backupsTitle": "Données de site mises de côté",
+    "backupMeta": "{{size}}, mises de côté le {{date}}",
+    "deleteTitle": "Supprimer les anciennes données de {{site}} ?",
+    "deleteDescription": "Cela supprime définitivement {{size}} de données mises de côté par une réparation.",
+    "unknownSite": "Site inconnu ({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "Système de fichiers",
+      "storage_bucket": "Bucket de stockage"
+    },
+    "notice": {
+      "title": "{{name}} s'est fermé peu après le lancement : {{site}} stocke {{size}}",
+      "description": "Un site aussi volumineux peut faire quitter le navigateur. Réparer met de côté les données du site dans le profil. Les cookies, les connexions et les autres sites restent."
+    }
   }
 }

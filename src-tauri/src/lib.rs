@@ -231,6 +231,7 @@ mod remote_exit;
 mod remote_handoff;
 mod remote_session;
 mod settings_manager;
+mod site_storage;
 pub mod socks5_local;
 pub mod sync;
 mod synchronizer;
@@ -3413,6 +3414,7 @@ pub fn run_with_builder(
                   if !is_running {
                     crate::profile::clear_on_close::clear_profile_browsing_data(&profile)
                       .await;
+                    crate::site_storage::check_after_exit(profile.clone());
                     if let Some(pid) = profile.process_id {
                       crate::proxy_manager::PROXY_MANAGER
                         .stop_worker_of_exited_browser(pid)
@@ -3786,6 +3788,9 @@ pub fn run_with_builder(
       remove_mcp_from_agent,
       set_mcp_toolsets,
       local_storage::get_profile_local_storage_stats,
+      site_storage::get_profile_site_storage,
+      site_storage::repair_profile_site_storage,
+      site_storage::delete_profile_site_storage_backup,
       local_storage::export_profile_storage_state,
       local_storage::import_profile_storage_state,
       agent_schedules::list_agent_schedules,

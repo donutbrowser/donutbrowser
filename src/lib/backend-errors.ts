@@ -14,6 +14,9 @@ export type BackendErrorCode =
   | "PROFILE_NOT_PROTECTED"
   | "PROFILE_ALREADY_PROTECTED"
   | "PROFILE_RUNNING"
+  | "SITE_STORAGE_NOT_FOUND"
+  | "SITE_STORAGE_UNSAFE_PATH"
+  | "SITE_STORAGE_IO_FAILED"
   | "PROFILE_PAIRED_TWICE"
   | "URL_SCHEME_NOT_ALLOWED"
   | "TOOL_IS_LOCAL_ONLY"
@@ -481,6 +484,14 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.urlSchemeNotAllowed");
     case "PROFILE_RUNNING":
       return t("backendErrors.profileRunning");
+    case "SITE_STORAGE_NOT_FOUND":
+      return t("backendErrors.siteStorageNotFound");
+    case "SITE_STORAGE_UNSAFE_PATH":
+      return t("backendErrors.siteStorageUnsafePath");
+    case "SITE_STORAGE_IO_FAILED":
+      return t("backendErrors.siteStorageIoFailed", {
+        detail: parsed.params?.detail ?? "",
+      });
     case "PROFILE_PAIRED_TWICE":
       return t("backendErrors.profilePairedTwice");
     case "PROFILE_EPHEMERAL":

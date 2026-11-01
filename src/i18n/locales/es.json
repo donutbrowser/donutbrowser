@@ -2989,7 +2989,10 @@
     "agentTooManyProfiles": "Demasiados perfiles para una ejecución. El límite es 500.",
     "agentTaskNotFound": "Esa tarea ya no se está ejecutando.",
     "agentBatchNotFound": "Esa ejecución ya no está en la lista.",
-    "agentActionInvalid": "El agente no conoce esa acción."
+    "agentActionInvalid": "El agente no conoce esa acción.",
+    "siteStorageNotFound": "Estos datos del sitio ya no están en el perfil.",
+    "siteStorageUnsafePath": "Estos datos del sitio apuntan fuera de la carpeta del perfil, así que Donut no los cambió.",
+    "siteStorageIoFailed": "Donut no pudo cambiar los datos del sitio: {{detail}}"
   },
   "rail": {
     "profiles": "Perfiles",
@@ -4996,5 +4999,28 @@
     "onDisk": "En este equipo, los perfiles efímeros escriben sus datos en el disco. Donut los borra cuando se cierra el navegador. Instala WinFsp para mantener los datos en memoria.",
     "winfspError": "WinFsp no se inició, así que los perfiles efímeros escriben sus datos en el disco. Donut los borra cuando se cierra el navegador.",
     "download": "Descargar WinFsp"
+  },
+  "siteStorage": {
+    "title": "Datos de sitio demasiado grandes",
+    "description": "Cada sitio de abajo guarda más de {{size}}. Un sitio tan grande puede hacer que el navegador se cierre poco después de abrirse. Reparar aparta los datos del sitio dentro del perfil. Las cookies, los inicios de sesión, las extensiones y los demás sitios se mantienen.",
+    "repair": "Reparar",
+    "stopFirst": "Detén el navegador para reparar.",
+    "repaired": "Datos de {{site}} apartados",
+    "deleted": "Datos antiguos del sitio eliminados",
+    "backupsTitle": "Datos de sitio apartados",
+    "backupMeta": "{{size}}, apartados el {{date}}",
+    "deleteTitle": "¿Eliminar los datos antiguos de {{site}}?",
+    "deleteDescription": "Esto elimina para siempre {{size}} de datos que una reparación apartó.",
+    "unknownSite": "Sitio desconocido ({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "Sistema de archivos",
+      "storage_bucket": "Bucket de almacenamiento"
+    },
+    "notice": {
+      "title": "{{name}} se cerró poco después de iniciarse: {{site}} guarda {{size}}",
+      "description": "Un sitio tan grande puede cerrar el navegador. Reparar aparta los datos del sitio en el perfil. Las cookies, los inicios de sesión y los demás sitios se mantienen."
+    }
   }
 }

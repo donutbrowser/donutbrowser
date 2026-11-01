@@ -198,7 +198,7 @@ pub(crate) fn read_profile(id: &uuid::Uuid) -> Option<BrowserProfile> {
   serde_json::from_str(&content).ok()
 }
 
-async fn is_running(profile: &BrowserProfile) -> bool {
+pub(crate) async fn is_running(profile: &BrowserProfile) -> bool {
   if profile.process_id.is_some()
     || crate::remote_handoff::state_for(&profile.id.to_string()).is_some()
   {

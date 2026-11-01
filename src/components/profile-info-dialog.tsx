@@ -63,6 +63,7 @@ import {
   useCanRunRemote,
   useProfileUnlocked,
 } from "@/components/profile-info/header-actions";
+import { SiteStoragePanel } from "@/components/profile-info/site-storage";
 import { ProfileLaunchActivity } from "@/components/profile-launch-activity";
 import { ProfileMetadataCard } from "@/components/profile-metadata-card";
 import { ExportProfileSection } from "@/components/profile-transfer";
@@ -1445,6 +1446,9 @@ function ProfileInfoLayout({
                   profileId={profile.id}
                   running={isRunning}
                 />
+                {!isEphemeral && (
+                  <SiteStoragePanel profile={profile} isRunning={isRunning} />
+                )}
 
                 {/* ID */}
                 <div className="flex items-center gap-2 rounded-lg bg-foreground/4 px-3 py-2">

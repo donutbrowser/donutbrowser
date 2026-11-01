@@ -90,6 +90,7 @@ donutbrowser/
 │   │   ├── vault.rs                # Per-install key that seals local secrets; opens legacy build-password seals once
 │   │   ├── cookie_manager.rs       # Cookie import/export
 │   │   ├── local_storage.rs        # Local Storage LevelDB read/write, Playwright storageState import/export
+│   │   ├── site_storage.rs         # Oversized per-site storage: measure, notice after an early exit, move aside, delete backup
 │   │   ├── profile_importer.rs     # Bulk profile import (Chromium-family detection, ZIP, batch)
 │   │   ├── profile_templates.rs    # Synced profile templates and bulk create from a template
 │   │   ├── profile_statuses.rs     # Synced profile statuses (name + color) set on profiles

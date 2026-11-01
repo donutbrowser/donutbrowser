@@ -2989,7 +2989,10 @@
     "agentTooManyProfiles": "Perfis demais para uma execução. O limite é 500.",
     "agentTaskNotFound": "Essa tarefa não está mais em execução.",
     "agentBatchNotFound": "Essa execução não está mais na lista.",
-    "agentActionInvalid": "O agente não conhece essa ação."
+    "agentActionInvalid": "O agente não conhece essa ação.",
+    "siteStorageNotFound": "Estes dados do site não estão mais no perfil.",
+    "siteStorageUnsafePath": "Estes dados do site apontam para fora da pasta do perfil, então o Donut não os alterou.",
+    "siteStorageIoFailed": "O Donut não conseguiu alterar os dados do site: {{detail}}"
   },
   "rail": {
     "profiles": "Perfis",
@@ -4996,5 +4999,28 @@
     "onDisk": "Neste computador, os perfis efêmeros gravam seus dados no disco. O Donut os apaga quando o navegador fecha. Instale o WinFsp para manter os dados na memória.",
     "winfspError": "O WinFsp não iniciou, então os perfis efêmeros gravam seus dados no disco. O Donut os apaga quando o navegador fecha.",
     "download": "Baixar o WinFsp"
+  },
+  "siteStorage": {
+    "title": "Dados de site grandes demais",
+    "description": "Cada site abaixo guarda mais de {{size}}. Um site tão grande pode fazer o navegador fechar logo depois de abrir. Reparar move os dados do site para o lado dentro do perfil. Cookies, logins, extensões e outros sites permanecem.",
+    "repair": "Reparar",
+    "stopFirst": "Pare o navegador para reparar.",
+    "repaired": "Dados de {{site}} movidos para o lado",
+    "deleted": "Dados antigos do site excluídos",
+    "backupsTitle": "Dados de site movidos para o lado",
+    "backupMeta": "{{size}}, movidos em {{date}}",
+    "deleteTitle": "Excluir os dados antigos de {{site}}?",
+    "deleteDescription": "Isto exclui permanentemente {{size}} de dados que um reparo moveu para o lado.",
+    "unknownSite": "Site desconhecido ({{folder}})",
+    "kinds": {
+      "indexed_db": "IndexedDB",
+      "cache_storage": "Cache Storage",
+      "file_system": "Sistema de arquivos",
+      "storage_bucket": "Bucket de armazenamento"
+    },
+    "notice": {
+      "title": "{{name}} fechou logo após iniciar: {{site}} guarda {{size}}",
+      "description": "Um site tão grande pode fazer o navegador fechar. Reparar move os dados do site para o lado no perfil. Cookies, logins e outros sites permanecem."
+    }
   }
 }
