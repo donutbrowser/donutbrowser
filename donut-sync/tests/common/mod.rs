@@ -15,6 +15,29 @@ use donut_sync::store::{Store, StoreError};
 pub const S3_ENDPOINT: &str = "http://127.0.0.1:8987";
 pub const SYNC_TOKEN: &str = "test-sync-token-0123456789abcdef";
 
+/// The test storage, without the server: what is really stored.
+pub fn raw_store(bucket: &str) -> S3Store {
+  S3Store::new(
+    Location::parse(S3_ENDPOINT, bucket, true).unwrap(),
+    Credentials {
+      access_key_id: "minioadmin".to_string(),
+      secret_access_key: "minioadmin".to_string(),
+    },
+    "us-east-1".to_string(),
+  )
+}
+
+/// The storage settings the server takes, for a command run to its exit.
+pub fn storage_env(bucket: &str) -> Vec<(&'static str, String)> {
+  vec![
+    ("S3_ENDPOINT", S3_ENDPOINT.to_string()),
+    ("S3_ACCESS_KEY_ID", "minioadmin".to_string()),
+    ("S3_SECRET_ACCESS_KEY", "minioadmin".to_string()),
+    ("S3_BUCKET", bucket.to_string()),
+    ("S3_FORCE_PATH_STYLE", "true".to_string()),
+  ]
+}
+
 pub fn http() -> reqwest::Client {
   let _ = rustls::crypto::ring::default_provider().install_default();
   reqwest::Client::builder().no_proxy().build().unwrap()
@@ -78,7 +101,7 @@ impl Server {
       }
     }
     let output = Arc::new(Mutex::new(String::new()));
-    let mut child = spawn(&env);
+    let mut child = spawn(&[], &env);
     collect(&mut child, &output);
     let url = format!("http://127.0.0.1:{port}");
     let client = http();
@@ -114,11 +137,12 @@ impl Drop for Server {
   }
 }
 
-fn spawn(env: &[(String, String)]) -> Child {
+fn spawn(args: &[&str], env: &[(String, String)]) -> Child {
   // A directory without a `.env`, so a developer's file cannot leak in.
   let dir = std::env::temp_dir().join("donut-sync-test-cwd");
   std::fs::create_dir_all(&dir).unwrap();
   Command::new(env!("CARGO_BIN_EXE_donut-sync"))
+    .args(args)
     .env_clear()
     .envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
     .current_dir(dir)
@@ -149,11 +173,16 @@ fn collect(child: &mut Child, output: &Arc<Mutex<String>>) {
 /// Runs the binary to its exit (a refused configuration) and returns the
 /// exit code and what it printed.
 pub fn run_to_exit(env: &[(&str, &str)]) -> (i32, String) {
+  run_command(&[], env)
+}
+
+/// Runs the binary with `args` to its exit.
+pub fn run_command(args: &[&str], env: &[(&str, &str)]) -> (i32, String) {
   let env: Vec<(String, String)> = env
     .iter()
     .map(|(k, v)| (k.to_string(), v.to_string()))
     .collect();
-  let child = spawn(&env);
+  let child = spawn(args, &env);
   let out = child.wait_with_output().unwrap();
   (
     out.status.code().unwrap_or(-1),

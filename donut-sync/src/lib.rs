@@ -3,6 +3,7 @@
 //! presigned URLs, so profile files go straight between devices and storage.
 
 pub mod accounts;
+pub mod at_rest;
 pub mod auth;
 pub mod backend;
 pub mod config;
@@ -11,13 +12,18 @@ pub mod http;
 pub mod jsval;
 pub mod jwt;
 pub mod log;
+#[cfg(test)]
+mod memory_store;
+pub mod migrate;
 pub mod net;
 pub mod s3;
+pub mod sealed_store;
 pub mod sigv4;
 pub mod store;
 pub mod subscribe;
 pub mod sync;
 pub mod time;
+pub mod transfer;
 
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
@@ -28,13 +34,17 @@ use hyper_util::rt::{TokioIo, TokioTimer};
 use tokio::net::TcpListener;
 
 use crate::accounts::{DonutAccounts, normalize_sync_server_url};
+use crate::at_rest::Keyring;
 use crate::auth::Guard;
 use crate::backend::Backend;
 use crate::config::Config;
 use crate::http::AppState;
 use crate::s3::{Location, Presigner, S3Store};
+use crate::sealed_store::SealedStore;
 use crate::sigv4::Credentials;
+use crate::store::Store;
 use crate::sync::{SyncOptions, SyncService};
+use crate::transfer::TransferSigner;
 
 const DEFAULT_PORT: u16 = 3929;
 /// Shipped placeholders that must never guard a real server.
@@ -74,6 +84,9 @@ pub fn validate_env(config: &Config) -> Result<(), String> {
           .to_string(),
       );
   }
+  if let Some(value) = &config.at_rest_key {
+    Keyring::parse(value)?;
+  }
   Ok(())
 }
 
@@ -83,49 +96,95 @@ fn require(value: &Option<String>, name: &str) -> Result<String, String> {
     .ok_or_else(|| format!("Required environment variable {name} is not set"))
 }
 
+struct Storage {
+  endpoint: String,
+  bucket: String,
+  region: String,
+  credentials: Credentials,
+  force_path_style: bool,
+}
+
+impl Storage {
+  // No defaults for storage: a misconfigured server must not start pointed at
+  // an unintended or public-default backend.
+  fn from_config(config: &Config) -> Result<Self, String> {
+    Ok(Self {
+      endpoint: require(&config.s3_endpoint, "S3_ENDPOINT")?,
+      bucket: require(&config.s3_bucket, "S3_BUCKET")?,
+      region: config
+        .s3_region
+        .clone()
+        .unwrap_or_else(|| "us-east-1".to_string()),
+      credentials: Credentials {
+        access_key_id: require(&config.s3_access_key_id, "S3_ACCESS_KEY_ID")?,
+        secret_access_key: require(&config.s3_secret_access_key, "S3_SECRET_ACCESS_KEY")?,
+      },
+      force_path_style: config.s3_force_path_style.as_deref() != Some("false"),
+    })
+  }
+
+  fn store(&self) -> Result<S3Store, String> {
+    Ok(S3Store::new(
+      Location::parse(&self.endpoint, &self.bucket, self.force_path_style)?,
+      self.credentials.clone(),
+      self.region.clone(),
+    ))
+  }
+}
+
+/// The bucket itself, without sealing: for the migration.
+pub fn raw_store(config: &Config) -> Result<S3Store, String> {
+  Storage::from_config(config)?.store()
+}
+
 /// Everything the server needs, connected and checked: storage reachable and
 /// the bucket created if it was missing.
 pub async fn build_state(config: &Config) -> Result<Arc<AppState>, String> {
-  // No defaults for storage: a misconfigured server must not start pointed at
-  // an unintended or public-default backend.
-  let endpoint = require(&config.s3_endpoint, "S3_ENDPOINT")?;
-  let region = config
-    .s3_region
-    .clone()
-    .unwrap_or_else(|| "us-east-1".to_string());
-  let access_key_id = require(&config.s3_access_key_id, "S3_ACCESS_KEY_ID")?;
-  let secret_access_key = require(&config.s3_secret_access_key, "S3_SECRET_ACCESS_KEY")?;
-  let force_path_style = config.s3_force_path_style.as_deref() != Some("false");
-  let bucket = require(&config.s3_bucket, "S3_BUCKET")?;
-  let credentials = Credentials {
-    access_key_id,
-    secret_access_key,
-  };
-
+  let storage = Storage::from_config(config)?;
   // Presigned URLs go to a desktop on another machine, so they must name a
   // host that machine can reach. Signing is bound to the host, so they are
   // signed against the public address rather than rewritten after signing.
   let public_endpoint = config
     .s3_public_endpoint
     .clone()
-    .unwrap_or_else(|| endpoint.clone());
-  let store = S3Store::new(
-    Location::parse(&endpoint, &bucket, force_path_style)?,
-    credentials.clone(),
-    region.clone(),
-  );
+    .unwrap_or_else(|| storage.endpoint.clone());
+  let s3: Arc<dyn Store> = Arc::new(storage.store()?);
+  let keyring = config
+    .at_rest_key
+    .as_deref()
+    .map(Keyring::parse)
+    .transpose()?
+    .map(Arc::new);
+  let (store, transfer): (Arc<dyn Store>, _) = match &keyring {
+    Some(keyring) => {
+      crate::log::log(
+        "SyncService",
+        &format!(
+          "Encryption at rest on key={} keys={}",
+          keyring.current().id(),
+          keyring.key_count()
+        ),
+      );
+      (
+        Arc::new(SealedStore::new(s3, keyring.clone())),
+        Some(TransferSigner::new(keyring)),
+      )
+    }
+    None => (s3, None),
+  };
   let presigner = Presigner::new(
-    Location::parse(&public_endpoint, &bucket, force_path_style)?,
-    credentials,
-    region,
+    Location::parse(&public_endpoint, &storage.bucket, storage.force_path_style)?,
+    storage.credentials,
+    storage.region,
   );
 
   let backend = config
     .backend()
     .map(|(url, key)| Arc::new(Backend::new(url, key)));
   let sync = Arc::new(SyncService::new(
-    Arc::new(store),
+    store,
     SyncOptions {
+      transfer,
       presigner,
       public_endpoint,
       public_endpoint_configured: config.s3_public_endpoint.is_some(),
@@ -240,6 +299,10 @@ pub async fn run() -> i32 {
   // A `.env` in the working directory fills in what the environment lacks.
   let _ = dotenvy::dotenv();
   let config = Config::from_env();
+  let args: Vec<String> = std::env::args().skip(1).collect();
+  if args.first().map(String::as_str) == Some(migrate::COMMAND) {
+    return migrate::run(&config, &args[1..]).await;
+  }
   if let Err(message) = validate_env(&config) {
     eprintln!("{message}");
     return 1;

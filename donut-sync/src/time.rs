@@ -156,6 +156,10 @@ pub fn parse_http_date_ms(s: &str) -> Option<i64> {
     .map(|d| d.as_millis() as i64)
 }
 
+pub fn http_date(ms: i64) -> String {
+  httpdate::fmt_http_date(UNIX_EPOCH + std::time::Duration::from_millis(ms.max(0) as u64))
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;

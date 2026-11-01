@@ -1,0 +1,395 @@
+//! Transfers through this server, for a store sealed at rest. Devices cannot
+//! go to storage directly, so the presign routes hand out URLs to `PATH` here,
+//! signed and expiring like S3's, and the body streams through the sealed
+//! store. A device sends and reads exactly what it did with S3: the same
+//! method, `Content-Length`, `Content-Type` and the signed `x-amz-meta-*`.
+
+use std::sync::Arc;
+
+use bytes::Bytes;
+use futures_util::StreamExt;
+use hmac::{Hmac, KeyInit, Mac};
+use http_body_util::{BodyExt, StreamBody};
+use hyper::body::{Frame, Incoming};
+use hyper::http::request::Parts;
+use hyper::{Method, Response, header};
+use sha2::Sha256;
+
+use crate::at_rest::Keyring;
+use crate::http::{BoxError, ResBody, drain, full};
+use crate::store::{Store, StoreError, Upload};
+use crate::time;
+
+pub const PATH: &str = "/v1/transfer";
+/// Transfers streamed at a time; more wait their turn. Each holds a few
+/// frames in memory.
+const MAX_TRANSFERS: usize = 64;
+const META_PARAM: &str = "meta-";
+
+pub struct TransferSigner {
+  /// The current key's first; any of them verifies.
+  keys: Vec<[u8; 32]>,
+  slots: Arc<tokio::sync::Semaphore>,
+}
+
+/// What a valid URL lets its holder do.
+#[derive(Debug, PartialEq)]
+pub struct Grant {
+  pub key: String,
+  pub metadata: Vec<(String, String)>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Refusal {
+  Expired,
+  BadSignature,
+}
+
+fn field(mac: &mut Hmac<Sha256>, value: &str) {
+  mac.update(&(value.len() as u64).to_be_bytes());
+  mac.update(value.as_bytes());
+}
+
+impl TransferSigner {
+  pub fn new(keyring: &Keyring) -> Self {
+    Self {
+      keys: keyring.url_keys(),
+      slots: Arc::new(tokio::sync::Semaphore::new(MAX_TRANSFERS)),
+    }
+  }
+
+  fn mac(
+    key: &[u8; 32],
+    method: &str,
+    object_key: &str,
+    expires_ms: &str,
+    metadata: &[(String, String)],
+  ) -> Hmac<Sha256> {
+    let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC takes any key length");
+    for value in ["v1", method, object_key, expires_ms] {
+      field(&mut mac, value);
+    }
+    let mut sorted = metadata.to_vec();
+    sorted.sort();
+    for (name, value) in &sorted {
+      field(&mut mac, name);
+      field(&mut mac, value);
+    }
+    mac
+  }
+
+  /// `origin` is how devices reach this server, e.g. `https://sync.example.com`.
+  pub fn url(
+    &self,
+    origin: &str,
+    method: &str,
+    object_key: &str,
+    expires_ms: i64,
+    metadata: &[(String, String)],
+  ) -> String {
+    let expires = expires_ms.to_string();
+    let signature = Self::mac(&self.keys[0], method, object_key, &expires, metadata)
+      .finalize()
+      .into_bytes();
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    query.append_pair("key", object_key);
+    query.append_pair("expires", &expires);
+    for (name, value) in metadata {
+      query.append_pair(&format!("{META_PARAM}{name}"), value);
+    }
+    query.append_pair("sig", &hex::encode(signature));
+    format!("{origin}{PATH}?{}", query.finish())
+  }
+
+  pub fn verify(&self, method: &str, query: &str, now_ms: i64) -> Result<Grant, Refusal> {
+    let mut key = None;
+    let mut expires = None;
+    let mut signature = None;
+    let mut metadata = Vec::new();
+    for (name, value) in url::form_urlencoded::parse(query.as_bytes()) {
+      match name.as_ref() {
+        "key" if key.is_none() => key = Some(value.into_owned()),
+        "expires" if expires.is_none() => expires = Some(value.into_owned()),
+        "sig" if signature.is_none() => signature = Some(value.into_owned()),
+        other => match other.strip_prefix(META_PARAM) {
+          Some(meta) => metadata.push((meta.to_string(), value.into_owned())),
+          None => return Err(Refusal::BadSignature),
+        },
+      }
+    }
+    let (Some(key), Some(expires), Some(signature)) = (key, expires, signature) else {
+      return Err(Refusal::BadSignature);
+    };
+    let signature = hex::decode(signature).map_err(|_| Refusal::BadSignature)?;
+    let signed = self.keys.iter().any(|k| {
+      Self::mac(k, method, &key, &expires, &metadata)
+        .verify_slice(&signature)
+        .is_ok()
+    });
+    if !signed {
+      return Err(Refusal::BadSignature);
+    }
+    let expires_ms: i64 = expires.parse().map_err(|_| Refusal::BadSignature)?;
+    if now_ms > expires_ms {
+      return Err(Refusal::Expired);
+    }
+    Ok(Grant { key, metadata })
+  }
+}
+
+/// An S3-style error document, so a device logs what S3 would have said.
+fn s3_error(status: u16, code: &str, message: &str) -> Response<ResBody> {
+  let body = format!(
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Error><Code>{code}</Code><Message>{message}</Message></Error>"
+  );
+  Response::builder()
+    .status(status)
+    .header(header::CONTENT_TYPE, "application/xml")
+    .header(header::CONTENT_LENGTH, body.len())
+    .body(full(body))
+    .expect("static response parts are valid")
+}
+
+fn store_refusal(error: StoreError) -> Response<ResBody> {
+  match error {
+    StoreError::NotFound => s3_error(404, "NoSuchKey", "The specified key does not exist."),
+    StoreError::Service { status, code, .. } if (400..500).contains(&status) => {
+      s3_error(status, &code, "")
+    }
+    other => {
+      crate::log::error(PATH, &format!("Transfer failed err=\"{other}\""));
+      s3_error(
+        500,
+        "InternalError",
+        "We encountered an internal error. Please try again.",
+      )
+    }
+  }
+}
+
+fn header_text(parts: &Parts, name: impl header::AsHeaderName) -> Option<String> {
+  parts
+    .headers
+    .get(name)
+    .map(|v| v.as_bytes().iter().map(|&b| b as char).collect())
+}
+
+pub async fn serve(
+  store: &Arc<dyn Store>,
+  signer: &TransferSigner,
+  parts: &Parts,
+  body: Incoming,
+) -> Response<ResBody> {
+  let method = parts.method.as_str();
+  let grant = match signer.verify(method, parts.uri.query().unwrap_or(""), time::now_ms()) {
+    Ok(grant) if parts.method == Method::GET || parts.method == Method::PUT => grant,
+    Ok(_) | Err(Refusal::BadSignature) => {
+      drain(body).await;
+      return s3_error(
+        403,
+        "SignatureDoesNotMatch",
+        "The request signature we calculated does not match the signature you provided.",
+      );
+    }
+    Err(Refusal::Expired) => {
+      drain(body).await;
+      return s3_error(403, "AccessDenied", "Request has expired");
+    }
+  };
+  let slot = signer
+    .slots
+    .clone()
+    .acquire_owned()
+    .await
+    .expect("the semaphore is never closed");
+  if parts.method == Method::GET {
+    drain(body).await;
+    return download(store, &grant.key, slot).await;
+  }
+  let response = upload(store, grant, parts, body).await;
+  drop(slot);
+  response
+}
+
+async fn download(
+  store: &Arc<dyn Store>,
+  key: &str,
+  slot: tokio::sync::OwnedSemaphorePermit,
+) -> Response<ResBody> {
+  let object = match store.get_object(key).await {
+    Ok(object) => object,
+    Err(e) => return store_refusal(e),
+  };
+  let mut response = Response::builder().status(200);
+  if let Some(length) = object.head.content_length {
+    response = response.header(header::CONTENT_LENGTH, length);
+  }
+  if let Some(content_type) = &object.head.content_type {
+    response = response.header(header::CONTENT_TYPE, content_type.as_str());
+  }
+  if let Some(ms) = object.head.last_modified_ms {
+    response = response.header(header::LAST_MODIFIED, time::http_date(ms));
+  }
+  for (name, value) in &object.head.metadata {
+    response = response.header(format!("x-amz-meta-{name}"), value.as_str());
+  }
+  let key = key.to_string();
+  // The slot is held until the body is sent.
+  let body = object.body.map(move |chunk| {
+    let _slot = &slot;
+    chunk.map(Frame::data).map_err(|e| {
+      crate::log::error(PATH, &format!("Download cut off key={key} err=\"{e}\""));
+      BoxError::from(e)
+    })
+  });
+  response
+    .body(StreamBody::new(body).boxed_unsync())
+    .unwrap_or_else(|_| {
+      s3_error(
+        500,
+        "InternalError",
+        "Stored metadata is not a header value.",
+      )
+    })
+}
+
+async fn upload(
+  store: &Arc<dyn Store>,
+  grant: Grant,
+  parts: &Parts,
+  body: Incoming,
+) -> Response<ResBody> {
+  let mut sent: Vec<(String, String)> = parts
+    .headers
+    .iter()
+    .filter_map(|(name, value)| {
+      name.as_str().strip_prefix("x-amz-meta-").map(|n| {
+        (
+          n.to_string(),
+          value.as_bytes().iter().map(|&b| b as char).collect(),
+        )
+      })
+    })
+    .collect();
+  sent.sort();
+  let mut signed = grant.metadata;
+  signed.sort();
+  if sent != signed {
+    drain(body).await;
+    return s3_error(
+      403,
+      "AccessDenied",
+      "There were headers present in the request which were not signed",
+    );
+  }
+  let Some(length) = header_text(parts, header::CONTENT_LENGTH).and_then(|v| v.trim().parse().ok())
+  else {
+    drain(body).await;
+    return s3_error(
+      411,
+      "MissingContentLength",
+      "You must provide the Content-Length HTTP header.",
+    );
+  };
+  let content_type = header_text(parts, header::CONTENT_TYPE);
+  let stream = body
+    .into_data_stream()
+    .map(|chunk: Result<Bytes, hyper::Error>| {
+      chunk.map_err(|e| StoreError::Transport(e.to_string()))
+    });
+  match store
+    .put_object_stream(
+      &grant.key,
+      Box::pin(stream),
+      Upload {
+        length,
+        content_type: content_type.as_deref(),
+        metadata: &signed,
+        if_match: None,
+      },
+    )
+    .await
+  {
+    Ok(()) => Response::builder()
+      .status(200)
+      .header(header::CONTENT_LENGTH, 0)
+      .body(full(Bytes::new()))
+      .expect("static response parts are valid"),
+    Err(e) => store_refusal(e),
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn signer() -> TransferSigner {
+    TransferSigner::new(&Keyring::parse("k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap())
+  }
+
+  fn query(url: &str) -> &str {
+    url.split_once('?').unwrap().1
+  }
+
+  #[test]
+  fn urls_verify_for_their_method_key_metadata_and_lifetime() {
+    let signer = signer();
+    let metadata = vec![
+      ("updated-at".to_string(), "17".to_string()),
+      ("group-id".to_string(), "g 1&x".to_string()),
+    ];
+    let url = signer.url(
+      "https://sync.example.com",
+      "PUT",
+      "users/u/a b+c",
+      1000,
+      &metadata,
+    );
+    assert!(url.starts_with("https://sync.example.com/v1/transfer?key=users%2Fu%2Fa+b%2Bc&"));
+    let grant = signer.verify("PUT", query(&url), 1000).unwrap();
+    assert_eq!(grant.key, "users/u/a b+c");
+    assert_eq!(grant.metadata.len(), 2);
+    assert_eq!(
+      signer.verify("PUT", query(&url), 1001),
+      Err(Refusal::Expired)
+    );
+    assert_eq!(
+      signer.verify("GET", query(&url), 0),
+      Err(Refusal::BadSignature)
+    );
+    let tampered = query(&url).replace("updated-at=17", "updated-at=18");
+    assert_eq!(
+      signer.verify("PUT", &tampered, 0),
+      Err(Refusal::BadSignature)
+    );
+    let moved = query(&url).replace("key=users%2Fu", "key=users%2Fv");
+    assert_eq!(signer.verify("PUT", &moved, 0), Err(Refusal::BadSignature));
+    let added = format!("{}&meta-x=1", query(&url));
+    assert_eq!(signer.verify("PUT", &added, 0), Err(Refusal::BadSignature));
+    let extended = query(&url).replace("expires=1000", "expires=9999");
+    assert_eq!(
+      signer.verify("PUT", &extended, 0),
+      Err(Refusal::BadSignature)
+    );
+  }
+
+  #[test]
+  fn an_old_key_still_verifies_after_rotation() {
+    let old = signer();
+    let url = old.url("http://h", "GET", "k", 50, &[]);
+    let rotated = TransferSigner::new(
+      &Keyring::parse(
+        "k2:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=,k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      )
+      .unwrap(),
+    );
+    assert!(rotated.verify("GET", query(&url), 0).is_ok());
+    let removed = TransferSigner::new(
+      &Keyring::parse("k2:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap(),
+    );
+    assert_eq!(
+      removed.verify("GET", query(&url), 0),
+      Err(Refusal::BadSignature)
+    );
+  }
+}

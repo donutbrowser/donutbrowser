@@ -17,6 +17,7 @@ pub struct Config {
   pub s3_force_path_style: Option<String>,
   pub s3_public_endpoint: Option<String>,
   pub port: Option<String>,
+  pub at_rest_key: Option<String>,
 }
 
 fn env(name: &str) -> Option<String> {
@@ -41,6 +42,7 @@ impl Config {
       s3_force_path_style: env("S3_FORCE_PATH_STYLE"),
       s3_public_endpoint: env("S3_PUBLIC_ENDPOINT"),
       port: env("PORT"),
+      at_rest_key: env("SYNC_AT_REST_KEY"),
     }
   }
 

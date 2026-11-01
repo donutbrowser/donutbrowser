@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
-use http_body_util::combinators::BoxBody;
+use http_body_util::combinators::UnsyncBoxBody;
 use http_body_util::{BodyExt, Full, StreamBody};
 use hyper::body::{Frame, Incoming};
 use hyper::http::request::Parts;
@@ -19,7 +19,8 @@ use crate::jsval::Body;
 use crate::log;
 use crate::sync::SyncService;
 
-pub type ResBody = BoxBody<Bytes, Infallible>;
+pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
+pub type ResBody = UnsyncBoxBody<Bytes, BoxError>;
 
 /// The JSON body limit (`50mb` in body-parser terms).
 pub const BODY_LIMIT: usize = 50 * 1024 * 1024;
@@ -32,10 +33,10 @@ pub struct AppState {
   pub account_url: Option<String>,
 }
 
-fn full(bytes: impl Into<Bytes>) -> ResBody {
+pub fn full(bytes: impl Into<Bytes>) -> ResBody {
   Full::new(bytes.into())
     .map_err(|never| match never {})
-    .boxed()
+    .boxed_unsync()
 }
 
 fn json_response(status: u16, body: &Value) -> Response<ResBody> {
@@ -71,7 +72,7 @@ fn header_value(parts: &Parts, name: impl header::AsHeaderName) -> Option<String
 /// Reads and discards what is left of a refused body, as Node did, so the
 /// client finishes sending and reads the answer instead of a reset
 /// connection. Bounded, so a client cannot keep the server reading.
-async fn drain(mut body: Incoming) {
+pub async fn drain(mut body: Incoming) {
   const MAX: usize = 128 * 1024 * 1024;
   let mut read = 0usize;
   let _ = tokio::time::timeout(Duration::from_secs(30), async {
@@ -199,6 +200,13 @@ pub async fn handle(
   request: Request<Incoming>,
 ) -> Result<Response<ResBody>, Infallible> {
   let (parts, body) = request.into_parts();
+  // A transfer's body is the object, streamed: it must not be read as JSON.
+  if let Some(signer) = state.sync.transfer()
+    && route_path(parts.uri.path()) == crate::transfer::PATH
+  {
+    let response = crate::transfer::serve(state.sync.store(), signer, &parts, body).await;
+    return Ok(with_cors(response));
+  }
   let body = match read_json_body(&parts, body).await {
     Ok(body) => body,
     Err(response) => return Ok(*response),
@@ -253,7 +261,7 @@ async fn route(state: &Arc<AppState>, parts: &Parts, body: Body) -> Response<Res
         Ok(ctx) => ctx,
         Err(response) => return *response,
       };
-      match object_route_call(&state.sync, name, &body, &ctx).await {
+      match object_route_call(&state.sync, name, &body, &ctx, &origin(state, parts)).await {
         Ok(value) => json_response(200, &value),
         Err(error) => error_response(error),
       }
@@ -277,20 +285,42 @@ const OBJECT_ROUTES: [&str; 12] = [
   "snapshots/restore-files",
 ];
 
+/// How devices reach this server, for the transfer URLs of a sealed store:
+/// `SYNC_PUBLIC_URL`, or the address this request came to.
+fn origin(state: &AppState, parts: &Parts) -> String {
+  if let Some(url) = &state.account_url {
+    return url.clone();
+  }
+  let first = |name: &str| {
+    header_value(parts, name)
+      .and_then(|v| v.split(',').next().map(|s| s.trim().to_string()))
+      .filter(|v| !v.is_empty())
+  };
+  let scheme = match first("x-forwarded-proto").as_deref() {
+    Some("https") => "https",
+    _ => "http",
+  };
+  let host = first("x-forwarded-host")
+    .or_else(|| first("host"))
+    .unwrap_or_else(|| "localhost".to_string());
+  format!("{scheme}://{host}")
+}
+
 async fn object_route_call(
   sync: &SyncService,
   name: &str,
   body: &Body,
   ctx: &UserContext,
+  origin: &str,
 ) -> Result<Value, ApiError> {
   match name {
     "stat" => sync.stat(body, ctx).await,
-    "presign-upload" => sync.presign_upload(body, ctx).await,
-    "presign-download" => sync.presign_download(body, ctx).await,
+    "presign-upload" => sync.presign_upload(body, ctx, origin).await,
+    "presign-download" => sync.presign_download(body, ctx, origin).await,
     "delete" => sync.delete(body, ctx).await,
     "list" => sync.list(body, ctx).await,
-    "presign-upload-batch" => sync.presign_upload_batch(body, ctx).await,
-    "presign-download-batch" => sync.presign_download_batch(body, ctx).await,
+    "presign-upload-batch" => sync.presign_upload_batch(body, ctx, origin).await,
+    "presign-download-batch" => sync.presign_download_batch(body, ctx, origin).await,
     "delete-prefix" => sync.delete_prefix(body, ctx).await,
     "snapshots/list" => sync.list_snapshots(body, ctx).await,
     "snapshots/create" => sync.create_snapshot(body, ctx).await,
@@ -356,7 +386,7 @@ fn subscribe(state: &AppState, ctx: UserContext) -> Response<ResBody> {
   let stream = futures_util::stream::unfold(rx, |mut rx| async move {
     rx.recv()
       .await
-      .map(|bytes| (Ok::<_, Infallible>(Frame::data(bytes)), rx))
+      .map(|bytes| (Ok::<_, BoxError>(Frame::data(bytes)), rx))
   });
   Response::builder()
     .header(header::CONTENT_TYPE, "text/event-stream")
@@ -368,7 +398,7 @@ fn subscribe(state: &AppState, ctx: UserContext) -> Response<ResBody> {
     .header(header::PRAGMA, "no-cache")
     .header(header::EXPIRES, "0")
     .header("x-accel-buffering", "no")
-    .body(StreamBody::new(stream).boxed())
+    .body(StreamBody::new(stream).boxed_unsync())
     .expect("static response parts are valid")
 }
 

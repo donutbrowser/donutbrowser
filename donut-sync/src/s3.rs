@@ -10,7 +10,9 @@ use reqwest::Method;
 
 use crate::jsval::js_number;
 use crate::sigv4::{self, Credentials};
-use crate::store::{HeadOutput, ListInput, ListObject, ListOutput, Store, StoreError};
+use crate::store::{
+  ByteStream, Download, HeadOutput, ListInput, ListObject, ListOutput, Store, StoreError, Upload,
+};
 use crate::time;
 
 const MAX_ATTEMPTS: u32 = 3;
@@ -377,16 +379,16 @@ impl S3Store {
     }
   }
 
-  async fn attempt(
+  /// A signed request, without its body.
+  fn request(
     &self,
     method: &Method,
     path: &str,
     query: &[(String, String)],
     headers: &[(String, String)],
-    body: &[u8],
-  ) -> Result<Reply, StoreError> {
+    payload_hash: String,
+  ) -> reqwest::RequestBuilder {
     let amz_date = time::compact_stamp(time::now_ms());
-    let payload_hash = sigv4::sha256_hex(body);
     let mut signed = vec![
       ("host".to_string(), self.location.request_host()),
       ("x-amz-content-sha256".to_string(), payload_hash.clone()),
@@ -414,6 +416,18 @@ impl S3Store {
     for (name, value) in signed.iter().filter(|(name, _)| name != "host") {
       request = request.header(name.as_str(), value.as_str());
     }
+    request
+  }
+
+  async fn attempt(
+    &self,
+    method: &Method,
+    path: &str,
+    query: &[(String, String)],
+    headers: &[(String, String)],
+    body: &[u8],
+  ) -> Result<Reply, StoreError> {
+    let mut request = self.request(method, path, query, headers, sigv4::sha256_hex(body));
     if !body.is_empty() || *method == Method::PUT || *method == Method::POST {
       request = request.body(body.to_vec());
     }
@@ -487,6 +501,44 @@ impl S3Store {
   }
 }
 
+/// What a HEAD or GET says about the object.
+fn head_of(headers: &reqwest::header::HeaderMap) -> HeadOutput {
+  let header = |name: &str| headers.get(name).map(|v| latin1(v.as_bytes()));
+  let mut metadata: Vec<(String, String)> = headers
+    .iter()
+    .filter_map(|(name, value)| {
+      name
+        .as_str()
+        .strip_prefix("x-amz-meta-")
+        .map(|n| (n.to_string(), latin1(value.as_bytes())))
+    })
+    .collect();
+  metadata.sort_by(|a, b| a.0.cmp(&b.0));
+  HeadOutput {
+    last_modified_ms: header("last-modified").and_then(|v| time::parse_http_date_ms(&v)),
+    content_length: header("content-length").and_then(|v| v.trim().parse().ok()),
+    metadata,
+    etag: header("etag"),
+    content_type: header("content-type"),
+  }
+}
+
+/// A refusal, read from a streamed response.
+async fn refusal(response: reqwest::Response) -> StoreError {
+  let status = response.status().as_u16();
+  let headers = response.headers().clone();
+  let body = response
+    .bytes()
+    .await
+    .map(|b| b.to_vec())
+    .unwrap_or_default();
+  error_of(&Reply {
+    status,
+    headers,
+    body,
+  })
+}
+
 fn transport_message(error: &reqwest::Error) -> String {
   let mut message = error.to_string();
   let mut source = std::error::Error::source(error);
@@ -521,24 +573,7 @@ impl Store for S3Store {
     let reply = self
       .expect_success(Method::HEAD, &path, &[], &[], &[])
       .await?;
-    let header = |name: &str| reply.headers.get(name).map(|v| latin1(v.as_bytes()));
-    let mut metadata: Vec<(String, String)> = reply
-      .headers
-      .iter()
-      .filter_map(|(name, value)| {
-        name
-          .as_str()
-          .strip_prefix("x-amz-meta-")
-          .map(|n| (n.to_string(), latin1(value.as_bytes())))
-      })
-      .collect();
-    metadata.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(HeadOutput {
-      last_modified_ms: header("last-modified").and_then(|v| time::parse_http_date_ms(&v)),
-      content_length: header("content-length").and_then(|v| v.trim().parse().ok()),
-      metadata,
-      etag: header("etag"),
-    })
+    Ok(head_of(&reply.headers))
   }
 
   async fn get_object_text(&self, key: &str) -> Result<String, StoreError> {
@@ -554,9 +589,13 @@ impl Store for S3Store {
     key: &str,
     body: Vec<u8>,
     content_type: &str,
+    metadata: &[(String, String)],
   ) -> Result<(), StoreError> {
     let path = self.location.object_path(key);
-    let headers = [("content-type".to_string(), content_type.to_string())];
+    let mut headers = vec![("content-type".to_string(), content_type.to_string())];
+    for (name, value) in metadata {
+      headers.push((format!("x-amz-meta-{name}"), value.clone()));
+    }
     self
       .expect_success(Method::PUT, &path, &[], &headers, &body)
       .await
@@ -640,11 +679,81 @@ impl Store for S3Store {
     if let Some(prefix) = &input.prefix {
       query.push(("prefix".to_string(), prefix.clone()));
     }
+    if let Some(start_after) = &input.start_after {
+      query.push(("start-after".to_string(), start_after.clone()));
+    }
     let path = self.location.bucket_path();
     let reply = self
       .expect_success(Method::GET, &path, &query, &[], &[])
       .await?;
     parse_list(&reply.body)
+  }
+
+  async fn get_object(&self, key: &str) -> Result<Download, StoreError> {
+    let path = self.location.object_path(key);
+    let mut attempt = 0;
+    let response = loop {
+      attempt += 1;
+      let sent = self
+        .request(&Method::GET, &path, &[], &[], sigv4::sha256_hex(&[]))
+        .send()
+        .await;
+      let retry = match &sent {
+        Err(_) => true,
+        Ok(response) => matches!(response.status().as_u16(), 429 | 500 | 502 | 503 | 504),
+      };
+      if !retry || attempt >= MAX_ATTEMPTS {
+        break sent.map_err(|e| StoreError::Transport(transport_message(&e)))?;
+      }
+      tokio::time::sleep(RETRY_BASE.saturating_mul(1 << attempt)).await;
+    };
+    if !response.status().is_success() {
+      return Err(refusal(response).await);
+    }
+    let head = head_of(response.headers());
+    let body = futures_util::StreamExt::map(response.bytes_stream(), |chunk| {
+      chunk.map_err(|e| StoreError::Transport(transport_message(&e)))
+    });
+    Ok(Download {
+      head,
+      body: Box::pin(body),
+    })
+  }
+
+  /// One attempt: a stream cannot be sent twice.
+  async fn put_object_stream(
+    &self,
+    key: &str,
+    body: ByteStream,
+    upload: Upload<'_>,
+  ) -> Result<(), StoreError> {
+    let path = self.location.object_path(key);
+    let mut headers = vec![("content-length".to_string(), upload.length.to_string())];
+    if let Some(content_type) = upload.content_type {
+      headers.push(("content-type".to_string(), content_type.to_string()));
+    }
+    if let Some(etag) = upload.if_match {
+      headers.push(("if-match".to_string(), etag.to_string()));
+    }
+    for (name, value) in upload.metadata {
+      headers.push((format!("x-amz-meta-{name}"), value.clone()));
+    }
+    let response = self
+      .request(
+        &Method::PUT,
+        &path,
+        &[],
+        &headers,
+        sigv4::UNSIGNED_PAYLOAD.to_string(),
+      )
+      .body(reqwest::Body::wrap_stream(body))
+      .send()
+      .await
+      .map_err(|e| StoreError::Transport(transport_message(&e)))?;
+    if !response.status().is_success() {
+      return Err(refusal(response).await);
+    }
+    Ok(())
   }
 }
 

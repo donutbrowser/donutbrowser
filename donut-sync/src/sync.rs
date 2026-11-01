@@ -17,6 +17,7 @@ use crate::log;
 use crate::s3::Presigner;
 use crate::store::{HeadOutput, ListInput, Store, StoreError};
 use crate::time;
+use crate::transfer::TransferSigner;
 
 const CONTEXT: &str = "SyncService";
 
@@ -76,6 +77,12 @@ enum Group {
 fn clamp_expires_in(requested: Field) -> f64 {
   let value = requested.as_number().filter(|v| *v > 0.0).unwrap_or(3600.0);
   value.min(MAX_PRESIGN_EXPIRES_IN)
+}
+
+/// When a URL issued at `now` for `expires_in` seconds stops working, as
+/// `expiresAt` reports it.
+fn expires_ms(now: i64, expires_in: f64) -> i64 {
+  (now as f64 + expires_in * 1000.0).trunc() as i64
 }
 
 /// `new Date(ms).toISOString()` for a fractional millisecond time.
@@ -147,6 +154,7 @@ fn group_denied() -> ApiError {
 pub struct SyncService {
   store: Arc<dyn Store>,
   presigner: Presigner,
+  transfer: Option<TransferSigner>,
   public_endpoint: String,
   public_endpoint_configured: bool,
   cloud: bool,
@@ -156,6 +164,8 @@ pub struct SyncService {
 
 pub struct SyncOptions {
   pub presigner: Presigner,
+  /// Set when the store is sealed at rest: transfers go through this server.
+  pub transfer: Option<TransferSigner>,
   pub public_endpoint: String,
   pub public_endpoint_configured: bool,
   /// `SYNC_JWT_PUBLIC_KEY` is set: Donut's own deployment.
@@ -168,6 +178,7 @@ impl SyncService {
     Self {
       store,
       presigner: options.presigner,
+      transfer: options.transfer,
       public_endpoint: options.public_endpoint,
       public_endpoint_configured: options.public_endpoint_configured,
       cloud: options.cloud,
@@ -178,6 +189,31 @@ impl SyncService {
 
   pub fn store(&self) -> &Arc<dyn Store> {
     &self.store
+  }
+
+  pub fn transfer(&self) -> Option<&TransferSigner> {
+    self.transfer.as_ref()
+  }
+
+  fn put_url(
+    &self,
+    origin: &str,
+    key: &str,
+    expires_in: f64,
+    metadata: &[(String, String)],
+    now: i64,
+  ) -> String {
+    match &self.transfer {
+      Some(signer) => signer.url(origin, "PUT", key, expires_ms(now, expires_in), metadata),
+      None => self.presigner.put_url(key, expires_in, metadata, now),
+    }
+  }
+
+  fn get_url(&self, origin: &str, key: &str, expires_in: f64, now: i64) -> String {
+    match &self.transfer {
+      Some(signer) => signer.url(origin, "GET", key, expires_ms(now, expires_in), &[]),
+      None => self.presigner.get_url(key, expires_in, now),
+    }
   }
 
   // --- startup and probes ----------------------------------------------------
@@ -202,14 +238,18 @@ impl SyncService {
   /// The address clients are sent to for transfers, for `/readyz`. Withheld
   /// in cloud mode: `/readyz` is public, and a managed deployment should not
   /// publish its storage host.
+  /// Withheld too when transfers come here: devices never reach storage.
   pub fn diagnostic_storage_endpoint(&self) -> Option<&str> {
-    (!self.cloud).then_some(self.public_endpoint.as_str())
+    (!self.cloud && self.transfer.is_none()).then_some(self.public_endpoint.as_str())
   }
 
   /// A single-label host (`minio`, `s3`) resolves only inside a container
   /// network, so every presigned URL built from it fails for the desktop
   /// client while the server's own S3 calls succeed. Say it once at boot.
   pub fn warn_if_presign_endpoint_is_server_only(&self) {
+    if self.transfer.is_some() {
+      return;
+    }
     let Ok(url) = url::Url::parse(&self.public_endpoint) else {
       return;
     };
@@ -427,7 +467,7 @@ impl SyncService {
       })
       .to_string();
       if let Err(e) = store
-        .put_object(&key, body.into_bytes(), "application/json")
+        .put_object(&key, body.into_bytes(), "application/json", &[])
         .await
       {
         log::warn(CONTEXT, &format!("Manifest bump failed for {key}: {e}"));
@@ -448,7 +488,12 @@ impl SyncService {
     }
   }
 
-  pub async fn presign_upload(&self, body: &Body, ctx: &UserContext) -> Result<Value, ApiError> {
+  pub async fn presign_upload(
+    &self,
+    body: &Body,
+    ctx: &UserContext,
+    origin: &str,
+  ) -> Result<Value, ApiError> {
     let raw_key = body.field("key")?;
     let key = self.scope_key(ctx, raw_key);
     self.validate_write_access(ctx, key.as_deref())?;
@@ -463,7 +508,8 @@ impl SyncService {
     let expires_in = clamp_expires_in(body.field("expiresIn")?);
     let now = time::now_ms();
     let expires_at = iso_at(now as f64 + expires_in * 1000.0);
-    let url = self.presigner.put_url(
+    let url = self.put_url(
+      origin,
       require_key(&key)?,
       expires_in,
       metadata.as_deref().unwrap_or(&[]),
@@ -484,14 +530,19 @@ impl SyncService {
     Ok(Value::Object(out))
   }
 
-  pub async fn presign_download(&self, body: &Body, ctx: &UserContext) -> Result<Value, ApiError> {
+  pub async fn presign_download(
+    &self,
+    body: &Body,
+    ctx: &UserContext,
+    origin: &str,
+  ) -> Result<Value, ApiError> {
     let key = self.scope_key(ctx, body.field("key")?);
     self.validate_key_access(ctx, key.as_deref())?;
     self.assert_reachable(ctx, key.as_deref()).await?;
     let expires_in = clamp_expires_in(body.field("expiresIn")?);
     let now = time::now_ms();
     let expires_at = iso_at(now as f64 + expires_in * 1000.0);
-    let url = self.presigner.get_url(require_key(&key)?, expires_in, now);
+    let url = self.get_url(origin, require_key(&key)?, expires_in, now);
     Ok(json!({ "url": url, "expiresAt": expires_at }))
   }
 
@@ -538,6 +589,7 @@ impl SyncService {
           require_key(&tombstone_key)?,
           Value::Object(record).to_string().into_bytes(),
           "application/json",
+          &[],
         )
         .await
         .map_err(store_error)?;
@@ -571,6 +623,7 @@ impl SyncService {
         }),
         continuation_token: token.to_key(),
         delimiter: None,
+        start_after: None,
       })
       .await
       .map_err(store_error)?;
@@ -615,6 +668,7 @@ impl SyncService {
     &self,
     body: &Body,
     ctx: &UserContext,
+    origin: &str,
   ) -> Result<Value, ApiError> {
     let items = body
       .field("items")?
@@ -655,9 +709,7 @@ impl SyncService {
     .await?;
     let mut out_items = Vec::with_capacity(keys.len());
     for (raw, key) in raw_keys.iter().zip(&keys) {
-      let url = self
-        .presigner
-        .put_url(require_key(key)?, expires_in, &[], now);
+      let url = self.put_url(origin, require_key(key)?, expires_in, &[], now);
       let mut item = Map::new();
       if let Field::Value(value) = raw {
         item.insert("key".to_string(), (*value).clone());
@@ -695,6 +747,7 @@ impl SyncService {
     &self,
     body: &Body,
     ctx: &UserContext,
+    origin: &str,
   ) -> Result<Value, ApiError> {
     let raw_keys = body
       .field("keys")?
@@ -724,7 +777,7 @@ impl SyncService {
     .await?;
     let mut items = Vec::with_capacity(keys.len());
     for (raw, key) in raw_keys.iter().zip(&keys) {
-      let url = self.presigner.get_url(require_key(key)?, expires_in, now);
+      let url = self.get_url(origin, require_key(key)?, expires_in, now);
       items.push(json!({ "key": raw, "url": url, "expiresAt": expires_at }));
     }
     Ok(json!({ "items": items }))
@@ -762,6 +815,7 @@ impl SyncService {
           max_keys: Some("1000".to_string()),
           continuation_token: token.clone(),
           delimiter: None,
+          start_after: None,
         })
         .await
         .map_err(store_error)?;
@@ -794,6 +848,7 @@ impl SyncService {
           require_key(&tombstone_key)?,
           Value::Object(record).to_string().into_bytes(),
           "application/json",
+          &[],
         )
         .await
         .map_err(store_error)?;
@@ -837,6 +892,7 @@ impl SyncService {
           max_keys: None,
           continuation_token: token.clone(),
           delimiter: None,
+          start_after: None,
         })
         .await
         .map_err(store_error)?;
@@ -977,6 +1033,7 @@ impl SyncService {
         &format!("{target}snapshot.json"),
         snapshot.to_string().into_bytes(),
         "application/json",
+        &[],
       )
       .await
       .map_err(store_error)?;
@@ -1108,6 +1165,7 @@ impl SyncService {
           max_keys: Some("1000".to_string()),
           continuation_token: token.clone(),
           delimiter: Some("/".to_string()),
+          start_after: None,
         })
         .await
         .map_err(store_error)?;
@@ -1125,6 +1183,7 @@ impl SyncService {
             max_keys: Some("1".to_string()),
             continuation_token: None,
             delimiter: None,
+            start_after: None,
           })
           .await
           .map_err(store_error)?;
@@ -1160,6 +1219,7 @@ impl SyncService {
             max_keys: Some("1000".to_string()),
             continuation_token: token.clone(),
             delimiter: None,
+            start_after: None,
           })
           .await
           .map_err(store_error)?;
@@ -1187,6 +1247,7 @@ impl SyncService {
           &format!("{user_prefix}tombstones/profiles/{id}"),
           record.to_string().into_bytes(),
           "application/json",
+          &[],
         )
         .await
         .map_err(store_error)?;
@@ -1290,6 +1351,7 @@ async fn stored_profile_ids(store: &dyn Store, prefix: &str) -> Result<HashSet<S
         max_keys: Some("1000".to_string()),
         continuation_token: token.clone(),
         delimiter: Some("/".to_string()),
+        start_after: None,
       })
       .await
       .map_err(store_error)?;

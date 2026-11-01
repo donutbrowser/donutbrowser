@@ -116,6 +116,7 @@ async fn poll_once(
           max_keys: Some("1000".to_string()),
           continuation_token: token.clone(),
           delimiter: None,
+          start_after: None,
         })
         .await
       {

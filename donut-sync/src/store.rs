@@ -1,6 +1,12 @@
 //! The object storage operations the server uses.
 
+use std::pin::Pin;
+
 use async_trait::async_trait;
+use bytes::Bytes;
+use futures_util::Stream;
+
+pub type ByteStream = Pin<Box<dyn Stream<Item = Result<Bytes, StoreError>> + Send>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct HeadOutput {
@@ -9,6 +15,7 @@ pub struct HeadOutput {
   /// User metadata: lowercase names without `x-amz-meta-`, in response order.
   pub metadata: Vec<(String, String)>,
   pub etag: Option<String>,
+  pub content_type: Option<String>,
 }
 
 impl HeadOutput {
@@ -27,6 +34,7 @@ pub struct ListInput {
   pub max_keys: Option<String>,
   pub continuation_token: Option<String>,
   pub delimiter: Option<String>,
+  pub start_after: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +64,8 @@ pub enum StoreError {
   },
   /// The store could not be reached, or answered with something unreadable.
   Transport(String),
+  /// A sealed object that does not open: forged, cut off, or under an unknown key.
+  Corrupt(String),
 }
 
 impl StoreError {
@@ -83,6 +93,7 @@ impl std::fmt::Display for StoreError {
         }
       }
       StoreError::Transport(message) => write!(f, "{message}"),
+      StoreError::Corrupt(message) => write!(f, "{message}"),
     }
   }
 }
@@ -100,6 +111,7 @@ pub trait Store: Send + Sync {
     key: &str,
     body: Vec<u8>,
     content_type: &str,
+    metadata: &[(String, String)],
   ) -> Result<(), StoreError>;
   async fn delete_object(&self, key: &str) -> Result<(), StoreError>;
   /// Deletes up to 1000 keys in one request; per-key failures are ignored.
@@ -107,4 +119,44 @@ pub trait Store: Send + Sync {
   /// Server-side copy, metadata included.
   async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError>;
   async fn list_objects_v2(&self, input: &ListInput) -> Result<ListOutput, StoreError>;
+  /// The object's body as it arrives, with what a HEAD would say.
+  async fn get_object(&self, key: &str) -> Result<Download, StoreError>;
+  /// Writes `upload.length` bytes from `body`. With `if_match`, the store
+  /// refuses (412) when the object's ETag differs, where it supports that.
+  async fn put_object_stream(
+    &self,
+    key: &str,
+    body: ByteStream,
+    upload: Upload<'_>,
+  ) -> Result<(), StoreError>;
+}
+
+pub struct Download {
+  pub head: HeadOutput,
+  pub body: ByteStream,
+}
+
+#[derive(Clone, Copy)]
+pub struct Upload<'a> {
+  pub length: u64,
+  pub content_type: Option<&'a str>,
+  /// Names without `x-amz-meta-`.
+  pub metadata: &'a [(String, String)],
+  pub if_match: Option<&'a str>,
+}
+
+/// All of a stream, in memory.
+pub async fn collect(mut body: ByteStream) -> Result<Vec<u8>, StoreError> {
+  use futures_util::StreamExt;
+  let mut out = Vec::new();
+  while let Some(chunk) = body.next().await {
+    out.extend_from_slice(&chunk?);
+  }
+  Ok(out)
+}
+
+pub fn once(bytes: Vec<u8>) -> ByteStream {
+  Box::pin(futures_util::stream::once(
+    async move { Ok(Bytes::from(bytes)) },
+  ))
 }

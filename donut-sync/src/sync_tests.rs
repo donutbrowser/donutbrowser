@@ -1,164 +1,14 @@
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::Ordering;
 
-use async_trait::async_trait;
 use serde_json::json;
 
 use super::*;
+use crate::memory_store::MemoryStore;
 use crate::store::{ListObject, ListOutput};
 
+const ORIGIN: &str = "http://sync.test";
 const OWNER_PREFIX: &str = "users/99999999-8888-7777-6666-555555555555/";
-
-type HeadHook = Box<dyn Fn(&str) -> Result<HeadOutput, StoreError> + Send + Sync>;
-type ListHook = Box<dyn Fn(&ListInput) -> ListOutput + Send + Sync>;
-
-#[derive(Clone)]
-struct Object {
-  body: Vec<u8>,
-  metadata: Vec<(String, String)>,
-}
-
-/// A bucket in memory. Hooks stand in for HEAD and LIST where a test needs
-/// answers the bucket itself would not give.
-#[derive(Default)]
-struct MemoryStore {
-  objects: Mutex<BTreeMap<String, Object>>,
-  calls: AtomicUsize,
-  head_hook: Option<HeadHook>,
-  list_hook: Option<ListHook>,
-}
-
-impl MemoryStore {
-  fn call(&self) {
-    self.calls.fetch_add(1, Ordering::SeqCst);
-  }
-
-  fn set(&self, key: &str, body: &str) {
-    self.objects.lock().unwrap().insert(
-      key.to_string(),
-      Object {
-        body: body.as_bytes().to_vec(),
-        metadata: Vec::new(),
-      },
-    );
-  }
-
-  fn get(&self, key: &str) -> Option<String> {
-    self
-      .objects
-      .lock()
-      .unwrap()
-      .get(key)
-      .map(|o| String::from_utf8_lossy(&o.body).into_owned())
-  }
-
-  fn keys(&self) -> Vec<String> {
-    self.objects.lock().unwrap().keys().cloned().collect()
-  }
-}
-
-#[async_trait]
-impl Store for MemoryStore {
-  async fn head_bucket(&self) -> Result<(), StoreError> {
-    self.call();
-    Ok(())
-  }
-
-  async fn create_bucket(&self) -> Result<(), StoreError> {
-    self.call();
-    Ok(())
-  }
-
-  async fn head_object(&self, key: &str) -> Result<HeadOutput, StoreError> {
-    self.call();
-    if let Some(hook) = &self.head_hook {
-      return hook(key);
-    }
-    let objects = self.objects.lock().unwrap();
-    let object = objects.get(key).ok_or(StoreError::NotFound)?;
-    Ok(HeadOutput {
-      last_modified_ms: Some(0),
-      content_length: Some(object.body.len() as u64),
-      metadata: object.metadata.clone(),
-      etag: Some(format!("\"{}\"", object.body.len())),
-    })
-  }
-
-  async fn get_object_text(&self, key: &str) -> Result<String, StoreError> {
-    self.call();
-    self.get(key).ok_or(StoreError::NotFound)
-  }
-
-  async fn put_object(
-    &self,
-    key: &str,
-    body: Vec<u8>,
-    _content_type: &str,
-  ) -> Result<(), StoreError> {
-    self.call();
-    self.objects.lock().unwrap().insert(
-      key.to_string(),
-      Object {
-        body,
-        metadata: Vec::new(),
-      },
-    );
-    Ok(())
-  }
-
-  async fn delete_object(&self, key: &str) -> Result<(), StoreError> {
-    self.call();
-    self.objects.lock().unwrap().remove(key);
-    Ok(())
-  }
-
-  async fn delete_objects(&self, keys: &[String]) -> Result<(), StoreError> {
-    self.call();
-    let mut objects = self.objects.lock().unwrap();
-    for key in keys {
-      objects.remove(key);
-    }
-    Ok(())
-  }
-
-  async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError> {
-    self.call();
-    let mut objects = self.objects.lock().unwrap();
-    let object = objects.get(from).cloned().ok_or(StoreError::NotFound)?;
-    objects.insert(to.to_string(), object);
-    Ok(())
-  }
-
-  async fn list_objects_v2(&self, input: &ListInput) -> Result<ListOutput, StoreError> {
-    self.call();
-    if let Some(hook) = &self.list_hook {
-      return Ok(hook(input));
-    }
-    let prefix = input.prefix.clone().unwrap_or_default();
-    let objects = self.objects.lock().unwrap();
-    let mut out = ListOutput::default();
-    for (key, object) in objects.range(prefix.clone()..) {
-      if !key.starts_with(&prefix) {
-        break;
-      }
-      if let Some(delimiter) = &input.delimiter
-        && let Some(at) = key[prefix.len()..].find(delimiter.as_str())
-      {
-        let common = key[..prefix.len() + at + delimiter.len()].to_string();
-        if !out.common_prefixes.contains(&common) {
-          out.common_prefixes.push(common);
-        }
-        continue;
-      }
-      out.contents.push(ListObject {
-        key: key.clone(),
-        last_modified_ms: Some(0),
-        size: Some(object.body.len() as u64),
-      });
-    }
-    Ok(out)
-  }
-}
 
 fn service_with(store: Arc<MemoryStore>) -> SyncService {
   let location = crate::s3::Location::parse("http://s3.invalid:9000", "test-bucket", true).unwrap();
@@ -174,6 +24,7 @@ fn service_with(store: Arc<MemoryStore>) -> SyncService {
     store,
     SyncOptions {
       presigner,
+      transfer: None,
       public_endpoint: "http://s3.invalid:9000".to_string(),
       public_endpoint_configured: false,
       cloud: true,
@@ -216,7 +67,7 @@ async fn a_launcher_syncs_what_a_session_changed() {
     "teams/t1/profiles/p1/manifest.json",
   ] {
     let out = service
-      .presign_upload(&body(json!({ "key": key })), &launcher)
+      .presign_upload(&body(json!({ "key": key })), &launcher, ORIGIN)
       .await
       .unwrap();
     assert!(out["url"].is_string());
@@ -225,6 +76,7 @@ async fn a_launcher_syncs_what_a_session_changed() {
     .presign_upload_batch(
       &body(json!({ "items": [{ "key": "profiles/p1/files/Default/Preferences" }] })),
       &launcher,
+      ORIGIN,
     )
     .await
     .unwrap();
@@ -257,7 +109,7 @@ async fn every_other_launcher_write_is_refused_before_it_reaches_s3() {
     assert_eq!(
       refusal_code(
         service
-          .presign_upload(&body(json!({ "key": key })), &launcher)
+          .presign_upload(&body(json!({ "key": key })), &launcher, ORIGIN)
           .await
       ),
       "TEAM_ROLE_READ_ONLY",
@@ -273,6 +125,7 @@ async fn every_other_launcher_write_is_refused_before_it_reaches_s3() {
             { "key": "profiles/p1/metadata.json" },
           ] })),
           &launcher,
+          ORIGIN,
         )
         .await
     ),
@@ -311,6 +164,7 @@ async fn a_member_changes_profile_settings_and_deletes_profiles() {
     .presign_upload(
       &body(json!({ "key": "profiles/p1/metadata.json" })),
       &member,
+      ORIGIN,
     )
     .await
     .unwrap();
@@ -402,7 +256,7 @@ async fn a_limited_member_sees_only_the_profiles_and_groups_it_may_reach() {
     );
   }
   let out = service
-    .presign_download(&body(json!({ "key": "proxies/x.json" })), &ctx)
+    .presign_download(&body(json!({ "key": "proxies/x.json" })), &ctx, ORIGIN)
     .await
     .unwrap();
   assert!(out["url"].is_string());
@@ -436,6 +290,7 @@ async fn a_limited_member_changes_profiles_only_inside_its_groups() {
     .presign_upload(
       &body(json!({ "key": "profiles/new/metadata.json", "metadata": { "group-id": "g1" } })),
       &ctx,
+      ORIGIN,
     )
     .await
     .unwrap();
@@ -443,6 +298,7 @@ async fn a_limited_member_changes_profiles_only_inside_its_groups() {
     .presign_upload(
       &body(json!({ "key": "profiles/p1/files/Default/Cookies" })),
       &ctx,
+      ORIGIN,
     )
     .await
     .unwrap();
@@ -455,7 +311,11 @@ async fn a_limited_member_changes_profiles_only_inside_its_groups() {
     json!({ "key": "groups/g2.json" }),
   ] {
     assert_eq!(
-      refusal_code(service.presign_upload(&body(request.clone()), &ctx).await),
+      refusal_code(
+        service
+          .presign_upload(&body(request.clone()), &ctx, ORIGIN)
+          .await
+      ),
       "TEAM_GROUP_ACCESS_DENIED",
       "{request}"
     );
@@ -667,12 +527,16 @@ async fn a_full_plan_keeps_syncing_its_profiles_and_settings_but_adds_none() {
     "groups/g.json",
   ] {
     service
-      .presign_upload(&body(json!({ "key": key })), &ctx)
+      .presign_upload(&body(json!({ "key": key })), &ctx, ORIGIN)
       .await
       .unwrap();
   }
   let error = service
-    .presign_upload(&body(json!({ "key": "profiles/p3/metadata.json" })), &ctx)
+    .presign_upload(
+      &body(json!({ "key": "profiles/p3/metadata.json" })),
+      &ctx,
+      ORIGIN,
+    )
     .await
     .unwrap_err();
   assert_eq!(error.status(), 403);
@@ -686,6 +550,7 @@ async fn a_full_plan_keeps_syncing_its_profiles_and_settings_but_adds_none() {
         json!({ "items": [{ "key": "profiles/p1/files/a" }, { "key": "profiles/p3/files/a" }] }),
       ),
       &ctx,
+      ORIGIN,
     )
     .await
     .unwrap_err();
@@ -702,6 +567,7 @@ async fn a_batch_counts_its_new_profiles_together() {
         json!({ "items": [{ "key": "profiles/p2/files/a" }, { "key": "profiles/p2/files/b" }] }),
       ),
       &ctx,
+      ORIGIN,
     )
     .await
     .unwrap();
@@ -711,6 +577,7 @@ async fn a_batch_counts_its_new_profiles_together() {
         json!({ "items": [{ "key": "profiles/p2/files/a" }, { "key": "profiles/p3/files/a" }] }),
       ),
       &ctx,
+      ORIGIN,
     )
     .await
     .unwrap_err();
@@ -723,20 +590,21 @@ async fn the_profile_limit_applies_in_the_cloud_only() {
   let ctx = cloud_with_limit();
   assert_eq!(
     service
-      .presign_upload(&body(json!({ "key": "profiles/p1/files/a" })), &ctx)
+      .presign_upload(&body(json!({ "key": "profiles/p1/files/a" })), &ctx, ORIGIN)
       .await
       .unwrap_err()
       .status(),
     403
   );
   service
-    .presign_upload(&body(json!({ "key": "proxies/x.json" })), &ctx)
+    .presign_upload(&body(json!({ "key": "proxies/x.json" })), &ctx, ORIGIN)
     .await
     .unwrap();
   service
     .presign_upload(
       &body(json!({ "key": "profiles/p9/files/a" })),
       &UserContext::self_hosted(),
+      ORIGIN,
     )
     .await
     .unwrap();
@@ -747,6 +615,7 @@ async fn the_profile_limit_applies_in_the_cloud_only() {
         mode: Mode::Account,
         ..ctx
       },
+      ORIGIN,
     )
     .await
     .unwrap();
@@ -807,6 +676,7 @@ async fn presigned_uploads_echo_only_the_metadata_sync_uses() {
         "expiresIn": 999999,
       })),
       &UserContext::self_hosted(),
+      ORIGIN,
     )
     .await
     .unwrap();
