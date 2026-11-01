@@ -335,6 +335,46 @@ mod sealed_store {
   }
 
   #[tokio::test]
+  async fn reads_report_the_time_before_the_migration_and_copies_their_own() {
+    let (raw, store) = stores();
+    let sealed = seal(&keyring(K1), b"x");
+    raw.insert(
+      "a",
+      sealed,
+      vec![
+        (MARKER.to_string(), "1:k1".to_string()),
+        ("donut-orig-mtime".to_string(), "1234".to_string()),
+        ("updated-at".to_string(), "5".to_string()),
+      ],
+      Some("text/plain".to_string()),
+    );
+    let head = store.head_object("a").await.unwrap();
+    assert_eq!(head.last_modified_ms, Some(1234));
+    assert_eq!(
+      head.metadata,
+      vec![("updated-at".to_string(), "5".to_string())]
+    );
+    let download = store.get_object("a").await.unwrap();
+    assert_eq!(download.head.last_modified_ms, Some(1234));
+
+    store.copy_object("a", "b").await.unwrap();
+    let copy = raw.raw("b").unwrap();
+    assert!(
+      copy
+        .metadata
+        .contains(&("donut-orig-mtime".to_string(), "-".to_string()))
+    );
+    assert_eq!(copy.content_type.as_deref(), Some("text/plain"));
+    let head = store.head_object("b").await.unwrap();
+    assert_eq!(head.last_modified_ms, Some(copy.modified_ms));
+    assert_eq!(
+      head.metadata,
+      vec![("updated-at".to_string(), "5".to_string())]
+    );
+    assert_eq!(store.get_object_text("b").await.unwrap(), "x");
+  }
+
+  #[tokio::test]
   async fn copies_stay_readable() {
     let (_, store) = stores();
     store

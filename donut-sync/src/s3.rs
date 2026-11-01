@@ -539,6 +539,36 @@ async fn refusal(response: reqwest::Response) -> StoreError {
   })
 }
 
+impl S3Store {
+  /// CopyObject with `extra` headers.
+  async fn copy(&self, from: &str, to: &str, extra: &[(String, String)]) -> Result<(), StoreError> {
+    let source = format!(
+      "{}/{}",
+      self.location.bucket,
+      from
+        .split('/')
+        .map(sigv4::encode_uri_component)
+        .collect::<Vec<_>>()
+        .join("/")
+    );
+    let path = self.location.object_path(to);
+    let mut headers = vec![("x-amz-copy-source".to_string(), source)];
+    headers.extend(extra.iter().cloned());
+    let reply = self
+      .expect_success(Method::PUT, &path, &[], &headers, &[])
+      .await?;
+    // S3 can answer a copy with 200 and an error document.
+    if let Some((code, message)) = error_document(&reply.body) {
+      return Err(StoreError::Service {
+        status: reply.status,
+        code,
+        message,
+      });
+    }
+    Ok(())
+  }
+}
+
 fn transport_message(error: &reqwest::Error) -> String {
   let mut message = error.to_string();
   let mut source = std::error::Error::source(error);
@@ -640,29 +670,27 @@ impl Store for S3Store {
   }
 
   async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError> {
-    let source = format!(
-      "{}/{}",
-      self.location.bucket,
-      from
-        .split('/')
-        .map(sigv4::encode_uri_component)
-        .collect::<Vec<_>>()
-        .join("/")
-    );
-    let path = self.location.object_path(to);
-    let headers = [("x-amz-copy-source".to_string(), source)];
-    let reply = self
-      .expect_success(Method::PUT, &path, &[], &headers, &[])
-      .await?;
-    // S3 can answer a copy with 200 and an error document.
-    if let Some((code, message)) = error_document(&reply.body) {
-      return Err(StoreError::Service {
-        status: reply.status,
-        code,
-        message,
-      });
+    self.copy(from, to, &[]).await
+  }
+
+  async fn copy_object_replacing(
+    &self,
+    from: &str,
+    to: &str,
+    content_type: Option<&str>,
+    metadata: &[(String, String)],
+  ) -> Result<(), StoreError> {
+    let mut headers = vec![(
+      "x-amz-metadata-directive".to_string(),
+      "REPLACE".to_string(),
+    )];
+    if let Some(content_type) = content_type {
+      headers.push(("content-type".to_string(), content_type.to_string()));
     }
-    Ok(())
+    for (name, value) in metadata {
+      headers.push((format!("x-amz-meta-{name}"), value.clone()));
+    }
+    self.copy(from, to, &headers).await
   }
 
   async fn list_objects_v2(&self, input: &ListInput) -> Result<ListOutput, StoreError> {

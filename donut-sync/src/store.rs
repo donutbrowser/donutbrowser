@@ -118,6 +118,15 @@ pub trait Store: Send + Sync {
   async fn delete_objects(&self, keys: &[String]) -> Result<(), StoreError>;
   /// Server-side copy, metadata included.
   async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError>;
+  /// Server-side copy that stores `content_type` and `metadata` in place of
+  /// the source's (`x-amz-metadata-directive: REPLACE`).
+  async fn copy_object_replacing(
+    &self,
+    from: &str,
+    to: &str,
+    content_type: Option<&str>,
+    metadata: &[(String, String)],
+  ) -> Result<(), StoreError>;
   async fn list_objects_v2(&self, input: &ListInput) -> Result<ListOutput, StoreError>;
   /// The object's body as it arrives, with what a HEAD would say.
   async fn get_object(&self, key: &str) -> Result<Download, StoreError>;

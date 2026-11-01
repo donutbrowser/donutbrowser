@@ -1187,11 +1187,21 @@ impl SyncService {
           })
           .await
           .map_err(store_error)?;
-        let last_modified = first
-          .contents
-          .first()
-          .and_then(|o| o.last_modified_ms)
-          .unwrap_or(0);
+        let mut last_modified = first.contents.first().and_then(|o| o.last_modified_ms);
+        // A sealed store reports a migrated object's time from before the
+        // migration, which only a HEAD reads.
+        if self.transfer.is_some()
+          && let Some(object) = first.contents.first()
+        {
+          last_modified = self
+            .store
+            .head_object(&object.key)
+            .await
+            .map_err(store_error)?
+            .last_modified_ms
+            .or(last_modified);
+        }
+        let last_modified = last_modified.unwrap_or(0);
         profiles.push((id, last_modified));
       }
       token = page.next_continuation_token;

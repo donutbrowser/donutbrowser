@@ -353,18 +353,20 @@ async fn plaintext_and_sealed_objects_read_side_by_side() {
 async fn migration_seals_everything_in_place_and_a_rerun_does_nothing() {
   let bucket = bucket("migrate");
   let objects: Vec<(String, Vec<u8>)> = (0..25)
-    .map(|i| {
-      (
-        format!("users/u/profiles/p/files/{i:02}"),
-        sample(i * 9_000),
-      )
-    })
+    .map(|i| (format!("profiles/p/files/{i:02}"), sample(i * 9_000)))
     .collect();
   let refs: Vec<(&str, Vec<u8>)> = objects
     .iter()
     .map(|(k, v)| (k.as_str(), v.clone()))
     .collect();
   seed_plaintext(&bucket, &refs).await;
+  let before = raw_store(&bucket)
+    .list_objects_v2(&donut_sync::store::ListInput::default())
+    .await
+    .unwrap();
+  let original_ms = before.contents[3].last_modified_ms.unwrap();
+  // The rewrite must land in a later second than the seed.
+  tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
   let storage = storage_env(&bucket);
   let mut env: Vec<(&str, &str)> = storage.iter().map(|(k, v)| (*k, v.as_str())).collect();
   env.push(("SYNC_AT_REST_KEY", K1));
@@ -418,6 +420,45 @@ async fn migration_seals_everything_in_place_and_a_rerun_does_nothing() {
   for (key, body) in &objects {
     assert_eq!(download(&server, key).await, (200, body.clone()));
   }
+  // Reads report the time from before the migration, as storage did.
+  let key = &objects[3].0;
+  let rewritten = raw
+    .head_object(key)
+    .await
+    .unwrap()
+    .last_modified_ms
+    .unwrap();
+  assert!(rewritten / 1000 > original_ms / 1000);
+  let (_, stat) = call(&server, "stat", json!({ "key": key })).await;
+  assert_eq!(
+    stat["lastModified"],
+    json!(donut_sync::time::iso_from_ms(original_ms))
+  );
+  // rclone adds its own `mtime` to a server-side copy; ours must not show.
+  assert_eq!(stat["metadata"]["updated-at"], "9");
+  assert!(
+    stat["metadata"]
+      .as_object()
+      .unwrap()
+      .keys()
+      .all(|k| !k.starts_with("donut-"))
+  );
+  let (_, presign) = call(&server, "presign-download", json!({ "key": key })).await;
+  let response = http()
+    .get(presign["url"].as_str().unwrap())
+    .send()
+    .await
+    .unwrap();
+  assert_eq!(
+    response.headers()["last-modified"],
+    donut_sync::time::http_date(original_ms).as_str()
+  );
+  assert!(
+    response
+      .headers()
+      .get("x-amz-meta-donut-orig-mtime")
+      .is_none()
+  );
   drop(server);
 
   // Rotation: k2 writes, k1 still reads, and the migration moves k1's objects.
@@ -438,6 +479,34 @@ async fn migration_seals_everything_in_place_and_a_rerun_does_nothing() {
     download(&server, &objects[7].0).await,
     (200, objects[7].1.clone())
   );
+  // A restore point is a new copy: it takes its own time.
+  upload(&server, "profiles/p/manifest.json", b"{}".to_vec(), None).await;
+  let (status, snapshot) = call(
+    &server,
+    "snapshots/create",
+    json!({ "profileRoot": "profiles/p/" }),
+  )
+  .await;
+  assert_eq!(status, 200, "{snapshot}");
+  let copy = format!(
+    "snapshots/profiles/p/{}/files/03",
+    snapshot["id"].as_str().unwrap()
+  );
+  let (_, stat) = call(&server, "stat", json!({ "key": copy })).await;
+  assert_ne!(
+    stat["lastModified"],
+    json!(donut_sync::time::iso_from_ms(original_ms))
+  );
+  // rclone adds its own `mtime` to a server-side copy; ours must not show.
+  assert_eq!(stat["metadata"]["updated-at"], "9");
+  assert!(
+    stat["metadata"]
+      .as_object()
+      .unwrap()
+      .keys()
+      .all(|k| !k.starts_with("donut-"))
+  );
+  assert_eq!(download(&server, &copy).await, (200, objects[3].1.clone()));
 }
 
 #[tokio::test]

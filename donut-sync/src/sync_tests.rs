@@ -11,6 +11,10 @@ const ORIGIN: &str = "http://sync.test";
 const OWNER_PREFIX: &str = "users/99999999-8888-7777-6666-555555555555/";
 
 fn service_with(store: Arc<MemoryStore>) -> SyncService {
+  service_on(store, None)
+}
+
+fn service_on(store: Arc<dyn Store>, transfer: Option<TransferSigner>) -> SyncService {
   let location = crate::s3::Location::parse("http://s3.invalid:9000", "test-bucket", true).unwrap();
   let presigner = Presigner::new(
     location,
@@ -24,7 +28,7 @@ fn service_with(store: Arc<MemoryStore>) -> SyncService {
     store,
     SyncOptions {
       presigner,
-      transfer: None,
+      transfer,
       public_endpoint: "http://s3.invalid:9000".to_string(),
       public_endpoint_configured: false,
       cloud: true,
@@ -687,4 +691,34 @@ async fn presigned_uploads_echo_only_the_metadata_sync_uses() {
   assert!(url.contains("X-Amz-SignedHeaders=host%3Bx-amz-meta-updated-at&"));
   assert!(url.ends_with("&x-id=PutObject"));
   assert!(!url.contains("checksum"));
+}
+
+/// Profile ages survive the migration's rewrite: cleanup still removes the
+/// newest excess profiles, not the ones the migration touched last.
+#[tokio::test]
+async fn cleanup_orders_migrated_profiles_by_their_time_before_the_migration() {
+  let raw = Arc::new(MemoryStore::default());
+  // Created oldest first; key order is the reverse, and the migration walks
+  // keys in order, so it rewrites the newest profile first.
+  for id in ["pd", "pc", "pb", "pa"] {
+    raw.set(&format!("users/u1/profiles/{id}/metadata.json"), "{}");
+  }
+  let keyring = Arc::new(
+    crate::at_rest::Keyring::parse("k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap(),
+  );
+  let options = crate::migrate::Options {
+    concurrency: 1,
+    ..Default::default()
+  };
+  let report = crate::migrate::migrate(raw.clone(), keyring.clone(), &options)
+    .await
+    .unwrap();
+  assert_eq!(report.sealed, 4);
+  let sealed: Arc<dyn Store> = Arc::new(crate::sealed_store::SealedStore::new(
+    raw.clone(),
+    keyring.clone(),
+  ));
+  let service = service_on(sealed, Some(TransferSigner::new(&keyring)));
+  let out = service.cleanup_excess_profiles("u1", 2).await.unwrap();
+  assert_eq!(out["deletedProfiles"], json!(["pa", "pb"]));
 }

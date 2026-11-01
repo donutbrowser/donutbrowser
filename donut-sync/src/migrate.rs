@@ -10,6 +10,9 @@
 //! object is sealed into a temporary key outside every namespace, its ETag is
 //! checked again, and a server-side copy puts it in place, so the window is
 //! one HEAD and one copy, whatever the object's size.
+//!
+//! A rewrite gives the object a new LastModified, so the old one is kept in
+//! `ORIGINAL_MTIME` and the server reports it (profile age, stat, downloads).
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -20,7 +23,7 @@ use futures_util::StreamExt;
 use crate::at_rest::{self, Keyring, MARKER};
 use crate::config::Config;
 use crate::log;
-use crate::sealed_store::sealed_by;
+use crate::sealed_store::{ORIGINAL_MTIME, original_mtime, sealed_by};
 use crate::store::{ByteStream, ListInput, Store, StoreError, Upload};
 
 pub const COMMAND: &str = "migrate-at-rest";
@@ -229,11 +232,13 @@ pub async fn honors_if_match(store: &dyn Store) -> Result<bool, StoreError> {
 }
 
 impl Migration {
-  async fn object(&self, key: &str) -> Outcome {
+  /// `listed_ms` is the LastModified the listing gave: it has milliseconds,
+  /// where a HEAD has seconds.
+  async fn object(&self, key: &str, listed_ms: Option<i64>) -> Outcome {
     let mut attempt = 0;
     loop {
       attempt += 1;
-      match self.try_object(key).await {
+      match self.try_object(key, listed_ms).await {
         Ok(outcome) => return outcome,
         Err(StoreError::NotFound) => return Outcome::Changed,
         Err(e) if precondition_failed(&e) => return Outcome::Changed,
@@ -244,7 +249,7 @@ impl Migration {
     }
   }
 
-  async fn try_object(&self, key: &str) -> Result<Outcome, StoreError> {
+  async fn try_object(&self, key: &str, listed_ms: Option<i64>) -> Result<Outcome, StoreError> {
     let head = self.store.head_object(key).await?;
     let current = self.keyring.current().id();
     let old_key = match sealed_by(&head) {
@@ -282,10 +287,16 @@ impl Migration {
     let mut metadata: Vec<(String, String)> = head
       .metadata
       .iter()
-      .filter(|(name, _)| name != MARKER)
+      .filter(|(name, _)| name != MARKER && name != ORIGINAL_MTIME)
       .cloned()
       .collect();
     metadata.push((MARKER.to_string(), self.keyring.marker()));
+    if let Some(ms) = original_mtime(&head)
+      .or(listed_ms)
+      .or(head.last_modified_ms)
+    {
+      metadata.push((ORIGINAL_MTIME.to_string(), ms.to_string()));
+    }
     let upload = Upload {
       length: at_rest::sealed_len(current, plain),
       content_type: head.content_type.as_deref(),
@@ -417,14 +428,15 @@ pub async fn migrate(
       })
       .await
       .map_err(|e| format!("Listing failed: {e}"))?;
-    let keys: Vec<String> = page
+    let objects: Vec<(String, Option<i64>)> = page
       .contents
       .into_iter()
-      .map(|object| object.key)
-      .filter(|key| !key.starts_with(TMP_PREFIX))
+      .map(|object| (object.key, object.last_modified_ms))
+      .filter(|(key, _)| !key.starts_with(TMP_PREFIX))
       .collect();
-    let outcomes: Vec<(String, Outcome)> = futures_util::stream::iter(keys.iter())
-      .map(|key| async { (key.clone(), migration.object(key).await) })
+    let keys: Vec<&String> = objects.iter().map(|(key, _)| key).collect();
+    let outcomes: Vec<(String, Outcome)> = futures_util::stream::iter(objects.iter())
+      .map(|(key, listed)| async { (key.clone(), migration.object(key, *listed).await) })
       .buffer_unordered(options.concurrency)
       .collect()
       .await;
@@ -470,7 +482,7 @@ pub async fn migrate(
         &format!(
           "Migration progress {} last_key={}",
           summary(&report, started.elapsed()),
-          keys.last().map_or("-", String::as_str)
+          keys.last().map_or("-", |k| k.as_str())
         ),
       );
     }

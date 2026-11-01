@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
 
 use async_trait::async_trait;
 use md5::{Digest, Md5};
@@ -21,12 +21,15 @@ pub struct Object {
   pub body: Vec<u8>,
   pub metadata: Vec<(String, String)>,
   pub content_type: Option<String>,
+  pub modified_ms: i64,
 }
 
 #[derive(Default)]
 pub struct MemoryStore {
   pub objects: Mutex<BTreeMap<String, Object>>,
   pub calls: AtomicUsize,
+  /// Each write is one second after the one before.
+  pub clock: AtomicI64,
   pub head_hook: Option<HeadHook>,
   pub list_hook: Option<ListHook>,
 }
@@ -51,14 +54,20 @@ impl MemoryStore {
     metadata: Vec<(String, String)>,
     content_type: Option<String>,
   ) {
+    let modified_ms = self.tick();
     self.objects.lock().unwrap().insert(
       key.to_string(),
       Object {
         body,
         metadata,
         content_type,
+        modified_ms,
       },
     );
+  }
+
+  fn tick(&self) -> i64 {
+    self.clock.fetch_add(1000, Ordering::SeqCst) + 1000
   }
 
   pub fn get(&self, key: &str) -> Option<String> {
@@ -80,7 +89,7 @@ impl MemoryStore {
     let mut metadata = object.metadata.clone();
     metadata.sort();
     Ok(HeadOutput {
-      last_modified_ms: Some(0),
+      last_modified_ms: Some(object.modified_ms),
       content_length: Some(object.body.len() as u64),
       metadata,
       etag: Some(etag(&object.body)),
@@ -143,9 +152,34 @@ impl Store for MemoryStore {
 
   async fn copy_object(&self, from: &str, to: &str) -> Result<(), StoreError> {
     self.call();
+    let modified_ms = self.tick();
     let mut objects = self.objects.lock().unwrap();
     let object = objects.get(from).cloned().ok_or(StoreError::NotFound)?;
-    objects.insert(to.to_string(), object);
+    objects.insert(
+      to.to_string(),
+      Object {
+        modified_ms,
+        ..object
+      },
+    );
+    Ok(())
+  }
+
+  async fn copy_object_replacing(
+    &self,
+    from: &str,
+    to: &str,
+    content_type: Option<&str>,
+    metadata: &[(String, String)],
+  ) -> Result<(), StoreError> {
+    self.call();
+    let body = self.raw(from).ok_or(StoreError::NotFound)?.body;
+    self.insert(
+      to,
+      body,
+      metadata.to_vec(),
+      content_type.map(str::to_string),
+    );
     Ok(())
   }
 
@@ -189,7 +223,7 @@ impl Store for MemoryStore {
       }
       out.contents.push(ListObject {
         key: key.clone(),
-        last_modified_ms: Some(0),
+        last_modified_ms: Some(object.modified_ms),
         size: Some(object.body.len() as u64),
       });
     }
