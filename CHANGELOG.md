@@ -1,6 +1,60 @@
 # Changelog
 
 
+## v0.36.0 (2026-11-01)
+
+### Features
+
+- press and hold act
+- Wayfern rebuild updates
+- portable update script
+- portable self-update
+- proxy for app traffic
+- MCP tool annotations
+- host-arch Wayfern pick
+- rust sync server
+
+### Bug Fixes
+
+- primary device message
+- metainfo app version
+- slow Wayfern downloads
+- end unused RAM host
+- arm Wayfern falls to x64
+- watch a launch at once
+- drop user ids from logs
+- https for DONUT_API_URL
+- scrollbar over snippets
+- Bluetooth usage string
+- AppImage Wayland libs
+- clean up after exits
+
+### Documentation
+
+- linux e2e display
+- rust sync server
+
+### Maintenance
+
+- chore: update dependencies
+- chore: update dependencies
+- chore: version bump
+- test: rebuild update proofs
+- test: linux arm64 pick
+- build: bump Rust crates
+- build: newer sync images
+- build: unpin npm deps
+- chore: ignore block-buffer
+- test: read committed color
+- test: Linux e2e on Xvfb
+- test: e2e Wayfern dir fixture
+- chore: keep Xray 26.3.27
+- chore: regenerate licenses
+- chore: update dependencies
+- chore: drop dependabot
+- chore: update flake.nix for v0.35.5 [skip ci] (#689)
+
+
 ## v0.35.5 (2026-10-24)
 
 ### Bug Fixes
