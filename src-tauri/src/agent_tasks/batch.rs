@@ -155,7 +155,7 @@ impl Batch {
   pub fn tally(&self) -> Tally {
     let mut tally = Tally::default();
     for task in &self.tasks {
-      tally.credits_used += task.credits_used;
+      tally.credits_used += task.total_credits();
       match task.status {
         TaskStatus::Queued => tally.queued += 1,
         TaskStatus::Done => tally.done += 1,
@@ -274,5 +274,27 @@ mod tests {
     assert!(!batch.stopping);
     assert_eq!(batch.tasks[1].status, TaskStatus::Queued);
     assert_eq!(batch.take_next(), Some(1));
+  }
+
+  #[test]
+  fn a_retry_keeps_the_credits_of_every_attempt() {
+    let mut batch = batch(2, 2);
+    batch.tasks[0].status = TaskStatus::Done;
+    batch.tasks[0].credits_used = 10;
+    batch.tasks[1].fail("AGENT_BUSY".into(), 1);
+    batch.tasks[1].credits_used = 7;
+    assert_eq!(batch.retry_failed(), 1);
+    assert_eq!(
+      batch.tasks[1].credits_used, 0,
+      "the new attempt starts at zero"
+    );
+    assert_eq!(batch.tasks[1].total_credits(), 7);
+    assert_eq!(batch.tally().credits_used, 17);
+    batch.tasks[1].credits_used = 4;
+    batch.tasks[1].fail("AGENT_BUSY".into(), 2);
+    batch.retry_failed();
+    batch.tasks[1].credits_used = 3;
+    assert_eq!(batch.tasks[1].total_credits(), 14);
+    assert_eq!(batch.tally().credits_used, 24);
   }
 }

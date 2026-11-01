@@ -167,7 +167,10 @@ pub struct Task {
   pub result: Option<String>,
   /// A backend error code, or the engine's own words when it failed.
   pub error: Option<String>,
+  /// Credits of this attempt, as the engine reports them.
   pub credits_used: u64,
+  /// Credits of the earlier attempts: a retry spends them again, never back.
+  pub credits_before: u64,
   pub started_at: Option<u64>,
   pub finished_at: Option<u64>,
   /// Donut started this browser for the task, so it stops it after.
@@ -187,17 +190,26 @@ impl Task {
       result: None,
       error: None,
       credits_used: 0,
+      credits_before: 0,
       started_at: None,
       finished_at: None,
       launched_here: false,
     }
   }
 
-  /// Back to the queue for another attempt; the run record stays.
+  /// Back to the queue for another attempt; the run record and the credits
+  /// spent so far stay.
   pub fn requeue(&mut self) {
     let run_id = self.run_id.take();
+    let spent = self.total_credits();
     *self = Self::queued(std::mem::take(&mut self.profile_id));
     self.run_id = run_id;
+    self.credits_before = spent;
+  }
+
+  /// Credits of every attempt.
+  pub fn total_credits(&self) -> u64 {
+    self.credits_before + self.credits_used
   }
 
   pub fn fail(&mut self, code: String, now_ms: u64) {

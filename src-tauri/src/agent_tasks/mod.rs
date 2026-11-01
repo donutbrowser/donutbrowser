@@ -153,7 +153,7 @@ impl From<&Task> for TaskView {
       approval: task.approval.clone(),
       result: task.result.clone(),
       error: task.error.clone(),
-      credits_used: task.credits_used,
+      credits_used: task.total_credits(),
       started_at: task.started_at,
       finished_at: task.finished_at,
     }
@@ -379,15 +379,10 @@ fn finalize(batch_id: &str, index: usize) {
     task.profile_id,
     task.task_id.as_deref().unwrap_or("-"),
     task.status.run_status(),
-    task.credits_used
+    task.total_credits()
   );
   if let Some(run_id) = task.run_id.clone() {
-    let patch = cloud::run_patch(
-      task.status.run_status(),
-      task.result.as_deref(),
-      task.credits_used,
-      task.error.as_deref(),
-    );
+    let patch = final_report(&task);
     tokio::spawn(async move { cloud::report_run(&run_id, patch).await });
   }
   if task.launched_here && headless {
@@ -395,6 +390,16 @@ fn finalize(batch_id: &str, index: usize) {
     tokio::spawn(async move { stop_browser(&profile_id).await });
   }
   waker.notify_one();
+}
+
+/// What the cloud records when a task ends: every attempt's credits count.
+fn final_report(task: &Task) -> Value {
+  cloud::run_patch(
+    task.status.run_status(),
+    task.result.as_deref(),
+    task.total_credits(),
+    task.error.as_deref(),
+  )
 }
 
 fn load_profile(profile_id: &str) -> Result<crate::profile::BrowserProfile, String> {
@@ -554,14 +559,15 @@ async fn start_task(batch_id: String, index: usize, profile_id: String, order: O
     let run = task
       .run_id
       .clone()
-      .filter(|_| !finished && !task.status.is_final());
+      .filter(|_| !finished && !task.status.is_final())
+      .map(|run_id| (run_id, task.total_credits()));
     publish(batch);
     (finished, run)
   };
   match finished {
     (true, _) => finalize(&batch_id, index),
-    (false, Some(run_id)) => {
-      cloud::report_run(&run_id, cloud::run_patch("running", None, 0, None)).await;
+    (false, Some((run_id, spent))) => {
+      cloud::report_run(&run_id, cloud::run_patch("running", None, spent, None)).await;
     }
     _ => {}
   }
@@ -1120,6 +1126,24 @@ pub async fn run_agent_routine(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn the_final_report_counts_the_credits_of_every_attempt() {
+    let mut task = Task::queued("p1".into());
+    task.run_id = Some("r1".into());
+    task.credits_used = 12;
+    task.fail("AGENT_BUSY".into(), 1);
+    task.requeue();
+    assert_eq!(task.run_id.as_deref(), Some("r1"));
+    task.credits_used = 30;
+    task.status = TaskStatus::Done;
+    task.result = Some("Found it".into());
+    assert_eq!(
+      final_report(&task),
+      json!({ "status": "done", "creditsUsed": 42, "summary": "Found it" })
+    );
+    assert_eq!(TaskView::from(&task).credits_used, 42);
+  }
 
   #[test]
   fn a_start_carries_only_what_was_asked() {
