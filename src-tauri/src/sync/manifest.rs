@@ -71,6 +71,10 @@ pub const DEFAULT_EXCLUDE_PATTERNS: &[&str] = &[
   "**/GPUPersistentCache/**",
   "**/BrowserMetrics*",
   "**/.DS_Store",
+  // Site storage a repair moved aside (`site_storage.rs`): kept on this
+  // device only, until the person deletes it.
+  "**/*.donut-backup-*",
+  "**/*.donut-backup-*/**",
   // Profile metadata is a separately reconciled LWW config object. Including
   // it in the browser-file manifest creates two competing sync mechanisms and
   // lets a stale in-memory profile overwrite a metadata download.
@@ -393,9 +397,11 @@ pub fn generate_manifest(
   // Sort files for deterministic manifest
   manifest.files.sort_by(|a, b| a.path.cmp(&b.path));
 
-  // Update the updatedAt timestamp to max mtime
-  if max_mtime > 0 {
-    if let Some(dt) = DateTime::from_timestamp(max_mtime, 0) {
+  // Update the updatedAt timestamp to max mtime, or to a local edit no mtime
+  // shows (`mark_local_edit`), whichever is newer.
+  let newest = max_mtime.max(local_edit_secs(profile_dir).unwrap_or(0));
+  if newest > 0 {
+    if let Some(dt) = DateTime::from_timestamp(newest, 0) {
       manifest.updated_at = dt.to_rfc3339();
     }
   }
@@ -538,6 +544,31 @@ pub fn compute_diff_with_bias(
   }
 
   diff
+}
+
+fn local_edit_path(profile_dir: &Path) -> std::path::PathBuf {
+  profile_dir.join(".donut-sync").join("local-edit")
+}
+
+fn local_edit_secs(profile_dir: &Path) -> Option<i64> {
+  fs::read_to_string(local_edit_path(profile_dir))
+    .ok()?
+    .trim()
+    .parse()
+    .ok()
+}
+
+/// Marks a profile's synced files as edited now, for a change no file mtime
+/// shows: moving files out of the synced set (a site-data repair) keeps the
+/// newest mtime, or lowers it, and sync would then take the remote copy back.
+/// The profile's next manifest is at least this new. `profile_dir` is the
+/// folder sync walks (`<profiles dir>/<profile id>`).
+pub fn mark_local_edit(profile_dir: &Path) -> std::io::Result<()> {
+  let path = local_edit_path(profile_dir);
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  fs::write(path, Utc::now().timestamp().to_string())
 }
 
 /// Get the path to the hash cache file for a profile
@@ -982,5 +1013,92 @@ mod tests {
     assert!(diff.files_to_upload.is_empty());
     assert!(diff.files_to_delete_remote.is_empty());
     assert!(diff.files_to_delete_local.is_empty());
+  }
+
+  fn file_at(path: &Path, body: &str, secs: u64) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, body).unwrap();
+    File::options()
+      .write(true)
+      .open(path)
+      .unwrap()
+      .set_modified(SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(secs))
+      .unwrap();
+  }
+
+  #[test]
+  fn site_storage_moved_aside_never_syncs() {
+    let dir = TempDir::new().unwrap();
+    let data = dir.path().join("profile/Default/IndexedDB");
+    file_at(
+      &data.join("https_kept.example_0/blob"),
+      "kept",
+      1_700_000_000,
+    );
+    let backup = data.join("https_studio.youtube.com_0.donut-backup-20261101-165020");
+    file_at(&backup.join("1.indexeddb.blob/blob"), "big", 1_700_000_000);
+    file_at(&backup.join("LOG.manifest"), "x", 1_700_000_000);
+    let mut cache = HashCache::default();
+    let manifest = generate_manifest("p", dir.path(), &mut cache).unwrap();
+    let paths: Vec<&str> = manifest.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(
+      paths,
+      ["profile/Default/IndexedDB/https_kept.example_0/blob"]
+    );
+  }
+
+  /// A repair moves the newest files out of the synced set: without the mark
+  /// the manifest gets older than the remote one and sync brings the remote
+  /// folder back; with it, this copy wins and the remote files go.
+  #[test]
+  fn a_marked_local_edit_wins_over_the_remote_copy() {
+    let dir = TempDir::new().unwrap();
+    file_at(
+      &dir.path().join("profile/Default/Preferences"),
+      "p",
+      1_600_000_000,
+    );
+    let mut cache = HashCache::default();
+    let before = generate_manifest("p", dir.path(), &mut cache).unwrap();
+    assert!(
+      before.updated_at.starts_with("2020-09-13"),
+      "{}",
+      before.updated_at
+    );
+
+    let remote = manifest_at(
+      "2024-01-01T00:00:00Z",
+      &[
+        ("profile/Default/Preferences", "other"),
+        (
+          "profile/Default/IndexedDB/https_studio.youtube.com_0/blob",
+          "big",
+        ),
+      ],
+    );
+    let diff = compute_diff(&before, Some(&remote));
+    assert!(
+      !diff.files_to_download.is_empty(),
+      "unmarked, the remote copy wins"
+    );
+
+    mark_local_edit(dir.path()).unwrap();
+    let after = generate_manifest("p", dir.path(), &mut cache).unwrap();
+    let marked = after.updated_at_datetime().unwrap();
+    assert!(
+      (Utc::now() - marked).num_seconds() < 60,
+      "{}",
+      after.updated_at
+    );
+    assert!(after
+      .files
+      .iter()
+      .all(|f| !f.path.starts_with(".donut-sync")));
+    let diff = compute_diff(&after, Some(&remote));
+    assert!(diff.files_to_download.is_empty());
+    assert_eq!(
+      diff.files_to_delete_remote,
+      ["profile/Default/IndexedDB/https_studio.youtube.com_0/blob"]
+    );
   }
 }

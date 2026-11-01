@@ -591,10 +591,21 @@ pub async fn repair_profile_site_storage(
   let _launch_guard = hold_stopped(&profile).await?;
   let stamp = chrono::Local::now().format(STAMP_FORMAT).to_string();
   let dir = data_dir(&profile);
+  let sync_dir = ProfileManager::instance()
+    .get_profiles_dir()
+    .join(profile.id.to_string());
   let id = profile_id.clone();
   let moved = blocking(move || move_aside(&dir, &storage_ids, &stamp)).await?;
   match moved {
     Ok(sites) => {
+      // The moved folders leave the synced files, so sync must take this
+      // copy as the newer one, or it brings the remote folders back.
+      if let Err(e) = crate::sync::manifest::mark_local_edit(&sync_dir) {
+        log::warn!(
+          "Site storage repair not marked for sync profile={id} err_kind={:?}",
+          e.kind()
+        );
+      }
       for site in &sites {
         log::info!(
           "Site storage moved aside profile={id} site={} kind={} bytes={} folders={}",
