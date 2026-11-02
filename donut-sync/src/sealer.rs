@@ -9,6 +9,7 @@
 //! cleans up: temporary objects of an interrupted rewrite, and storage
 //! uploads in parts that were never finished.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -43,7 +44,8 @@ const TMP_STALE_MS: i64 = 3600 * 1000;
 const ABANDONED_MS: i64 = 4 * 3600 * 1000;
 /// Failed keys kept in the state, newest first.
 const MAX_FAILED: usize = 1000;
-const CONCURRENCY: usize = 4;
+/// Objects checked at a time. Most are HEADs, which B2 does not charge.
+const CONCURRENCY: usize = 16;
 
 /// How often the keys handed direct URLs are written as one record. A crash
 /// loses at most this window; the hourly backstop pass covers it.
@@ -157,6 +159,19 @@ pub struct State {
   pub backstop_since: Option<i64>,
   #[serde(default)]
   pub failed: Vec<Failed>,
+  /// The backstop pass under way, saved after each page, so a restart
+  /// resumes it instead of walking the bucket again.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub backstop_pass: Option<BackstopPass>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackstopPass {
+  /// When the pass began: the next pass looks at what was written since.
+  pub started_ms: i64,
+  /// The last key the pass finished.
+  pub after: Option<String>,
 }
 
 impl State {
@@ -310,6 +325,29 @@ impl Sealer {
     failures
   }
 
+  /// One page of the whole bucket after `after`, and whether more follow.
+  async fn page_after(
+    &self,
+    after: Option<String>,
+  ) -> Result<(Vec<(String, Option<i64>)>, bool), StoreError> {
+    let page = self
+      .raw
+      .list_objects_v2(&ListInput {
+        max_keys: Some("1000".to_string()),
+        start_after: after,
+        ..ListInput::default()
+      })
+      .await?;
+    Ok((
+      page
+        .contents
+        .into_iter()
+        .map(|object| (object.key, object.last_modified_ms))
+        .collect(),
+      page.is_truncated,
+    ))
+  }
+
   /// One page of the listing under `prefix`.
   async fn page(
     &self,
@@ -388,19 +426,36 @@ impl Sealer {
     Ok(report)
   }
 
-  /// Retries what failed, seals everything written since the last pass,
-  /// page by page, then cleans up after interrupted rewrites and uploads.
+  /// Retries what failed, then seals everything written since the last
+  /// pass, page by page: after each page the state keeps where the pass is
+  /// and what failed, so a restart resumes it. Then cleans up after
+  /// interrupted rewrites and uploads.
   pub async fn backstop(&self, now_ms: i64) -> Result<PassReport, StoreError> {
     let mut state = read_state(&self.sealed).await?;
     let since = state.backstop_since.unwrap_or(now_ms - FIRST_BACKSTOP_MS);
+    let pass = state
+      .backstop_pass
+      .get_or_insert(BackstopPass {
+        started_ms: now_ms,
+        after: None,
+      })
+      .clone();
     let mut report = PassReport::default();
-    let retried: Vec<String> = state.failed.iter().map(|f| f.key.clone()).collect();
-    let mut failures = retry_failed(&self.migration, &state.failed).await;
+    let retried: HashSet<String> = state.failed.iter().map(|f| f.key.clone()).collect();
+    let failures = retry_failed(&self.migration, &state.failed).await;
     report.checked += retried.len() as u64;
     report.failed += failures.len() as u64;
-    let mut token = None;
+    // The pass moves on even when some keys fail: they stay in the list.
+    state.note(
+      &retried.iter().cloned().collect::<Vec<_>>(),
+      failures,
+      now_ms,
+    );
+    save_state(&self.sealed, &state).await?;
+    let mut after = pass.after.clone();
     loop {
-      let (objects, next) = self.page(None, token).await?;
+      let (objects, more) = self.page_after(after.clone()).await?;
+      let last = objects.last().map(|(key, _)| key.clone());
       let recent: Vec<(String, Option<i64>)> = objects
         .into_iter()
         .filter(|(key, modified)| {
@@ -409,15 +464,22 @@ impl Sealer {
             && modified.is_none_or(|ms| ms >= since - BACKSTOP_OVERLAP_MS)
         })
         .collect();
-      failures.extend(self.seal_all(recent, &mut report).await);
-      token = next;
-      if token.is_none() {
+      let failures = self.seal_all(recent, &mut report).await;
+      state.note(&[], failures, now_ms);
+      if last.is_some() {
+        after = last;
+      }
+      state.backstop_pass = Some(BackstopPass {
+        started_ms: pass.started_ms,
+        after: after.clone(),
+      });
+      save_state(&self.sealed, &state).await?;
+      if !more {
         break;
       }
     }
-    // The pass moves on even when some keys fail: they stay in the list.
-    state.note(&retried, failures, now_ms);
-    state.backstop_since = Some(now_ms);
+    state.backstop_since = Some(pass.started_ms);
+    state.backstop_pass = None;
     save_state(&self.sealed, &state).await?;
 
     let mut token = None;
@@ -704,6 +766,73 @@ mod tests {
     assert_eq!(body, r#"{"keys":["a","b","c"]}"#);
     direct.flush(&sealed).await.unwrap();
     assert_eq!(raw.keys().len(), 1);
+  }
+
+  /// The pass stops after two pages, as a restart would stop it; the next
+  /// one picks up after the last page it finished, and only then moves the
+  /// window on.
+  #[tokio::test]
+  async fn a_backstop_pass_resumes_after_a_restart() {
+    let (raw, sealed, sealer) = setup(MemoryStore::default()).await;
+    for i in 0..2500 {
+      raw.set(&format!("k{i:05}"), "x");
+    }
+    let now = raw.clock.load(SeqCst) + 1;
+    *raw.list_budget.lock().unwrap() = Some(2);
+    assert!(
+      sealer.backstop(now).await.is_err(),
+      "stopped on the third page"
+    );
+    let state = read_state(&sealed).await.unwrap();
+    assert_eq!(
+      state.backstop_pass,
+      Some(BackstopPass {
+        started_ms: now,
+        // The sealer's own state object sorts first and takes a place.
+        after: Some("k01998".to_string()),
+      })
+    );
+    assert_eq!(
+      state.backstop_since, None,
+      "the window moves only when a pass ends"
+    );
+    assert!(is_sealed(&raw, "k01998").await);
+    assert!(!is_sealed(&raw, "k01999").await);
+
+    // A new process: the same state, the rest of the bucket.
+    *raw.list_budget.lock().unwrap() = None;
+    let keyring = Arc::new(Keyring::parse(K1).unwrap());
+    let restarted = Sealer::new(raw.clone(), keyring).await.unwrap();
+    let report = restarted.backstop(now + 60_000).await.unwrap();
+    assert_eq!((report.checked, report.sealed), (501, 501));
+    let state = read_state(&sealed).await.unwrap();
+    assert_eq!(
+      (state.backstop_since, state.backstop_pass),
+      (Some(now), None)
+    );
+    assert!(is_sealed(&raw, "k02499").await);
+  }
+
+  /// A key that fails is in the saved state before the pass ends.
+  #[tokio::test]
+  async fn failures_are_saved_with_the_page_they_fail_on() {
+    let (raw, sealed, sealer) = setup(MemoryStore::default()).await;
+    let other = Keyring::parse("k9:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap();
+    raw.insert(
+      "a-stuck",
+      crate::at_rest::seal(&other, b"x"),
+      vec![(crate::at_rest::MARKER.into(), "1:k9".into())],
+      None,
+    );
+    for i in 0..1500 {
+      raw.set(&format!("k{i:05}"), "x");
+    }
+    *raw.list_budget.lock().unwrap() = Some(1);
+    let now = raw.clock.load(SeqCst) + 1;
+    assert!(sealer.backstop(now).await.is_err());
+    let failed = read_state(&sealed).await.unwrap().failed;
+    assert_eq!(failed.len(), 1);
+    assert_eq!(failed[0].key, "a-stuck");
   }
 
   #[test]

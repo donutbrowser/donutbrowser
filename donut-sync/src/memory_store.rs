@@ -61,6 +61,8 @@ pub struct MemoryStore {
   pub versioned: bool,
   /// Like B2: a PUT with If-Match is refused (501), never conditional.
   pub ignores_if_match: bool,
+  /// Listings that succeed before one fails, as a crash would stop a pass.
+  pub list_budget: Mutex<Option<usize>>,
   /// Versions per listed page; 0 is 1000.
   pub version_page: usize,
   pub uploads: Mutex<BTreeMap<String, Multipart>>,
@@ -355,6 +357,12 @@ impl Store for MemoryStore {
 
   async fn list_objects_v2(&self, input: &ListInput) -> Result<ListOutput, StoreError> {
     self.call();
+    if let Some(budget) = self.list_budget.lock().unwrap().as_mut() {
+      if *budget == 0 {
+        return Err(StoreError::Transport("the listing stopped".to_string()));
+      }
+      *budget -= 1;
+    }
     if let Some(hook) = &self.list_hook {
       return Ok(hook(input));
     }

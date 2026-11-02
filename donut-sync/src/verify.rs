@@ -620,6 +620,7 @@ mod tests {
         at: 1,
         settle: None,
       }],
+      backstop_pass: None,
     };
     sealed
       .put_object(
