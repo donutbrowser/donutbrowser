@@ -4,7 +4,7 @@ mod common;
 
 use std::time::Duration;
 
-use common::{SYNC_TOKEN, Server, bucket, http, post};
+use common::{SYNC_TOKEN, Server, StorageRequest, bucket, http, post};
 use serde_json::{Value, json};
 
 async fn put(client: &reqwest::Client, server: &Server, key: &str, content: &str) {
@@ -20,9 +20,8 @@ async fn put(client: &reqwest::Client, server: &Server, key: &str, content: &str
     .put(body["url"].as_str().unwrap())
     .header("content-type", "text/plain")
     .body(content.to_string())
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert!(
     stored.status().is_success(),
     "{}",
@@ -118,9 +117,8 @@ async fn presigned_metadata_is_signed_and_persisted() {
     .header("content-type", "application/json")
     .header("x-amz-meta-updated-at", "1700000000")
     .body("{}")
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert!(
     stored.status().is_success(),
     "{}",
@@ -170,9 +168,8 @@ async fn a_full_upload_download_cycle() {
   );
   let content = client
     .get(download["url"].as_str().unwrap())
-    .send()
+    .send_to_storage()
     .await
-    .unwrap()
     .text()
     .await
     .unwrap();
@@ -479,9 +476,8 @@ async fn restore_points_copy_and_restore_inside_storage() {
   .await;
   let content = client
     .get(download["url"].as_str().unwrap())
-    .send()
+    .send_to_storage()
     .await
-    .unwrap()
     .text()
     .await
     .unwrap();

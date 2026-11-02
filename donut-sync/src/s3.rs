@@ -462,7 +462,10 @@ impl S3Store {
   ) -> Result<Reply, StoreError> {
     let mut request = self.request(method, path, query, headers, sigv4::sha256_hex(body));
     if !body.is_empty() || *method == Method::PUT || *method == Method::POST {
-      request = request.body(body.to_vec());
+      // Stated even for an empty body: S3 refuses a PUT without it (411).
+      request = request
+        .header(reqwest::header::CONTENT_LENGTH, body.len())
+        .body(body.to_vec());
     }
     let response = request
       .send()

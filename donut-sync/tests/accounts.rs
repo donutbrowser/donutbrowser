@@ -5,7 +5,7 @@
 mod common;
 
 use base64::Engine;
-use common::{Mock, SYNC_TOKEN, Server, bucket, http, post};
+use common::{Mock, SYNC_TOKEN, Server, StorageRequest, bucket, http, post};
 use serde_json::{Value, json};
 
 const PUBLIC_URL: &str = "https://sync.example.test";
@@ -121,9 +121,8 @@ async fn accounts_get_their_own_space_and_teams_their_owners() {
     .put(out["url"].as_str().unwrap())
     .header("content-type", "application/json")
     .body("{}")
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert!(stored.status().is_success());
 
   assert!(

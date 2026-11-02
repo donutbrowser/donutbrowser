@@ -41,3 +41,6 @@ socket2 = "0.6.5"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "signal", "time", "sync", "fs"] }
 url = "2.5.8"
 uuid = { version = "1.29.0", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["test-util"] }

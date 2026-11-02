@@ -4,7 +4,7 @@
 mod common;
 
 use base64::Engine;
-use common::{Mock, Server, bucket, http, post};
+use common::{Mock, Server, StorageRequest, bucket, http, post};
 use ring::rand::SystemRandom;
 use ring::signature::{RSA_PKCS1_SHA256, RsaKeyPair};
 use serde_json::{Value, json};
@@ -105,7 +105,7 @@ async fn put(
     for (name, value) in out["metadata"].as_object().into_iter().flatten() {
       request = request.header(format!("x-amz-meta-{name}"), value.as_str().unwrap());
     }
-    let stored = request.send().await.unwrap();
+    let stored = request.send_to_storage().await;
     let status = stored.status();
     assert!(
       status.is_success(),

@@ -103,6 +103,37 @@ pub async fn fresh_bucket(name: &str) -> String {
   fixed
 }
 
+/// Tries per request to storage (presigned URLs, and the server's transfer
+/// URLs in front of it). Storage answers the odd 500 (rclone does, as S3
+/// does), and S3 clients try such a request again; so do the tests.
+const STORAGE_ATTEMPTS: u32 = 3;
+
+pub trait StorageRequest {
+  /// Sends the request, again on a 5xx or a dropped connection, at most
+  /// `STORAGE_ATTEMPTS` times. A streamed body cannot be sent twice and goes
+  /// once.
+  fn send_to_storage(self) -> impl std::future::Future<Output = reqwest::Response> + Send;
+}
+
+impl StorageRequest for reqwest::RequestBuilder {
+  async fn send_to_storage(self) -> reqwest::Response {
+    let mut attempt = 1;
+    loop {
+      let Some(request) = self.try_clone() else {
+        return self.send().await.unwrap();
+      };
+      match request.send().await {
+        Ok(response) if !response.status().is_server_error() => return response,
+        Ok(response) if attempt >= STORAGE_ATTEMPTS => return response,
+        Err(e) if attempt >= STORAGE_ATTEMPTS => panic!("storage unreachable: {e}"),
+        _ => {}
+      }
+      tokio::time::sleep(Duration::from_millis(200 * u64::from(attempt))).await;
+      attempt += 1;
+    }
+  }
+}
+
 pub fn http() -> reqwest::Client {
   let _ = rustls::crypto::ring::default_provider().install_default();
   reqwest::Client::builder().no_proxy().build().unwrap()

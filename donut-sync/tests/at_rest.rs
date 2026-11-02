@@ -4,8 +4,10 @@
 
 mod common;
 
-use common::{SYNC_TOKEN, Server, fresh_bucket, http, post, raw_store, run_command, storage_env};
-use donut_sync::store::{Store, Upload, collect, once};
+use common::{
+  SYNC_TOKEN, Server, StorageRequest, fresh_bucket, http, post, raw_store, run_command, storage_env,
+};
+use donut_sync::store::{Store, collect};
 use serde_json::{Value, json};
 
 const K1: &str = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
@@ -61,7 +63,7 @@ async fn upload(server: &Server, key: &str, body: Vec<u8>, updated_at: Option<&s
       put = put.header(format!("x-amz-meta-{name}"), value.as_str().unwrap());
     }
   }
-  let response = put.send().await.unwrap();
+  let response = put.send_to_storage().await;
   assert_eq!(response.status(), 200, "{}", response.text().await.unwrap());
   url
 }
@@ -71,9 +73,8 @@ async fn download(server: &Server, key: &str) -> (u16, Vec<u8>) {
   assert_eq!(status, 200, "{presign}");
   let response = http()
     .get(presign["url"].as_str().unwrap())
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   let status = response.status().as_u16();
   (status, response.bytes().await.unwrap().to_vec())
 }
@@ -113,9 +114,8 @@ async fn transfers_go_through_the_server_and_are_sealed_in_storage() {
     0,
     http()
       .get(format!("{}/readyz", server.url))
-      .send()
+      .send_to_storage()
       .await
-      .unwrap()
       .json::<Value>()
       .await
       .unwrap(),
@@ -154,9 +154,8 @@ async fn batches_and_downloads_keep_the_s3_shapes() {
       .put(url)
       .header("Content-Length", key.len().to_string())
       .body(key.to_string())
-      .send()
-      .await
-      .unwrap();
+      .send_to_storage()
+      .await;
     assert_eq!(response.status(), 200);
   }
   let (_, batch) = call(
@@ -168,9 +167,8 @@ async fn batches_and_downloads_keep_the_s3_shapes() {
   for item in batch["items"].as_array().unwrap() {
     let response = http()
       .get(item["url"].as_str().unwrap())
-      .send()
-      .await
-      .unwrap();
+      .send_to_storage()
+      .await;
     assert_eq!(
       response.text().await.unwrap(),
       item["key"].as_str().unwrap()
@@ -200,27 +198,24 @@ async fn transfer_urls_refuse_what_s3_would_refuse() {
   let put = |url: String| client.put(url).header("Content-Length", "1").body("x");
 
   // The signed metadata must be sent, exactly.
-  let response = put(url.to_string()).send().await.unwrap();
+  let response = put(url.to_string()).send_to_storage().await;
   assert_eq!(response.status(), 403);
   let response = put(url.to_string())
     .header("x-amz-meta-updated-at", "6")
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 403);
   let response = put(url.to_string())
     .header("x-amz-meta-updated-at", "5")
     .header("x-amz-meta-group-id", "g")
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 403);
   // A changed URL, or the wrong method.
   let response = put(url.replace("updated-at=5", "updated-at=6"))
     .header("x-amz-meta-updated-at", "6")
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 403);
   assert!(
     response
@@ -229,7 +224,7 @@ async fn transfer_urls_refuse_what_s3_would_refuse() {
       .unwrap()
       .contains("SignatureDoesNotMatch")
   );
-  let response = client.get(url).send().await.unwrap();
+  let response = client.get(url).send_to_storage().await;
   assert_eq!(response.status(), 403);
   // No length, as S3 answers a chunked PUT.
   let chunked = reqwest::Body::wrap_stream(futures_util::stream::iter([Ok::<_, std::io::Error>(
@@ -239,9 +234,8 @@ async fn transfer_urls_refuse_what_s3_would_refuse() {
     .put(url)
     .header("x-amz-meta-updated-at", "5")
     .body(chunked)
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 411);
   // Expired.
   let (_, short) = call(
@@ -253,9 +247,8 @@ async fn transfer_urls_refuse_what_s3_would_refuse() {
   tokio::time::sleep(std::time::Duration::from_millis(20)).await;
   let response = client
     .get(short["url"].as_str().unwrap())
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 403);
   assert!(
     response
@@ -269,9 +262,8 @@ async fn transfer_urls_refuse_what_s3_would_refuse() {
   // The right request still works.
   let response = put(url.to_string())
     .header("x-amz-meta-updated-at", "5")
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 200);
 }
 
@@ -287,9 +279,8 @@ async fn without_the_key_nothing_changes() {
   );
   let response = http()
     .get(format!("{}/v1/transfer?key=k", server.url))
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 404);
   assert_eq!(
     response.json::<Value>().await.unwrap()["message"],
@@ -303,16 +294,13 @@ async fn seed_plaintext(bucket: &str, objects: &[(&str, Vec<u8>)]) {
   let raw = raw_store(bucket);
   raw.create_bucket().await.ok();
   for (key, body) in objects {
+    // The buffered PUT, which retries as S3 clients do.
     raw
-      .put_object_stream(
+      .put_object(
         key,
-        once(body.clone()),
-        Upload {
-          length: body.len() as u64,
-          content_type: Some("application/json"),
-          metadata: &[("updated-at".to_string(), "9".to_string())],
-          if_match: None,
-        },
+        body.clone(),
+        "application/json",
+        &[("updated-at".to_string(), "9".to_string())],
       )
       .await
       .unwrap();
@@ -483,9 +471,8 @@ async fn migration_seals_everything_in_place_and_a_rerun_does_nothing() {
   let (_, presign) = call(&server, "presign-download", json!({ "key": key })).await;
   let response = http()
     .get(presign["url"].as_str().unwrap())
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(
     response.headers()["last-modified"],
     donut_sync::time::http_date(original_ms).as_str()
@@ -580,9 +567,8 @@ async fn start_parts(url: &str, length: usize) -> reqwest::Response {
     .header("x-donut-upload-length", length.to_string())
     .header("Content-Type", "application/octet-stream")
     .header("x-amz-meta-updated-at", "77")
-    .send()
+    .send_to_storage()
     .await
-    .unwrap()
 }
 
 fn part_url(url: &str, upload: &str, part: usize) -> String {
@@ -611,9 +597,8 @@ async fn large_files_upload_in_parts_into_one_sealed_object() {
       .put(part_url(&url, upload, i + 1))
       .header("Content-Length", chunk.len().to_string())
       .body(chunk.to_vec())
-      .send()
-      .await
-      .unwrap();
+      .send_to_storage()
+      .await;
     assert_eq!(response.status(), 200, "{}", response.text().await.unwrap());
     etags.push(response.headers()["etag"].to_str().unwrap().to_string());
   }
@@ -622,16 +607,14 @@ async fn large_files_upload_in_parts_into_one_sealed_object() {
     .put(part_url(&url, upload, 2))
     .header("Content-Length", PART.to_string())
     .body(plain[PART..2 * PART].to_vec())
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   etags[1] = again.headers()["etag"].to_str().unwrap().to_string();
   let done = http()
     .post(format!("{url}&upload={upload}&op=complete"))
     .json(&json!({ "parts": etags }))
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(done.status(), 200, "{}", done.text().await.unwrap());
 
   let raw = raw_store(&bucket);
@@ -651,16 +634,14 @@ async fn part_requests_refuse_what_does_not_fit_the_upload() {
   let response = http()
     .post(&url)
     .header("x-donut-upload-length", "10")
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 403);
   let response = http()
     .post(&url)
     .header("x-amz-meta-updated-at", "77")
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 400);
 
   let started: Value = start_parts(&url, PART + 1).await.json().await.unwrap();
@@ -670,65 +651,52 @@ async fn part_requests_refuse_what_does_not_fit_the_upload() {
       .put(part_url(&url, &upload, part))
       .header("Content-Length", len.to_string())
       .body(vec![0u8; len])
-      .send()
+      .send_to_storage()
   };
-  assert_eq!(
-    put(1, PART - 1).await.unwrap().status(),
-    400,
-    "a short part"
-  );
-  assert_eq!(put(3, 1).await.unwrap().status(), 400, "no part 3");
-  assert_eq!(put(0, 1).await.unwrap().status(), 400, "no part 0");
+  assert_eq!(put(1, PART - 1).await.status(), 400, "a short part");
+  assert_eq!(put(3, 1).await.status(), 400, "no part 3");
+  assert_eq!(put(0, 1).await.status(), 400, "no part 0");
   // A forged token, or this token on another key's URL.
   let forged = upload.replacen('.', ".0", 1);
   let response = http()
     .put(part_url(&url, &forged, 2))
     .header("Content-Length", "1")
     .body(vec![0u8])
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 403);
   let (other, _) = presign_transfer(&server, "other").await;
   let response = http()
     .put(part_url(&other, &upload, 2))
     .header("Content-Length", "1")
     .body(vec![0u8])
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 403);
   // A part sent again must carry the same bytes.
-  assert_eq!(put(1, PART).await.unwrap().status(), 200);
-  assert_eq!(
-    put(1, PART).await.unwrap().status(),
-    200,
-    "the same bytes again"
-  );
+  assert_eq!(put(1, PART).await.status(), 200);
+  assert_eq!(put(1, PART).await.status(), 200, "the same bytes again");
   let changed = http()
     .put(part_url(&url, &upload, 1))
     .header("Content-Length", PART.to_string())
     .body(vec![1u8; PART])
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(changed.status(), 409);
   // The wrong number of parts on completion.
-  let one = put(2, 1).await.unwrap();
+  let one = put(2, 1).await;
   let etag = one.headers()["etag"].to_str().unwrap().to_string();
   let done = http()
     .post(format!("{url}&upload={upload}&op=complete"))
     .json(&json!({ "parts": [etag] }))
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(done.status(), 400);
   // Aborted, the upload takes no more parts.
   let aborted = http()
     .delete(format!("{url}&upload={upload}"))
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(aborted.status(), 204);
   assert_eq!(download(&server, "k").await.0, 404);
 }
@@ -750,9 +718,8 @@ async fn older_apps_upload_directly_and_the_sealer_seals_it() {
     .header("Content-Length", plain.len().to_string())
     .header("x-amz-meta-updated-at", "5")
     .body(plain.clone())
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(response.status(), 200);
   let raw: std::sync::Arc<dyn Store> = std::sync::Arc::new(raw_store(&bucket));
   assert!(
@@ -831,17 +798,15 @@ async fn a_rollback_unseals_everything_and_the_key_can_go() {
       .put(part_url(&url, &upload_token, i + 1))
       .header("Content-Length", chunk.len().to_string())
       .body(chunk.to_vec())
-      .send()
-      .await
-      .unwrap();
+      .send_to_storage()
+      .await;
     etags.push(response.headers()["etag"].to_str().unwrap().to_string());
   }
   let done = http()
     .post(format!("{url}&upload={upload_token}&op=complete"))
     .json(&json!({ "parts": etags }))
-    .send()
-    .await
-    .unwrap();
+    .send_to_storage()
+    .await;
   assert_eq!(done.status(), 200);
   let (_, before) = call(&server, "stat", json!({ "key": key_sealed })).await;
   drop(server);
@@ -890,9 +855,8 @@ async fn a_rollback_unseals_everything_and_the_key_can_go() {
     assert_eq!(status, 200);
     let got = http()
       .get(presign["url"].as_str().unwrap())
-      .send()
+      .send_to_storage()
       .await
-      .unwrap()
       .bytes()
       .await
       .unwrap();

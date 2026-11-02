@@ -46,8 +46,10 @@ const CONTEXT: &str = "Migrate";
 /// Temporary sealed copies. No client prefix matches it.
 pub const TMP_PREFIX: &str = ".donut-sync-at-rest/tmp/";
 const PROGRESS_EVERY: Duration = Duration::from_secs(10);
-/// Tries per object: storage has transient failures.
-const ATTEMPTS: u32 = 3;
+/// Tries per object when storage fails for a while (B2 answers 500 "internal
+/// incident" and 503, and asks for exponential backoff): 1, 2, 4, 8 and 16 s
+/// apart, about half a minute, on top of each request's own quick retries.
+const ATTEMPTS: u32 = 6;
 /// Put-backs in a row before a settle gives up on a history that keeps moving.
 const SETTLE_ROUNDS: usize = 3;
 
@@ -253,6 +255,21 @@ impl Migration {
   }
 }
 
+/// A failure that may pass: a dropped connection, a 5xx or a 429. A
+/// refusal (403, 400) or a sealed object that does not open stays as it is.
+fn transient(error: &StoreError) -> bool {
+  match error {
+    StoreError::Transport(_) => true,
+    StoreError::Service { status, .. } => *status >= 500 || *status == 429,
+    StoreError::NotFound | StoreError::Corrupt(_) => false,
+  }
+}
+
+/// The wait after try `attempt` (1-based): 1 s, then doubling.
+fn backoff(attempt: u32) -> Duration {
+  Duration::from_secs(1 << (attempt - 1).min(5))
+}
+
 fn precondition_failed(error: &StoreError) -> bool {
   matches!(error, StoreError::Service { status: 412, .. })
 }
@@ -334,9 +351,8 @@ impl Migration {
         Ok(outcome) => return outcome,
         Err(StoreError::NotFound) => return Outcome::Changed,
         Err(e) if precondition_failed(&e) => return Outcome::Changed,
-        Err(e @ StoreError::Corrupt(_)) => return Outcome::Failed(e.to_string()),
-        Err(e) if attempt >= ATTEMPTS => return Outcome::Failed(e.to_string()),
-        Err(_) => tokio::time::sleep(Duration::from_millis(500 << attempt)).await,
+        Err(e) if !transient(&e) || attempt >= ATTEMPTS => return Outcome::Failed(e.to_string()),
+        Err(_) => tokio::time::sleep(backoff(attempt)).await,
       }
     }
   }
@@ -449,9 +465,8 @@ impl Migration {
       attempt += 1;
       match self.settle_once(key, settle).await {
         Ok(restored) => return Ok(restored),
-        Err(SettleError::Store(e)) if attempt < ATTEMPTS => {
-          log::warn(CONTEXT, &format!("Settle retry key={key} err=\"{e}\""));
-          tokio::time::sleep(Duration::from_millis(500 << attempt)).await;
+        Err(SettleError::Store(e)) if transient(&e) && attempt < ATTEMPTS => {
+          tokio::time::sleep(backoff(attempt)).await;
         }
         Err(e) => return Err(e.to_string()),
       }
@@ -1229,6 +1244,41 @@ mod tests {
     // The device's write stands, and this run sealed it.
     let served = crate::served_store(raw.clone(), Some(&keyring(K1)));
     assert_eq!(served.get_object_text("k").await.unwrap(), "device");
+  }
+
+  /// HEAD fails as B2 does in an incident, or refuses: a 500 is tried
+  /// ATTEMPTS times with backoff, a 403 once.
+  #[tokio::test(start_paused = true)]
+  async fn storage_failures_are_retried_with_backoff_only_when_they_may_pass() {
+    for (status, tries) in [(500, ATTEMPTS as usize), (503, ATTEMPTS as usize), (403, 1)] {
+      let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+      let seen = calls.clone();
+      let raw = Arc::new(MemoryStore {
+        head_hook: Some(Box::new(move |_| {
+          seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+          Err(StoreError::Service {
+            status,
+            code: "InternalError".to_string(),
+            message: "internal incident".to_string(),
+          })
+        })),
+        ..MemoryStore::default()
+      });
+      let migration = Migration::sealing(raw, keyring(K1), false);
+      let started = tokio::time::Instant::now();
+      assert!(matches!(
+        migration.object("k", None).await,
+        Outcome::Failed(_)
+      ));
+      assert_eq!(
+        calls.load(std::sync::atomic::Ordering::SeqCst),
+        tries,
+        "status {status}"
+      );
+      if tries > 1 {
+        assert_eq!(started.elapsed(), Duration::from_secs(1 + 2 + 4 + 8 + 16));
+      }
+    }
   }
 
   #[test]
