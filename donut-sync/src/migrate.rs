@@ -349,17 +349,21 @@ impl Migration {
       attempt += 1;
       match self.try_object(key, listed_ms).await {
         Ok(outcome) => return outcome,
-        Err(StoreError::NotFound) => return Outcome::Changed,
-        Err(e) if precondition_failed(&e) => return Outcome::Changed,
-        Err(e) if !transient(&e) || attempt >= ATTEMPTS => return Outcome::Failed(e.to_string()),
+        Err(failed) if matches!(failed.error, StoreError::NotFound) => return Outcome::Changed,
+        Err(failed) if precondition_failed(&failed.error) => return Outcome::Changed,
+        Err(failed) if !transient(&failed.error) || attempt >= ATTEMPTS => {
+          return Outcome::Failed(failed.to_string());
+        }
         Err(_) => tokio::time::sleep(backoff(attempt)).await,
       }
     }
   }
 
-  async fn try_object(&self, key: &str, listed_ms: Option<i64>) -> Result<Outcome, StoreError> {
-    let head = self.store.head_object(key).await?;
-    let kid = sealed_kid(self.store.as_ref(), key, &head).await?;
+  async fn try_object(&self, key: &str, listed_ms: Option<i64>) -> Result<Outcome, StepError> {
+    let head = self.store.head_object(key).await.map_err(at("HEAD"))?;
+    let kid = sealed_kid(self.store.as_ref(), key, &head)
+      .await
+      .map_err(at("read header"))?;
     let current = self.keyring.current().id();
     let stored = head.content_length.unwrap_or(0);
     let plain = match &kid {
@@ -379,8 +383,9 @@ impl Migration {
     let etag = head
       .etag
       .clone()
-      .ok_or_else(|| StoreError::Transport("the store gave no ETag".to_string()))?;
-    let download = self.store.get_object(key).await?;
+      .ok_or_else(|| StoreError::Transport("the store gave no ETag".to_string()))
+      .map_err(at("HEAD"))?;
+    let download = self.store.get_object(key).await.map_err(at("GET source"))?;
     if download.head.etag.as_deref() != Some(etag.as_str()) {
       return Ok(Outcome::Changed);
     }
@@ -424,20 +429,31 @@ impl Migration {
             ..upload
           },
         )
-        .await?;
+        .await
+        .map_err(at("PUT"))?;
       return Ok(done);
     }
     let tmp = format!("{TMP_PREFIX}{}", uuid::Uuid::new_v4().simple());
     let placed = async {
-      self.store.put_object_stream(&tmp, body, upload).await?;
-      if self.store.head_object(key).await?.etag.as_deref() != Some(etag.as_str()) {
+      self
+        .store
+        .put_object_stream(&tmp, body, upload)
+        .await
+        .map_err(at("PUT tmp"))?;
+      let now = self
+        .store
+        .head_object(key)
+        .await
+        .map_err(at("HEAD before copy"))?;
+      if now.etag.as_deref() != Some(etag.as_str()) {
         return Ok(None);
       }
       let copied = self
         .store
         .copy_object_with(&tmp, key, CopySpec::default())
-        .await?;
-      Ok::<_, StoreError>(Some(copied.version_id))
+        .await
+        .map_err(at("CopyObject"))?;
+      Ok::<_, StepError>(Some(copied.version_id))
     }
     .await;
     let _ = purge(self.store.as_ref(), &tmp).await;
@@ -465,7 +481,7 @@ impl Migration {
       attempt += 1;
       match self.settle_once(key, settle).await {
         Ok(restored) => return Ok(restored),
-        Err(SettleError::Store(e)) if transient(&e) && attempt < ATTEMPTS => {
+        Err(SettleError::Store(failed)) if transient(&failed.error) && attempt < ATTEMPTS => {
           tokio::time::sleep(backoff(attempt)).await;
         }
         Err(e) => return Err(e.to_string()),
@@ -481,7 +497,10 @@ impl Migration {
     let (mut read, mut ours) = (settle.read.clone(), settle.ours.clone());
     let mut restored = false;
     for _ in 0..SETTLE_ROUNDS {
-      let Some(history) = versions_of(self.store.as_ref(), key).await? else {
+      let Some(history) = versions_of(self.store.as_ref(), key)
+        .await
+        .map_err(at("settle: list versions"))?
+      else {
         return Ok(restored);
       };
       let (Some(read_id), Some(ours_id)) = (read.as_deref(), ours.as_deref()) else {
@@ -502,7 +521,11 @@ impl Migration {
       }
       let lost = &history[at_ours + 1];
       let put_back = if lost.delete_marker {
-        let marker = self.store.delete_object(key).await?;
+        let marker = self
+          .store
+          .delete_object(key)
+          .await
+          .map_err(at("settle: put back delete"))?;
         log::warn(
           CONTEXT,
           &format!("Delete made during the rewrite put back key={key}"),
@@ -519,7 +542,8 @@ impl Migration {
               ..CopySpec::default()
             },
           )
-          .await?;
+          .await
+          .map_err(at("settle: put back copy"))?;
         log::warn(
           CONTEXT,
           &format!("Write made during the rewrite put back key={key}"),
@@ -544,15 +568,31 @@ pub struct Settle {
   pub ours: Option<String>,
 }
 
+/// A storage error, with the step of a rewrite it stopped.
+pub(crate) struct StepError {
+  step: &'static str,
+  error: StoreError,
+}
+
+impl std::fmt::Display for StepError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}: {}", self.step, self.error)
+  }
+}
+
+fn at(step: &'static str) -> impl Fn(StoreError) -> StepError {
+  move |error| StepError { step, error }
+}
+
 enum SettleError {
   /// Storage failed; trying again may help.
-  Store(StoreError),
+  Store(StepError),
   /// Needs a person or a later pass.
   Unknown(&'static str),
 }
 
-impl From<StoreError> for SettleError {
-  fn from(e: StoreError) -> Self {
+impl From<StepError> for SettleError {
+  fn from(e: StepError) -> Self {
     SettleError::Store(e)
   }
 }
@@ -1266,10 +1306,13 @@ mod tests {
       });
       let migration = Migration::sealing(raw, keyring(K1), false);
       let started = tokio::time::Instant::now();
-      assert!(matches!(
-        migration.object("k", None).await,
-        Outcome::Failed(_)
-      ));
+      let Outcome::Failed(reason) = migration.object("k", None).await else {
+        panic!("status {status} did not fail");
+      };
+      assert!(
+        reason.starts_with("HEAD: "),
+        "the failed step is named: {reason}"
+      );
       assert_eq!(
         calls.load(std::sync::atomic::Ordering::SeqCst),
         tries,
