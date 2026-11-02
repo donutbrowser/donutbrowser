@@ -2961,6 +2961,7 @@
     "agentTokenRequired": "The agent could not sign in. Try again.",
     "agentEngineFailed": "The agent could not do that.",
     "agentTaskEnded": "This task has already ended.",
+    "agentEngineRestarted": "The agent stopped unexpectedly. Send your message again.",
     "agentApprovalClosed": "This question is no longer open.",
     "agentBrowserUnreachable": "The browser of the profile did not answer.",
     "agentBrowserClosed": "The browser closed before the task ended.",

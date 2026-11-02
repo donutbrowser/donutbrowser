@@ -2961,6 +2961,7 @@
     "agentTokenRequired": "Ajan oturum açamadı. Yeniden dene.",
     "agentEngineFailed": "Ajan bunu yapamadı.",
     "agentTaskEnded": "Bu görev zaten sona erdi.",
+    "agentEngineRestarted": "Ajan beklenmedik şekilde durdu. Mesajınızı yeniden gönderin.",
     "agentApprovalClosed": "Bu soru artık açık değil.",
     "agentBrowserUnreachable": "Profilin tarayıcısı yanıt vermedi.",
     "agentBrowserClosed": "Tarayıcı, görev bitmeden kapandı.",

@@ -3001,6 +3001,7 @@
     "agentTokenRequired": "Агент не смог войти. Попробуйте снова.",
     "agentEngineFailed": "Агент не смог это сделать.",
     "agentTaskEnded": "Эта задача уже завершена.",
+    "agentEngineRestarted": "Агент неожиданно остановился. Отправьте сообщение ещё раз.",
     "agentApprovalClosed": "Этот вопрос больше не открыт.",
     "agentBrowserUnreachable": "Браузер профиля не ответил.",
     "agentBrowserClosed": "Браузер закрылся до завершения задачи.",

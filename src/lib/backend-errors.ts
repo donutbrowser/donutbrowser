@@ -298,6 +298,7 @@ export type BackendErrorCode =
   | "AGENT_TASK_UNKNOWN"
   | "AGENT_TASK_ENDED"
   | "AGENT_APPROVAL_UNKNOWN"
+  | "AGENT_ENGINE_RESTARTED"
   | "AGENT_BROWSER_UNREACHABLE"
   | "AGENT_BROWSER_CLOSED"
   | "AGENT_PROMPT_EMPTY"
@@ -1120,6 +1121,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
     case "AGENT_TASK_UNKNOWN":
     case "AGENT_TASK_ENDED":
       return t("backendErrors.agentTaskEnded");
+    case "AGENT_ENGINE_RESTARTED":
+      return t("backendErrors.agentEngineRestarted");
     case "AGENT_APPROVAL_UNKNOWN":
       return t("backendErrors.agentApprovalClosed");
     case "AGENT_BROWSER_UNREACHABLE":

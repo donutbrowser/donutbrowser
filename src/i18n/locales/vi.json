@@ -2961,6 +2961,7 @@
     "agentTokenRequired": "Tác tử không đăng nhập được. Hãy thử lại.",
     "agentEngineFailed": "Tác tử không làm được việc đó.",
     "agentTaskEnded": "Tác vụ này đã kết thúc.",
+    "agentEngineRestarted": "Tác tử đã dừng bất ngờ. Hãy gửi lại tin nhắn của bạn.",
     "agentApprovalClosed": "Câu hỏi này không còn mở.",
     "agentBrowserUnreachable": "Trình duyệt của hồ sơ không phản hồi.",
     "agentBrowserClosed": "Trình duyệt đã đóng trước khi tác vụ xong.",

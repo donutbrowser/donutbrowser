@@ -2981,6 +2981,7 @@
     "agentTokenRequired": "O agente não conseguiu entrar. Tente de novo.",
     "agentEngineFailed": "O agente não conseguiu fazer isso.",
     "agentTaskEnded": "Esta tarefa já terminou.",
+    "agentEngineRestarted": "O agente parou inesperadamente. Envie sua mensagem novamente.",
     "agentApprovalClosed": "Esta pergunta não está mais aberta.",
     "agentBrowserUnreachable": "O navegador do perfil não respondeu.",
     "agentBrowserClosed": "O navegador fechou antes do fim da tarefa.",

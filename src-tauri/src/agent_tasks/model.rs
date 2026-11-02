@@ -107,6 +107,20 @@ fn text(params: &Value, key: &str) -> Option<String> {
     .map(|value| value.chars().take(MAX_TEXT_CHARS).collect())
 }
 
+/// An engine error that is a bare code (`AGENT_ENGINE_RESTARTED`) becomes the
+/// app's JSON error, so the interface translates it; prose stays as it is.
+fn coded_error(error: String) -> String {
+  let is_code = !error.is_empty()
+    && error
+      .chars()
+      .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
+  if is_code {
+    crate::backend_error(&error)
+  } else {
+    error
+  }
+}
+
 fn credits(params: &Value) -> u64 {
   params
     .get("creditsUsed")
@@ -142,7 +156,7 @@ impl EngineEvent {
       "Wayfern.agentFinished" => Self::Finished {
         status: TaskStatus::from_finished(params.get("status").and_then(Value::as_str)?),
         result: text(params, "result"),
-        error: text(params, "error"),
+        error: text(params, "error").map(coded_error),
         credits_used: credits(params),
       },
       "Wayfern.agentCredits" => Self::Credits(credits(params)),
@@ -291,6 +305,27 @@ mod tests {
     task.task_id = Some("t1".into());
     task.status = TaskStatus::Running;
     task
+  }
+
+  #[test]
+  fn a_bare_engine_code_becomes_a_translatable_error() {
+    let EngineEvent::Finished { error, .. } = event(
+      "Wayfern.agentFinished",
+      json!({"taskId": "t1", "status": "failed", "error": "AGENT_ENGINE_RESTARTED", "creditsUsed": 3}),
+    ) else {
+      panic!("a finished event");
+    };
+    assert_eq!(
+      error.as_deref(),
+      Some(crate::backend_error("AGENT_ENGINE_RESTARTED").as_str())
+    );
+    let EngineEvent::Finished { error, .. } = event(
+      "Wayfern.agentFinished",
+      json!({"taskId": "t1", "status": "failed", "error": "The page did not load.", "creditsUsed": 3}),
+    ) else {
+      panic!("a finished event");
+    };
+    assert_eq!(error.as_deref(), Some("The page did not load."));
   }
 
   fn event(method: &str, params: Value) -> EngineEvent {

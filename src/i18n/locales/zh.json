@@ -2961,6 +2961,7 @@
     "agentTokenRequired": "智能体无法登录。请重试。",
     "agentEngineFailed": "智能体无法完成该操作。",
     "agentTaskEnded": "此任务已结束。",
+    "agentEngineRestarted": "代理意外停止。请重新发送你的消息。",
     "agentApprovalClosed": "此问题已关闭。",
     "agentBrowserUnreachable": "配置文件的浏览器没有响应。",
     "agentBrowserClosed": "任务结束前浏览器已关闭。",

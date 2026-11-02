@@ -2961,6 +2961,7 @@
     "agentTokenRequired": "Der Agent konnte sich nicht anmelden. Versuche es erneut.",
     "agentEngineFailed": "Der Agent konnte das nicht tun.",
     "agentTaskEnded": "Diese Aufgabe ist bereits beendet.",
+    "agentEngineRestarted": "Der Agent wurde unerwartet beendet. Senden Sie Ihre Nachricht erneut.",
     "agentApprovalClosed": "Diese Frage ist nicht mehr offen.",
     "agentBrowserUnreachable": "Der Browser des Profils hat nicht geantwortet.",
     "agentBrowserClosed": "Der Browser wurde geschlossen, bevor die Aufgabe fertig war.",

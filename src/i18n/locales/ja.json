@@ -2961,6 +2961,7 @@
     "agentTokenRequired": "エージェントがサインインできませんでした。もう一度お試しください。",
     "agentEngineFailed": "エージェントはその操作を実行できませんでした。",
     "agentTaskEnded": "このタスクはすでに終了しています。",
+    "agentEngineRestarted": "エージェントが予期せず停止しました。メッセージをもう一度送信してください。",
     "agentApprovalClosed": "この質問はもう受け付けていません。",
     "agentBrowserUnreachable": "プロファイルのブラウザが応答しませんでした。",
     "agentBrowserClosed": "タスクの完了前にブラウザが閉じました。",

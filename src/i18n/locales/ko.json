@@ -2961,6 +2961,7 @@
     "agentTokenRequired": "에이전트가 로그인하지 못했습니다. 다시 시도하세요.",
     "agentEngineFailed": "에이전트가 그 작업을 하지 못했습니다.",
     "agentTaskEnded": "이 작업은 이미 끝났습니다.",
+    "agentEngineRestarted": "에이전트가 예기치 않게 멈췄습니다. 메시지를 다시 보내세요.",
     "agentApprovalClosed": "이 질문은 더 이상 열려 있지 않습니다.",
     "agentBrowserUnreachable": "프로필의 브라우저가 응답하지 않았습니다.",
     "agentBrowserClosed": "작업이 끝나기 전에 브라우저가 닫혔습니다.",
