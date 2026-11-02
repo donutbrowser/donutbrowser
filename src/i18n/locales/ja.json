@@ -2471,7 +2471,8 @@
       "copyId": "ID をコピー",
       "runRemote": "クラウドで実行",
       "lockNow": "今すぐロック",
-      "moveToTrash": "ゴミ箱に移動"
+      "moveToTrash": "ゴミ箱に移動",
+      "askAgent": "エージェントに依頼"
     },
     "emptyGroupTitle": "このグループは空です",
     "emptyGroupHint": "このグループにプロファイルを作成するか、既存のプロファイルを移動してください。",
@@ -2974,7 +2975,8 @@
     "agentActionInvalid": "エージェントはその操作を知りません。",
     "siteStorageNotFound": "このサイトデータはもうプロファイルにありません。",
     "siteStorageUnsafePath": "このサイトデータはプロファイルフォルダーの外を指しているため、Donut は変更しませんでした。",
-    "siteStorageIoFailed": "Donut はサイトデータを変更できませんでした: {{detail}}"
+    "siteStorageIoFailed": "Donut はサイトデータを変更できませんでした: {{detail}}",
+    "agentChatNotFound": "このチャットはもう存在しません。"
   },
   "rail": {
     "profiles": "プロファイル",
@@ -3120,7 +3122,8 @@
       "stopProfile": "{{name}} を停止",
       "profileInfo": "情報 — {{name}}",
       "createProfile": "プロファイルを作成",
-      "about": "Donut Browser について"
+      "about": "Donut Browser について",
+      "agentChat": "新しいエージェントチャット"
     },
     "pages": {
       "launch": {
@@ -3184,7 +3187,8 @@
       "newProfile": "新規 追加 作成 プロファイル ブラウザ",
       "stopAllRunning": "停止 すべて 実行中 終了 閉じる",
       "focusSearch": "検索 探す フィルター",
-      "goBack": "戻る エスケープ ホーム"
+      "goBack": "戻る エスケープ ホーム",
+      "agentChat": "エージェント チャット 依頼 アシスタント AI 会話 タスク"
     }
   },
   "shortcuts": {
@@ -3951,7 +3955,8 @@
       "recipes": "レシピ",
       "schedules": "スケジュール",
       "tasks": "タスク",
-      "routines": "ルーティン"
+      "routines": "ルーティン",
+      "chat": "チャット"
     },
     "header": {
       "quota": "この 1 時間の残り呼び出し: {{left}} / {{limit}}",
@@ -4340,6 +4345,31 @@
         "minutes_one": "毎分",
         "minutes_other": "{{count}} 分ごと"
       }
+    },
+    "chat": {
+      "chooseProfile": "プロファイルを選択",
+      "newChat": "新しいチャット",
+      "chats": "チャット",
+      "justNow": "今",
+      "delete": "チャットを削除",
+      "confirmDelete": "もう一度クリックして削除",
+      "emptyTitle": "エージェントに何をさせますか？",
+      "emptyBody": "選んだプロファイルのブラウザで作業します。各ステップを確認でき、いつでも介入できます。",
+      "noProfiles": "まず Wayfern プロファイルを作成してください。エージェントはそのブラウザで作業します。",
+      "placeholderStart": "エージェントに依頼する",
+      "placeholderFollowUp": "続けて質問する",
+      "placeholderSteer": "作業中のエージェントに指示する",
+      "hint": "Enter で送信、Shift+Enter で改行",
+      "send": "送信",
+      "steer": "作業中に送信",
+      "steps": "ステップ",
+      "replyLabel": "エージェントに返信",
+      "replyPlaceholder": "返信（任意）",
+      "fresh": "エージェントは前のタスクを続けられず、最初からやり直します。前のメッセージは見えません。",
+      "noCreditsTitle": "クレジットがありません",
+      "noCreditsBody": "次の期間まで、またはクレジットを購入するまでエージェントは停止します。",
+      "worked_one": "{{count}} ステップを実行",
+      "worked_other": "{{count}} ステップを実行"
     }
   },
   "proxyDistribution": {

@@ -2154,6 +2154,8 @@ interface ProfilesDataTableProps {
   onDuplicateProfile?: (profile: BrowserProfile) => void;
   onLockProfile?: (profile: BrowserProfile) => void;
   onRunRemote?: (profile: BrowserProfile) => void;
+  /** Opens a chat with the agent on the profile; only with the agent. */
+  onAskAgent?: (profile: BrowserProfile) => void;
 }
 
 const EMPTY_LAUNCH_ERRORS: Record<string, string> = {};
@@ -2216,6 +2218,7 @@ export function ProfilesDataTable({
   onDuplicateProfile,
   onLockProfile,
   onRunRemote,
+  onAskAgent,
   onDeleteSelectedProfiles,
   selectedGroupId,
 }: ProfilesDataTableProps) {
@@ -4238,6 +4241,7 @@ export function ProfilesDataTable({
         ? () => onAssignProfilesToGroup([menuProfile.id])
         : undefined,
       onRunRemote: onRunRemote ? () => onRunRemote(menuProfile) : undefined,
+      onAskAgent: onAskAgent ? () => onAskAgent(menuProfile) : undefined,
       onLockNow: onLockProfile ? () => onLockProfile(menuProfile) : undefined,
       onTrash: () => trashProfiles(menuProfile, true),
     };

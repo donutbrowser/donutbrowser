@@ -9,6 +9,7 @@ import {
   LuFolderInput,
   LuInfo,
   LuLock,
+  LuMessagesSquare,
   LuPencil,
   LuPlay,
   LuSquare,
@@ -38,6 +39,7 @@ export interface RowMenuActions {
   onDuplicate?: () => void;
   onMoveToGroup?: () => void;
   onRunRemote?: () => void;
+  onAskAgent?: () => void;
   onLockNow?: () => void;
   onTrash?: () => void;
 }
@@ -142,6 +144,15 @@ export function RowContextMenuContent({
         <LuCopy />
         {t("profileTable.menu.copyId")}
       </ContextMenuItem>
+      {actions.onAskAgent && (
+        <ContextMenuItem
+          data-slot="profile-row-ask-agent"
+          onSelect={actions.onAskAgent}
+        >
+          <LuMessagesSquare />
+          {t("profileTable.menu.askAgent")}
+        </ContextMenuItem>
+      )}
       {(actions.onRunRemote || (actions.onLockNow && unlocked)) && (
         <ContextMenuSeparator />
       )}

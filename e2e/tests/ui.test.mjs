@@ -7839,6 +7839,7 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
       "get_agent_credits",
       "list_agent_batches",
       "list_agent_routines",
+      "list_agent_chats",
     ]) {
       await stubCommand(app, command, null);
     }
@@ -7873,6 +7874,7 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
       tabs: [...document.querySelectorAll('[data-testid^="agent-tab-"]')].map((n) => n.dataset.testid),
       credits: Boolean(document.querySelector('[data-slot="agent-credits"]')),
       tasks: Boolean(document.querySelector('[data-slot="agent-tasks"]')),
+      chat: Boolean(document.querySelector('[data-slot="agent-chat"]')),
       text: document.body.innerText,
     };`);
     assert.deepEqual(shown.tabs, [
@@ -7884,6 +7886,7 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
     ]);
     assert.equal(shown.credits, false);
     assert.equal(shown.tasks, false);
+    assert.equal(shown.chat, false);
     for (const text of [
       en.agent.tabs.tasks,
       en.agent.tabs.routines,
@@ -7896,6 +7899,7 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
       "get_agent_credits",
       "list_agent_batches",
       "list_agent_routines",
+      "list_agent_chats",
     ]) {
       assert.equal(await agentCallCount(app, command), 0, `${command} called`);
     }
@@ -8118,16 +8122,18 @@ test("an agent run on many profiles stays calm: strip, filters, keys and the one
       await signInWithAgent(app, agentUser(true));
       await app.waitForText("Store 25");
       await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
-      // With the agent, Tasks leads and is the default tab.
+      // With the agent, Chat leads and is the default tab; Tasks follows.
       await app.waitFor(
         () =>
           app.execute(
             `const tabs = [...document.querySelectorAll('[data-testid^="agent-tab-"]')];
-             return tabs[0]?.dataset.testid === "agent-tab-tasks" &&
-               tabs[0].getAttribute("data-state") === "active";`,
+             return tabs[0]?.dataset.testid === "agent-tab-chat" &&
+               tabs[0].getAttribute("data-state") === "active" &&
+               tabs[1]?.dataset.testid === "agent-tab-tasks";`,
           ),
-        { description: "Tasks first and chosen" },
+        { description: "Chat first and chosen" },
       );
+      await app.clickSelector('[data-testid="agent-tab-tasks"]');
       await app.invoke("start_agent_batch", {
         request: {
           profileIds: ids,
@@ -8246,6 +8252,315 @@ test("an agent run on many profiles stays calm: strip, filters, keys and the one
         "failed profiles can be retried",
       );
       await captureBothThemes(app, "agent-batch-25-done");
+    },
+    { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
+  );
+});
+
+/** The chat panel's state, read in one go. */
+async function chatState(app) {
+  return app.execute(`
+    const turns = [...document.querySelectorAll('[data-slot="chat-turn"]')];
+    return {
+      title: document.querySelector('[data-slot="chat-title"]')?.innerText ?? null,
+      chats: document.querySelectorAll('[data-slot="chat-list-item"]').length,
+      turns: turns.map((turn) => ({
+        status: turn.dataset.status,
+        kind: turn.dataset.kind,
+        answer: turn.querySelector('[data-slot="chat-answer"]')?.innerText ?? null,
+        steers: turn.querySelectorAll('[data-slot="chat-steer"]').length,
+        fresh: Boolean(turn.querySelector('[data-slot="chat-fresh"]')),
+        approval: Boolean(turn.querySelector('[data-slot="chat-approval"]')),
+      })),
+      mode: document.querySelector('[data-slot="chat-composer"]')?.dataset.mode ?? null,
+    };
+  `);
+}
+
+/** Type into the composer and press Enter, the way a person sends. */
+async function sendChat(app, text) {
+  await app.fillSelector('[data-slot="chat-input"]', text);
+  const input = await app.execute(
+    `return document.querySelector('[data-slot="chat-input"]');`,
+  );
+  await app.session.sendKeys(input, "\uE007");
+}
+
+async function waitChat(app, predicate, description, timeoutMs = 30_000) {
+  let last = null;
+  try {
+    await app.waitFor(
+      async () => {
+        last = await chatState(app);
+        return predicate(last);
+      },
+      { timeoutMs, description },
+    );
+  } catch (error) {
+    throw new Error(`${error.message}; last state ${JSON.stringify(last)}`);
+  }
+  return last;
+}
+
+test("the agent chat streams steps, asks, answers in markdown, follows up, starts fresh when it must, and keeps its chats", async () => {
+  await withApp(
+    "ui-agent-chat",
+    async (app) => {
+      const atlas = await createUiProfile(app, "Atlas");
+      const borealis = await createUiProfile(app, "Borealis");
+      await signInWithAgent(app, agentUser(true));
+      await app.waitForText("Borealis");
+
+      // The row menu opens a new chat on that profile.
+      await app.execute(
+        `document.querySelector('[data-table-row="${atlas.id}"]').dispatchEvent(
+           new MouseEvent("contextmenu", { bubbles: true, clientX: 200, clientY: 200 }),
+         );`,
+      );
+      await app.clickSelector('[data-slot="profile-row-ask-agent"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const tabs = [...document.querySelectorAll('[data-testid^="agent-tab-"]')];
+             return tabs[0]?.dataset.testid === "agent-tab-chat" &&
+               tabs[0].getAttribute("data-state") === "active" &&
+               Boolean(document.querySelector('[data-slot="chat-empty"]')) &&
+               document.activeElement?.dataset.slot === "chat-input";`,
+          ),
+        { description: "Chat first, empty, with the composer focused" },
+      );
+      assert.equal(
+        await app.execute(
+          `return document.querySelector('[data-slot="agent-chat"] [data-slot="agent-profile-picker"]').innerText.trim();`,
+        ),
+        "Atlas",
+      );
+      await captureBothThemes(app, "chat-880x500-empty");
+
+      // Shift+Enter is a new line; Enter sends.
+      await app.fillSelector('[data-slot="chat-input"]', "draft");
+      await app.execute(
+        `document.querySelector('[data-slot="chat-input"]').dispatchEvent(
+           new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true }),
+         );`,
+      );
+      await sendChat(
+        app,
+        "Find the cheapest flight from Tirana to Lisbon next Friday [slow] [approval] [markdown]",
+      );
+      await waitChat(
+        app,
+        (s) => s.chats === 1 && s.turns.length === 1 && s.mode === "steer",
+        "the first turn running",
+      );
+      const sent = await app.invoke("list_agent_chats");
+      assert.equal(sent.length, 1, "Shift+Enter sent nothing");
+
+      // A message while it works steers it.
+      await sendChat(app, "Only direct flights");
+      await waitChat(app, (s) => s.turns[0]?.steers === 1, "the steer");
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="chat-work-toggle"]')?.disabled === false;`,
+          ),
+        { description: "steps to expand" },
+      );
+      await app.execute(
+        `document.querySelector('[data-slot="chat-work-toggle"]').click();`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="chat-steps"] [data-slot="agent-step"]').length >= 2;`,
+          ),
+        { description: "the step list" },
+      );
+      await captureBothThemes(app, "chat-880x500-running");
+
+      // The question waits inline; approving lets it finish.
+      await waitChat(app, (s) => s.turns[0]?.approval, "the approval", 45_000);
+      await captureBothThemes(app, "chat-880x500-approval");
+      await app.clickSelector('[data-slot="chat-approval-approve"]');
+      await waitChat(
+        app,
+        (s) => s.turns[0]?.status === "done" && s.turns[0].answer,
+        "the answer",
+        45_000,
+      );
+      const rendered = await app.execute(`
+        const answer = document.querySelector('[data-slot="chat-answer"]');
+        return {
+          text: answer.innerText,
+          strong: answer.querySelectorAll("strong").length,
+          table: answer.querySelectorAll('[data-slot="chat-table"] tbody tr').length,
+          code: Boolean(answer.querySelector('[data-slot="chat-code"]')),
+          link: answer.querySelector("a")?.getAttribute("href") ?? null,
+          items: answer.querySelectorAll("li").length,
+        };
+      `);
+      assert.ok(rendered.strong >= 1, "bold renders");
+      assert.equal(rendered.table, 3, "the table has three rows");
+      assert.ok(rendered.code, "the code block renders");
+      assert.equal(rendered.link, "https://flights.example.test/rules");
+      assert.equal(rendered.items, 2);
+      assert.doesNotMatch(rendered.text, /\*\*|\|---/, "no raw markdown shows");
+      await captureBothThemes(app, "chat-880x500-answer");
+
+      // A follow-up continues the same engine task.
+      await sendChat(app, "Which of them allows a checked bag?");
+      let state = await waitChat(
+        app,
+        (s) => s.turns.length === 2 && s.turns[1].status === "done",
+        "the follow-up",
+      );
+      assert.equal(state.turns[1].kind, "follow_up");
+      assert.match(state.turns[1].answer, /TP 1235/);
+      const chatId = (await app.invoke("list_agent_chats"))[0].id;
+      let chat = await app.invoke("get_agent_chat", { chatId });
+      assert.equal(chat.turns[1].taskId, chat.turns[0].taskId);
+      assert.match(chat.title, /^Find the cheapest flight/);
+      assert.ok(chat.title.length <= 80);
+      assert.ok(
+        chat.turns[1].creditsUsed > 0 &&
+          chat.turns[1].creditsUsed < chat.turns[0].creditsUsed,
+        "a follow-up counts only its own credits",
+      );
+
+      // An engine without agentMessage, or one that lost the task, gets a
+      // new task in the same chat, with one quiet line.
+      await sendChat(app, "[old] And the return flight?");
+      state = await waitChat(
+        app,
+        (s) => s.turns.length === 3 && s.turns[2].status === "done",
+        "the fresh start",
+      );
+      assert.equal(state.turns[2].kind, "fresh");
+      assert.ok(state.turns[2].fresh);
+      await app.invoke("send_agent_chat_message", {
+        chatId,
+        text: "[replaced] Compare with Sunday",
+      });
+      state = await waitChat(
+        app,
+        (s) => s.turns.length === 4 && s.turns[3].status === "done",
+        "the second fresh start",
+      );
+      chat = await app.invoke("get_agent_chat", { chatId });
+      assert.equal(chat.turns[3].kind, "fresh");
+      assert.notEqual(chat.turns[2].taskId, chat.turns[0].taskId);
+      assert.notEqual(chat.turns[3].taskId, chat.turns[2].taskId);
+      await captureBothThemes(app, "chat-880x500-follow-ups");
+      await app.session.command("POST", "/window/rect", {
+        width: 1280,
+        height: 800,
+      });
+      await captureBothThemes(app, "chat-1280x800-follow-ups");
+
+      // A second chat: pause, resume and a declined question.
+      const second = await app.invoke("create_agent_chat", {
+        profileId: borealis.id,
+        text: "[slow] [approval] Check the order status",
+      });
+      const waitTurn = (status) =>
+        app.waitFor(
+          async () =>
+            (await app.invoke("get_agent_chat", { chatId: second.id })).turns[0]
+              .status === status,
+          { timeoutMs: 30_000, description: `the second chat ${status}` },
+        );
+      await waitTurn("running");
+      await app.invoke("control_agent_chat", {
+        chatId: second.id,
+        action: "pause",
+      });
+      await waitTurn("paused");
+      await app.invoke("control_agent_chat", {
+        chatId: second.id,
+        action: "resume",
+      });
+      await waitTurn("needs_approval");
+      const asked = await app.invoke("get_agent_chat", { chatId: second.id });
+      await app.invoke("answer_agent_chat_approval", {
+        chatId: second.id,
+        approvalId: asked.turns[0].approval.approvalId,
+        approve: false,
+        text: null,
+      });
+      await waitTurn("stopped");
+      await app.clickSelector(
+        `[data-slot="chat-list-item"][data-chat-id="${second.id}"]`,
+      );
+      await waitChat(
+        app,
+        (s) => s.chats === 2 && s.turns[0]?.status === "stopped",
+        "the second chat open",
+      );
+      await captureBothThemes(app, "chat-1280x800-list");
+
+      // Chats survive a restart.
+      await app.restart();
+      await signInWithAgent(app, agentUser(true));
+      await app.waitForText("Borealis");
+      await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="chat-list-item"]').length === 2;`,
+          ),
+        { description: "both chats after the restart" },
+      );
+      await app.clickSelector(
+        `[data-slot="chat-list-item"][data-chat-id="${chatId}"]`,
+      );
+      state = await waitChat(
+        app,
+        (s) => s.turns.length === 4,
+        "the first chat after the restart",
+      );
+      assert.ok(state.turns.every((turn) => turn.status === "done"));
+      assert.equal(state.mode, "followUp");
+      assert.equal(
+        await app.execute(
+          `return document.querySelectorAll('[data-slot="chat-answer"] [data-slot="chat-table"]').length;`,
+        ),
+        1,
+      );
+      await app.session.command("POST", "/window/rect", {
+        width: 880,
+        height: 500,
+      });
+      await captureBothThemes(app, "chat-880x500-restored");
+
+      // Delete: twice on the bin, and through the command.
+      const bin = `[data-slot="chat-list-item"][data-chat-id="${chatId}"] + [data-slot="chat-delete"]`;
+      await app.clickSelector(bin);
+      await app.clickSelector(bin);
+      await app.invoke("delete_agent_chat", { chatId: second.id });
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="chat-list-item"]').length === 0 &&
+               Boolean(document.querySelector('[data-slot="chat-empty"]'));`,
+          ),
+        { description: "no chats left" },
+      );
+      assert.deepEqual(await app.invoke("list_agent_chats"), []);
+      assert.match(
+        await app.invokeError("get_agent_chat", { chatId }),
+        /AGENT_CHAT_NOT_FOUND/,
+      );
+
+      // The command palette opens a new chat.
+      await app.pressShortcut({
+        key: "k",
+        ...(process.platform === "darwin" ? { meta: true } : { ctrl: true }),
+      });
+      await app.fillSelector("[cmdk-input]", "agent chat");
+      await app.waitFor(
+        () => app.visibleTextIncludes(en.commandPalette.actions.agentChat),
+        { description: "the palette entry" },
+      );
     },
     { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
   );

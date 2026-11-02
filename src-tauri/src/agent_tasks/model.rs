@@ -2,7 +2,7 @@
 //! an open approval, the result and the credits. The engine decides what
 //! happens; this only records what it says.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::VecDeque;
 
@@ -11,7 +11,7 @@ pub const MAX_STEPS: usize = 300;
 /// The longest step, question or result text kept.
 pub const MAX_TEXT_CHARS: usize = 4_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
   Queued,
@@ -66,7 +66,7 @@ impl TaskStatus {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Step {
   pub index: u64,
@@ -79,7 +79,7 @@ pub struct Step {
   pub at: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Approval {
   pub approval_id: String,
@@ -152,8 +152,8 @@ impl EngineEvent {
   }
 }
 
-/// One profile's part of a run.
-#[derive(Debug, Clone, Serialize)]
+/// One profile's part of a run, or one turn of a chat.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
   pub profile_id: String,
@@ -170,6 +170,7 @@ pub struct Task {
   /// Credits of this attempt, as the engine reports them.
   pub credits_used: u64,
   /// Credits of the earlier attempts: a retry spends them again, never back.
+  #[serde(default)]
   pub credits_before: u64,
   pub started_at: Option<u64>,
   pub finished_at: Option<u64>,

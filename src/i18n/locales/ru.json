@@ -2509,7 +2509,8 @@
       "copyId": "Копировать ID",
       "runRemote": "Запустить в облаке",
       "lockNow": "Заблокировать сейчас",
-      "moveToTrash": "Переместить в корзину"
+      "moveToTrash": "Переместить в корзину",
+      "askAgent": "Спросить агента"
     },
     "emptyGroupTitle": "Эта группа пуста",
     "emptyGroupHint": "Создайте профиль в этой группе или переместите в неё существующие профили.",
@@ -3014,7 +3015,8 @@
     "agentActionInvalid": "Агент не знает такого действия.",
     "siteStorageNotFound": "Этих данных сайта больше нет в профиле.",
     "siteStorageUnsafePath": "Эти данные сайта указывают за пределы папки профиля, поэтому Donut их не изменил.",
-    "siteStorageIoFailed": "Donut не удалось изменить данные сайта: {{detail}}"
+    "siteStorageIoFailed": "Donut не удалось изменить данные сайта: {{detail}}",
+    "agentChatNotFound": "Этого чата больше нет."
   },
   "rail": {
     "profiles": "Профили",
@@ -3160,7 +3162,8 @@
       "stopProfile": "Остановить {{name}}",
       "profileInfo": "Информация — {{name}}",
       "createProfile": "Создать профиль",
-      "about": "О Donut Browser"
+      "about": "О Donut Browser",
+      "agentChat": "Новый чат с агентом"
     },
     "pages": {
       "launch": {
@@ -3224,7 +3227,8 @@
       "newProfile": "новый добавить создать профиль браузер",
       "stopAllRunning": "остановить все запущенные закрыть завершить",
       "focusSearch": "поиск найти фильтр",
-      "goBack": "назад escape домой"
+      "goBack": "назад escape домой",
+      "agentChat": "агент чат спросить ассистент ии разговор задача"
     }
   },
   "shortcuts": {
@@ -4049,7 +4053,8 @@
       "recipes": "Рецепты",
       "schedules": "Расписания",
       "tasks": "Задачи",
-      "routines": "Сценарии"
+      "routines": "Сценарии",
+      "chat": "Чат"
     },
     "header": {
       "quota": "Осталось вызовов в этот час: {{left}} из {{limit}}",
@@ -4446,6 +4451,33 @@
         "minutes_many": "Каждые {{count}} минут",
         "minutes_other": "Каждые {{count}} минуты"
       }
+    },
+    "chat": {
+      "chooseProfile": "Выберите профиль",
+      "newChat": "Новый чат",
+      "chats": "Чаты",
+      "justNow": "Сейчас",
+      "delete": "Удалить чат",
+      "confirmDelete": "Нажмите ещё раз, чтобы удалить",
+      "emptyTitle": "Что должен сделать агент?",
+      "emptyBody": "Он работает в браузере выбранного профиля. Вы видите каждый шаг и можете вмешаться в любой момент.",
+      "noProfiles": "Сначала создайте профиль Wayfern. Агент работает в его браузере.",
+      "placeholderStart": "Попросите агента что-нибудь сделать",
+      "placeholderFollowUp": "Напишите уточнение",
+      "placeholderSteer": "Направьте агента во время работы",
+      "hint": "Enter — отправить, Shift+Enter — новая строка",
+      "send": "Отправить",
+      "steer": "Отправлено во время работы",
+      "steps": "Шаги",
+      "replyLabel": "Ответить агенту",
+      "replyPlaceholder": "Ответ (необязательно)",
+      "fresh": "Агент не смог продолжить прежнюю задачу и начинает заново. Он не видит прежние сообщения.",
+      "noCreditsTitle": "Кредиты закончились",
+      "noCreditsBody": "Агент остановлен до следующего периода или до покупки кредитов.",
+      "worked_one": "Выполнено шагов: {{count}}",
+      "worked_few": "Выполнено шагов: {{count}}",
+      "worked_many": "Выполнено шагов: {{count}}",
+      "worked_other": "Выполнено шагов: {{count}}"
     }
   },
   "proxyDistribution": {

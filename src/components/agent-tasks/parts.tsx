@@ -190,19 +190,23 @@ export function TaskStatusLabel({
   );
 }
 
-/** Choose any number of profiles, with search. */
+/** Choose any number of profiles, or exactly one, with search. */
 export function ProfilePicker({
   id,
   profiles,
   selected,
   onChange,
   disabled,
+  single = false,
+  className,
 }: {
   id?: string;
   profiles: BrowserProfile[];
   selected: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
+  single?: boolean;
+  className?: string;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -210,12 +214,17 @@ export function ProfilePicker({
   const known = profiles.filter((profile) => chosen.has(profile.id));
   const label =
     known.length === 0
-      ? t("agent.tasks.chooseProfiles")
+      ? t(single ? "agent.chat.chooseProfile" : "agent.tasks.chooseProfiles")
       : known.length === 1
         ? known[0].name
         : t("agent.tasks.profileCount", { count: known.length });
 
   const toggle = (profileId: string) => {
+    if (single) {
+      onChange([profileId]);
+      setOpen(false);
+      return;
+    }
     onChange(
       chosen.has(profileId)
         ? selected.filter((idOf) => idOf !== profileId)
@@ -234,7 +243,10 @@ export function ProfilePicker({
           size="sm"
           disabled={disabled}
           data-slot="agent-profile-picker"
-          className="h-8 max-w-56 justify-between gap-1.5 rounded-lg text-xs"
+          className={cn(
+            "h-8 max-w-56 justify-between gap-1.5 rounded-lg text-xs",
+            className,
+          )}
         >
           <span className="truncate">{label}</span>
           <LuChevronsUpDown className="size-3.5 text-muted-foreground" />
@@ -246,18 +258,20 @@ export function ProfilePicker({
           <CommandList className="max-h-64">
             <CommandEmpty>{t("agent.tasks.noProfileMatch")}</CommandEmpty>
             <CommandGroup>
-              <CommandItem
-                value="__all__"
-                data-slot="agent-profile-all"
-                onSelect={() => {
-                  onChange(allChosen ? [] : profiles.map((p) => p.id));
-                }}
-                className="text-muted-foreground"
-              >
-                {allChosen
-                  ? t("agent.tasks.clearProfiles")
-                  : t("agent.tasks.allProfiles")}
-              </CommandItem>
+              {!single && (
+                <CommandItem
+                  value="__all__"
+                  data-slot="agent-profile-all"
+                  onSelect={() => {
+                    onChange(allChosen ? [] : profiles.map((p) => p.id));
+                  }}
+                  className="text-muted-foreground"
+                >
+                  {allChosen
+                    ? t("agent.tasks.clearProfiles")
+                    : t("agent.tasks.allProfiles")}
+                </CommandItem>
+              )}
               {profiles.map((profile) => (
                 <CommandItem
                   key={profile.id}

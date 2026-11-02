@@ -2471,7 +2471,8 @@
       "copyId": "Sao chép ID",
       "runRemote": "Chạy trên đám mây",
       "lockNow": "Khóa ngay",
-      "moveToTrash": "Chuyển vào thùng rác"
+      "moveToTrash": "Chuyển vào thùng rác",
+      "askAgent": "Hỏi tác tử"
     },
     "emptyGroupTitle": "Nhóm này đang trống",
     "emptyGroupHint": "Tạo một hồ sơ trong nhóm này hoặc chuyển các hồ sơ hiện có vào đây.",
@@ -2974,7 +2975,8 @@
     "agentActionInvalid": "Tác tử không biết hành động đó.",
     "siteStorageNotFound": "Dữ liệu trang này không còn trong hồ sơ.",
     "siteStorageUnsafePath": "Dữ liệu trang này trỏ ra ngoài thư mục hồ sơ, nên Donut không thay đổi nó.",
-    "siteStorageIoFailed": "Donut không thể thay đổi dữ liệu trang: {{detail}}"
+    "siteStorageIoFailed": "Donut không thể thay đổi dữ liệu trang: {{detail}}",
+    "agentChatNotFound": "Cuộc trò chuyện này không còn nữa."
   },
   "rail": {
     "profiles": "Profile",
@@ -3120,7 +3122,8 @@
       "stopProfile": "Dừng {{name}}",
       "profileInfo": "Thông tin — {{name}}",
       "createProfile": "Tạo hồ sơ",
-      "about": "Giới thiệu về Donut Browser"
+      "about": "Giới thiệu về Donut Browser",
+      "agentChat": "Trò chuyện mới với tác tử"
     },
     "pages": {
       "launch": {
@@ -3184,7 +3187,8 @@
       "newProfile": "mới thêm tạo profile trình duyệt",
       "stopAllRunning": "dừng tất cả đang chạy đóng thoát",
       "focusSearch": "tìm kiếm lọc",
-      "goBack": "quay lại escape trang chủ"
+      "goBack": "quay lại escape trang chủ",
+      "agentChat": "tác tử trò chuyện hỏi trợ lý ai hội thoại nhiệm vụ"
     }
   },
   "shortcuts": {
@@ -3951,7 +3955,8 @@
       "recipes": "Công thức",
       "schedules": "Lịch chạy",
       "tasks": "Tác vụ",
-      "routines": "Quy trình"
+      "routines": "Quy trình",
+      "chat": "Trò chuyện"
     },
     "header": {
       "quota": "Còn {{left}}/{{limit}} lượt gọi trong giờ này",
@@ -4340,6 +4345,31 @@
         "minutes_one": "Mỗi phút",
         "minutes_other": "Mỗi {{count}} phút"
       }
+    },
+    "chat": {
+      "chooseProfile": "Chọn hồ sơ",
+      "newChat": "Cuộc trò chuyện mới",
+      "chats": "Cuộc trò chuyện",
+      "justNow": "Bây giờ",
+      "delete": "Xóa cuộc trò chuyện",
+      "confirmDelete": "Nhấn lần nữa để xóa",
+      "emptyTitle": "Tác tử nên làm gì?",
+      "emptyBody": "Tác tử làm việc trong trình duyệt của hồ sơ bạn chọn. Bạn thấy từng bước và có thể can thiệp bất cứ lúc nào.",
+      "noProfiles": "Hãy tạo hồ sơ Wayfern trước. Tác tử làm việc trong trình duyệt của hồ sơ đó.",
+      "placeholderStart": "Nhờ tác tử làm một việc",
+      "placeholderFollowUp": "Viết tin nhắn tiếp theo",
+      "placeholderSteer": "Hướng dẫn tác tử khi đang làm việc",
+      "hint": "Enter để gửi, Shift+Enter để xuống dòng",
+      "send": "Gửi",
+      "steer": "Gửi trong khi làm việc",
+      "steps": "Các bước",
+      "replyLabel": "Trả lời tác tử",
+      "replyPlaceholder": "Trả lời (tùy chọn)",
+      "fresh": "Tác tử không thể tiếp tục nhiệm vụ trước và bắt đầu lại. Tác tử không thấy các tin nhắn trước.",
+      "noCreditsTitle": "Hết tín dụng",
+      "noCreditsBody": "Tác tử dừng đến kỳ tiếp theo hoặc đến khi bạn mua thêm tín dụng.",
+      "worked_one": "Đã làm {{count}} bước",
+      "worked_other": "Đã làm {{count}} bước"
     }
   },
   "proxyDistribution": {

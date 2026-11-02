@@ -9,6 +9,7 @@
 //! with `AGENT_NOT_ENTITLED` and nothing reaches the cloud agent routes.
 
 mod batch;
+pub mod chat;
 mod cloud;
 mod engine;
 #[cfg(feature = "e2e")]
@@ -302,6 +303,8 @@ pub(crate) fn on_engine_event(profile_id: &str, method: &str, params: &Value) {
       .iter_mut()
       .find(|batch| batch.task_index(&task_id).is_some())
     else {
+      drop(store);
+      chat::on_engine_event(profile_id, &task_id, event);
       return;
     };
     let Some(index) = batch.task_index(&task_id) else {
@@ -353,6 +356,7 @@ pub(crate) fn on_link_closed(profile_id: &str) {
   for (batch_id, index) in ended {
     finalize(&batch_id, index);
   }
+  chat::on_link_closed(profile_id);
 }
 
 /// A task ended: log it, tell the cloud, close a browser opened for it, and
@@ -502,7 +506,8 @@ async fn start_task(batch_id: String, index: usize, profile_id: String, order: O
     if profile.browser != "wayfern" {
       return Err(crate::backend_error("AGENT_UNSUPPORTED"));
     }
-    if store().busy(&profile_id, Some((&batch_id, index))) {
+    let in_a_run = store().busy(&profile_id, Some((&batch_id, index)));
+    if in_a_run || chat::busy(&profile_id, None) {
       return Err(crate::backend_error("AGENT_BUSY"));
     }
     let (link, launched) = attach(&profile, order.headless).await?;

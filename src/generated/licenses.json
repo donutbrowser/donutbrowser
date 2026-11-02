@@ -380,8 +380,44 @@
     "license": "MIT"
   },
   {
+    "name": "@types/debug",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/estree",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/estree-jsx",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/hast",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/mdast",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/ms",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/react",
+    "license": "MIT"
+  },
+  {
+    "name": "@types/unist",
+    "license": "MIT"
+  },
+  {
     "name": "@types/use-sync-external-store",
     "license": "MIT"
+  },
+  {
+    "name": "@ungap/structured-clone",
+    "license": "ISC"
   },
   {
     "name": "adler2",
@@ -568,6 +604,10 @@
     "license": "MIT"
   },
   {
+    "name": "bail",
+    "license": "MIT"
+  },
+  {
     "name": "base64",
     "license": "Apache-2.0 OR MIT"
   },
@@ -712,6 +752,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "ccount",
+    "license": "MIT"
+  },
+  {
     "name": "cfb",
     "license": "MIT"
   },
@@ -726,6 +770,22 @@
   {
     "name": "chacha20poly1305",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "character-entities",
+    "license": "MIT"
+  },
+  {
+    "name": "character-entities-html4",
+    "license": "MIT"
+  },
+  {
+    "name": "character-entities-legacy",
+    "license": "MIT"
+  },
+  {
+    "name": "character-reference-invalid",
+    "license": "MIT"
   },
   {
     "name": "chrono",
@@ -802,6 +862,10 @@
   {
     "name": "colorchoice",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "comma-separated-tokens",
+    "license": "MIT"
   },
   {
     "name": "concurrent-queue",
@@ -896,6 +960,10 @@
     "license": "MPL-2.0"
   },
   {
+    "name": "csstype",
+    "license": "MIT"
+  },
+  {
     "name": "ctor",
     "license": "Apache-2.0 OR MIT"
   },
@@ -988,7 +1056,15 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "debug",
+    "license": "MIT"
+  },
+  {
     "name": "decimal.js-light",
+    "license": "MIT"
+  },
+  {
+    "name": "decode-named-character-reference",
     "license": "MIT"
   },
   {
@@ -1002,6 +1078,10 @@
   {
     "name": "defmt-parser",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "dequal",
+    "license": "MIT"
   },
   {
     "name": "deranged",
@@ -1021,6 +1101,10 @@
   },
   {
     "name": "detect-node-es",
+    "license": "MIT"
+  },
+  {
+    "name": "devlop",
     "license": "MIT"
   },
   {
@@ -1160,6 +1244,14 @@
     "license": "MIT"
   },
   {
+    "name": "escape-string-regexp",
+    "license": "MIT"
+  },
+  {
+    "name": "estree-util-is-identifier-name",
+    "license": "MIT"
+  },
+  {
     "name": "euclid",
     "license": "Apache-2.0 OR MIT"
   },
@@ -1178,6 +1270,10 @@
   {
     "name": "exr",
     "license": "BSD-3-Clause"
+  },
+  {
+    "name": "extend",
+    "license": "MIT"
   },
   {
     "name": "fallible-iterator",
@@ -1424,6 +1520,10 @@
     "license": "MIT"
   },
   {
+    "name": "has-flag",
+    "license": "MIT"
+  },
+  {
     "name": "hash32",
     "license": "Apache-2.0 OR MIT"
   },
@@ -1434,6 +1534,14 @@
   {
     "name": "hashlink",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "hast-util-to-jsx-runtime",
+    "license": "MIT"
+  },
+  {
+    "name": "hast-util-whitespace",
+    "license": "MIT"
   },
   {
     "name": "heapless",
@@ -1457,6 +1565,10 @@
   },
   {
     "name": "html-parse-stringify",
+    "license": "MIT"
+  },
+  {
+    "name": "html-url-attributes",
     "license": "MIT"
   },
   {
@@ -1588,6 +1700,10 @@
     "license": "MIT"
   },
   {
+    "name": "inline-style-parser",
+    "license": "MIT"
+  },
+  {
     "name": "inout",
     "license": "Apache-2.0 OR MIT"
   },
@@ -1620,7 +1736,27 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "is-alphabetical",
+    "license": "MIT"
+  },
+  {
+    "name": "is-alphanumerical",
+    "license": "MIT"
+  },
+  {
+    "name": "is-decimal",
+    "license": "MIT"
+  },
+  {
     "name": "is-docker",
+    "license": "MIT"
+  },
+  {
+    "name": "is-hexadecimal",
+    "license": "MIT"
+  },
+  {
+    "name": "is-plain-obj",
     "license": "MIT"
   },
   {
@@ -1744,6 +1880,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "longest-streak",
+    "license": "MIT"
+  },
+  {
     "name": "loop9",
     "license": "MIT"
   },
@@ -1772,6 +1912,10 @@
     "license": "0BSD"
   },
   {
+    "name": "markdown-table",
+    "license": "MIT"
+  },
+  {
     "name": "markup5ever",
     "license": "Apache-2.0 OR MIT"
   },
@@ -1792,6 +1936,66 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "mdast-util-find-and-replace",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-from-markdown",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-gfm",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-gfm-autolink-literal",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-gfm-footnote",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-gfm-strikethrough",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-gfm-table",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-gfm-task-list-item",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-mdx-expression",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-mdx-jsx",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-mdxjs-esm",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-phrasing",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-to-hast",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-to-markdown",
+    "license": "MIT"
+  },
+  {
+    "name": "mdast-util-to-string",
+    "license": "MIT"
+  },
+  {
     "name": "memchr",
     "license": "Unlicense OR MIT"
   },
@@ -1801,6 +2005,122 @@
   },
   {
     "name": "memoffset",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-core-commonmark",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-extension-gfm",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-extension-gfm-autolink-literal",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-extension-gfm-footnote",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-extension-gfm-strikethrough",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-extension-gfm-table",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-extension-gfm-tagfilter",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-extension-gfm-task-list-item",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-factory-destination",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-factory-label",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-factory-space",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-factory-title",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-factory-whitespace",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-character",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-chunked",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-classify-character",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-combine-extensions",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-decode-numeric-character-reference",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-decode-string",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-edit-map",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-encode",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-html-tag-name",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-normalize-identifier",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-resolve-all",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-sanitize-uri",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-subtokenize",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-symbol",
+    "license": "MIT"
+  },
+  {
+    "name": "micromark-util-types",
     "license": "MIT"
   },
   {
@@ -1834,6 +2154,10 @@
   {
     "name": "moxcms",
     "license": "BSD-3-Clause OR Apache-2.0"
+  },
+  {
+    "name": "ms",
+    "license": "MIT"
   },
   {
     "name": "msi",
@@ -2084,6 +2408,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "parse-entities",
+    "license": "MIT"
+  },
+  {
     "name": "password-hash",
     "license": "Apache-2.0 OR MIT"
   },
@@ -2220,6 +2548,10 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "property-information",
+    "license": "MIT"
+  },
+  {
     "name": "pulp",
     "license": "MIT"
   },
@@ -2312,6 +2644,10 @@
     "license": "MIT"
   },
   {
+    "name": "react-markdown",
+    "license": "MIT"
+  },
+  {
     "name": "react-redux",
     "license": "MIT"
   },
@@ -2370,6 +2706,22 @@
   {
     "name": "regex-syntax",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "remark-gfm",
+    "license": "MIT"
+  },
+  {
+    "name": "remark-parse",
+    "license": "MIT"
+  },
+  {
+    "name": "remark-rehype",
+    "license": "MIT"
+  },
+  {
+    "name": "remark-stringify",
+    "license": "MIT"
   },
   {
     "name": "reqwest",
@@ -2660,6 +3012,10 @@
     "license": "BSD-3-Clause"
   },
   {
+    "name": "space-separated-tokens",
+    "license": "MIT"
+  },
+  {
     "name": "spin",
     "license": "MIT"
   },
@@ -2680,7 +3036,15 @@
     "license": "Apache-2.0 OR MIT"
   },
   {
+    "name": "stringify-entities",
+    "license": "MIT"
+  },
+  {
     "name": "strsim",
+    "license": "MIT"
+  },
+  {
+    "name": "style-to-object",
     "license": "MIT"
   },
   {
@@ -2690,6 +3054,10 @@
   {
     "name": "subtle",
     "license": "BSD-3-Clause"
+  },
+  {
+    "name": "supports-color",
+    "license": "MIT"
   },
   {
     "name": "svgtypes",
@@ -2964,6 +3332,14 @@
     "license": "MIT"
   },
   {
+    "name": "trim-lines",
+    "license": "MIT"
+  },
+  {
+    "name": "trough",
+    "license": "MIT"
+  },
+  {
     "name": "try-lock",
     "license": "MIT"
   },
@@ -3010,6 +3386,30 @@
   {
     "name": "unicode-vo",
     "license": "Apache-2.0 OR MIT"
+  },
+  {
+    "name": "unified",
+    "license": "MIT"
+  },
+  {
+    "name": "unist-util-is",
+    "license": "MIT"
+  },
+  {
+    "name": "unist-util-position",
+    "license": "MIT"
+  },
+  {
+    "name": "unist-util-stringify-position",
+    "license": "MIT"
+  },
+  {
+    "name": "unist-util-visit",
+    "license": "MIT"
+  },
+  {
+    "name": "unist-util-visit-parents",
+    "license": "MIT"
   },
   {
     "name": "universal-hash",
@@ -3078,6 +3478,14 @@
   {
     "name": "v_frame",
     "license": "BSD-2-Clause"
+  },
+  {
+    "name": "vfile",
+    "license": "MIT"
+  },
+  {
+    "name": "vfile-message",
+    "license": "MIT"
   },
   {
     "name": "victory-vendor",
@@ -3405,6 +3813,10 @@
   },
   {
     "name": "zvariant_utils",
+    "license": "MIT"
+  },
+  {
+    "name": "zwitch",
     "license": "MIT"
   }
 ]

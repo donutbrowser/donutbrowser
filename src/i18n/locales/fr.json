@@ -2490,7 +2490,8 @@
       "copyId": "Copier l’ID",
       "runRemote": "Exécuter dans le cloud",
       "lockNow": "Verrouiller maintenant",
-      "moveToTrash": "Placer dans la corbeille"
+      "moveToTrash": "Placer dans la corbeille",
+      "askAgent": "Demander à l’agent"
     },
     "emptyGroupTitle": "Ce groupe est vide",
     "emptyGroupHint": "Créez un profil dans ce groupe ou déplacez-y des profils existants.",
@@ -2994,7 +2995,8 @@
     "agentActionInvalid": "L’agent ne connaît pas cette action.",
     "siteStorageNotFound": "Ces données de site ne sont plus dans le profil.",
     "siteStorageUnsafePath": "Ces données de site pointent hors du dossier du profil, Donut ne les a donc pas modifiées.",
-    "siteStorageIoFailed": "Donut n'a pas pu modifier les données du site : {{detail}}"
+    "siteStorageIoFailed": "Donut n'a pas pu modifier les données du site : {{detail}}",
+    "agentChatNotFound": "Ce chat n’existe plus."
   },
   "rail": {
     "profiles": "Profils",
@@ -3140,7 +3142,8 @@
       "stopProfile": "Arrêter {{name}}",
       "profileInfo": "Informations — {{name}}",
       "createProfile": "Créer un profil",
-      "about": "À propos de Donut Browser"
+      "about": "À propos de Donut Browser",
+      "agentChat": "Nouveau chat avec l’agent"
     },
     "pages": {
       "launch": {
@@ -3204,7 +3207,8 @@
       "newProfile": "nouveau ajouter créer profil navigateur",
       "stopAllRunning": "arrêter tous en cours fermer quitter",
       "focusSearch": "rechercher trouver filtrer",
-      "goBack": "retour échap accueil"
+      "goBack": "retour échap accueil",
+      "agentChat": "agent chat demander assistant ia conversation tâche"
     }
   },
   "shortcuts": {
@@ -3999,7 +4003,8 @@
       "recipes": "Recettes",
       "schedules": "Planifications",
       "tasks": "Tâches",
-      "routines": "Routines"
+      "routines": "Routines",
+      "chat": "Chat"
     },
     "header": {
       "quota": "Il reste {{left}} appels sur {{limit}} pour cette heure",
@@ -4392,6 +4397,32 @@
         "minutes_many": "Toutes les {{count}} minutes",
         "minutes_other": "Toutes les {{count}} minutes"
       }
+    },
+    "chat": {
+      "chooseProfile": "Choisir un profil",
+      "newChat": "Nouveau chat",
+      "chats": "Chats",
+      "justNow": "Maintenant",
+      "delete": "Supprimer le chat",
+      "confirmDelete": "Cliquez à nouveau pour supprimer",
+      "emptyTitle": "Que doit faire l’agent ?",
+      "emptyBody": "Il travaille dans le navigateur du profil choisi. Vous voyez chaque étape et pouvez intervenir à tout moment.",
+      "noProfiles": "Créez d’abord un profil Wayfern. L’agent travaille dans son navigateur.",
+      "placeholderStart": "Demandez quelque chose à l’agent",
+      "placeholderFollowUp": "Écrire une suite",
+      "placeholderSteer": "Guidez l’agent pendant qu’il travaille",
+      "hint": "Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne",
+      "send": "Envoyer",
+      "steer": "Envoyé pendant le travail",
+      "steps": "Étapes",
+      "replyLabel": "Répondre à l’agent",
+      "replyPlaceholder": "Réponse (facultatif)",
+      "fresh": "L’agent n’a pas pu poursuivre la tâche précédente et recommence. Il ne voit pas les messages précédents.",
+      "noCreditsTitle": "Plus de crédits",
+      "noCreditsBody": "L’agent s’arrête jusqu’à la prochaine période ou jusqu’à l’achat de crédits.",
+      "worked_one": "{{count}} étape effectuée",
+      "worked_many": "{{count}} étapes effectuées",
+      "worked_other": "{{count}} étapes effectuées"
     }
   },
   "proxyDistribution": {

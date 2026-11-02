@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AboutDialog } from "@/components/about-dialog";
 import { AccountPage } from "@/components/account-page";
+import type { ChatSeed } from "@/components/agent-chat/chat-panel";
 import { AgentPage, type AgentTab } from "@/components/agent-page";
 import { CloneProfileDialog } from "@/components/clone-profile-dialog";
 import { CloseConfirmDialog } from "@/components/close-confirm-dialog";
@@ -462,6 +463,7 @@ export default function Home() {
   const [agentInitialTab, setAgentInitialTab] = useState<AgentTab | null>(null);
   const agentReady = useAgentAvailability(cloudUser);
   const [agentSeed, setAgentSeed] = useState<string[] | null>(null);
+  const [chatSeed, setChatSeed] = useState<ChatSeed | null>(null);
   const [createProfileDialogOpen, setCreateProfileDialogOpen] = useState(false);
   const teamReadOnly = isTeamLauncher(cloudUser);
   const teamReadOnlyRef = useRef(teamReadOnly);
@@ -2310,6 +2312,18 @@ export default function Home() {
     void executeBulkRun(targets);
   }, [selectedProfiles, profiles, runningProfiles, executeBulkRun, t]);
 
+  const handleAskAgent = useCallback(
+    (profileId: string | null) => {
+      setChatSeed((current) => ({
+        profileId,
+        nonce: (current?.nonce ?? 0) + 1,
+      }));
+      setAgentInitialTab("chat");
+      handleRailNavigate("agent");
+    },
+    [handleRailNavigate],
+  );
+
   const handleRunAgentTask = useCallback(() => {
     setAgentSeed([...selectedProfiles]);
     setAgentInitialTab("tasks");
@@ -3091,6 +3105,13 @@ export default function Home() {
                     }
                     onLockProfile={(profile) => void handleLockProfile(profile)}
                     onRunRemote={(profile) => void handleRunRemote(profile)}
+                    onAskAgent={
+                      agentReady
+                        ? (profile) => {
+                            handleAskAgent(profile.id);
+                          }
+                        : undefined
+                    }
                   />
                   <TipCoachMark
                     flow={tipsFlow}
@@ -3204,7 +3225,7 @@ export default function Home() {
                   }}
                   subPage={currentPage === "agent"}
                   initialTab={
-                    agentInitialTab ?? (agentReady ? "tasks" : "conversation")
+                    agentInitialTab ?? (agentReady ? "chat" : "conversation")
                   }
                   onTabChange={setAgentInitialTab}
                   profiles={profiles}
@@ -3219,6 +3240,7 @@ export default function Home() {
                   }}
                   agentReady={agentReady}
                   agentSeed={agentSeed}
+                  chatSeed={chatSeed}
                 />
               )}
 
@@ -3294,6 +3316,13 @@ export default function Home() {
           onOpenAbout={() => {
             setAboutDialogOpen(true);
           }}
+          onNewAgentChat={
+            agentReady
+              ? () => {
+                  handleAskAgent(null);
+                }
+              : undefined
+          }
         />
 
         <LeavePromptDialog />

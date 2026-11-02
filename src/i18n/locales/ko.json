@@ -2471,7 +2471,8 @@
       "copyId": "ID 복사",
       "runRemote": "클라우드에서 실행",
       "lockNow": "지금 잠그기",
-      "moveToTrash": "휴지통으로 이동"
+      "moveToTrash": "휴지통으로 이동",
+      "askAgent": "에이전트에게 요청"
     },
     "emptyGroupTitle": "이 그룹은 비어 있습니다",
     "emptyGroupHint": "이 그룹에 프로필을 만들거나 기존 프로필을 이 그룹으로 옮기세요.",
@@ -2974,7 +2975,8 @@
     "agentActionInvalid": "에이전트가 모르는 동작입니다.",
     "siteStorageNotFound": "이 사이트 데이터는 더 이상 프로필에 없습니다.",
     "siteStorageUnsafePath": "이 사이트 데이터가 프로필 폴더 밖을 가리켜 Donut이 변경하지 않았습니다.",
-    "siteStorageIoFailed": "Donut이 사이트 데이터를 변경하지 못했습니다: {{detail}}"
+    "siteStorageIoFailed": "Donut이 사이트 데이터를 변경하지 못했습니다: {{detail}}",
+    "agentChatNotFound": "이 채팅은 더 이상 없습니다."
   },
   "rail": {
     "profiles": "프로필",
@@ -3120,7 +3122,8 @@
       "stopProfile": "{{name}} 중지",
       "profileInfo": "정보 — {{name}}",
       "createProfile": "프로필 생성",
-      "about": "Donut Browser 정보"
+      "about": "Donut Browser 정보",
+      "agentChat": "새 에이전트 채팅"
     },
     "pages": {
       "launch": {
@@ -3184,7 +3187,8 @@
       "newProfile": "새 추가 만들기 프로필 브라우저",
       "stopAllRunning": "중지 모두 실행 종료 닫기",
       "focusSearch": "검색 찾기 필터",
-      "goBack": "뒤로 이스케이프 홈"
+      "goBack": "뒤로 이스케이프 홈",
+      "agentChat": "에이전트 채팅 요청 어시스턴트 ai 대화 작업"
     }
   },
   "shortcuts": {
@@ -3951,7 +3955,8 @@
       "recipes": "레시피",
       "schedules": "일정",
       "tasks": "작업",
-      "routines": "루틴"
+      "routines": "루틴",
+      "chat": "채팅"
     },
     "header": {
       "quota": "이번 시간 남은 호출: {{left}}/{{limit}}",
@@ -4340,6 +4345,31 @@
         "minutes_one": "매분",
         "minutes_other": "{{count}}분마다"
       }
+    },
+    "chat": {
+      "chooseProfile": "프로필 선택",
+      "newChat": "새 채팅",
+      "chats": "채팅",
+      "justNow": "지금",
+      "delete": "채팅 삭제",
+      "confirmDelete": "삭제하려면 다시 클릭",
+      "emptyTitle": "에이전트가 무엇을 할까요?",
+      "emptyBody": "선택한 프로필의 브라우저에서 작업합니다. 모든 단계를 보고 언제든지 개입할 수 있습니다.",
+      "noProfiles": "먼저 Wayfern 프로필을 만드세요. 에이전트는 그 브라우저에서 작업합니다.",
+      "placeholderStart": "에이전트에게 요청하기",
+      "placeholderFollowUp": "후속 메시지 작성",
+      "placeholderSteer": "작업 중인 에이전트에게 지시",
+      "hint": "Enter로 보내기, Shift+Enter로 줄바꿈",
+      "send": "보내기",
+      "steer": "작업 중에 보냄",
+      "steps": "단계",
+      "replyLabel": "에이전트에게 답장",
+      "replyPlaceholder": "답장(선택 사항)",
+      "fresh": "에이전트가 이전 작업을 이어갈 수 없어 새로 시작합니다. 이전 메시지는 보지 못합니다.",
+      "noCreditsTitle": "크레딧이 없습니다",
+      "noCreditsBody": "다음 기간이 되거나 크레딧을 구매할 때까지 에이전트가 멈춥니다.",
+      "worked_one": "{{count}}단계 완료",
+      "worked_other": "{{count}}단계 완료"
     }
   },
   "proxyDistribution": {

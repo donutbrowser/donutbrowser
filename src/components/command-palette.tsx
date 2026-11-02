@@ -17,6 +17,7 @@ import {
   LuKeyRound,
   LuLightbulb,
   LuMessageSquareHeart,
+  LuMessagesSquare,
   LuPlay,
   LuPlug,
   LuPlus,
@@ -82,6 +83,8 @@ interface CommandPaletteProps {
   onShowProfileInfo: (profile: BrowserProfile) => void;
   onCreateProfile: () => void;
   onOpenAbout: () => void;
+  /** Opens a new chat with the agent; only with the agent. */
+  onNewAgentChat?: () => void;
 }
 
 type Icon = React.ComponentType<{ className?: string }>;
@@ -241,6 +244,7 @@ export function CommandPalette({
   onShowProfileInfo,
   onCreateProfile,
   onOpenAbout,
+  onNewAgentChat,
 }: CommandPaletteProps) {
   const { t, i18n } = useTranslation();
   const reduceMotion = useReducedMotion();
@@ -384,6 +388,17 @@ export function CommandPalette({
     sound: "open",
   };
 
+  const agentChatCommand: PaletteCommand | null = onNewAgentChat
+    ? {
+        id: "action:agentChat",
+        label: t("commandPalette.actions.agentChat"),
+        keywords: keywordsFor("agentChat", "commandPalette.actions.agentChat"),
+        icon: LuMessagesSquare,
+        run: onNewAgentChat,
+        sound: "open",
+      }
+    : null;
+
   const runningProfiles = profiles.filter((p) => runningProfileIds.has(p.id));
   const stoppedProfiles = profiles.filter((p) => !runningProfileIds.has(p.id));
 
@@ -400,6 +415,9 @@ export function CommandPalette({
       }
       case "action":
         if (id === createCommand.id) return createCommand;
+        if (agentChatCommand && id === agentChatCommand.id) {
+          return agentChatCommand;
+        }
         return id === aboutCommand.id ? aboutCommand : null;
       case "profile":
       case "info": {
@@ -597,6 +615,7 @@ export function CommandPalette({
           {SHORTCUTS.filter(
             (s) => s.group === "actions" && s.id !== "openPalette" && listed(s),
           ).map((s) => item(shortcutCommand(s)))}
+          {agentChatCommand ? item(agentChatCommand) : null}
           {item(aboutCommand)}
         </CommandGroup>
       </>

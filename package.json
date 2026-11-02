@@ -18,7 +18,7 @@
     "test:cookie-bot-outcomes": "node --test src/lib/cookie-bot-outcomes.test.mjs",
     "test:recipes": "node --test src/lib/recipes.test.mjs",
     "test:agent-console": "node --test src/lib/agent-console.test.mjs",
-    "test:agent-tasks": "node --test src/lib/agent-tasks.test.mjs",
+    "test:agent-tasks": "node --test src/lib/agent-tasks.test.mjs src/lib/agent-chat.test.mjs",
     "test:api-examples": "node --test src/lib/api-examples.test.mjs",
     "test:backend-errors": "node --test src/lib/backend-errors.test.mjs",
     "test:i18n-parity": "node --test src/lib/i18n-parity.test.mjs",
@@ -117,7 +117,9 @@
     "react-dom": "^19.3.1",
     "react-i18next": "^17.1.9",
     "react-icons": "^5.7.0",
+    "react-markdown": "^10.1.0",
     "recharts": "^3.10.1",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
     "tauri-plugin-macos-permissions-api": "^2.3.0"

@@ -467,6 +467,19 @@ export const commandCoverage = {
       "agent_tasks::run_agent_routine",
     ],
   },
+  agentChat: {
+    suite: "ui",
+    level: "integration",
+    commands: [
+      "agent_tasks::chat::list_agent_chats",
+      "agent_tasks::chat::get_agent_chat",
+      "agent_tasks::chat::create_agent_chat",
+      "agent_tasks::chat::send_agent_chat_message",
+      "agent_tasks::chat::control_agent_chat",
+      "agent_tasks::chat::answer_agent_chat_approval",
+      "agent_tasks::chat::delete_agent_chat",
+    ],
+  },
   updateContracts: {
     suite: "integrations",
     level: "contract",

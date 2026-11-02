@@ -2471,7 +2471,8 @@
       "copyId": "复制 ID",
       "runRemote": "在云端运行",
       "lockNow": "立即锁定",
-      "moveToTrash": "移到回收站"
+      "moveToTrash": "移到回收站",
+      "askAgent": "询问智能体"
     },
     "emptyGroupTitle": "此分组为空",
     "emptyGroupHint": "在此分组中创建配置文件，或将现有配置文件移到这里。",
@@ -2974,7 +2975,8 @@
     "agentActionInvalid": "智能体不认识该操作。",
     "siteStorageNotFound": "此网站数据已不在配置文件中。",
     "siteStorageUnsafePath": "此网站数据指向配置文件夹之外,因此 Donut 未作更改。",
-    "siteStorageIoFailed": "Donut 无法更改网站数据:{{detail}}"
+    "siteStorageIoFailed": "Donut 无法更改网站数据:{{detail}}",
+    "agentChatNotFound": "此对话已不存在。"
   },
   "rail": {
     "profiles": "配置文件",
@@ -3120,7 +3122,8 @@
       "stopProfile": "停止 {{name}}",
       "profileInfo": "信息 — {{name}}",
       "createProfile": "创建配置文件",
-      "about": "关于 Donut Browser"
+      "about": "关于 Donut Browser",
+      "agentChat": "新建智能体对话"
     },
     "pages": {
       "launch": {
@@ -3184,7 +3187,8 @@
       "newProfile": "新建 添加 创建 配置文件 浏览器",
       "stopAllRunning": "停止 全部 运行 关闭 退出",
       "focusSearch": "搜索 查找 筛选",
-      "goBack": "返回 退出 主页"
+      "goBack": "返回 退出 主页",
+      "agentChat": "智能体 对话 询问 助手 ai 聊天 任务"
     }
   },
   "shortcuts": {
@@ -3951,7 +3955,8 @@
       "recipes": "配方",
       "schedules": "计划",
       "tasks": "任务",
-      "routines": "例程"
+      "routines": "例程",
+      "chat": "对话"
     },
     "header": {
       "quota": "本小时剩余 {{left}} / {{limit}} 次调用",
@@ -4340,6 +4345,31 @@
         "minutes_one": "每分钟",
         "minutes_other": "每 {{count}} 分钟"
       }
+    },
+    "chat": {
+      "chooseProfile": "选择配置文件",
+      "newChat": "新对话",
+      "chats": "对话",
+      "justNow": "刚刚",
+      "delete": "删除对话",
+      "confirmDelete": "再次点击以删除",
+      "emptyTitle": "要让智能体做什么？",
+      "emptyBody": "它在所选配置文件的浏览器中工作。你可以看到每一步，并随时介入。",
+      "noProfiles": "请先创建一个 Wayfern 配置文件。智能体在它的浏览器中工作。",
+      "placeholderStart": "让智能体做点什么",
+      "placeholderFollowUp": "继续追问",
+      "placeholderSteer": "在智能体工作时给出指引",
+      "hint": "Enter 发送，Shift+Enter 换行",
+      "send": "发送",
+      "steer": "工作期间发送",
+      "steps": "步骤",
+      "replyLabel": "回复智能体",
+      "replyPlaceholder": "回复（可选）",
+      "fresh": "智能体无法继续之前的任务，将重新开始。它看不到之前的消息。",
+      "noCreditsTitle": "积分已用完",
+      "noCreditsBody": "智能体将暂停，直到下一个周期或你购买更多积分。",
+      "worked_one": "已完成 {{count}} 步",
+      "worked_other": "已完成 {{count}} 步"
     }
   },
   "proxyDistribution": {

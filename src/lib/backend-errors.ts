@@ -309,6 +309,7 @@ export type BackendErrorCode =
   | "AGENT_TASK_NOT_FOUND"
   | "AGENT_BATCH_NOT_FOUND"
   | "AGENT_ACTION_INVALID"
+  | "AGENT_CHAT_NOT_FOUND"
   | "FEEDBACK_MESSAGE_EMPTY"
   | "FEEDBACK_MESSAGE_TOO_LONG"
   | "FEEDBACK_EMAIL_INVALID"
@@ -1143,6 +1144,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.agentBatchNotFound");
     case "AGENT_ACTION_INVALID":
       return t("backendErrors.agentActionInvalid");
+    case "AGENT_CHAT_NOT_FOUND":
+      return t("backendErrors.agentChatNotFound");
     case "FEEDBACK_MESSAGE_EMPTY":
       return t("backendErrors.feedbackMessageEmpty");
     case "FEEDBACK_MESSAGE_TOO_LONG":

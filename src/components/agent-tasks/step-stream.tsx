@@ -12,6 +12,7 @@ import {
   LuSend,
   LuSquare,
 } from "react-icons/lu";
+import { ChatMarkdown } from "@/components/agent-chat/markdown";
 import { TaskStatusLabel, useNumber } from "@/components/agent-tasks/parts";
 import { Button } from "@/components/ui/button";
 import { FadingScrollArea } from "@/components/ui/fading-scroll-area";
@@ -41,7 +42,7 @@ const STEP_ICON = {
   observe: LuEye,
 } as const;
 
-function StepRow({
+export function StepRow({
   step,
   current,
   animate,
@@ -174,9 +175,9 @@ function Outcome({ task }: { task: AgentTask }) {
     return (
       <div
         data-slot="agent-result"
-        className="max-h-40 shrink-0 overflow-y-auto rounded-xl bg-success/10 p-3 text-sm break-words whitespace-pre-wrap text-foreground"
+        className="max-h-40 shrink-0 overflow-y-auto rounded-xl bg-success/10 p-3 text-foreground"
       >
-        {task.result}
+        <ChatMarkdown text={task.result} />
       </div>
     );
   }

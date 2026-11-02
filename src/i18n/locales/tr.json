@@ -2471,7 +2471,8 @@
       "copyId": "Kimliği kopyala",
       "runRemote": "Bulutta çalıştır",
       "lockNow": "Şimdi kilitle",
-      "moveToTrash": "Çöp kutusuna taşı"
+      "moveToTrash": "Çöp kutusuna taşı",
+      "askAgent": "Ajana sor"
     },
     "emptyGroupTitle": "Bu grup boş",
     "emptyGroupHint": "Bu grupta bir profil oluşturun veya mevcut profilleri buraya taşıyın.",
@@ -2974,7 +2975,8 @@
     "agentActionInvalid": "Ajan bu eylemi bilmiyor.",
     "siteStorageNotFound": "Bu site verisi artık profilde değil.",
     "siteStorageUnsafePath": "Bu site verisi profil klasörünün dışını gösteriyor, bu yüzden Donut onu değiştirmedi.",
-    "siteStorageIoFailed": "Donut site verisini değiştiremedi: {{detail}}"
+    "siteStorageIoFailed": "Donut site verisini değiştiremedi: {{detail}}",
+    "agentChatNotFound": "Bu sohbet artık yok."
   },
   "rail": {
     "profiles": "Profiller",
@@ -3120,7 +3122,8 @@
       "stopProfile": "{{name}} profilini durdur",
       "profileInfo": "Bilgi — {{name}}",
       "createProfile": "Profil oluştur",
-      "about": "Donut Browser Hakkında"
+      "about": "Donut Browser Hakkında",
+      "agentChat": "Yeni ajan sohbeti"
     },
     "pages": {
       "launch": {
@@ -3184,7 +3187,8 @@
       "newProfile": "yeni ekle oluştur profil tarayıcı",
       "stopAllRunning": "durdur tümü çalışan kapat sonlandır",
       "focusSearch": "ara bul filtrele",
-      "goBack": "geri escape ana sayfa"
+      "goBack": "geri escape ana sayfa",
+      "agentChat": "ajan sohbet sor asistan yapay zeka konuşma görev"
     }
   },
   "shortcuts": {
@@ -3951,7 +3955,8 @@
       "recipes": "Tarifler",
       "schedules": "Zamanlamalar",
       "tasks": "Görevler",
-      "routines": "Rutinler"
+      "routines": "Rutinler",
+      "chat": "Sohbet"
     },
     "header": {
       "quota": "Bu saat için {{limit}} çağrıdan {{left}} kaldı",
@@ -4340,6 +4345,31 @@
         "minutes_one": "Her dakika",
         "minutes_other": "{{count}} dakikada bir"
       }
+    },
+    "chat": {
+      "chooseProfile": "Profil seçin",
+      "newChat": "Yeni sohbet",
+      "chats": "Sohbetler",
+      "justNow": "Şimdi",
+      "delete": "Sohbeti sil",
+      "confirmDelete": "Silmek için yeniden tıklayın",
+      "emptyTitle": "Ajan ne yapsın?",
+      "emptyBody": "Seçtiğiniz profilin tarayıcısında çalışır. Her adımı görürsünüz ve istediğiniz an müdahale edebilirsiniz.",
+      "noProfiles": "Önce bir Wayfern profili oluşturun. Ajan onun tarayıcısında çalışır.",
+      "placeholderStart": "Ajandan bir şey isteyin",
+      "placeholderFollowUp": "Devam mesajı yazın",
+      "placeholderSteer": "Ajan çalışırken yönlendirin",
+      "hint": "Göndermek için Enter, yeni satır için Shift+Enter",
+      "send": "Gönder",
+      "steer": "Çalışırken gönderildi",
+      "steps": "Adımlar",
+      "replyLabel": "Ajana yanıt verin",
+      "replyPlaceholder": "Yanıt (isteğe bağlı)",
+      "fresh": "Ajan önceki göreve devam edemedi ve baştan başlıyor. Önceki mesajları görmez.",
+      "noCreditsTitle": "Kredi kalmadı",
+      "noCreditsBody": "Ajan bir sonraki döneme veya kredi satın alana kadar durur.",
+      "worked_one": "{{count}} adım tamamlandı",
+      "worked_other": "{{count}} adım tamamlandı"
     }
   },
   "proxyDistribution": {
