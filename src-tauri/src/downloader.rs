@@ -874,7 +874,9 @@ impl Downloader {
       // browser. Extract into a folder that holds only the archive.
       if let Err(e) = remove_all_but(&browser_dir, &download_path) {
         log::warn!(
-          "Earlier extraction cleanup failed browser={browser_str} version={version} err=\"{e}\""
+          "Earlier extraction cleanup failed browser={} version={} err=\"{e}\"",
+          Plain(&browser_str),
+          Plain(&version)
         );
       }
       match self

@@ -457,3 +457,19 @@ async fn parts_out_of_place_do_not_open() {
   let unfinished = part(1, false, sample(FRAME)).await.unwrap();
   assert!(open(keys.clone(), &[one, unfinished].concat()).is_err());
 }
+
+#[test]
+fn url_keys_match_the_zero_salt_keys_already_issued() {
+  // Transfer URLs and upload tokens signed before the salt became empty must
+  // still verify: an empty HKDF salt is HashLen zero bytes (RFC 5869).
+  let secret = [7u8; 32];
+  assert_eq!(
+    derive(&secret, &[], URL_KEY_INFO),
+    derive(&secret, &[0; SALT], URL_KEY_INFO)
+  );
+}
+
+#[test]
+fn salts_differ_between_objects() {
+  assert_ne!(new_salt(), new_salt());
+}

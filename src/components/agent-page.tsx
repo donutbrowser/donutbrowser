@@ -15,6 +15,10 @@ import {
 } from "react-icons/lu";
 import { AgentActivityFeed } from "@/components/agent-activity";
 import {
+  AgentChatPanel,
+  type ChatSeed,
+} from "@/components/agent-chat/chat-panel";
+import {
   SetupPanel,
   useNow,
   useTimeFormat,
@@ -55,6 +59,7 @@ import { ProBadge } from "@/components/ui/pro-badge";
 import { RippleButton } from "@/components/ui/ripple";
 import { Textarea } from "@/components/ui/textarea";
 import type { AgentConsole } from "@/hooks/use-agent-console";
+import { useAgentChats } from "@/hooks/use-agent-chat";
 import { useAgentBatches, useAgentCredits } from "@/hooks/use-agent-tasks";
 import { MAX_TEXT_CHARS, profileRollup, quotaLeft } from "@/lib/agent-console";
 import {
@@ -68,6 +73,7 @@ import { cn } from "@/lib/utils";
 import type { BrowserProfile, CloudUser } from "@/types";
 
 export type AgentTab =
+  | "chat"
   | "tasks"
   | "routines"
   | "conversation"
@@ -84,8 +90,8 @@ const TABS: AgentTab[] = [
   "schedules",
 ];
 
-/** Tasks and routines run by Wayfern's engine; shown only with the agent. */
-const AGENT_TABS: AgentTab[] = ["tasks", "routines"];
+/** Chat, tasks and routines run by Wayfern's engine; shown only with the agent. */
+const AGENT_TABS: AgentTab[] = ["chat", "tasks", "routines"];
 
 interface AgentPageProps {
   isOpen: boolean;
@@ -104,6 +110,8 @@ interface AgentPageProps {
   agentReady: boolean;
   /** Profiles to start a task on, from the profiles table selection. */
   agentSeed: string[] | null;
+  /** Opens a new chat, from a profile's menu or the command palette. */
+  chatSeed: ChatSeed | null;
 }
 
 function useRemoteStatus(isOpen: boolean) {
@@ -303,13 +311,19 @@ export function AgentPage({
   onOpenAccount,
   agentReady,
   agentSeed,
+  chatSeed,
 }: AgentPageProps) {
   const { t } = useTranslation();
   const now = useNow();
   const { remote, known: remoteKnown } = useRemoteStatus(isOpen);
   const tabs = agentReady ? [...AGENT_TABS, ...TABS] : TABS;
   const agentBatches = useAgentBatches(agentReady && isOpen);
-  const credits = useAgentCredits(agentReady && isOpen, agentBatches.batches);
+  const agentChats = useAgentChats(agentReady && isOpen);
+  const credits = useAgentCredits(
+    agentReady && isOpen,
+    agentBatches.batches,
+    agentChats.ended,
+  );
 
   const [activeTab, setActiveTab] = useState<AgentTab>(initialTab);
   const [adoptedInitialTab, setAdoptedInitialTab] = useState(initialTab);
@@ -619,6 +633,21 @@ export function AgentPage({
                   </AnimatedTabsTrigger>
                 ))}
               </AnimatedTabsList>
+
+              {agentReady && (
+                <AnimatedTabsContent
+                  value="chat"
+                  className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
+                >
+                  <AgentChatPanel
+                    chats={agentChats.chats}
+                    profiles={profiles}
+                    credits={credits}
+                    seed={chatSeed}
+                    onOpenAccount={onOpenAccount}
+                  />
+                </AnimatedTabsContent>
+              )}
 
               {agentReady && (
                 <AnimatedTabsContent

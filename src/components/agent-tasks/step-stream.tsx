@@ -41,7 +41,7 @@ const STEP_ICON = {
   observe: LuEye,
 } as const;
 
-function StepRow({
+export function StepRow({
   step,
   current,
   animate,

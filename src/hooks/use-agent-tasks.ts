@@ -96,10 +96,15 @@ export function useAgentBatches(enabled: boolean) {
   return { batches, loaded, forget, adopt: setBatches };
 }
 
-/** The credits left, read again when a run finishes. */
-export function useAgentCredits(enabled: boolean, batches: AgentBatch[]) {
+/** The credits left, read again when a run or a chat turn finishes. */
+export function useAgentCredits(
+  enabled: boolean,
+  batches: AgentBatch[],
+  chatTurnsEnded = 0,
+) {
   const [credits, setCredits] = useState<AgentCredits | null>(null);
-  const finished = batches.filter((batch) => batch.finished).length;
+  const finished =
+    batches.filter((batch) => batch.finished).length + chatTurnsEnded;
 
   useEffect(() => {
     // Read again each time another run finishes.

@@ -4968,7 +4968,7 @@ mod tests {
   #[tokio::test]
   async fn an_unreachable_storage_host_survives_the_whole_way_to_the_message() {
     let client = SyncClient::new("http://127.0.0.1:1".to_string(), "unused".to_string());
-    let presigned = "http://donut-storage.invalid:9000/bucket/profiles/p1/Cookies\
+    let presigned = "https://donut-storage.invalid:9000/bucket/profiles/p1/Cookies\
                      ?X-Amz-Signature=deadbeef";
 
     let error = client

@@ -134,7 +134,7 @@ impl Keyring {
     self
       .keys
       .iter()
-      .map(|key| derive(&key.secret, &[0; SALT], URL_KEY_INFO))
+      .map(|key| derive(&key.secret, &[], URL_KEY_INFO))
       .collect()
   }
 
@@ -233,9 +233,7 @@ pub struct Sealer {
 pub type Salt = [u8; SALT];
 
 pub fn new_salt() -> Salt {
-  let mut salt = [0u8; SALT];
-  rand::fill(&mut salt);
-  salt
+  rand::random()
 }
 
 fn header_of(key_id: &str, salt: &Salt) -> Vec<u8> {

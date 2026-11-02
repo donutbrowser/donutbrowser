@@ -803,7 +803,7 @@ mod tests {
       .await;
     client()
       .upload_bytes_with_metadata(
-        "http://storage.invalid/never",
+        "https://storage.invalid/never",
         Some(&transfer(&server, 4)),
         b"data",
         Some("application/json"),
@@ -859,7 +859,7 @@ mod tests {
       .await;
     client()
       .upload_bytes_with_metadata(
-        "http://storage.invalid/never",
+        "https://storage.invalid/never",
         Some(&transfer(&server, 4)),
         b"0123456789",
         None,
@@ -893,7 +893,7 @@ mod tests {
       .await;
     let error = client()
       .upload_bytes(
-        "http://storage.invalid/never",
+        "https://storage.invalid/never",
         Some(&transfer(&server, 4)),
         b"01234567",
         None,
@@ -920,7 +920,7 @@ mod tests {
       .await;
     assert!(client()
       .upload_bytes(
-        "http://x.invalid",
+        "https://x.invalid",
         Some(&transfer(&server, 4)),
         b"0123456",
         None
