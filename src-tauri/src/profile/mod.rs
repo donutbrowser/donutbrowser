@@ -1,6 +1,7 @@
 pub mod clear_on_close;
 pub mod encryption;
 pub mod manager;
+pub mod origin;
 pub mod password;
 pub mod patch;
 pub mod portable;

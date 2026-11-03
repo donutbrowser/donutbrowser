@@ -1021,6 +1021,38 @@ impl BrowserLogTap {
   }
 }
 
+/// The level a browser stderr line is logged at, or `None` to drop it. Only
+/// what the browser says about Wayfern, its own errors, and its cookie key
+/// (`os_crypt`) are kept.
+fn browser_line_level(line: &str) -> Option<log::Level> {
+  if line.contains("os_crypt") {
+    // The browser could not read or write the key that seals cookies: the
+    // profile is about to lose its sign-ins.
+    return Some(log::Level::Warn);
+  }
+  // Chromium's own errors are kept too: a browser that quits before its
+  // control port opens says why only there.
+  if line.contains("Wayfern")
+    || line.contains("wayfern_")
+    || line.contains(":ERROR:")
+    || line.contains(":FATAL:")
+  {
+    // What the browser did with the identity explains a profile that
+    // launched without one; the rest is detail.
+    return Some(if line.contains("Wayfern launch identity") {
+      log::Level::Info
+    } else {
+      log::Level::Debug
+    });
+  }
+  None
+}
+
+/// One `os_crypt` line per profile a minute: a browser that cannot open its
+/// key says so for every cookie.
+static OS_CRYPT_LINES: crate::log_streak::Throttle =
+  crate::log_streak::Throttle::new(Duration::from_secs(60));
+
 /// Keep reading the browser's stderr for its lifetime, keeping only what it
 /// says about Wayfern. Reading it all is what keeps the pipe from filling.
 /// `owner` is `key=value` text naming whose browser this is.
@@ -1029,27 +1061,27 @@ fn tap_browser_stderr(stderr: tokio::process::ChildStderr, tap: BrowserLogTap, o
     use tokio::io::{AsyncBufReadExt, BufReader};
     let mut lines = BufReader::new(stderr).lines();
     while let Ok(Some(line)) = lines.next_line().await {
-      // Chromium's own errors are kept too: a browser that quits before its
-      // control port opens says why only there.
-      if line.contains("Wayfern")
-        || line.contains("wayfern_")
-        || line.contains(":ERROR:")
-        || line.contains(":FATAL:")
-      {
-        // What the browser did with the identity explains a profile that
-        // launched without one; the rest is detail.
-        let level = if line.contains("Wayfern launch identity") {
-          log::Level::Info
-        } else {
-          log::Level::Debug
-        };
+      let Some(level) = browser_line_level(&line) else {
+        continue;
+      };
+      let text = crate::log_redaction::text(&line);
+      if level == log::Level::Warn {
+        let key = owner.split_whitespace().next().unwrap_or_default();
+        if let Some(dropped) = OS_CRYPT_LINES.allow(key) {
+          log::warn!(
+            "Browser cookie key error {owner} line=\"{}\"{}",
+            crate::log_redaction::Plain(&text),
+            crate::log_streak::suppressed(dropped)
+          );
+        }
+      } else {
         log::log!(
           level,
           "Browser said {owner} line=\"{}\"",
-          crate::log_redaction::Plain(&crate::log_redaction::text(&line))
+          crate::log_redaction::Plain(&text)
         );
-        tap.push(line);
       }
+      tap.push(line);
     }
   });
 }
@@ -3065,75 +3097,10 @@ impl WayfernManager {
       None => Self::find_free_port().await?,
     };
 
-    // Diagnostic: verify critical profile files and test cookie decryption
-    {
-      let profile_path_buf = std::path::PathBuf::from(profile_path);
-      let key_path = profile_path_buf.join("os_crypt_key");
-      let cookies_path =
-        crate::cookie_manager::CookieManager::wayfern_cookie_path(&profile_path_buf);
-
-      // Length only. The contents are the profile's encryption key, and this
-      // log is the first thing a user attaches to a bug report.
-      let key_len = std::fs::metadata(&key_path).map(|m| m.len()).ok();
-      let mut cookie_counts = None;
-      let mut decryption = "not_checked";
-
-      if cookies_path.exists() {
-        // Try to open Cookies DB and check if encrypted cookies can be decrypted
-        if let Ok(conn) = rusqlite::Connection::open_with_flags(
-          &cookies_path,
-          rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-        ) {
-          let cookie_count: i64 = conn
-            .query_row(
-              "SELECT COUNT(*) FROM cookies WHERE length(encrypted_value) > 0",
-              [],
-              |r| r.get(0),
-            )
-            .unwrap_or(0);
-          let total_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM cookies", [], |r| r.get(0))
-            .unwrap_or(0);
-          cookie_counts = Some((total_count, cookie_count));
-
-          // Try decrypting one cookie using the cookie_manager
-          if let Some(encryption_key) =
-            crate::cookie_manager::chrome_decrypt::get_encryption_key(&profile_path_buf)
-          {
-            if let Ok(mut stmt) = conn.prepare(
-              "SELECT name, host_key, encrypted_value FROM cookies WHERE length(encrypted_value) > 0 LIMIT 1",
-            ) {
-              if let Ok(mut rows) = stmt.query([]) {
-                if let Ok(Some(row)) = rows.next() {
-                  let host: String = row.get(1).unwrap_or_default();
-                  let encrypted: Vec<u8> = row.get(2).unwrap_or_default();
-                  let decrypted = crate::cookie_manager::chrome_decrypt::decrypt(
-                    &encrypted,
-                    &host,
-                    &encryption_key,
-                  );
-                  decryption = if decrypted.is_some() { "ok" } else { "failed" };
-                }
-              }
-            }
-          } else {
-            decryption = "no_key";
-          }
-        }
-      }
-
-      let (cookies, encrypted) = cookie_counts.unwrap_or_default();
-      log::debug!(
-        "Cookie store before launch profile={} os_crypt_key_bytes={key_len:?} cookies={cookies} encrypted={encrypted} decryption={decryption}",
-        profile.id
-      );
-      if encrypted > 0 && matches!(decryption, "failed" | "no_key") {
-        log::error!(
-          "Cookie decryption check failed profile={} encrypted={encrypted} reason={decryption}",
-          profile.id
-        );
-      }
-    }
+    crate::cookie_health::log_before_launch(
+      &profile.id.to_string(),
+      std::path::Path::new(profile_path),
+    );
 
     let mut args = vec![
       format!("--remote-debugging-port={port}"),
@@ -4412,6 +4379,29 @@ fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (u8, u8, u8) {
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn only_wayfern_errors_and_cookie_key_lines_leave_the_browser() {
+    use super::browser_line_level;
+    assert_eq!(
+      browser_line_level(
+        "[1:2:1102/0:ERROR:components\\os_crypt\\sync\\os_crypt_win.cc:90] Failed to decrypt"
+      ),
+      Some(log::Level::Warn)
+    );
+    assert_eq!(
+      browser_line_level("[1:2:INFO:wayfern_launch_identity.cc:1] Wayfern launch identity applied"),
+      Some(log::Level::Info)
+    );
+    assert_eq!(
+      browser_line_level("[1:2:ERROR:gpu_init.cc:1] no GPU"),
+      Some(log::Level::Debug)
+    );
+    assert_eq!(
+      browser_line_level("[1:2:INFO:visited.cc:1] https://example.com"),
+      None
+    );
+  }
+
   #[test]
   fn identity_location_carries_the_exit_for_create_identity() {
     let geo = crate::geolocation::Geolocation {

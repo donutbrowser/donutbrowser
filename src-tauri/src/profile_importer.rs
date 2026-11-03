@@ -1202,6 +1202,7 @@ impl ProfileImporter {
     };
 
     self.profile_manager.save_profile(&profile)?;
+    crate::profile::origin::record(&profile.id, crate::profile::origin::Origin::Imported);
 
     if report.is_empty_import() {
       // Not an error — an empty source profile imports legitimately — but it is

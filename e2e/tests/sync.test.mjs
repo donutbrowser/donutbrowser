@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, readdir, readFile, utimes, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import test from "node:test";
@@ -347,6 +354,8 @@ test("two real app devices reconcile profile files and every config entity with 
       path.join(profileData, "Preferences"),
       JSON.stringify({ donutE2E: "regular-profile-payload" }),
     );
+    const cookieKey = Buffer.alloc(32, 7);
+    await writeFile(path.join(profileData, "..", "os_crypt_key"), cookieKey);
     await deviceA.invoke("update_profile_tags", {
       profileId: profile.id,
       tags: ["sync", "device-a"],
@@ -379,6 +388,7 @@ test("two real app devices reconcile profile files and every config entity with 
           `extension_groups/${extensionGroup.id}.json`,
           `profiles/${profile.id}/manifest.json`,
           `profiles/${profile.id}/files/profile/Default/Preferences`,
+          `profiles/${profile.id}/files/profile/os_crypt_key`,
         ].every((key) => keys.includes(key));
       },
       "all regular entities uploaded",
@@ -425,6 +435,22 @@ test("two real app devices reconcile profile files and every config entity with 
         ).includes("regular-profile-payload"),
       "device B receives profile browser files",
     );
+    const profileDirB = path.join(
+      deviceB.dataRoot,
+      "data",
+      "profiles",
+      profile.id,
+    );
+    assert.deepEqual(
+      await readFile(path.join(profileDirB, "profile", "os_crypt_key")),
+      cookieKey,
+    );
+    assert.equal(
+      (
+        await readFile(path.join(profileDirB, ".donut-sync", "origin"), "utf8")
+      ).trim(),
+      "synced_down",
+    );
 
     // updated_at has one-second resolution. Make the device-B edits
     // unambiguously newer, then verify last-write-wins in both directions.
@@ -453,6 +479,57 @@ test("two real app devices reconcile profile files and every config entity with 
         );
       },
       "newer device-B edits win on device A",
+    );
+
+    // Device B publishes a newer copy without the key file. Device A takes the
+    // newer files but keeps its key, which every cookie depends on, and puts
+    // it back in the cloud.
+    const remoteKey = `profiles/${profile.id}/files/profile/os_crypt_key`;
+    await rm(path.join(profileDirB, "profile", "os_crypt_key"));
+    await writeFile(
+      path.join(profileDirB, "profile", "Default", "Preferences"),
+      JSON.stringify({ donutE2E: "device-b-without-key" }),
+    );
+    await deviceB.invoke("request_profile_sync", { profileId: profile.id });
+    await waitFor(
+      deviceB,
+      async () =>
+        !(await listRemote("")).some((object) => object.key === remoteKey),
+      "device B's copy without the key reaches the cloud",
+    );
+    await deviceA.invoke("request_profile_sync", { profileId: profile.id });
+    await waitFor(
+      deviceA,
+      async () =>
+        (
+          await readFile(path.join(profileData, "Preferences"), "utf8").catch(
+            () => "",
+          )
+        ).includes("device-b-without-key") &&
+        (await listRemote("")).some((object) => object.key === remoteKey),
+      "device A takes the newer files and restores the key in the cloud",
+    );
+    assert.deepEqual(
+      await readFile(path.join(profileData, "..", "os_crypt_key")),
+      cookieKey,
+    );
+    const logDirA = path.join(deviceA.dataRoot, "logs");
+    const keptLine = new RegExp(
+      `Profile synced profile=${profile.id} .*key_files=os_crypt_key:kept`,
+    );
+    await waitFor(
+      deviceA,
+      async () =>
+        (
+          await Promise.all(
+            (
+              await readdir(logDirA)
+            )
+              .filter((name) => name.endsWith(".log"))
+              .map((name) => readFile(path.join(logDirA, name), "utf8")),
+          )
+        ).some((text) => keptLine.test(text)),
+      "device A logs that it kept the key file",
     );
 
     assert.equal(

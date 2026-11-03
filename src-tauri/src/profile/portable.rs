@@ -598,6 +598,7 @@ pub async fn import_profile_archive(
       let _ = fs::remove_dir_all(data_dir.parent().unwrap_or(&data_dir));
       import_err(format!("could not save it: {e}"))
     })?;
+    crate::profile::origin::record(&profile.id, crate::profile::origin::Origin::Imported);
     let _ = crate::events::emit("profiles-changed", serde_json::json!({}));
     Ok(profile)
   })

@@ -623,6 +623,7 @@ impl ProfileManager {
 
     // Save profile info
     self.save_profile(&profile)?;
+    crate::profile::origin::record(&profile.id, crate::profile::origin::Origin::Created);
 
     // Verify the profile was saved correctly
     if !profile_file.exists() {
@@ -914,6 +915,9 @@ impl ProfileManager {
     let started = std::time::Instant::now();
     let removed = self.find_profile(profile_id).ok();
     let outcome = self.remove_profile_unlogged(app_handle, profile_id, permanent, emit_events)?;
+    if permanent {
+      crate::cookie_health::forget(profile_id);
+    }
     if let Some(profile) = &removed {
       report_team_edit(profile, "profile.delete", &[]);
     }
@@ -1831,6 +1835,7 @@ impl ProfileManager {
     }
 
     self.save_profile(&new_profile)?;
+    crate::profile::origin::record(&new_profile.id, crate::profile::origin::Origin::Cloned);
 
     if let Err(e) = events::emit_empty("profiles-changed") {
       log::warn!("Event emit failed event=profiles-changed err=\"{e}\"");

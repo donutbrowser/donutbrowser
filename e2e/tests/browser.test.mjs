@@ -3267,7 +3267,10 @@ test("a password-protected profile keeps what each session saved", async () => {
           .map((n) => readFile(path.join(logDir, n), "utf8")),
       )
     ).join("\n");
-    assert.doesNotMatch(logText, /Cookie decryption check failed/);
+    assert.doesNotMatch(
+      logText,
+      /Cookie store before launch .*(undecryptable=[1-9]|newest_ok=false|key_changed=yes)/,
+    );
     assert.doesNotMatch(logText, /Profile re-encryption failed/);
     assert.equal(
       logText.match(

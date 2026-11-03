@@ -1137,11 +1137,45 @@ impl SyncEngine {
         log::warn!("Unsafe manifest path, local delete skipped path={path:?}");
         continue;
       }
+      if pending_session.is_none() && super::manifest::is_key_material(path) {
+        continue;
+      }
       let file_path = profile_dir.join(path);
       if file_path.exists() {
         let _ = fs::remove_file(&file_path);
         log::debug!("Local file deleted path={path}");
       }
+    }
+
+    // The remote copy lacks a key file this device has. Deleting it would lose
+    // every encrypted cookie, so it stays and goes up with the rest.
+    let kept_keys: Vec<super::manifest::ManifestFileEntry> = local_manifest
+      .files
+      .iter()
+      .filter(|f| {
+        pending_session.is_none()
+          && super::manifest::is_key_material(&f.path)
+          && diff.files_to_delete_local.contains(&f.path)
+      })
+      .cloned()
+      .collect();
+    if !kept_keys.is_empty() {
+      log::warn!(
+        "Remote copy lacks key files, local kept profile={profile_id} files={}",
+        kept_keys.len()
+      );
+      self
+        .upload_profile_files(
+          app_handle,
+          &profile_id,
+          &profile.name,
+          &profile_dir,
+          &kept_keys,
+          encryption_key.as_ref(),
+          &key_prefix,
+          &cancel_flag,
+        )
+        .await?;
     }
 
     // Delete remote files that don't exist locally (when local is newer)
@@ -1158,6 +1192,8 @@ impl SyncEngine {
     // devices ping-pong re-uploads forever. Regenerate from the
     // actual on-disk files before uploading. When only uploads happened, the
     // on-disk state is unchanged and the original manifest is still accurate.
+    let key_files =
+      super::manifest::key_file_changes(&diff, &local_manifest, pending_session.is_none());
     let local_changed =
       !diff.files_to_download.is_empty() || !diff.files_to_delete_local.is_empty();
     let final_manifest = if local_changed {
@@ -1248,7 +1284,7 @@ impl SyncEngine {
     crate::cookie_bot::report_profile_state(&updated_profile);
 
     log::info!(
-      "Profile synced profile={profile_id} uploaded={} downloaded={} deleted_local={} deleted_remote={} bytes_up={upload_bytes} bytes_down={download_bytes} elapsed_ms={}",
+      "Profile synced profile={profile_id} uploaded={} downloaded={} deleted_local={} deleted_remote={} key_files={key_files} bytes_up={upload_bytes} bytes_down={download_bytes} elapsed_ms={}",
       diff.files_to_upload.len(),
       diff.files_to_download.len(),
       diff.files_to_delete_local.len(),
@@ -3072,6 +3108,7 @@ impl SyncEngine {
       profile_manager
         .save_profile(&profile)
         .map_err(|e| SyncError::IoError(format!("Failed to save cross-OS profile: {e}")))?;
+      crate::profile::origin::record_in(&profile_dir, crate::profile::origin::Origin::SyncedDown);
 
       let _ = events::emit("profiles-changed", ());
       let _ = events::emit(
@@ -3179,6 +3216,7 @@ impl SyncEngine {
     profile_manager
       .save_profile(&profile)
       .map_err(|e| SyncError::IoError(format!("Failed to save downloaded profile: {e}")))?;
+    crate::profile::origin::record_in(&profile_dir, crate::profile::origin::Origin::SyncedDown);
 
     let _ = events::emit("profiles-changed", ());
     let _ = events::emit(

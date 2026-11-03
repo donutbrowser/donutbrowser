@@ -250,7 +250,7 @@ fn facts(
       .unwrap_or_else(|| "-".to_string());
     let _ = writeln!(
       out,
-      "{} browser={} version={} running={} ephemeral={} proxy={} vpn={} group={} sync={} extensions={}",
+      "{} browser={} version={} running={} ephemeral={} proxy={} vpn={} group={} sync={} extensions={} clear_on_close={} origin={}",
       aliases.apply(&profile.id.to_string()),
       profile.browser,
       profile.version,
@@ -261,6 +261,8 @@ fn facts(
       profile.group_id.as_deref().map_or("-".to_string(), |id| aliases.apply(id)),
       sync,
       profile.extension_group_id.is_some(),
+      profile.clear_on_close,
+      crate::profile::origin::read(&profile.id),
     );
   }
   if profiles.len() > MAX_LISTED_PROFILES {

@@ -255,6 +255,7 @@ mod cloud_errors;
 mod commercial_license;
 mod cookie_bot;
 mod cookie_bot_exit;
+mod cookie_health;
 mod cookie_manager;
 mod cookie_paste;
 pub mod events;

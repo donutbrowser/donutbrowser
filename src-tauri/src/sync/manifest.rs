@@ -451,6 +451,56 @@ pub enum DiffBias {
   Restore,
 }
 
+/// The files that hold a Wayfern profile's cookies and the key that opens
+/// them, by manifest path. A sync that moves one without the other logs the
+/// person out of every site, so the result line names what happened to each.
+const KEY_FILES: &[(&str, &str)] = &[
+  ("profile/os_crypt_key", "os_crypt_key"),
+  ("profile/Local State", "Local State"),
+  ("profile/Default/Network/Cookies", "Cookies"),
+  ("profile/Default/Cookies", "Cookies"),
+];
+
+/// Key material a sync never deletes locally: without it every encrypted
+/// cookie and password in the profile is lost, and a remote copy that lacks it
+/// cannot replace it.
+pub fn is_key_material(path: &str) -> bool {
+  matches!(path, "profile/os_crypt_key" | "profile/Local State")
+}
+
+/// `os_crypt_key:downloaded,Cookies:replaced`: what `diff` does to the
+/// profile's key files on this device, or `-` when it touches none. A download
+/// over a file `local` has is `replaced`; key material the sync keeps instead
+/// of deleting (`keeps_keys`) is `kept`.
+pub fn key_file_changes(diff: &ManifestDiff, local: &SyncManifest, keeps_keys: bool) -> String {
+  let changes: Vec<String> = KEY_FILES
+    .iter()
+    .filter_map(|(path, name)| {
+      let action = if diff.files_to_download.iter().any(|f| f.path == *path) {
+        if local.files.iter().any(|f| f.path == *path) {
+          "replaced"
+        } else {
+          "downloaded"
+        }
+      } else if diff.files_to_delete_local.iter().any(|p| p == path) {
+        if keeps_keys && is_key_material(path) {
+          "kept"
+        } else {
+          "deleted"
+        }
+      } else {
+        return None;
+      };
+      Some(format!("{name}:{action}"))
+    })
+    .collect();
+  if changes.is_empty() {
+    "-".to_string()
+  } else {
+    changes.join(",")
+  }
+}
+
 pub fn compute_diff(local: &SyncManifest, remote: Option<&SyncManifest>) -> ManifestDiff {
   compute_diff_with_bias(local, remote, DiffBias::Auto)
 }
@@ -828,6 +878,52 @@ mod tests {
         .collect(),
       encrypted: false,
     }
+  }
+
+  #[test]
+  fn key_file_changes_name_what_a_sync_does_to_the_key_and_cookies() {
+    let local = manifest_at(
+      "2026-01-01T00:00:00Z",
+      &[
+        ("profile/os_crypt_key", "k1"),
+        ("profile/Local State", "ls"),
+        ("profile/Default/Network/Cookies", "c1"),
+        ("profile/Default/History", "h1"),
+      ],
+    );
+    let remote = manifest_at(
+      "2026-01-02T00:00:00Z",
+      &[
+        ("profile/Default/Network/Cookies", "c2"),
+        ("profile/Default/History", "h2"),
+      ],
+    );
+    let diff = compute_diff(&local, Some(&remote));
+    assert_eq!(
+      key_file_changes(&diff, &local, true),
+      "os_crypt_key:kept,Local State:kept,Cookies:replaced"
+    );
+    assert_eq!(
+      key_file_changes(&diff, &local, false),
+      "os_crypt_key:deleted,Local State:deleted,Cookies:replaced"
+    );
+
+    let empty = manifest_at("2026-01-01T00:00:00Z", &[("profile/x", "1")]);
+    let fresh = manifest_at(
+      "2026-01-02T00:00:00Z",
+      &[("profile/x", "1"), ("profile/os_crypt_key", "k")],
+    );
+    let diff = compute_diff(&empty, Some(&fresh));
+    assert_eq!(
+      key_file_changes(&diff, &empty, true),
+      "os_crypt_key:downloaded"
+    );
+    assert_eq!(
+      key_file_changes(&compute_diff(&fresh, Some(&fresh)), &fresh, true),
+      "-"
+    );
+    assert!(is_key_material("profile/os_crypt_key"));
+    assert!(!is_key_material("profile/Default/Network/Cookies"));
   }
 
   #[test]
