@@ -92,7 +92,11 @@ import { useUpdateNotifications } from "@/hooks/use-update-notifications";
 import { useVersionUpdater } from "@/hooks/use-version-updater";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { useWayfernTerms } from "@/hooks/use-wayfern-terms";
-import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
+import {
+  leaseExpiryTime,
+  parseBackendError,
+  translateBackendError,
+} from "@/lib/backend-errors";
 import { fireSprinkleConfetti } from "@/lib/confetti";
 import {
   canUseCookieBot,
@@ -546,6 +550,14 @@ export default function Home() {
   const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] =
     useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  // A synced profile another device of this account runs: the take-over
+  // confirmation.
+  const [leaseConflict, setLeaseConflict] = useState<{
+    profile: BrowserProfile;
+    device: string;
+    expiresAt: string;
+  } | null>(null);
+  const [isTakingOver, setIsTakingOver] = useState(false);
   const [syncConfigDialogOpen, setSyncConfigDialogOpen] = useState(false);
   const [deviceCodeDialogOpen, setDeviceCodeDialogOpen] = useState(false);
   const [syncAllDialogOpen, setSyncAllDialogOpen] = useState(false);
@@ -1788,6 +1800,20 @@ export default function Home() {
           }
         }
 
+        if (
+          parsed?.code === "PROFILE_LEASE_HELD" &&
+          parsed.params?.canTakeOver === "true" &&
+          !opts?.quiet
+        ) {
+          noteLaunchError(profile.id, err);
+          setLeaseConflict({
+            profile,
+            device: parsed.params.device ?? "",
+            expiresAt: parsed.params.expiresAt ?? "",
+          });
+          return { status: "blocked" };
+        }
+
         console.error("Failed to launch browser:", err);
         noteLaunchError(profile.id, err);
         if (!opts?.quiet) {
@@ -1803,6 +1829,49 @@ export default function Home() {
     },
     [persistGateAcks, requestGateDecision, noteLaunchError, t],
   );
+
+  const confirmLeaseTakeOver = useCallback(async () => {
+    if (!leaseConflict) return;
+    const { profile } = leaseConflict;
+    setIsTakingOver(true);
+    try {
+      await invoke("take_over_profile_lease", { profileId: profile.id });
+      setLeaseConflict(null);
+      // launchProfile reports its own failure.
+      await launchProfile(profile).catch(() => undefined);
+    } catch (err: unknown) {
+      setLeaseConflict(null);
+      showErrorToast(
+        t("errors.launchBrowserFailed", {
+          name: profile.name,
+          error: translateBackendError(t, err),
+        }),
+      );
+    } finally {
+      setIsTakingOver(false);
+    }
+  }, [leaseConflict, launchProfile, t]);
+
+  useEffect(() => {
+    const unlisten = listen<{
+      profile_id: string;
+      profile_name: string;
+      device: string;
+    }>("profile-sync-lease-lost", (event) => {
+      showErrorToast(
+        t("leaseTakeOver.lost", {
+          device: event.payload.device,
+          profile: event.payload.profile_name,
+        }),
+        { id: `lease-lost-${event.payload.profile_id}` },
+      );
+    });
+    return () => {
+      void unlisten.then((fn) => {
+        fn();
+      });
+    };
+  }, [t]);
 
   const handleCloneProfile = useCallback((profile: BrowserProfile) => {
     setCloneProfile(profile);
@@ -3612,6 +3681,21 @@ export default function Home() {
           }
           confirmButtonVariant="default"
           isLoading={isBulkActing}
+        />
+        <DeleteConfirmationDialog
+          isOpen={leaseConflict !== null}
+          onClose={() => {
+            setLeaseConflict(null);
+          }}
+          onConfirm={confirmLeaseTakeOver}
+          title={t("leaseTakeOver.title")}
+          description={t("leaseTakeOver.description", {
+            profile: leaseConflict?.profile.name ?? "",
+            device: leaseConflict?.device ?? "",
+            time: leaseExpiryTime(leaseConflict?.expiresAt),
+          })}
+          confirmButtonText={t("leaseTakeOver.confirm")}
+          isLoading={isTakingOver}
         />
         <DeleteConfirmationDialog
           isOpen={showBulkDeleteConfirmation}

@@ -2997,7 +2997,8 @@
     "siteStorageNotFound": "Estos datos del sitio ya no están en el perfil.",
     "siteStorageUnsafePath": "Estos datos del sitio apuntan fuera de la carpeta del perfil, así que Donut no los cambió.",
     "siteStorageIoFailed": "Donut no pudo cambiar los datos del sitio: {{detail}}",
-    "agentChatNotFound": "Este chat ya no existe."
+    "agentChatNotFound": "Este chat ya no existe.",
+    "profileLeaseHeld": "Este perfil está abierto en {{device}}. Quedará libre a las {{time}} o cuando ese dispositivo lo cierre."
   },
   "rail": {
     "profiles": "Perfiles",
@@ -5060,5 +5061,11 @@
       "title": "{{name}} se cerró poco después de iniciarse: {{site}} guarda {{size}}",
       "description": "Un sitio tan grande puede cerrar el navegador. Reparar aparta los datos del sitio en el perfil. Las cookies, los inicios de sesión y los demás sitios se mantienen."
     }
+  },
+  "leaseTakeOver": {
+    "title": "¿Tomar el control de este perfil?",
+    "description": "{{profile}} está abierto en {{device}} hasta las {{time}}. Si tomas el control, ese dispositivo deja de sincronizarlo y se pierden sus cambios desde que lo abrió.",
+    "confirm": "Tomar el control",
+    "lost": "{{device}} tomó el control de {{profile}}. Los cambios hechos aquí no se sincronizarán."
   }
 }

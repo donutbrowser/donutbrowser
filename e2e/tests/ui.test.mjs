@@ -5592,12 +5592,20 @@ async function stubCommand(app, command, reply) {
              payload = null;
            }
            window.__donutStubbedCalls.push({ command: name, payload });
+           // { __replies: [...] } answers each call with the next reply and
+           // keeps the last; { __error: value } rejects the call with value.
+           const stub = window.__donutStubs[name];
+           let reply = stub;
+           if (stub && Array.isArray(stub.__replies)) {
+             reply = stub.__replies.length > 1 ? stub.__replies.shift() : stub.__replies[0];
+           }
+           const failed = Boolean(reply && reply.__error !== undefined);
            return Promise.resolve(
-             new Response(JSON.stringify(window.__donutStubs[name]), {
+             new Response(JSON.stringify(failed ? reply.__error : reply), {
                status: 200,
                headers: {
                  "content-type": "application/json",
-                 "Tauri-Response": "ok",
+                 "Tauri-Response": failed ? "error" : "ok",
                },
              }),
            );
@@ -5623,6 +5631,66 @@ async function restoreStubs(app) {
      return calls;`,
   );
 }
+
+test("a profile open on another device of the account offers Take over, which takes the lease and launches", async () => {
+  await withApp("ui-lease-take-over", async (app) => {
+    await app.invoke("dismiss_window_resize_warning");
+    const profile = await createUiProfile(app, "Leased Elsewhere");
+    const held = JSON.stringify({
+      code: "PROFILE_LEASE_HELD",
+      params: {
+        profileId: profile.id,
+        device: "Work Laptop",
+        expiresAt: new Date(Date.now() + 90_000).toISOString(),
+        canTakeOver: "true",
+      },
+    });
+    try {
+      await stubCommand(app, "launch_browser_profile", {
+        __replies: [{ __error: held }, profile],
+      });
+      await stubCommand(app, "take_over_profile_lease", null);
+      const control = `[data-launch-control="${profile.id}"]`;
+      await app.waitFor(
+        () =>
+          app.execute(`return Boolean(document.querySelector(arguments[0]));`, [
+            control,
+          ]),
+        { description: "launch control" },
+      );
+      await app.clickSelector(control);
+      await app.waitForText(en.leaseTakeOver.title);
+      const dialog = await app.execute(
+        `return document.querySelector('[role="dialog"]')?.innerText ?? "";`,
+      );
+      assert.match(dialog, /Work Laptop/);
+      assert.match(dialog, /Leased Elsewhere/);
+      await app.capture("lease-take-over");
+
+      await app.clickTextIn('[role="dialog"]', en.leaseTakeOver.confirm, {
+        roles: ["button"],
+      });
+      await app.waitFor(
+        async () =>
+          (await app.execute(
+            `return (window.__donutStubbedCalls ?? []).filter((call) => call.command === 'launch_browser_profile').length;`,
+          )) === 2,
+        { description: "the launch runs again after the take over" },
+      );
+      const takeOvers = await app.execute(
+        `return (window.__donutStubbedCalls ?? []).filter((call) => call.command === 'take_over_profile_lease');`,
+      );
+      assert.equal(takeOvers.length, 1);
+      assert.equal(takeOvers[0].payload.profileId, profile.id);
+      await app.waitFor(
+        async () => !(await app.visibleTextIncludes(en.leaseTakeOver.title)),
+        { description: "the confirmation closes" },
+      );
+    } finally {
+      await restoreStubs(app);
+    }
+  });
+});
 
 const SYNC = en.profiles.synchronizer;
 

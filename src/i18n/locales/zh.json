@@ -2977,7 +2977,8 @@
     "siteStorageNotFound": "此网站数据已不在配置文件中。",
     "siteStorageUnsafePath": "此网站数据指向配置文件夹之外,因此 Donut 未作更改。",
     "siteStorageIoFailed": "Donut 无法更改网站数据:{{detail}}",
-    "agentChatNotFound": "此对话已不存在。"
+    "agentChatNotFound": "此对话已不存在。",
+    "profileLeaseHeld": "此配置文件已在 {{device}} 上打开。它将在 {{time}} 或该设备关闭它时释放。"
   },
   "rail": {
     "profiles": "配置文件",
@@ -5005,5 +5006,11 @@
       "title": "{{name}} 启动后不久就关闭了:{{site}} 存储了 {{size}}",
       "description": "这么大的网站数据可能会让浏览器退出。“修复”会把该网站的数据移到配置文件内的一旁。Cookie、登录信息和其他网站都会保留。"
     }
+  },
+  "leaseTakeOver": {
+    "title": "接管此配置文件?",
+    "description": "{{profile}} 在 {{device}} 上打开,直到 {{time}}。接管后,该设备将停止同步它,并且自打开以来的更改将丢失。",
+    "confirm": "接管",
+    "lost": "{{device}} 已接管 {{profile}}。此处的更改将不会同步。"
   }
 }

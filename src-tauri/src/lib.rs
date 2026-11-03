@@ -2886,6 +2886,7 @@ pub fn run_with_builder(
         log::warn!("Setting the global event emitter failed err=\"{e}\"");
       }
       agent_tasks::init(&handle);
+      sync::lease::init(&handle);
 
       #[cfg(all(windows, not(feature = "e2e")))]
       {
@@ -3859,6 +3860,7 @@ pub fn run_with_builder(
       // Team lock commands
       team_lock::get_team_locks,
       team_lock::get_team_lock_status,
+      sync::lease::take_over_profile_lease,
       // Synchronizer commands
       synchronizer::start_sync_session,
       synchronizer::stop_sync_session,

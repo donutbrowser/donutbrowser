@@ -413,6 +413,7 @@ export const commandCoverage = {
       "sync::restore_points::create_restore_point",
       "sync::restore_points::delete_restore_point",
       "sync::restore_points::restore_restore_point",
+      "sync::lease::take_over_profile_lease",
     ],
   },
   teamActivity: {

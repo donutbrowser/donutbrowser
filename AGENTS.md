@@ -75,7 +75,7 @@ donutbrowser/
 │   │   ├── agent_schedules.rs       # Thin client for scheduled recipes (paid plans; the cloud checks the plan)
 │   │   ├── cloud_api.rs             # Signed-in JSON calls to Donut cloud, with token refresh and error codes
 │   │   ├── feedback.rs              # Feedback to the Donut team from the dialog and the send_feedback MCP tool, optional redacted logs
-│   │   ├── sync/                    # Cloud sync (engine, encryption, manifest, scheduler)
+│   │   ├── sync/                    # Cloud sync (engine, encryption, manifest, scheduler, lease: one device at a time per profile)
 │   │   ├── vpn/                     # WireGuard tunnels
 │   │   ├── ramfs/                   # Windows RAM volume for ephemeral profiles: in-memory file system on WinFsp, hosted by donut-proxy
 │   │   ├── xray/                    # Xray share links (VLESS, VMess, Trojan, Hysteria2): parse, export, client config
@@ -109,7 +109,7 @@ donutbrowser/
 │   ├── tests/                      # Integration tests
 │   └── Cargo.toml                  # Rust dependencies
 ├── donut-sync/                     # Sync server in Rust (self-hostable): auth, presigned S3 URLs, team rules
-│   ├── src/                        # http.rs routing, sync.rs object routes, auth.rs, s3.rs + sigv4.rs, subscribe.rs (SSE),
+│   ├── src/                        # http.rs routing, sync.rs object routes, locks.rs profile leases (/v1/locks/*), auth.rs, s3.rs + sigv4.rs, subscribe.rs (SSE),
 │   │                               # at_rest.rs + sealed_store.rs + transfer.rs (optional encryption at rest, SYNC_AT_REST_KEY), migrate.rs (migrate/verify-at-rest)
 │   └── tests/                      # End-to-end tests: the binary against the compose S3 server
 │   └── src/                        # Controllers, services, auth, S3 sync

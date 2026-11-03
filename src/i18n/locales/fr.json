@@ -2997,7 +2997,8 @@
     "siteStorageNotFound": "Ces données de site ne sont plus dans le profil.",
     "siteStorageUnsafePath": "Ces données de site pointent hors du dossier du profil, Donut ne les a donc pas modifiées.",
     "siteStorageIoFailed": "Donut n'a pas pu modifier les données du site : {{detail}}",
-    "agentChatNotFound": "Ce chat n’existe plus."
+    "agentChatNotFound": "Ce chat n’existe plus.",
+    "profileLeaseHeld": "Ce profil est ouvert sur {{device}}. Il sera libre à {{time}}, ou quand cet appareil le fermera."
   },
   "rail": {
     "profiles": "Profils",
@@ -5060,5 +5061,11 @@
       "title": "{{name}} s'est fermé peu après le lancement : {{site}} stocke {{size}}",
       "description": "Un site aussi volumineux peut faire quitter le navigateur. Réparer met de côté les données du site dans le profil. Les cookies, les connexions et les autres sites restent."
     }
+  },
+  "leaseTakeOver": {
+    "title": "Reprendre ce profil ?",
+    "description": "{{profile}} est ouvert sur {{device}} jusqu'à {{time}}. Si vous le reprenez, cet appareil cesse de le synchroniser et ses modifications depuis l'ouverture sont perdues.",
+    "confirm": "Reprendre",
+    "lost": "{{device}} a repris {{profile}}. Les modifications faites ici ne seront pas synchronisées."
   }
 }

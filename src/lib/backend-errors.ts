@@ -240,6 +240,10 @@ export type BackendErrorCode =
   | "PROFILE_LOCKED_BY_MEMBER"
   | "PROFILE_LOCKED_ELSEWHERE"
   | "PROFILE_LOCK_UNAVAILABLE"
+  // Another device of the account, or a teammate, runs this synced profile.
+  // `params.device` names it, `params.expiresAt` is when its lease ends,
+  // `params.canTakeOver` is "true" for this account's own device.
+  | "PROFILE_LEASE_HELD"
   | "NOT_TEAM_MEMBER"
   | "COOKIE_BOT_NOT_ENTITLED"
   | "COOKIE_BOT_NOT_ENROLLED"
@@ -398,6 +402,13 @@ export type BackendErrorCode =
 export interface BackendError {
   code: BackendErrorCode;
   params?: Record<string, string>;
+}
+
+/** The local time a sync lease ends, e.g. "14:05". */
+export function leaseExpiryTime(expiresAt: string | undefined): string {
+  const date = expiresAt ? new Date(expiresAt) : null;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 /**
@@ -1014,6 +1025,11 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       });
     case "PROFILE_LOCKED_ELSEWHERE":
       return t("backendErrors.profileLockedElsewhere");
+    case "PROFILE_LEASE_HELD":
+      return t("backendErrors.profileLeaseHeld", {
+        device: parsed.params?.device ?? "",
+        time: leaseExpiryTime(parsed.params?.expiresAt),
+      });
     case "PROFILE_LOCK_UNAVAILABLE":
       return t("backendErrors.profileLockUnavailable");
     case "NOT_TEAM_MEMBER":

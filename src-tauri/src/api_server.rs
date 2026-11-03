@@ -1532,8 +1532,9 @@ pub async fn get_api_server_status() -> Result<Option<u16>, String> {
 /// apart from a validation failure, cannot drift from the guards that produce
 /// them. `PROFILE_REMOTE_SYNC_PENDING` in particular is temporary by nature: the
 /// pull that clears it is already running.
-const LAUNCH_CONFLICT_CODES: [&str; 5] = [
+const LAUNCH_CONFLICT_CODES: [&str; 6] = [
   "PROFILE_RUNNING",
+  "PROFILE_LEASE_HELD",
   "PROFILE_RUNNING_REMOTELY",
   "PROFILE_REMOTE_SYNC_PENDING",
   "PROFILE_LOCKED_BY_MEMBER",
@@ -3560,7 +3561,7 @@ async fn remove_extension_from_group_api(
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
-    (status = 409, description = "Profile is locked by another team member, running on the remote fleet, or waiting for a finished remote session to be pulled back"),
+    (status = 409, description = "Profile is locked by another team member, open on another device of the account, running on the remote fleet, or waiting for a finished remote session to be pulled back"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 503, description = "The profile lock service could not be reached, or the profile's files could not be downloaded from sync before its first launch here"),
     (status = 500, description = "Internal server error")
@@ -7121,6 +7122,7 @@ mod tests {
       "PROFILE_REMOTE_SYNC_PENDING",
       "PROFILE_LOCKED_BY_MEMBER",
       "PROFILE_LOCKED_ELSEWHERE",
+      "PROFILE_LEASE_HELD",
     ] {
       let (status, body) = manager_error_response(serde_json::json!({ "code": code }).to_string());
       assert_eq!(status, StatusCode::CONFLICT, "{code} must be a 409");

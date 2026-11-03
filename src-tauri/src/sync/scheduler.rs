@@ -701,6 +701,7 @@ impl SyncScheduler {
           in_flight.lock().await.remove(&profile_id);
           // Deleted, or sync turned off, while it waited: end the pulse.
           emit_row_status(&profile_id, "disabled");
+          super::lease::sync_finished(&profile_id, true).await;
           return;
         };
 
@@ -721,6 +722,8 @@ impl SyncScheduler {
           let mut inf = in_flight.lock().await;
           inf.remove(&profile_id);
         }
+        let uploaded = matches!(result, Ok(_) | Err(super::types::SyncError::NotConfigured));
+        super::lease::sync_finished(&profile_id, uploaded).await;
 
         match result {
           Ok(super::ProfileSyncOutcome::Completed) => {

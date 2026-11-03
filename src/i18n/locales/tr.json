@@ -2977,7 +2977,8 @@
     "siteStorageNotFound": "Bu site verisi artık profilde değil.",
     "siteStorageUnsafePath": "Bu site verisi profil klasörünün dışını gösteriyor, bu yüzden Donut onu değiştirmedi.",
     "siteStorageIoFailed": "Donut site verisini değiştiremedi: {{detail}}",
-    "agentChatNotFound": "Bu sohbet artık yok."
+    "agentChatNotFound": "Bu sohbet artık yok.",
+    "profileLeaseHeld": "Bu profil {{device}} üzerinde açık. {{time}} saatinde veya o cihaz kapattığında serbest kalır."
   },
   "rail": {
     "profiles": "Profiller",
@@ -5005,5 +5006,11 @@
       "title": "{{name}} başlatıldıktan kısa süre sonra kapandı: {{site}} {{size}} saklıyor",
       "description": "Bu kadar büyük bir site tarayıcıyı kapatabilir. Onar, sitenin verisini profilde kenara taşır. Çerezler, oturumlar ve diğer siteler kalır."
     }
+  },
+  "leaseTakeOver": {
+    "title": "Bu profili devralmak istiyor musunuz?",
+    "description": "{{profile}}, {{time}} saatine kadar {{device}} üzerinde açık. Devralırsanız o cihaz eşitlemeyi durdurur ve açıldığından beri yaptığı değişiklikler kaybolur.",
+    "confirm": "Devral",
+    "lost": "{{device}}, {{profile}} profilini devraldı. Burada yapılan değişiklikler eşitlenmeyecek."
   }
 }

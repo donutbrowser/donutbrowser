@@ -540,6 +540,15 @@ impl SyncProgressTracker {
   }
 }
 
+/// Notes the copy both sides hold now, and ends a taken-over session's hold
+/// on the profile: its next sync goes by what changed again.
+fn note_synced(profile_id: &str, profile_dir: &Path, manifest: &SyncManifest) {
+  if let Err(e) = super::manifest::save_synced(profile_dir, manifest) {
+    log::warn!("Synced state not saved profile={profile_id} err=\"{e}\"");
+  }
+  super::lease::clear_taken_over(profile_id);
+}
+
 /// Check if sync is configured (cloud or self-hosted)
 pub fn is_sync_configured() -> bool {
   // Cloud backup is a plan capability. Gating on the capability — not just
@@ -673,7 +682,7 @@ impl SyncEngine {
   }
 
   /// Check if this is a self-hosted sync (no cloud login).
-  async fn is_self_hosted_sync() -> bool {
+  pub(super) async fn is_self_hosted_sync() -> bool {
     !crate::cloud_auth::CLOUD_AUTH.is_logged_in().await
   }
 
@@ -1031,6 +1040,15 @@ impl SyncEngine {
       return Ok(outcome);
     }
 
+    let bias = match (&remote_manifest, bias, &pending_session) {
+      (Some(remote), DiffBias::Auto, None) => {
+        self
+          .direction_since_sync(profile, &profile_dir, &local_manifest, remote)
+          .await
+      }
+      _ => bias,
+    };
+
     // Compute diff
     let diff = compute_diff_with_bias(&local_manifest, remote_manifest.as_ref(), bias);
 
@@ -1043,6 +1061,7 @@ impl SyncEngine {
       if let Some(session_id) = &pending_session {
         crate::remote_handoff::clear_pending(&profile_id, session_id);
       }
+      note_synced(&profile_id, &profile_dir, &local_manifest);
       let _ = events::emit(
         "profile-sync-status",
         serde_json::json!({
@@ -1245,6 +1264,7 @@ impl SyncEngine {
 
     // Sync completed successfully — clean up resume state
     SyncResumeState::delete(&profile_dir);
+    note_synced(&profile_id, &profile_dir, &final_manifest);
 
     // Sync associated proxy, group, and VPN
     if pending_session.is_none() {
@@ -1295,6 +1315,38 @@ impl SyncEngine {
       self.maybe_auto_restore_point(&updated_profile);
     }
     Ok(ProfileSyncOutcome::Completed)
+  }
+
+  /// Which way a sync goes when this device knows the copy both sides held
+  /// after the last sync: toward the side that changed since. When both
+  /// changed, the local copy is kept and goes up, and the remote copy is kept
+  /// in a restore point first. A profile whose lease another device took
+  /// over takes the remote copy.
+  async fn direction_since_sync(
+    &self,
+    profile: &BrowserProfile,
+    profile_dir: &Path,
+    local: &SyncManifest,
+    remote: &SyncManifest,
+  ) -> DiffBias {
+    let profile_id = profile.id.to_string();
+    if super::lease::was_taken_over(&profile_id) {
+      log::info!("Profile sync takes the remote copy, lease was taken over profile={profile_id}");
+      return DiffBias::PreferRemote;
+    }
+    let changed = super::manifest::changed_since_sync(profile_dir, local, remote);
+    if changed == super::manifest::Changed::Both {
+      log::warn!(
+        "Profile changed on both sides since the last sync conflict=kept_local profile={profile_id} key_files={}",
+        super::manifest::differing_key_files(local, remote)
+      );
+      if !self.read_only {
+        if let Err(e) = self.create_restore_point(profile, "auto").await {
+          log::warn!("Restore point of the remote copy failed profile={profile_id} err=\"{e}\"");
+        }
+      }
+    }
+    changed.bias()
   }
 
   pub(super) async fn download_manifest(

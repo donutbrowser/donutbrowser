@@ -700,6 +700,31 @@ impl SyncClient {
       .map_err(|e| SyncError::SerializationError(e.to_string()))
   }
 
+  /// A call to the server's profile lease routes (`/v1/locks/<route>`): the
+  /// status and the JSON body, or `Null` for a body that is not JSON. Only a
+  /// failure to reach the server is an error.
+  pub async fn lease(
+    &self,
+    route: &str,
+    body: &serde_json::Value,
+  ) -> SyncResult<(u16, serde_json::Value)> {
+    let response = self
+      .client
+      .post(format!("{}/v1/locks/{route}", self.base_url))
+      .header("Authorization", format!("Bearer {}", self.token))
+      .timeout(Duration::from_secs(20))
+      .json(body)
+      .send()
+      .await
+      .map_err(|e| SyncError::NetworkError(e.to_string()))?;
+    let status = response.status().as_u16();
+    let text = response.text().await.unwrap_or_default();
+    Ok((
+      status,
+      serde_json::from_str(&text).unwrap_or(serde_json::Value::Null),
+    ))
+  }
+
   pub async fn snapshots_list(
     &self,
     profile_root: &str,

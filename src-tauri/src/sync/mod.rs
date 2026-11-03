@@ -5,6 +5,7 @@ mod conflicts;
 pub mod encryption;
 mod engine;
 pub mod health;
+pub mod lease;
 pub mod manifest;
 pub mod pending_deletes;
 pub mod preflight;

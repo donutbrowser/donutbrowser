@@ -2977,7 +2977,8 @@
     "siteStorageNotFound": "Dữ liệu trang này không còn trong hồ sơ.",
     "siteStorageUnsafePath": "Dữ liệu trang này trỏ ra ngoài thư mục hồ sơ, nên Donut không thay đổi nó.",
     "siteStorageIoFailed": "Donut không thể thay đổi dữ liệu trang: {{detail}}",
-    "agentChatNotFound": "Cuộc trò chuyện này không còn nữa."
+    "agentChatNotFound": "Cuộc trò chuyện này không còn nữa.",
+    "profileLeaseHeld": "Hồ sơ này đang mở trên {{device}}. Hồ sơ sẽ trống lúc {{time}} hoặc khi thiết bị đó đóng nó."
   },
   "rail": {
     "profiles": "Profile",
@@ -5005,5 +5006,11 @@
       "title": "{{name}} đã đóng ngay sau khi khởi chạy: {{site}} lưu {{size}}",
       "description": "Một trang lớn như vậy có thể làm trình duyệt thoát. Sửa sẽ chuyển dữ liệu của trang sang một bên trong hồ sơ. Cookie, đăng nhập và các trang khác được giữ nguyên."
     }
+  },
+  "leaseTakeOver": {
+    "title": "Tiếp quản hồ sơ này?",
+    "description": "{{profile}} đang mở trên {{device}} đến {{time}}. Nếu bạn tiếp quản, thiết bị đó ngừng đồng bộ hồ sơ và các thay đổi từ khi mở sẽ bị mất.",
+    "confirm": "Tiếp quản",
+    "lost": "{{device}} đã tiếp quản {{profile}}. Các thay đổi ở đây sẽ không được đồng bộ."
   }
 }

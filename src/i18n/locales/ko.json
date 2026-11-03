@@ -2977,7 +2977,8 @@
     "siteStorageNotFound": "이 사이트 데이터는 더 이상 프로필에 없습니다.",
     "siteStorageUnsafePath": "이 사이트 데이터가 프로필 폴더 밖을 가리켜 Donut이 변경하지 않았습니다.",
     "siteStorageIoFailed": "Donut이 사이트 데이터를 변경하지 못했습니다: {{detail}}",
-    "agentChatNotFound": "이 채팅은 더 이상 없습니다."
+    "agentChatNotFound": "이 채팅은 더 이상 없습니다.",
+    "profileLeaseHeld": "이 프로필은 {{device}}에서 열려 있습니다. {{time}}에 또는 해당 기기가 닫으면 사용할 수 있습니다."
   },
   "rail": {
     "profiles": "프로필",
@@ -5005,5 +5006,11 @@
       "title": "{{name}}이(가) 실행 직후 종료되었습니다: {{site}}이(가) {{size}}를 저장합니다",
       "description": "이렇게 큰 사이트 데이터는 브라우저를 종료시킬 수 있습니다. 복구는 사이트 데이터를 프로필 안의 다른 곳으로 옮깁니다. 쿠키, 로그인과 다른 사이트는 그대로 유지됩니다."
     }
+  },
+  "leaseTakeOver": {
+    "title": "이 프로필을 가져올까요?",
+    "description": "{{profile}}은(는) {{time}}까지 {{device}}에서 열려 있습니다. 가져오면 해당 기기는 동기화를 멈추고, 연 이후의 변경 사항은 사라집니다.",
+    "confirm": "가져오기",
+    "lost": "{{device}}이(가) {{profile}}을(를) 가져갔습니다. 여기서 한 변경 사항은 동기화되지 않습니다."
   }
 }

@@ -449,6 +449,115 @@ pub enum DiffBias {
   /// Remote wins, for the pull that follows a restore point: the server now
   /// holds the restored files, and the local copy is the one being replaced.
   Restore,
+  /// Local wins regardless of timestamps: only this copy changed since the
+  /// last sync, or both did and this one is kept (`SyncedSide`).
+  PreferLocal,
+}
+
+/// Which copies changed since the last sync both sides agreed on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Changed {
+  /// No record of the last sync: timestamps decide, as before.
+  Unknown,
+  Neither,
+  Local,
+  Remote,
+  Both,
+}
+
+impl Changed {
+  /// The direction this change calls for; `Auto` when timestamps decide.
+  /// Both changed keeps the local copy: a download would replace files this
+  /// device changed with a copy that does not have those changes.
+  pub fn bias(self) -> DiffBias {
+    match self {
+      Changed::Local | Changed::Both => DiffBias::PreferLocal,
+      Changed::Remote => DiffBias::PreferRemote,
+      Changed::Unknown | Changed::Neither => DiffBias::Auto,
+    }
+  }
+}
+
+/// A digest of a manifest's files by path and content. Times are left out:
+/// a copy with the same content is the same copy.
+pub fn files_digest(manifest: &SyncManifest) -> String {
+  use sha2::Digest;
+  let mut files: Vec<(&str, &str)> = manifest
+    .files
+    .iter()
+    .map(|f| (f.path.as_str(), f.hash.as_str()))
+    .collect();
+  files.sort_unstable();
+  let mut hasher = sha2::Sha256::new();
+  for (path, hash) in files {
+    hasher.update(path.as_bytes());
+    hasher.update([0]);
+    hasher.update(hash.as_bytes());
+    hasher.update(*b"\n");
+  }
+  hasher
+    .finalize()
+    .iter()
+    .map(|b| format!("{b:02x}"))
+    .collect()
+}
+
+fn synced_path(profile_dir: &Path) -> std::path::PathBuf {
+  profile_dir.join(".donut-sync").join("synced")
+}
+
+/// Notes the copy both sides hold after a successful sync.
+pub fn save_synced(profile_dir: &Path, manifest: &SyncManifest) -> std::io::Result<()> {
+  let path = synced_path(profile_dir);
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  fs::write(path, files_digest(manifest))
+}
+
+pub fn changed_since_sync(
+  profile_dir: &Path,
+  local: &SyncManifest,
+  remote: &SyncManifest,
+) -> Changed {
+  let Some(synced) = fs::read_to_string(synced_path(profile_dir))
+    .ok()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+  else {
+    return Changed::Unknown;
+  };
+  match (
+    files_digest(local) != synced,
+    files_digest(remote) != synced,
+  ) {
+    (false, false) => Changed::Neither,
+    (true, false) => Changed::Local,
+    (false, true) => Changed::Remote,
+    (true, true) => Changed::Both,
+  }
+}
+
+/// `Cookies,Local State`: the key files whose content differs between two
+/// copies, or `-`.
+pub fn differing_key_files(a: &SyncManifest, b: &SyncManifest) -> String {
+  let hash_of = |m: &SyncManifest, path: &str| {
+    m.files
+      .iter()
+      .find(|f| f.path == path)
+      .map(|f| f.hash.clone())
+  };
+  let mut names: Vec<&str> = KEY_FILES
+    .iter()
+    .filter(|(path, _)| hash_of(a, path) != hash_of(b, path))
+    .map(|(_, name)| *name)
+    .collect();
+  names.dedup();
+  if names.is_empty() {
+    "-".to_string()
+  } else {
+    names.join(",")
+  }
 }
 
 /// The files that hold a Wayfern profile's cookies and the key that opens
@@ -545,6 +654,7 @@ pub fn compute_diff_with_bias(
 
   let local_is_newer = match bias {
     DiffBias::PreferRemote | DiffBias::Restore => false,
+    DiffBias::PreferLocal => true,
     DiffBias::Auto => match (local_updated, remote_updated) {
       (Some(l), Some(r)) => l > r,
       (Some(_), None) => true,
@@ -1196,5 +1306,118 @@ mod tests {
       diff.files_to_delete_remote,
       ["profile/Default/IndexedDB/https_studio.youtube.com_0/blob"]
     );
+  }
+
+  fn cookie_jar(path: &Path, sid: &str) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let db = rusqlite::Connection::open(path).unwrap();
+    db.execute_batch(
+      "CREATE TABLE IF NOT EXISTS cookies (host_key TEXT, name TEXT, value TEXT, PRIMARY KEY (host_key, name))",
+    )
+    .unwrap();
+    db.execute(
+      "INSERT OR REPLACE INTO cookies VALUES ('.google.com', 'SID', ?1)",
+      [sid],
+    )
+    .unwrap();
+  }
+
+  fn with_hash(manifest: &SyncManifest, path: &str, hash: &str, updated_at: &str) -> SyncManifest {
+    let mut out = manifest.clone();
+    out.updated_at = updated_at.to_string();
+    for file in &mut out.files {
+      if file.path == path {
+        file.hash = hash.to_string();
+      }
+    }
+    out
+  }
+
+  /// Google rotates its session cookie on each device that runs the profile.
+  /// A download must never put an older jar over one this device changed
+  /// since the last sync, whatever the clocks say.
+  #[test]
+  fn a_cookie_jar_changed_on_both_sides_stays_local() {
+    const COOKIES: &str = "profile/Default/Network/Cookies";
+    let dir = TempDir::new().unwrap();
+    let jar = dir.path().join(COOKIES);
+    cookie_jar(&jar, "rotated-1");
+    fs::write(dir.path().join("profile/Local State"), "{}").unwrap();
+    let synced = generate_manifest("p", dir.path(), &mut HashCache::default()).unwrap();
+    save_synced(dir.path(), &synced).unwrap();
+    // Remote clocks run far ahead: by timestamps the remote copy always wins.
+    let remote = with_hash(&synced, COOKIES, "remote-jar", "2099-01-01T00:00:00Z");
+
+    // Only the remote copy changed: it comes down.
+    let unchanged = generate_manifest("p", dir.path(), &mut HashCache::default()).unwrap();
+    assert_eq!(
+      changed_since_sync(dir.path(), &unchanged, &remote),
+      Changed::Remote
+    );
+    let diff = compute_diff_with_bias(&unchanged, Some(&remote), Changed::Remote.bias());
+    assert_eq!(diff.files_to_download.len(), 1);
+
+    // This device rotated the cookie too.
+    cookie_jar(&jar, "rotated-2");
+    let local = generate_manifest("p", dir.path(), &mut HashCache::default()).unwrap();
+    let auto = compute_diff(&local, Some(&remote));
+    assert_eq!(
+      auto.files_to_download[0].path, COOKIES,
+      "timestamps alone would download"
+    );
+
+    let changed = changed_since_sync(dir.path(), &local, &remote);
+    assert_eq!(changed, Changed::Both);
+    let diff = compute_diff_with_bias(&local, Some(&remote), changed.bias());
+    assert!(diff.files_to_download.is_empty());
+    assert!(diff.files_to_delete_local.is_empty());
+    assert_eq!(
+      diff
+        .files_to_upload
+        .iter()
+        .map(|f| f.path.as_str())
+        .collect::<Vec<_>>(),
+      [COOKIES]
+    );
+    assert_eq!(differing_key_files(&local, &remote), "Cookies");
+
+    // Only this device changed: it goes up even against a later remote clock.
+    let untouched = with_hash(
+      &synced,
+      COOKIES,
+      &synced
+        .files
+        .iter()
+        .find(|f| f.path == COOKIES)
+        .unwrap()
+        .hash,
+      "2099-01-01T00:00:00Z",
+    );
+    assert_eq!(
+      changed_since_sync(dir.path(), &local, &untouched),
+      Changed::Local
+    );
+    let diff = compute_diff_with_bias(&local, Some(&untouched), Changed::Local.bias());
+    assert!(diff.files_to_download.is_empty());
+    assert_eq!(diff.files_to_upload.len(), 1);
+
+    // After the sync both hold the local copy: nothing changed.
+    save_synced(dir.path(), &local).unwrap();
+    assert_eq!(
+      changed_since_sync(dir.path(), &local, &local),
+      Changed::Neither
+    );
+  }
+
+  #[test]
+  fn without_a_record_of_the_last_sync_timestamps_decide() {
+    let dir = TempDir::new().unwrap();
+    let local = manifest_at("2024-01-01T00:00:00Z", &[("profile/a", "1")]);
+    let remote = manifest_at("2025-01-01T00:00:00Z", &[("profile/a", "2")]);
+    assert_eq!(
+      changed_since_sync(dir.path(), &local, &remote),
+      Changed::Unknown
+    );
+    assert_eq!(Changed::Unknown.bias(), DiffBias::Auto);
   }
 }

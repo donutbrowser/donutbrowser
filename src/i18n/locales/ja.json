@@ -2977,7 +2977,8 @@
     "siteStorageNotFound": "このサイトデータはもうプロファイルにありません。",
     "siteStorageUnsafePath": "このサイトデータはプロファイルフォルダーの外を指しているため、Donut は変更しませんでした。",
     "siteStorageIoFailed": "Donut はサイトデータを変更できませんでした: {{detail}}",
-    "agentChatNotFound": "このチャットはもう存在しません。"
+    "agentChatNotFound": "このチャットはもう存在しません。",
+    "profileLeaseHeld": "このプロファイルは {{device}} で開かれています。{{time}} またはそのデバイスが閉じると使用できます。"
   },
   "rail": {
     "profiles": "プロファイル",
@@ -5005,5 +5006,11 @@
       "title": "{{name}} は起動直後に終了しました: {{site}} が {{size}} を保存しています",
       "description": "これほど大きなサイトデータはブラウザーを終了させることがあります。「修復」はサイトのデータをプロファイル内で別の場所に移します。Cookie、ログイン、他のサイトはそのまま残ります。"
     }
+  },
+  "leaseTakeOver": {
+    "title": "このプロファイルを引き継ぎますか?",
+    "description": "{{profile}} は {{time}} まで {{device}} で開かれています。引き継ぐと、そのデバイスは同期を停止し、開いてからの変更は失われます。",
+    "confirm": "引き継ぐ",
+    "lost": "{{device}} が {{profile}} を引き継ぎました。ここでの変更は同期されません。"
   }
 }

@@ -513,8 +513,11 @@ fn lock_conflict_error(
   }
 }
 
-/// Acquire profile lock if profile is sync-enabled and user has a paid subscription.
-/// Returns whether a lock was actually taken, so a caller that unwinds a failed
+/// Takes what a launch of a synced profile needs: the account's profile lock
+/// (one team member at a time), then this device's sync lease (one device at
+/// a time, `sync::lease`). A teammate's lock is checked first and is the one
+/// refusal shown; a refused lease gives the lock back.
+/// Returns whether anything was taken, so a caller that unwinds a failed
 /// launch releases only what it acquired. Releasing unconditionally would drop
 /// a lock a REST handler up the stack still owns.
 pub async fn acquire_team_lock_if_needed(
@@ -523,7 +526,21 @@ pub async fn acquire_team_lock_if_needed(
   if !profile.is_sync_enabled() {
     return Ok(false);
   }
-  if !CLOUD_AUTH.has_active_paid_subscription().await {
+  let locked = acquire_cloud_lock(profile).await?;
+  match crate::sync::lease::acquire(profile, false).await {
+    Ok(leased) => Ok(locked || leased),
+    Err(e) => {
+      if locked {
+        PROFILE_LOCK.release_lock(&profile.id.to_string()).await;
+      }
+      Err(e)
+    }
+  }
+}
+
+async fn acquire_cloud_lock(profile: &crate::profile::BrowserProfile) -> Result<bool, String> {
+  // The lock lives in the account: a signed-out device has none to take.
+  if !CLOUD_AUTH.is_logged_in().await || !CLOUD_AUTH.has_active_paid_subscription().await {
     return Ok(false);
   }
 
@@ -550,9 +567,11 @@ pub async fn acquire_team_lock_if_needed(
     .map(|()| true)
 }
 
-/// Release profile lock if profile is sync-enabled and user has a paid subscription.
+/// Gives back what `acquire_team_lock_if_needed` took once the browser
+/// stopped. The sync lease waits for the upload that follows.
 pub async fn release_team_lock_if_needed(profile: &crate::profile::BrowserProfile) {
   let profile_id = profile.id.to_string();
+  crate::sync::lease::browser_stopped(&profile_id).await;
   if !PROFILE_LOCK.holds(&profile_id).await {
     return;
   }

@@ -1276,6 +1276,155 @@ test("a synced group and proxy sent to the trash leave the cloud, and a restore 
 // presigned URL then names a host the desktop cannot open: /health and /readyz
 // stay green while every single transfer dies at connect. Reported as "the
 // endpoint connection works every time, but no MB is ever synced".
+async function leaseRequest(route, body) {
+  const response = await fetch(`${syncUrl}/v1/locks/${route}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${syncToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return { status: response.status, body: await response.json() };
+}
+
+function backendCode(error) {
+  const text = String(error?.message ?? error);
+  const start = text.indexOf('{"code"');
+  if (start < 0) return { code: null, text };
+  const end = text.lastIndexOf("}");
+  return { ...JSON.parse(text.slice(start, end + 1)), text };
+}
+
+test("one device at a time runs a synced profile: a second launch is refused, take over moves it, expiry frees it", async () => {
+  assert.ok(syncUrl && syncToken, "Sync infrastructure was not started");
+  const deviceA = appFromEnvironment("sync-lease-a");
+  const deviceB = appFromEnvironment("sync-lease-b");
+  try {
+    await Promise.all([deviceA.start(), deviceB.start()]);
+    await Promise.all([configureSync(deviceA), configureSync(deviceB)]);
+    // Every launch below stops at the route check, past the lease, so no
+    // browser is needed: PROFILE_ROUTE_REQUIRED means the lease was granted.
+    for (const app of [deviceA, deviceB]) {
+      const settings = await app.invoke("get_app_settings");
+      await app.invoke("save_app_settings", {
+        settings: { ...settings, require_route_for_launch: true },
+      });
+    }
+
+    const profile = await createProfile(deviceB, "Leased Profile");
+    const profileData = path.join(
+      deviceB.dataRoot,
+      "data",
+      "profiles",
+      profile.id,
+      "profile",
+      "Default",
+    );
+    await mkdir(profileData, { recursive: true });
+    await writeFile(path.join(profileData, "Preferences"), "{}");
+    await deviceB.invoke("set_profile_sync_mode", {
+      profileId: profile.id,
+      syncMode: "Regular",
+    });
+    await deviceB.invoke("request_profile_sync", { profileId: profile.id });
+    await waitFor(
+      deviceB,
+      async () =>
+        (await listRemote(`profiles/${profile.id}/`)).some(
+          (object) => object.key === `profiles/${profile.id}/manifest.json`,
+        ),
+      "profile uploaded",
+    );
+    await deviceA.invoke("restart_sync_service");
+    await waitFor(
+      deviceA,
+      async () =>
+        (await deviceA.invoke("list_browser_profiles")).some(
+          (item) => item.id === profile.id,
+        ),
+      "device A receives the profile",
+    );
+    const onA = (await deviceA.invoke("list_browser_profiles")).find(
+      (item) => item.id === profile.id,
+    );
+    const onB = (await deviceB.invoke("list_browser_profiles")).find(
+      (item) => item.id === profile.id,
+    );
+    const profileRoot = `profiles/${profile.id}/`;
+    const launch = (app, item) =>
+      app.invokeError("launch_browser_profile", { profile: item, url: null });
+
+    // A third device of the same account holds the lease.
+    const other = await leaseRequest("acquire", {
+      profileRoot,
+      deviceId: "e2e-other-device",
+      deviceName: "Other Laptop",
+      ttlSeconds: 90,
+    });
+    assert.equal(other.status, 200, JSON.stringify(other.body));
+
+    const refused = backendCode(await launch(deviceB, onB));
+    assert.equal(refused.code, "PROFILE_LEASE_HELD", refused.text);
+    assert.equal(refused.params.device, "Other Laptop");
+    assert.equal(refused.params.canTakeOver, "true");
+    assert.ok(Date.parse(refused.params.expiresAt) > Date.now());
+
+    // Take over: device B holds it, the other device's renew is refused.
+    await deviceB.invoke("take_over_profile_lease", { profileId: profile.id });
+    const held = await leaseRequest("status", { profileRoot });
+    assert.equal(held.body.held, true);
+    assert.notEqual(held.body.holder.deviceId, "e2e-other-device");
+    const renew = await leaseRequest("renew", {
+      profileRoot,
+      token: other.body.token,
+    });
+    assert.equal(renew.status, 409);
+    assert.equal(renew.body.code, "PROFILE_LEASE_LOST");
+
+    // The second real device is refused while device B holds it.
+    const second = backendCode(await launch(deviceA, onA));
+    assert.equal(second.code, "PROFILE_LEASE_HELD", second.text);
+    assert.equal(second.params.device, held.body.holder.deviceName);
+
+    // Device A takes it over and launches: the lease step passes.
+    await deviceA.invoke("take_over_profile_lease", { profileId: profile.id });
+    const launchedA = backendCode(await launch(deviceA, onA));
+    assert.equal(launchedA.code, "PROFILE_ROUTE_REQUIRED", launchedA.text);
+    // Its browser never ran: once the sync after the stop is done, the lease
+    // is released.
+    await waitFor(
+      deviceA,
+      async () =>
+        (await leaseRequest("status", { profileRoot })).body.held === false,
+      "lease released after the launch ended",
+      90_000,
+    );
+
+    // A lease that is not renewed expires and frees the profile.
+    const stale = await leaseRequest("acquire", {
+      profileRoot,
+      deviceId: "e2e-other-device",
+      deviceName: "Other Laptop",
+      ttlSeconds: 90,
+    });
+    assert.equal(stale.status, 200, JSON.stringify(stale.body));
+    assert.equal(
+      backendCode(await launch(deviceB, onB)).code,
+      "PROFILE_LEASE_HELD",
+    );
+    const waitMs = Date.parse(stale.body.expiresAt) - Date.now() + 1_000;
+    await new Promise((resolve) => setTimeout(resolve, Math.max(waitMs, 0)));
+    const afterExpiry = backendCode(await launch(deviceB, onB));
+    assert.equal(afterExpiry.code, "PROFILE_ROUTE_REQUIRED", afterExpiry.text);
+  } catch (error) {
+    await Promise.all([deviceA.capture("failure"), deviceB.capture("failure")]);
+    throw error;
+  } finally {
+    await Promise.all([deviceA.close(), deviceB.close()]);
+  }
+});
+
 test("the connection check fails a server whose storage host this device cannot reach", async () => {
   assert.ok(syncUrl && syncToken, "Sync infrastructure was not started");
   const app = appFromEnvironment("sync-preflight");
