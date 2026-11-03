@@ -2346,10 +2346,25 @@ impl WayfernManager {
     proxy: Option<&str>,
     geoip: Option<&serde_json::Value>,
   ) -> bool {
+    match Self::resolve_geolocation(proxy, geoip).await {
+      Some(geo) => {
+        Self::write_geolocation(fingerprint, &geo);
+        true
+      }
+      None => false,
+    }
+  }
+
+  /// The exit's location, or None when geolocation is off or the exit could
+  /// not be resolved.
+  async fn resolve_geolocation(
+    proxy: Option<&str>,
+    geoip: Option<&serde_json::Value>,
+  ) -> Option<crate::geolocation::Geolocation> {
     // Default to auto-detect; only an explicit `false` disables geolocation.
     let should_geolocate = !matches!(geoip, Some(serde_json::Value::Bool(false)));
     if !should_geolocate {
-      return false;
+      return None;
     }
 
     let geo_result = async {
@@ -2365,27 +2380,7 @@ impl WayfernManager {
     .await;
 
     match geo_result {
-      Ok(geo) => {
-        if let Some(obj) = fingerprint.as_object_mut() {
-          obj.insert("timezone".to_string(), json!(geo.timezone));
-          // Both derived fields go through the same helpers `identity_overrides`
-          // uses to recognise them, so a value written here can never look like
-          // a user edit to the override diff.
-          if let Some(offset_minutes) = Self::timezone_offset_minutes(&geo.timezone) {
-            obj.insert("timezoneOffset".to_string(), json!(offset_minutes));
-          }
-          obj.insert("latitude".to_string(), json!(geo.latitude));
-          obj.insert("longitude".to_string(), json!(geo.longitude));
-          let locale_str = geo.locale.as_string();
-          obj.insert("language".to_string(), json!(&locale_str));
-          obj.insert(
-            "languages".to_string(),
-            json!([&locale_str, Self::base_language(&locale_str)]),
-          );
-        }
-        log::debug!("Geolocation applied to fingerprint");
-        true
-      }
+      Ok(geo) => Some(geo),
       Err(e) => {
         // NOTHING is written here, deliberately. A failed probe used to fill in
         // America/New_York and offset 300, which made "we could not resolve the
@@ -2403,9 +2398,42 @@ impl WayfernManager {
           "Geolocation failed, fingerprint location left ungenerated err=\"{}\"",
           crate::log_redaction::text(&e.to_string())
         );
-        false
+        None
       }
     }
+  }
+
+  /// Writes the exit's location into a fingerprint.
+  fn write_geolocation(fingerprint: &mut serde_json::Value, geo: &crate::geolocation::Geolocation) {
+    if let Some(obj) = fingerprint.as_object_mut() {
+      obj.insert("timezone".to_string(), json!(geo.timezone));
+      // Both derived fields go through the same helpers `identity_overrides`
+      // uses to recognise them, so a value written here can never look like
+      // a user edit to the override diff.
+      if let Some(offset_minutes) = Self::timezone_offset_minutes(&geo.timezone) {
+        obj.insert("timezoneOffset".to_string(), json!(offset_minutes));
+      }
+      obj.insert("latitude".to_string(), json!(geo.latitude));
+      obj.insert("longitude".to_string(), json!(geo.longitude));
+      let locale_str = geo.locale.as_string();
+      obj.insert("language".to_string(), json!(&locale_str));
+      obj.insert(
+        "languages".to_string(),
+        json!([&locale_str, Self::base_language(&locale_str)]),
+      );
+    }
+    log::debug!("Geolocation applied to fingerprint");
+  }
+
+  /// The location parameters of `Wayfern.createIdentity`, so the engine
+  /// builds the device for the exit's country rather than for this machine.
+  fn identity_location(geo: &crate::geolocation::Geolocation) -> serde_json::Value {
+    json!({
+      "timezone": geo.timezone,
+      "language": geo.locale.as_string(),
+      "latitude": geo.latitude,
+      "longitude": geo.longitude,
+    })
   }
 
   /// Refresh ONLY the location fields (timezone, offset, latitude/longitude,
@@ -2727,9 +2755,67 @@ impl WayfernManager {
 
     let use_identity_api = supports_wayfern_152(&profile.version);
 
-    // No geolocation override is passed here. Donut resolves the exit's
-    // location itself, below, through the profile's own proxy, because the
-    // browser cannot resolve it through an authenticated upstream.
+    // Build a transport that genuinely carries the probe through this
+    // profile's upstream, or none at all. `probe_route` decides which:
+    // reqwest where it can proxy the scheme itself, a temporary local
+    // donut-proxy worker for the schemes that worker speaks (including
+    // every remote SOCKS one, because reqwest's SOCKS connector corrupts
+    // its parse buffer when a proxy splits a handshake reply across TCP
+    // segments), an Xray-core sidecar behind such a worker for VLESS, and
+    // nothing for an upstream none of them can speak.
+    //
+    // No transport is built when the probe would not leave this machine
+    // anyway: `resolve_geolocation` ignores `proxy` entirely when geolocation
+    // is off or the location comes from a pinned geoip IP.
+    let probe_leaves_this_machine = !matches!(
+      config.geoip.as_ref(),
+      Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::String(_))
+    );
+    let transport = match config.proxy.as_deref() {
+      Some(url) if probe_leaves_this_machine => Self::build_probe_transport(url).await,
+      _ => ProbeTransport::default(),
+    };
+
+    // Resolve the location of the exit this fingerprint is generated against.
+    // Shared with the launch-time location refresh.
+    // A profile that ROUTES ITS TRAFFIC must never probe from the real
+    // address: `resolve_geolocation` treats `None` as "no proxy configured",
+    // which is right for a direct profile and an IP leak for a routed one.
+    //
+    // `config.proxy.is_some()` alone was not that predicate. A WireGuard
+    // profile carries its route in `vpn_id` and reaches here with
+    // `config.proxy == None`, so the guard never fired and the host's own
+    // timezone, latitude/longitude and language were written into the
+    // fingerprint as authoritative.
+    let routes_traffic = config.proxy.is_some() || profile.vpn_id.is_some();
+    let exit_location = if Self::must_skip_probe(
+      routes_traffic,
+      probe_leaves_this_machine,
+      transport.proxy.is_some(),
+    ) {
+      log::warn!(
+        "Geolocation probe skipped, profile has an upstream but no proxied probe profile={}",
+        profile.id
+      );
+      None
+    } else {
+      Self::resolve_geolocation(transport.proxy.as_deref(), config.geoip.as_ref()).await
+    };
+
+    transport.shutdown().await;
+
+    // The exit's location goes into the mint, resolved here through the
+    // profile's own route, because the headless browser has no proxy and would
+    // resolve this machine instead. The engine then builds the device for the
+    // exit's country. Without a location the call is the same as before, and
+    // the launch-time refresh resolves the location later.
+    if use_identity_api {
+      if let (Some(geo), Some(params)) = (&exit_location, generate_params.as_object_mut()) {
+        if let Some(location) = Self::identity_location(geo).as_object() {
+          params.extend(location.clone());
+        }
+      }
+    }
     let mut generate_result = self
       .generate_device(&ws_url, use_identity_api, generate_params.clone())
       .await;
@@ -2773,59 +2859,13 @@ impl WayfernManager {
         // Normalize the fingerprint: convert JSON string fields to proper types
         let mut normalized = Self::normalize_fingerprint(fp);
 
-        // Build a transport that genuinely carries the probe through this
-        // profile's upstream, or none at all. `probe_route` decides which:
-        // reqwest where it can proxy the scheme itself, a temporary local
-        // donut-proxy worker for the schemes that worker speaks (including
-        // every remote SOCKS one, because reqwest's SOCKS connector corrupts
-        // its parse buffer when a proxy splits a handshake reply across TCP
-        // segments), an Xray-core sidecar behind such a worker for VLESS, and
-        // nothing for an upstream none of them can speak.
-        //
-        // No transport is built when the probe would not leave this machine
-        // anyway: `apply_geolocation` ignores `proxy` entirely when geolocation
-        // is off or the location comes from a pinned geoip IP.
-        let probe_leaves_this_machine = !matches!(
-          config.geoip.as_ref(),
-          Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::String(_))
-        );
-        let transport = match config.proxy.as_deref() {
-          Some(url) if probe_leaves_this_machine => Self::build_probe_transport(url).await,
-          _ => ProbeTransport::default(),
+        let geolocation_applied = match &exit_location {
+          Some(geo) => {
+            Self::write_geolocation(&mut normalized, geo);
+            true
+          }
+          None => false,
         };
-
-        // Apply timezone/geolocation for the proxy this fingerprint is being
-        // generated against. Shared with the launch-time location refresh.
-        // A profile that ROUTES ITS TRAFFIC must never probe from the real
-        // address: `apply_geolocation` treats `None` as "no proxy configured",
-        // which is right for a direct profile and an IP leak for a routed one.
-        //
-        // `config.proxy.is_some()` alone was not that predicate. A WireGuard
-        // profile carries its route in `vpn_id` and reaches here with
-        // `config.proxy == None`, so the guard never fired and the host's own
-        // timezone, latitude/longitude and language were written into the
-        // fingerprint as authoritative.
-        let routes_traffic = config.proxy.is_some() || profile.vpn_id.is_some();
-        let geolocation_applied = if Self::must_skip_probe(
-          routes_traffic,
-          probe_leaves_this_machine,
-          transport.proxy.is_some(),
-        ) {
-          log::warn!(
-            "Geolocation probe skipped, profile has an upstream but no proxied probe profile={}",
-            profile.id
-          );
-          false
-        } else {
-          Self::apply_geolocation(
-            &mut normalized,
-            transport.proxy.as_deref(),
-            config.geoip.as_ref(),
-          )
-          .await
-        };
-
-        transport.shutdown().await;
 
         (normalized, identity_id, geolocation_applied)
       }
@@ -4372,6 +4412,28 @@ fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (u8, u8, u8) {
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn identity_location_carries_the_exit_for_create_identity() {
+    let geo = crate::geolocation::Geolocation {
+      locale: crate::geolocation::Locale {
+        language: "pt".into(),
+        region: Some("BR".into()),
+      },
+      longitude: -46.63,
+      latitude: -23.55,
+      timezone: "America/Sao_Paulo".into(),
+    };
+    assert_eq!(
+      super::WayfernManager::identity_location(&geo),
+      serde_json::json!({
+        "timezone": "America/Sao_Paulo",
+        "language": "pt-BR",
+        "latitude": -23.55,
+        "longitude": -46.63,
+      })
+    );
+  }
+
   use super::*;
 
   #[test]
