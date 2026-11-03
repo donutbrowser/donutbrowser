@@ -252,6 +252,27 @@ async fn route(state: &Arc<AppState>, parts: &Parts, body: Body) -> Response<Res
         Err(error) => error_response(error),
       }
     }
+    (&Method::POST, lease_route) if lease_route.starts_with("/v1/locks/") => {
+      let name = &lease_route["/v1/locks/".len()..];
+      if !LEASE_ROUTES.contains(&name) {
+        return not_found(parts);
+      }
+      let ctx = match authenticate(state, parts).await {
+        Ok(ctx) => ctx,
+        Err(response) => return *response,
+      };
+      let sync = &state.sync;
+      let result = match name {
+        "acquire" => sync.acquire_lease(&body, &ctx).await,
+        "renew" => sync.renew_lease(&body, &ctx).await,
+        "release" => sync.release_lease(&body, &ctx).await,
+        _ => sync.lease_status(&body, &ctx).await,
+      };
+      match result {
+        Ok(value) => json_response(200, &value),
+        Err(error) => error_response(error),
+      }
+    }
     (&Method::POST, object_route) if object_route.starts_with("/v1/objects/") => {
       let name = &object_route["/v1/objects/".len()..];
       if !OBJECT_ROUTES.contains(&name) {
@@ -284,6 +305,9 @@ const OBJECT_ROUTES: [&str; 12] = [
   "snapshots/delete",
   "snapshots/restore-files",
 ];
+
+/// Profile leases (`crate::sync::locks`).
+const LEASE_ROUTES: [&str; 4] = ["acquire", "renew", "release", "status"];
 
 /// Headers a proxy in front of this server adds.
 const PROXY_HEADERS: [&str; 7] = [

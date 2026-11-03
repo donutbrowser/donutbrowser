@@ -19,6 +19,9 @@ use crate::store::{HeadOutput, ListInput, Store, StoreError};
 use crate::time;
 use crate::transfer::TransferSigner;
 
+#[path = "locks.rs"]
+pub mod locks;
+
 const CONTEXT: &str = "SyncService";
 
 /// Marker object written under each scope. Subscribers HEAD it on each poll
@@ -160,6 +163,7 @@ pub struct SyncService {
   cloud: bool,
   backend: Option<Arc<Backend>>,
   group_cache: Mutex<HashMap<String, (Group, Instant)>>,
+  lease_locks: locks::LeaseLocks,
   direct_uploads: Option<Arc<crate::sealer::DirectUploads>>,
 }
 
@@ -190,6 +194,7 @@ impl SyncService {
       cloud: options.cloud,
       backend: options.backend,
       group_cache: Mutex::new(HashMap::new()),
+      lease_locks: locks::LeaseLocks::default(),
       direct_uploads,
     }
   }
