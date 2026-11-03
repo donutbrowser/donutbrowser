@@ -3695,6 +3695,7 @@ export default function Home() {
             time: leaseExpiryTime(leaseConflict?.expiresAt),
           })}
           confirmButtonText={t("leaseTakeOver.confirm")}
+          confirmButtonVariant="default"
           isLoading={isTakingOver}
         />
         <DeleteConfirmationDialog

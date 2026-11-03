@@ -46,8 +46,41 @@ struct Held {
 }
 
 /// Called once at startup: the sync client needs the app handle.
+/// How long after startup the leases of browsers still running from an
+/// earlier session are taken again: sign-in and sync settings load first.
+const RESUME_AFTER: Duration = Duration::from_secs(15);
+
+/// Called once at startup: the sync client needs the app handle.
 pub fn init(app: &tauri::AppHandle) {
   let _ = APP.set(app.clone());
+  tauri::async_runtime::spawn(async {
+    tokio::time::sleep(RESUME_AFTER).await;
+    resume_running().await;
+  });
+}
+
+/// Takes the lease again for each synced profile whose browser outlived the
+/// last session, and renews it from now on. Another device holding it now
+/// is a lost lease.
+async fn resume_running() {
+  let Ok(profiles) = crate::profile::ProfileManager::instance().list_profiles() else {
+    return;
+  };
+  for profile in profiles {
+    let profile_id = profile.id.to_string();
+    if !profile.is_sync_enabled() || !crate::browser_runner::browser_is_running_for(&profile_id) {
+      continue;
+    }
+    if let Err(refusal) = take(&profile, false).await {
+      let Ok(body) = serde_json::from_str::<Value>(&refusal) else {
+        continue;
+      };
+      let holder = json!({
+        "holder": { "deviceId": "", "deviceName": body["params"]["device"] },
+      });
+      notify_lost(&profile_id, &holder);
+    }
+  }
 }
 
 fn held() -> std::sync::MutexGuard<'static, HashMap<String, Held>> {
@@ -157,6 +190,19 @@ async fn target(profile: &BrowserProfile) -> Option<(SyncClient, String)> {
 /// one; `Err` with `PROFILE_LEASE_HELD` when another device holds it.
 /// `force` takes it from another device of the same account.
 pub(crate) async fn acquire(profile: &BrowserProfile, force: bool) -> Result<bool, String> {
+  let taken = take(profile, force).await?;
+  // Another device may have run the profile since this one last synced it:
+  // its newest copy comes down before the browser starts. A forced take is
+  // followed by a launch, which pulls then.
+  if taken && !force {
+    if let Some(app) = APP.get() {
+      super::engine::pull_before_launch(app, profile).await;
+    }
+  }
+  Ok(taken)
+}
+
+async fn take(profile: &BrowserProfile, force: bool) -> Result<bool, String> {
   let Some((client, root)) = target(profile).await else {
     return Ok(false);
   };
@@ -375,6 +421,10 @@ fn lost(profile_id: &str, token: &str, reply: &Value) {
     }
     leases.remove(profile_id);
   }
+  notify_lost(profile_id, reply);
+}
+
+fn notify_lost(profile_id: &str, reply: &Value) {
   note_taken_over(profile_id);
   log::warn!(
     "Sync lease lost profile={profile_id} holder={}",

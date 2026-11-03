@@ -5665,6 +5665,13 @@ test("a profile open on another device of the account offers Take over, which ta
       );
       assert.match(dialog, /Work Laptop/);
       assert.match(dialog, /Leased Elsewhere/);
+      // Taking over is the asked-for action, not a delete: the primary button.
+      const confirmClass = await app.execute(
+        `return [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.trim() === arguments[0])?.className ?? "";`,
+        [en.leaseTakeOver.confirm],
+      );
+      assert.match(confirmClass, /\bbg-primary\b/);
+      assert.doesNotMatch(confirmClass, /\bbg-destructive\b/);
       await app.capture("lease-take-over");
 
       await app.clickTextIn('[role="dialog"]', en.leaseTakeOver.confirm, {

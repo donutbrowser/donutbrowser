@@ -403,6 +403,14 @@ fn checkpoint_sqlite_wal_files(profile_dir: &Path) {
   }
 }
 
+/// A downloaded file in the resume state: its path and the content it was
+/// downloaded at. A later download of a newer copy of the same path must not
+/// count as done, or the older file stays (an old cookie jar logs the person
+/// out). Entries written by older versions, the bare path, never match.
+fn download_done_key(file: &super::manifest::ManifestFileEntry) -> String {
+  format!("{}\n{}", file.path, file.hash)
+}
+
 /// Resume state persisted to disk so interrupted syncs can continue
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct SyncResumeState {
@@ -537,6 +545,56 @@ impl SyncProgressTracker {
         "failed_count": self.failed_count.load(Ordering::Relaxed),
       }),
     );
+  }
+}
+
+/// How long a launch waits for the profile's newest copy before it starts
+/// with what this device has.
+const LAUNCH_PULL_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
+/// How long a timed-out pull gets to stop, so no download runs under the
+/// browser.
+const LAUNCH_PULL_STOP: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Brings the profile up to date before its browser starts, so a device that
+/// starts after another one never opens an older cookie jar: the site would
+/// revoke the session on both. A normal sync with the download guard. A
+/// failure or a timeout launches with what this device has.
+pub(super) async fn pull_before_launch(app_handle: &tauri::AppHandle, profile: &BrowserProfile) {
+  let started = Instant::now();
+  let profile_id = profile.id.to_string();
+  let engine = match SyncEngine::create_from_settings(app_handle).await {
+    Ok(engine) => engine,
+    Err(e) => {
+      log::warn!("Profile not pulled before launch profile={profile_id} err=\"{e}\"");
+      return;
+    }
+  };
+  let app = app_handle.clone();
+  let target = profile.clone();
+  let mut task = tauri::async_runtime::spawn(async move {
+    engine
+      .sync_profile_with_bias(&app, &target, DiffBias::Auto)
+      .await
+  });
+  match tokio::time::timeout(LAUNCH_PULL_LIMIT, &mut task).await {
+    Ok(Ok(Ok(outcome))) => log::info!(
+      "Profile pulled before launch profile={profile_id} result={} elapsed_ms={}",
+      outcome.row_status(),
+      started.elapsed().as_millis()
+    ),
+    Ok(Ok(Err(e))) => log::warn!(
+      "Profile pull before launch failed, launching profile={profile_id} err=\"{e}\" elapsed_ms={}",
+      started.elapsed().as_millis()
+    ),
+    Ok(Err(e)) => log::warn!("Profile pull before launch failed profile={profile_id} err=\"{e}\""),
+    Err(_) => {
+      request_sync_cancel(&profile_id);
+      let stopped = tokio::time::timeout(LAUNCH_PULL_STOP, task).await.is_ok();
+      log::warn!(
+        "Profile pull before launch timed out, launching profile={profile_id} stopped={stopped} elapsed_ms={}",
+        started.elapsed().as_millis()
+      );
+    }
   }
 }
 
@@ -1856,7 +1914,7 @@ impl SyncEngine {
 
     let files_to_process: Vec<_> = files
       .iter()
-      .filter(|f| !already_done.contains(&f.path))
+      .filter(|f| !already_done.contains(&download_done_key(f)))
       .collect();
     let skipped = files.len() - files_to_process.len();
 
@@ -1900,7 +1958,7 @@ impl SyncEngine {
     let total_bytes: u64 = files.iter().map(|f| f.size).sum();
     let already_bytes: u64 = files
       .iter()
-      .filter(|f| already_done.contains(&f.path))
+      .filter(|f| already_done.contains(&download_done_key(f)))
       .map(|f| f.size)
       .sum();
 
@@ -1947,6 +2005,7 @@ impl SyncEngine {
       let sem = semaphore.clone();
       let file_path = profile_dir.join(&file.path);
       let relative_path = file.path.clone();
+      let done_key = download_done_key(file);
       let file_size = file.size;
       let remote_key = format!(
         "{}profiles/{}/files/{}",
@@ -2017,7 +2076,7 @@ impl SyncEngine {
 
               {
                 let mut state = resume_state.lock().await;
-                state.completed_files.insert(relative_path.clone());
+                state.completed_files.insert(done_key);
                 let count = save_counter.fetch_add(1, Ordering::Relaxed);
                 if count.is_multiple_of(50) {
                   let _ = state.save(&profile_dir_clone);
@@ -4944,6 +5003,20 @@ pub async fn rollover_encryption_for_all_entities(
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn a_resumed_download_skips_a_file_only_at_the_same_content() {
+    let entry = |hash: &str| super::super::manifest::ManifestFileEntry {
+      path: "profile/Default/Network/Cookies".to_string(),
+      size: 12288,
+      mtime: 0,
+      hash: hash.to_string(),
+    };
+    let done = super::download_done_key(&entry("old"));
+    assert_eq!(done, super::download_done_key(&entry("old")));
+    assert_ne!(done, super::download_done_key(&entry("new")));
+    assert_ne!(super::download_done_key(&entry("old")), entry("old").path);
+  }
+
   use super::*;
 
   #[test]

@@ -9,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { appFromEnvironment } from "../lib/app.mjs";
 import { extensionZipBase64, wireGuardFixture } from "../lib/fixtures.mjs";
@@ -1417,6 +1418,116 @@ test("one device at a time runs a synced profile: a second launch is refused, ta
     await new Promise((resolve) => setTimeout(resolve, Math.max(waitMs, 0)));
     const afterExpiry = backendCode(await launch(deviceB, onB));
     assert.equal(afterExpiry.code, "PROFILE_ROUTE_REQUIRED", afterExpiry.text);
+  } catch (error) {
+    await Promise.all([deviceA.capture("failure"), deviceB.capture("failure")]);
+    throw error;
+  } finally {
+    await Promise.all([deviceA.close(), deviceB.close()]);
+  }
+});
+
+function writeCookie(file, value) {
+  const db = new DatabaseSync(file);
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS cookies (host_key TEXT, name TEXT, value TEXT, PRIMARY KEY (host_key, name))",
+  );
+  db.prepare(
+    "INSERT OR REPLACE INTO cookies VALUES ('.google.com', 'SID', ?)",
+  ).run(value);
+  db.close();
+}
+
+function readCookie(file) {
+  try {
+    const db = new DatabaseSync(file, { readOnly: true });
+    const row = db
+      .prepare("SELECT value FROM cookies WHERE name = 'SID'")
+      .get();
+    db.close();
+    return row?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+test("a launch takes the newest cookie jar another device uploaded before the browser starts", async () => {
+  assert.ok(syncUrl && syncToken, "Sync infrastructure was not started");
+  const deviceA = appFromEnvironment("sync-pull-a");
+  const deviceB = appFromEnvironment("sync-pull-b");
+  try {
+    await Promise.all([deviceA.start(), deviceB.start()]);
+    await Promise.all([configureSync(deviceA), configureSync(deviceB)]);
+    const settings = await deviceB.invoke("get_app_settings");
+    await deviceB.invoke("save_app_settings", {
+      settings: { ...settings, require_route_for_launch: true },
+    });
+
+    const profile = await createProfile(deviceA, "Pulled Profile");
+    const jar = (app) =>
+      path.join(
+        app.dataRoot,
+        "data",
+        "profiles",
+        profile.id,
+        "profile",
+        "Default",
+        "Network",
+        "Cookies",
+      );
+    await mkdir(path.dirname(jar(deviceA)), { recursive: true });
+    writeCookie(jar(deviceA), "session-1");
+    await deviceA.invoke("set_profile_sync_mode", {
+      profileId: profile.id,
+      syncMode: "Regular",
+    });
+    await deviceA.invoke("request_profile_sync", { profileId: profile.id });
+    const cookieKey = `profiles/${profile.id}/files/profile/Default/Network/Cookies`;
+    await waitFor(
+      deviceA,
+      async () =>
+        (await listRemote(`profiles/${profile.id}/`)).some(
+          (object) => object.key === cookieKey,
+        ),
+      "device A uploaded the first cookie jar",
+    );
+    await deviceB.invoke("restart_sync_service");
+    await waitFor(
+      deviceB,
+      async () => readCookie(jar(deviceB)) === "session-1",
+      "device B has the first cookie jar",
+      90_000,
+    );
+
+    // Device A ran the profile: the site rotated its session cookie, and A
+    // uploaded the jar when the browser stopped.
+    const manifestKey = `profiles/${profile.id}/manifest.json`;
+    const before = (await listRemote(`profiles/${profile.id}/`)).find(
+      (object) => object.key === manifestKey,
+    )?.lastModified;
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    writeCookie(jar(deviceA), "session-2");
+    await deviceA.invoke("request_profile_sync", { profileId: profile.id });
+    await waitFor(
+      deviceA,
+      async () =>
+        (await listRemote(`profiles/${profile.id}/`)).find(
+          (object) => object.key === manifestKey,
+        )?.lastModified !== before,
+      "device A uploaded the rotated jar",
+    );
+
+    // Device B launches right away: the launch itself brings the jar down.
+    const onB = (await deviceB.invoke("list_browser_profiles")).find(
+      (item) => item.id === profile.id,
+    );
+    const launched = backendCode(
+      await deviceB.invokeError("launch_browser_profile", {
+        profile: onB,
+        url: null,
+      }),
+    );
+    assert.equal(launched.code, "PROFILE_ROUTE_REQUIRED", launched.text);
+    assert.equal(readCookie(jar(deviceB)), "session-2");
   } catch (error) {
     await Promise.all([deviceA.capture("failure"), deviceB.capture("failure")]);
     throw error;
