@@ -2978,7 +2978,8 @@
     "siteStorageUnsafePath": "Bu site verisi profil klasörünün dışını gösteriyor, bu yüzden Donut onu değiştirmedi.",
     "siteStorageIoFailed": "Donut site verisini değiştiremedi: {{detail}}",
     "agentChatNotFound": "Bu sohbet artık yok.",
-    "profileLeaseHeld": "Bu profil {{device}} üzerinde açık. {{time}} saatinde veya o cihaz kapattığında serbest kalır."
+    "profileLeaseHeld": "Bu profil {{device}} üzerinde açık. {{time}} saatinde veya o cihaz kapattığında serbest kalır.",
+    "profileStillSyncing": "Bu profil hâlâ eşitleniyor. Birazdan yeniden deneyin."
   },
   "rail": {
     "profiles": "Profiller",

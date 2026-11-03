@@ -2978,7 +2978,8 @@
     "siteStorageUnsafePath": "此网站数据指向配置文件夹之外,因此 Donut 未作更改。",
     "siteStorageIoFailed": "Donut 无法更改网站数据:{{detail}}",
     "agentChatNotFound": "此对话已不存在。",
-    "profileLeaseHeld": "此配置文件已在 {{device}} 上打开。它将在 {{time}} 或该设备关闭它时释放。"
+    "profileLeaseHeld": "此配置文件已在 {{device}} 上打开。它将在 {{time}} 或该设备关闭它时释放。",
+    "profileStillSyncing": "此配置文件仍在同步。请稍后再试。"
   },
   "rail": {
     "profiles": "配置文件",

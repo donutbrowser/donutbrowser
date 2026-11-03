@@ -558,15 +558,20 @@ const LAUNCH_PULL_STOP: std::time::Duration = std::time::Duration::from_secs(30)
 /// Brings the profile up to date before its browser starts, so a device that
 /// starts after another one never opens an older cookie jar: the site would
 /// revoke the session on both. A normal sync with the download guard. A
-/// failure or a timeout launches with what this device has.
-pub(super) async fn pull_before_launch(app_handle: &tauri::AppHandle, profile: &BrowserProfile) {
+/// failure or a timeout launches with what this device has, unless the
+/// timed-out download is still writing into the profile: then the launch is
+/// refused (`launch_after_pull`).
+pub(super) async fn pull_before_launch(
+  app_handle: &tauri::AppHandle,
+  profile: &BrowserProfile,
+) -> Result<(), String> {
   let started = Instant::now();
   let profile_id = profile.id.to_string();
   let engine = match SyncEngine::create_from_settings(app_handle).await {
     Ok(engine) => engine,
     Err(e) => {
       log::warn!("Profile not pulled before launch profile={profile_id} err=\"{e}\"");
-      return;
+      return Ok(());
     }
   };
   let app = app_handle.clone();
@@ -590,11 +595,25 @@ pub(super) async fn pull_before_launch(app_handle: &tauri::AppHandle, profile: &
     Err(_) => {
       request_sync_cancel(&profile_id);
       let stopped = tokio::time::timeout(LAUNCH_PULL_STOP, task).await.is_ok();
+      let decision = launch_after_pull(stopped);
       log::warn!(
-        "Profile pull before launch timed out, launching profile={profile_id} stopped={stopped} elapsed_ms={}",
+        "Profile pull before launch timed out profile={profile_id} stopped={stopped} launch={} elapsed_ms={}",
+        decision.is_ok(),
         started.elapsed().as_millis()
       );
+      return decision;
     }
+  }
+  Ok(())
+}
+
+/// Whether a launch may go on after its pull timed out: never while the
+/// download can still write into the profile under the browser.
+fn launch_after_pull(stopped: bool) -> Result<(), String> {
+  if stopped {
+    Ok(())
+  } else {
+    Err(crate::backend_error("PROFILE_STILL_SYNCING"))
   }
 }
 
@@ -5003,6 +5022,15 @@ pub async fn rollover_encryption_for_all_entities(
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn a_launch_waits_for_a_pull_that_is_still_writing() {
+    assert!(super::launch_after_pull(true).is_ok());
+    assert_eq!(
+      super::launch_after_pull(false).unwrap_err(),
+      r#"{"code":"PROFILE_STILL_SYNCING"}"#
+    );
+  }
+
   #[test]
   fn a_resumed_download_skips_a_file_only_at_the_same_content() {
     let entry = |hash: &str| super::super::manifest::ManifestFileEntry {

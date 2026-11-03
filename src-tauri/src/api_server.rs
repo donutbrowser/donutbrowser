@@ -1532,9 +1532,10 @@ pub async fn get_api_server_status() -> Result<Option<u16>, String> {
 /// apart from a validation failure, cannot drift from the guards that produce
 /// them. `PROFILE_REMOTE_SYNC_PENDING` in particular is temporary by nature: the
 /// pull that clears it is already running.
-const LAUNCH_CONFLICT_CODES: [&str; 6] = [
+const LAUNCH_CONFLICT_CODES: [&str; 7] = [
   "PROFILE_RUNNING",
   "PROFILE_LEASE_HELD",
+  "PROFILE_STILL_SYNCING",
   "PROFILE_RUNNING_REMOTELY",
   "PROFILE_REMOTE_SYNC_PENDING",
   "PROFILE_LOCKED_BY_MEMBER",
@@ -7123,6 +7124,7 @@ mod tests {
       "PROFILE_LOCKED_BY_MEMBER",
       "PROFILE_LOCKED_ELSEWHERE",
       "PROFILE_LEASE_HELD",
+      "PROFILE_STILL_SYNCING",
     ] {
       let (status, body) = manager_error_response(serde_json::json!({ "code": code }).to_string());
       assert_eq!(status, StatusCode::CONFLICT, "{code} must be a 409");

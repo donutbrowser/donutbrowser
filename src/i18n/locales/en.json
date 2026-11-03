@@ -2978,7 +2978,8 @@
     "siteStorageUnsafePath": "This site data links outside the profile folder, so Donut did not change it.",
     "siteStorageIoFailed": "Donut could not change the site data: {{detail}}",
     "agentChatNotFound": "This chat no longer exists.",
-    "profileLeaseHeld": "This profile is open on {{device}}. It becomes free at {{time}}, or when that device closes it."
+    "profileLeaseHeld": "This profile is open on {{device}}. It becomes free at {{time}}, or when that device closes it.",
+    "profileStillSyncing": "This profile is still syncing. Try again shortly."
   },
   "rail": {
     "profiles": "Profiles",

@@ -244,6 +244,8 @@ export type BackendErrorCode =
   // `params.device` names it, `params.expiresAt` is when its lease ends,
   // `params.canTakeOver` is "true" for this account's own device.
   | "PROFILE_LEASE_HELD"
+  // The pull before a launch timed out and its download had not stopped.
+  | "PROFILE_STILL_SYNCING"
   | "NOT_TEAM_MEMBER"
   | "COOKIE_BOT_NOT_ENTITLED"
   | "COOKIE_BOT_NOT_ENROLLED"
@@ -1030,6 +1032,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
         device: parsed.params?.device ?? "",
         time: leaseExpiryTime(parsed.params?.expiresAt),
       });
+    case "PROFILE_STILL_SYNCING":
+      return t("backendErrors.profileStillSyncing");
     case "PROFILE_LOCK_UNAVAILABLE":
       return t("backendErrors.profileLockUnavailable");
     case "NOT_TEAM_MEMBER":

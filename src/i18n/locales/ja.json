@@ -2978,7 +2978,8 @@
     "siteStorageUnsafePath": "このサイトデータはプロファイルフォルダーの外を指しているため、Donut は変更しませんでした。",
     "siteStorageIoFailed": "Donut はサイトデータを変更できませんでした: {{detail}}",
     "agentChatNotFound": "このチャットはもう存在しません。",
-    "profileLeaseHeld": "このプロファイルは {{device}} で開かれています。{{time}} またはそのデバイスが閉じると使用できます。"
+    "profileLeaseHeld": "このプロファイルは {{device}} で開かれています。{{time}} またはそのデバイスが閉じると使用できます。",
+    "profileStillSyncing": "このプロファイルはまだ同期中です。しばらくしてからもう一度お試しください。"
   },
   "rail": {
     "profiles": "プロファイル",

@@ -2978,7 +2978,8 @@
     "siteStorageUnsafePath": "이 사이트 데이터가 프로필 폴더 밖을 가리켜 Donut이 변경하지 않았습니다.",
     "siteStorageIoFailed": "Donut이 사이트 데이터를 변경하지 못했습니다: {{detail}}",
     "agentChatNotFound": "이 채팅은 더 이상 없습니다.",
-    "profileLeaseHeld": "이 프로필은 {{device}}에서 열려 있습니다. {{time}}에 또는 해당 기기가 닫으면 사용할 수 있습니다."
+    "profileLeaseHeld": "이 프로필은 {{device}}에서 열려 있습니다. {{time}}에 또는 해당 기기가 닫으면 사용할 수 있습니다.",
+    "profileStillSyncing": "이 프로필은 아직 동기화 중입니다. 잠시 후 다시 시도하세요."
   },
   "rail": {
     "profiles": "프로필",

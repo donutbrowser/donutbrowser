@@ -196,7 +196,11 @@ pub(crate) async fn acquire(profile: &BrowserProfile, force: bool) -> Result<boo
   // followed by a launch, which pulls then.
   if taken && !force {
     if let Some(app) = APP.get() {
-      super::engine::pull_before_launch(app, profile).await;
+      if let Err(refusal) = super::engine::pull_before_launch(app, profile).await {
+        // No browser starts, so the lease is not needed.
+        release(&profile.id.to_string(), "pull_unfinished").await;
+        return Err(refusal);
+      }
     }
   }
   Ok(taken)

@@ -2978,7 +2978,8 @@
     "siteStorageUnsafePath": "Dữ liệu trang này trỏ ra ngoài thư mục hồ sơ, nên Donut không thay đổi nó.",
     "siteStorageIoFailed": "Donut không thể thay đổi dữ liệu trang: {{detail}}",
     "agentChatNotFound": "Cuộc trò chuyện này không còn nữa.",
-    "profileLeaseHeld": "Hồ sơ này đang mở trên {{device}}. Hồ sơ sẽ trống lúc {{time}} hoặc khi thiết bị đó đóng nó."
+    "profileLeaseHeld": "Hồ sơ này đang mở trên {{device}}. Hồ sơ sẽ trống lúc {{time}} hoặc khi thiết bị đó đóng nó.",
+    "profileStillSyncing": "Hồ sơ này vẫn đang đồng bộ. Hãy thử lại sau ít phút."
   },
   "rail": {
     "profiles": "Profile",
