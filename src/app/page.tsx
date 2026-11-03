@@ -3357,6 +3357,7 @@ export default function Home() {
             setFeedbackDialogOpen(false);
           }}
           accountEmail={cloudUser?.email ?? null}
+          profiles={profiles}
         />
 
         <PreLaunchGateDialog

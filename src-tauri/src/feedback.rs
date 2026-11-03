@@ -77,6 +77,8 @@ pub struct Feedback {
   pub logs: Option<String>,
   pub agent_client: Option<String>,
   pub context: Option<serde_json::Value>,
+  /// The profile the report is about. Only its id leaves the app.
+  pub profile_id: Option<uuid::Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -98,6 +100,8 @@ struct Payload<'a> {
   agent_client: Option<&'a str>,
   #[serde(skip_serializing_if = "Option::is_none")]
   context: Option<&'a serde_json::Value>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  profile_id: Option<uuid::Uuid>,
 }
 
 impl<'a> Payload<'a> {
@@ -118,6 +122,7 @@ impl<'a> Payload<'a> {
       locale: feedback.locale.as_deref(),
       agent_client: feedback.agent_client.as_deref(),
       context: feedback.context.as_ref(),
+      profile_id: feedback.profile_id,
     }
   }
 }
@@ -170,6 +175,32 @@ pub fn validate_email(email: Option<&str>) -> Result<Option<String>, String> {
   } else {
     Err(crate::backend_error("FEEDBACK_EMAIL_INVALID"))
   }
+}
+
+/// The profile a report is about: blank is none, anything else must be the id
+/// of an existing profile.
+pub fn validate_profile_id(
+  profile_id: Option<&str>,
+  exists: impl FnOnce(&uuid::Uuid) -> Result<bool, String>,
+) -> Result<Option<uuid::Uuid>, String> {
+  let Some(profile_id) = profile_id.map(str::trim).filter(|id| !id.is_empty()) else {
+    return Ok(None);
+  };
+  let not_found = || crate::backend_error("PROFILE_NOT_FOUND");
+  let profile_id = uuid::Uuid::parse_str(profile_id).map_err(|_| not_found())?;
+  if exists(&profile_id)? {
+    Ok(Some(profile_id))
+  } else {
+    Err(not_found())
+  }
+}
+
+/// Whether a profile with this id is on this device.
+pub fn profile_exists(profile_id: &uuid::Uuid) -> Result<bool, String> {
+  crate::profile::ProfileManager::instance()
+    .lookup_profile(profile_id)
+    .map(|profile| profile.is_some())
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))
 }
 
 /// The log excerpt feedback carries: anonymous facts, then the newest app and
@@ -342,10 +373,12 @@ pub async fn send_feedback(
   include_logs: bool,
   email: Option<String>,
   locale: Option<String>,
+  profile_id: Option<String>,
 ) -> Result<FeedbackReceipt, String> {
   let kind = FeedbackKind::parse(&kind).ok_or_else(|| crate::backend_error("FEEDBACK_INVALID"))?;
   let message = validate_message(&message)?;
   let email = validate_email(email.as_deref())?;
+  let profile_id = validate_profile_id(profile_id.as_deref(), profile_exists)?;
   let logs = if include_logs {
     Some(
       log_excerpt(
@@ -366,6 +399,7 @@ pub async fn send_feedback(
     logs,
     agent_client: None,
     context: None,
+    profile_id,
   })
   .await?;
   tauri::async_runtime::spawn_blocking(crate::settings_manager::note_feedback_sent);
@@ -444,6 +478,51 @@ mod tests {
   }
 
   #[test]
+  fn a_profile_is_optional_but_must_exist() {
+    let id = uuid::Uuid::new_v4();
+    let never = |_: &uuid::Uuid| -> Result<bool, String> { panic!("not looked up") };
+    assert_eq!(validate_profile_id(None, never).unwrap(), None);
+    assert_eq!(validate_profile_id(Some("  "), never).unwrap(), None);
+    assert_eq!(
+      validate_profile_id(Some(&format!(" {id} ")), |seen| Ok(*seen == id)).unwrap(),
+      Some(id)
+    );
+    assert_eq!(
+      code_of(&validate_profile_id(Some("not-a-uuid"), never).unwrap_err()),
+      "PROFILE_NOT_FOUND"
+    );
+    assert_eq!(
+      code_of(&validate_profile_id(Some(&id.to_string()), |_| Ok(false)).unwrap_err()),
+      "PROFILE_NOT_FOUND"
+    );
+    let failed = validate_profile_id(Some(&id.to_string()), |_| {
+      Err(crate::backend_error("INTERNAL_ERROR"))
+    });
+    assert_eq!(code_of(&failed.unwrap_err()), "INTERNAL_ERROR");
+  }
+
+  #[test]
+  fn the_payload_names_a_profile_by_id_only() {
+    let id = uuid::Uuid::new_v4();
+    let mut feedback = Feedback {
+      kind: FeedbackKind::Bug,
+      source: FeedbackSource::Person,
+      message: "the proxy check hangs".to_string(),
+      email: None,
+      locale: None,
+      logs: None,
+      agent_client: None,
+      context: None,
+      profile_id: Some(id),
+    };
+    let sent = serde_json::to_value(Payload::of(&feedback)).unwrap();
+    assert_eq!(sent["profileId"], id.to_string());
+    feedback.profile_id = None;
+    let sent = serde_json::to_value(Payload::of(&feedback)).unwrap();
+    assert!(sent.get("profileId").is_none(), "{sent}");
+  }
+
+  #[test]
   fn an_agent_may_send_a_bounded_amount_per_hour() {
     let mut sends = VecDeque::new();
     let start = Instant::now();
@@ -510,6 +589,7 @@ mod tests {
       logs: Some("line\n".to_string()),
       agent_client: None,
       context: None,
+      profile_id: None,
     };
     let body = serde_json::to_vec(&Payload::of(&feedback)).unwrap();
     let receipt = post(
@@ -544,6 +624,7 @@ mod tests {
       logs: None,
       agent_client: Some("Claude Code 2.1.0".to_string()),
       context: Some(serde_json::json!({ "recentCalls": [] })),
+      profile_id: None,
     };
     let sent = serde_json::to_value(Payload::of(&feedback)).unwrap();
     assert_eq!(sent["source"], "agent");
@@ -569,6 +650,7 @@ mod tests {
       logs: Some(String::new()),
       agent_client: None,
       context: None,
+      profile_id: None,
     };
     let body = serde_json::to_vec(&Payload::of(&feedback)).unwrap();
     let error = post(format!("{}/api/feedback", server.uri()), body, None)

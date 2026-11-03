@@ -4716,6 +4716,10 @@
       "prompt": "Nutze die MCP-Tools von Donut Browser, um herauszufinden, warum Donut Browser nicht wie erwartet funktioniert. Folge dem Triage-Leitfaden unter {{url}}: Frag mich, was schiefgelaufen ist, rufe get_diagnostics auf, suche nach einer neueren Version und bekannten Problemen und hilf mir, das Problem zu beheben. Zeig mir den Bericht, bevor du ihn mit send_feedback sendest.",
       "problem": "Was ich gesehen habe: {{message}}"
     },
+    "profile": {
+      "label": "Betroffenes Profil",
+      "idOnly": "Nur die Profil-ID wird gesendet."
+    },
     "email": {
       "label": "E-Mail für eine Antwort",
       "optional": "Optional",

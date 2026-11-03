@@ -7365,6 +7365,17 @@ test("feedback goes from the More menu to the team, with the logs the person pre
           }),
           /FEEDBACK_EMAIL_INVALID/,
         );
+        assert.match(
+          await app.invokeError("send_feedback", {
+            kind: "bug",
+            message: "Hangs",
+            includeLogs: false,
+            email: null,
+            locale: "en",
+            profileId: "00000000-0000-4000-8000-000000000000",
+          }),
+          /PROFILE_NOT_FOUND/,
+        );
         assert.equal(capture.received.length, 0);
         await app.waitFor(
           async () =>
@@ -7459,6 +7470,24 @@ test("feedback goes from the More menu to the team, with the logs the person pre
           '[data-slot="feedback-email"]',
           "me@example.com",
         );
+        // The report may name one profile; only its id leaves the app.
+        assert.equal(
+          await app.execute(
+            `return document.querySelector('#feedback-profile')?.innerText.trim();`,
+          ),
+          en.agent.composer.noProfile,
+        );
+        await app.clickSelector("#feedback-profile");
+        await app.clickSelector(
+          `[data-slot="agent-profile-option"][data-profile-id="${profile.id}"]`,
+        );
+        await app.waitFor(
+          async () =>
+            (await app.execute(
+              `return document.querySelector('#feedback-profile')?.innerText.trim();`,
+            )) === "Secret Shop Account",
+          { description: "the chosen profile on the picker" },
+        );
         await app.capture("feedback-compose");
         await app.clickSelector('[data-slot="feedback-send"]');
         await app.waitFor(
@@ -7492,6 +7521,8 @@ test("feedback goes from the More menu to the team, with the logs the person pre
         assert.equal(sent.body.locale, "en");
         assert.equal(typeof sent.body.appVersion, "string");
         assert.ok(sent.body.logs.includes("Donut started"));
+        assert.equal(sent.body.profileId, profile.id);
+        assert.ok(!JSON.stringify(sent.body).includes("Secret Shop Account"));
 
         await app.clickSelector('[data-slot="feedback-sent"] button');
         await app.waitFor(
@@ -7528,6 +7559,11 @@ test("feedback goes from the More menu to the team, with the logs the person pre
         assert.equal(await feedbackMessage(app), "Dark tray icon");
         assert.equal(capture.received.length, 2);
         assert.equal(capture.received[1].body.kind, "idea");
+        assert.equal(
+          capture.received[1].body.profileId,
+          undefined,
+          "a sent draft does not keep its profile",
+        );
         assert.equal(
           capture.received[1].body.logs,
           undefined,

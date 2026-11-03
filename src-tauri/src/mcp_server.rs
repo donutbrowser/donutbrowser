@@ -6998,7 +6998,8 @@ impl McpServer {
               "enum": ["bug", "idea", "praise", "other"],
               "description": "bug for something broken, idea for something missing, praise for something that worked well (default: other)"
             },
-            "include_logs": { "type": "boolean", "description": "Attach the recent app logs (default: false)" }
+            "include_logs": { "type": "boolean", "description": "Attach the recent app logs (default: false)" },
+            "profile_id": { "type": "string", "description": "The id of the profile the feedback is about, if any. Only the id is sent, never the profile's name or data" }
           },
           "required": ["message"]
         }),
@@ -12814,6 +12815,16 @@ impl McpServer {
       .get("include_logs")
       .and_then(serde_json::Value::as_bool)
       .unwrap_or(false);
+    let profile_id = match arguments.get("profile_id") {
+      None | Some(serde_json::Value::Null) => None,
+      Some(value) => {
+        let id = value
+          .as_str()
+          .ok_or_else(|| Self::invalid_argument("profile_id must be a string"))?;
+        crate::feedback::validate_profile_id(Some(id), crate::feedback::profile_exists)
+          .map_err(|_| Self::invalid_argument("profile_id is not the id of a profile"))?
+      }
+    };
 
     if !crate::feedback::agent_send_allowed() {
       return Err(McpError {
@@ -12857,6 +12868,7 @@ impl McpServer {
       agent_client,
       context: (!recent_calls.is_empty())
         .then(|| serde_json::json!({ "recentCalls": recent_calls })),
+      profile_id,
     })
     .await
     .map_err(|error| {
@@ -17166,6 +17178,11 @@ mod tests {
         5,
         serde_json::json!({ "message": "x".repeat(crate::feedback::MAX_MESSAGE_CHARS + 1) }),
       ),
+      (
+        6,
+        serde_json::json!({ "message": "ok", "profile_id": "not-a-uuid" }),
+      ),
+      (7, serde_json::json!({ "message": "ok", "profile_id": 7 })),
     ] {
       let refused = send(&session, id, arguments).await;
       assert_eq!(

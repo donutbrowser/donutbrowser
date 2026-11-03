@@ -4769,6 +4769,10 @@
       "prompt": "Usa las herramientas MCP de Donut Browser para averiguar por qué Donut Browser no funciona como espero. Sigue la guía de diagnóstico en {{url}}: pregúntame qué salió mal, llama a get_diagnostics, busca una versión más nueva y problemas conocidos, y ayúdame a resolver el problema. Muéstrame el informe antes de enviarlo con send_feedback.",
       "problem": "Lo que vi: {{message}}"
     },
+    "profile": {
+      "label": "Perfil afectado",
+      "idOnly": "Solo se envía el ID del perfil."
+    },
     "email": {
       "label": "Correo para responderte",
       "optional": "Opcional",

@@ -4716,6 +4716,10 @@
       "prompt": "Donut Browser の MCP ツールを使って、Donut Browser が期待どおりに動かない原因を調べてください。{{url}} のトリアージ手順に従ってください。何が起きたかを私に聞き、get_diagnostics を呼び出し、新しいバージョンと既知の問題を確認し、問題の解決を手伝ってください。send_feedback で送信する前に、レポートを私に見せてください。",
       "problem": "私が見たこと: {{message}}"
     },
+    "profile": {
+      "label": "対象のプロファイル",
+      "idOnly": "送信されるのはプロファイル ID のみです。"
+    },
     "email": {
       "label": "返信用メールアドレス",
       "optional": "任意",

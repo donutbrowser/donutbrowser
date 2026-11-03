@@ -18,6 +18,7 @@ import {
   LuMessageSquareMore,
   LuSend,
 } from "react-icons/lu";
+import { ProfilePicker } from "@/components/agent-tasks/parts";
 import { LoadingButton } from "@/components/loading-button";
 import { AnimatedDisclosureChevron } from "@/components/ui/animated-disclosure";
 import { AnimatedSwitch } from "@/components/ui/animated-switch";
@@ -41,6 +42,7 @@ import { MOTION_SPRING_POSITION } from "@/lib/motion";
 import { isMacOS } from "@/lib/platform";
 import { showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
+import type { BrowserProfile } from "@/types";
 import { RippleButton } from "./ui/ripple";
 
 /** Mirrors `feedback::MAX_MESSAGE_CHARS`. */
@@ -76,6 +78,8 @@ interface FeedbackDialogProps {
   onClose: () => void;
   /** The signed-in account's email; replies go there. */
   accountEmail: string | null;
+  /** The profiles the report may be about; only the chosen id is sent. */
+  profiles: BrowserProfile[];
 }
 
 /**
@@ -88,6 +92,7 @@ export function FeedbackDialog({
   isOpen,
   onClose,
   accountEmail,
+  profiles,
 }: FeedbackDialogProps) {
   const { t, i18n } = useTranslation();
   const animate = useMotionAllowed();
@@ -97,6 +102,7 @@ export function FeedbackDialog({
   const [includeLogs, setIncludeLogs] = useState(true);
   const [logsChosen, setLogsChosen] = useState(false);
   const [email, setEmail] = useState("");
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [logs, setLogs] = useState<string | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -173,10 +179,17 @@ export function FeedbackDialog({
       setLogsChosen(false);
       setPreviewOpen(false);
       setLogs(null);
+      setProfileId(null);
     }
     setError(null);
     onClose();
   }, [onClose, sent]);
+
+  useEffect(() => {
+    if (profileId && !profiles.some((profile) => profile.id === profileId)) {
+      setProfileId(null);
+    }
+  }, [profileId, profiles]);
 
   const canSend = message.trim().length > 0 && !sending;
 
@@ -191,6 +204,7 @@ export function FeedbackDialog({
         includeLogs,
         email: accountEmail ? null : email.trim() || null,
         locale: i18n.language,
+        profileId,
       });
       setSent({
         logs: includeLogs,
@@ -209,6 +223,7 @@ export function FeedbackDialog({
     includeLogs,
     kind,
     message,
+    profileId,
     sending,
     t,
   ]);
@@ -434,6 +449,36 @@ export function FeedbackDialog({
                       <LuCopy className="size-3.5" aria-hidden="true" />
                       {t("feedback.triage.copy")}
                     </RippleButton>
+                  </div>
+                )}
+
+                {profiles.length > 0 && (
+                  <div className="grid gap-1.5">
+                    <label
+                      htmlFor="feedback-profile"
+                      className="flex items-baseline gap-1.5 text-sm font-medium"
+                    >
+                      {t("feedback.profile.label")}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {t("feedback.email.optional")}
+                      </span>
+                    </label>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <ProfilePicker
+                        id="feedback-profile"
+                        single
+                        profiles={profiles}
+                        selected={profileId ? [profileId] : []}
+                        onChange={(ids) => {
+                          setProfileId(ids[0] ?? null);
+                        }}
+                        noneLabel={t("agent.composer.noProfile")}
+                        className="shrink-0"
+                      />
+                      <p className="min-w-0 text-xs text-muted-foreground">
+                        {t("feedback.profile.idOnly")}
+                      </p>
+                    </div>
                   </div>
                 )}
 

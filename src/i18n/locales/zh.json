@@ -4716,6 +4716,10 @@
       "prompt": "请使用 Donut Browser 的 MCP 工具，查明 Donut Browser 为什么没有按我预期的方式工作。按照 {{url}} 上的排查手册操作：问我出了什么问题，调用 get_diagnostics，检查是否有新版本和已知问题，并帮我解决问题。用 send_feedback 发送报告之前，先给我看。",
       "problem": "我看到的情况：{{message}}"
     },
+    "profile": {
+      "label": "相关配置文件",
+      "idOnly": "只发送配置文件 ID。"
+    },
     "email": {
       "label": "用于回复的邮箱",
       "optional": "可选",

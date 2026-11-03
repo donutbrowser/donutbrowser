@@ -190,7 +190,10 @@ export function TaskStatusLabel({
   );
 }
 
-/** Choose any number of profiles, or exactly one, with search. */
+/**
+ * Choose any number of profiles, or exactly one, with search. `noneLabel`
+ * makes a single choice optional: it names the empty choice and lists it first.
+ */
 export function ProfilePicker({
   id,
   profiles,
@@ -198,6 +201,7 @@ export function ProfilePicker({
   onChange,
   disabled,
   single = false,
+  noneLabel,
   className,
 }: {
   id?: string;
@@ -206,6 +210,7 @@ export function ProfilePicker({
   onChange: (ids: string[]) => void;
   disabled?: boolean;
   single?: boolean;
+  noneLabel?: string;
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -214,7 +219,8 @@ export function ProfilePicker({
   const known = profiles.filter((profile) => chosen.has(profile.id));
   const label =
     known.length === 0
-      ? t(single ? "agent.chat.chooseProfile" : "agent.tasks.chooseProfiles")
+      ? (noneLabel ??
+        t(single ? "agent.chat.chooseProfile" : "agent.tasks.chooseProfiles"))
       : known.length === 1
         ? known[0].name
         : t("agent.tasks.profileCount", { count: known.length });
@@ -258,6 +264,26 @@ export function ProfilePicker({
           <CommandList className="max-h-64">
             <CommandEmpty>{t("agent.tasks.noProfileMatch")}</CommandEmpty>
             <CommandGroup>
+              {single && noneLabel && (
+                <CommandItem
+                  value="__none__"
+                  data-slot="agent-profile-none"
+                  onSelect={() => {
+                    onChange([]);
+                    setOpen(false);
+                  }}
+                  className="text-muted-foreground"
+                >
+                  <LuCheck
+                    className={cn(
+                      "size-3.5",
+                      known.length === 0 ? "opacity-100" : "opacity-0",
+                    )}
+                    aria-hidden="true"
+                  />
+                  {noneLabel}
+                </CommandItem>
+              )}
               {!single && (
                 <CommandItem
                   value="__all__"
