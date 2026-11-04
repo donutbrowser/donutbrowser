@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   appendStep,
   batchProgress,
+  batchStatus,
   creditsLeft,
   cronWords,
   groupRoutineRuns,
@@ -16,6 +17,11 @@ import {
   MAX_CONCURRENCY,
   MAX_PROMPT_CHARS,
   promptTitle,
+  REPEAT_PRESETS,
+  repeatCron,
+  repeatParts,
+  routineFromBatch,
+  routineFromTurn,
   rowsForAttention,
   stateCounts,
   TASK_STATUSES,
@@ -185,4 +191,89 @@ test("common schedules read as words", () => {
   assert.deepEqual(cronWords("*/10 * * * *"), { kind: "minutes", every: 10 });
   assert.deepEqual(cronWords("0 9 1 * *"), { kind: "custom" });
   assert.deepEqual(cronWords("nonsense"), { kind: "custom" });
+});
+
+test("a schedule reads back into the shape it was chosen with", () => {
+  for (const cron of [
+    "15 * * * *",
+    "30 9 * * *",
+    "0 18 * * 1-5",
+    "45 7 * * 3",
+  ]) {
+    assert.equal(repeatCron(repeatParts(cron)), cron);
+  }
+  const custom = repeatParts("*/15 9-17 * * 1-5");
+  assert.equal(custom.preset, "custom");
+  assert.equal(repeatCron(custom), "*/15 9-17 * * 1-5");
+  const weekly = repeatParts("0 9 * * 1");
+  assert.deepEqual(
+    REPEAT_PRESETS.map((preset) => repeatCron({ ...weekly, preset })),
+    ["0 * * * *", "0 9 * * *", "0 9 * * 1-5", "0 9 * * 1", "0 9 * * 1"],
+  );
+});
+
+function turn(kind, text, steps = []) {
+  return { kind, text, steps, status: "done" };
+}
+
+test("a chat turn becomes a routine with the words since its task began", () => {
+  const chat = {
+    title: "Find the cheapest flight from Tirana to Lisbon next Friday morning",
+    profileId: "p1",
+    turns: [
+      turn("start", "Old task"),
+      turn("fresh", " Find the cheapest flight ", [
+        { index: 0, kind: "act", text: "Open", url: "chrome://newtab" },
+        { index: 1, kind: "act", text: "Open", url: "https://f.test/x" },
+      ]),
+      turn("follow_up", "Only direct ones"),
+      turn("follow_up", "Later message"),
+    ],
+  };
+  const draft = routineFromTurn(chat, 2);
+  assert.equal(draft.prompt, "Find the cheapest flight\n\nOnly direct ones");
+  assert.equal(draft.startUrl, "https://f.test/x");
+  assert.deepEqual(draft.profileIds, ["p1"]);
+  assert.ok(draft.name.length <= 60 && draft.name.endsWith("…"));
+  assert.equal(draft.schedule, null);
+  assert.equal(routineFromTurn(chat, 0).prompt, "Old task");
+});
+
+test("a run becomes a routine on its profiles, and shows its most urgent state", () => {
+  const tally = {
+    queued: 0,
+    active: 0,
+    done: 2,
+    failed: 0,
+    stopped: 0,
+    creditsUsed: 9,
+  };
+  const batch = {
+    prompt: "Check the inbox",
+    startUrl: null,
+    maxCredits: 300,
+    finished: true,
+    tally,
+    tasks: [
+      { profileId: "a", status: "done" },
+      { profileId: "b", status: "done" },
+    ],
+  };
+  const draft = routineFromBatch(batch);
+  assert.deepEqual(draft.profileIds, ["a", "b"]);
+  assert.equal(draft.maxCreditsPerRun, 300);
+  assert.equal(batchStatus(batch), "done");
+  assert.equal(
+    batchStatus({ ...batch, tally: { ...tally, failed: 1 } }),
+    "failed",
+  );
+  assert.equal(
+    batchStatus({
+      ...batch,
+      finished: false,
+      tasks: [{ status: "needs_approval" }],
+    }),
+    "needs_approval",
+  );
+  assert.equal(batchStatus({ ...batch, finished: false }), "running");
 });

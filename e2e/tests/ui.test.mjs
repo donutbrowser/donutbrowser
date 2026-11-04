@@ -15,7 +15,7 @@ import {
 } from "../../src/lib/api-examples.ts";
 import { REMOTE_MCP_URL } from "../../src/lib/mcp.ts";
 import { getDerivedThemeColors, THEMES } from "../../src/lib/themes.ts";
-import { withApp } from "../lib/app.mjs";
+import { appFromEnvironment, withApp } from "../lib/app.mjs";
 import {
   CRX_EXTENSION_NAME,
   CRX_EXTENSION_VERSION,
@@ -7999,9 +7999,9 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
     assert.equal(shown.tasks, false);
     assert.equal(shown.chat, false);
     for (const text of [
-      en.agent.tabs.tasks,
-      en.agent.tabs.routines,
-      en.agent.tasks.promptPlaceholder,
+      en.agent.chat.newChat,
+      en.agent.chat.placeholderStart,
+      en.agent.chat.saveRoutine,
     ]) {
       assert.ok(!shown.text.includes(text), `"${text}" must not render`);
     }
@@ -8055,18 +8055,43 @@ async function pressKeyOn(app, selector, key) {
   );
 }
 
-test("agent tasks run on many profiles, ask before acting, and routines repeat them", async () => {
+/** An account with the agent and scheduled runs. */
+function scheduledAgentUser() {
+  const session = agentUser(true);
+  Object.assign(session.user.entitlements, {
+    active: true,
+    scheduledAutomation: true,
+  });
+  return session;
+}
+
+/** Open the agent panel on a run or a routine from the sidebar. */
+async function openSidebarItem(app, selector) {
+  await app.waitFor(
+    () =>
+      app.execute(`return Boolean(document.querySelector(arguments[0]));`, [
+        selector,
+      ]),
+    { description: selector },
+  );
+  await app.execute(`document.querySelector(arguments[0]).click();`, [
+    selector,
+  ]);
+}
+
+test("the chat runs a task in many profiles, saves it as a routine, schedules, runs, turns off and deletes routines", async () => {
   await withApp(
     "ui-agent-tasks",
     async (app) => {
       const names = ["Atlas", "Borealis", "Cirrus", "Dune"];
+      const created = [];
       for (const name of names) {
-        await createUiProfile(app, name);
+        created.push(await createUiProfile(app, name));
       }
-      await signInWithAgent(app, agentUser(true));
+      await signInWithAgent(app, scheduledAgentUser());
       await app.waitForText("Dune");
 
-      // The selection becomes the task's profiles.
+      // The selection becomes the profiles of a run in the chat.
       await app.clickSelector(`[aria-label="${en.common.aria.selectAll}"]`);
       await app.waitFor(
         () =>
@@ -8080,46 +8105,59 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
       await app.waitFor(
         () =>
           app.execute(
-            `return document.querySelector('[data-slot="agent-profile-picker"]')?.innerText ?? null;`,
+            `return document.querySelector('[data-slot="chat-composer"]')?.dataset.target === "run";`,
           ),
-        { description: "the composer" },
+        { description: "the composer set to run" },
+      );
+      const tabs = await app.execute(
+        `return [...document.querySelectorAll('[data-testid^="agent-tab-"]')].map((n) => n.dataset.testid);`,
+      );
+      assert.equal(tabs[0], "agent-tab-chat");
+      assert.ok(
+        !tabs.includes("agent-tab-tasks") &&
+          !tabs.includes("agent-tab-routines"),
+        "tasks and routines live in the chat",
       );
       assert.match(
         await app.execute(
-          `return document.querySelector('[data-slot="agent-profile-picker"]').innerText;`,
+          `return document.querySelector('[data-slot="chat-conversation"] [data-slot="agent-profile-picker"]').innerText;`,
         ),
         new RegExp(en.agent.tasks.profileCount_other.replace("{{count}}", "4")),
       );
-      // A free account with the agent gets tasks and credits; the paid tabs
-      // keep their locks.
       assert.ok(
         await app.execute(
           `return Boolean(document.querySelector('[data-slot="agent-credits"]'));`,
         ),
       );
       await app.fillSelector(
-        '[data-slot="agent-task-prompt"]',
+        '[data-slot="chat-input"]',
         "[slow] Find the cheapest flight from Tirana to Lisbon next Friday",
       );
+      await app.clickSelector('[data-slot="agent-run-options"]');
       await app.fillSelector(
-        '[data-slot="agent-task-url"]',
+        '[data-slot="agent-run-url"]',
         "https://flights.example.test",
       );
+      await dismissSurface(app);
       assert.equal(
         await app.execute(
-          `return document.querySelector('[data-slot="agent-task-run"]').innerText.trim();`,
+          `return document.querySelector('[data-slot="chat-send"]').innerText.trim();`,
         ),
         en.agent.tasks.runOn_other.replace("{{count}}", "4"),
       );
       await captureBothThemes(app, "agent-task-composer");
-      await app.clickSelector('[data-slot="agent-task-run"]');
+      await app.clickSelector('[data-slot="chat-send"]');
       await app.waitFor(
         () =>
           app.execute(
             `return document.querySelectorAll('[data-slot="agent-batch-tile"]').length === 4 &&
-              document.querySelectorAll('[data-slot="agent-step"]').length >= 2;`,
+              document.querySelectorAll('[data-slot="agent-step"]').length >= 2 &&
+              document.querySelectorAll('[data-slot="agent-run-item"]').length === 1;`,
           ),
-        { timeoutMs: 30_000, description: "four tiles and a live stream" },
+        {
+          timeoutMs: 30_000,
+          description: "four tiles, a live stream and the run listed",
+        },
       );
       // A script click: a WebDriver click scrolls the page to the tile first.
       await app.execute(
@@ -8145,55 +8183,38 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
       );
       await captureBothThemes(app, "agent-batch-4-done");
 
-      // Asking before acting: the question waits inline.
-      await app.clickSelector('[data-slot="agent-profile-picker"]');
-      await app.clickSelector('[data-slot="agent-profile-all"]');
-      await app.clickSelector('[data-slot="agent-profile-option"]');
-      await dismissSurface(app);
-      await app.fillSelector(
-        '[data-slot="agent-task-prompt"]',
-        "[approval] Book the 09:40 flight and stop before paying",
-      );
-      await app.clickSelector('[data-slot="agent-task-run"]');
+      // The finished run is saved as a routine, prefilled.
+      await app.clickSelector('[data-slot="agent-run-save-routine"]');
       await app.waitFor(
         () =>
           app.execute(
-            `return Boolean(document.querySelector('[data-slot="agent-approval"]'));`,
+            `return document.querySelector('[data-slot="agent-routine-prompt"]')?.value.startsWith("[slow] Find the cheapest") === true;`,
           ),
-        { timeoutMs: 30_000, description: "the approval" },
+        { description: "the prefilled routine" },
       );
-      await captureBothThemes(app, "agent-batch-1-approval");
-      await app.clickSelector('[data-slot="agent-approval-approve"]');
-      await app.waitFor(
-        () =>
-          app.execute(
-            `return Boolean(document.querySelector('[data-slot="agent-result"]'));`,
-          ),
-        { timeoutMs: 30_000, description: "the result" },
+      assert.match(
+        await app.execute(
+          `return document.querySelector('[data-slot="agent-routine-editor"] [data-slot="agent-profile-picker"]').innerText;`,
+        ),
+        new RegExp(en.agent.tasks.profileCount_other.replace("{{count}}", "4")),
       );
-
-      // Routines: saved once, run headless on the same profiles.
-      await app.clickSelector('[data-testid="agent-tab-routines"]');
-      await app.clickSelector('[data-slot="agent-routine-new"]');
       await app.fillSelector('[data-slot="agent-routine-name"]', "Fare watch");
-      await app.fillSelector(
-        '[data-slot="agent-routine-prompt"]',
-        "Check the fare from Tirana to Lisbon and note the cheapest",
-      );
-      await app.clickSelector(
-        '[data-slot="agent-routine-editor"] [data-slot="agent-profile-picker"]',
-      );
-      await app.clickSelector('[data-slot="agent-profile-all"]');
-      await dismissSurface(app);
       await captureBothThemes(app, "agent-routine-editor");
       await app.clickSelector('[data-slot="agent-routine-save"]');
       await app.waitFor(
         () =>
           app.execute(
-            `return document.querySelectorAll('[data-slot="agent-routine"]').length === 1;`,
+            `return document.querySelector('[data-slot="agent-routine"]')?.innerText.includes("Fare watch") &&
+              document.querySelectorAll('[data-slot="agent-routine-item"]').length === 1;`,
           ),
-        { description: "the saved routine" },
+        { description: "the routine view" },
       );
+      let [saved] = await app.invoke("list_agent_routines");
+      assert.equal(saved.startUrl, "https://flights.example.test");
+      assert.equal(saved.profileIds.length, 4);
+      assert.equal(saved.schedule, null);
+
+      // Run it: the run opens, from the routine, headless.
       await app.clickSelector('[data-slot="agent-routine-run-now"]');
       await app.waitFor(
         () =>
@@ -8203,8 +8224,10 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
           ),
         { timeoutMs: 60_000, description: "the routine run" },
       );
-      await app.clickSelector('[data-testid="agent-tab-routines"]');
-      await app.clickSelector('[data-slot="agent-routine-history"]');
+      await openSidebarItem(
+        app,
+        `[data-slot="agent-routine-item"][data-routine-id="${saved.id}"]`,
+      );
       await app.waitFor(
         () =>
           app.execute(
@@ -8213,6 +8236,169 @@ test("agent tasks run on many profiles, ask before acting, and routines repeat t
         { description: "four runs in the history" },
       );
       await captureBothThemes(app, "agent-routines");
+
+      // Off and on again from its switch.
+      await app.clickSelector('[data-slot="agent-routine-enabled"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-routine-item"]')?.dataset.enabled === "false";`,
+          ),
+        { description: "the routine off" },
+      );
+      [saved] = await app.invoke("list_agent_routines");
+      assert.equal(saved.enabled, false);
+      await app.clickSelector('[data-slot="agent-routine-enabled"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-routine-item"]')?.dataset.enabled === "true";`,
+          ),
+        { description: "the routine on" },
+      );
+
+      // A message that repeats is saved as a scheduled routine.
+      await app.clickSelector('[data-slot="chat-new"]');
+      await app.clickSelector(
+        '[data-slot="chat-conversation"] [data-slot="agent-profile-picker"]',
+      );
+      // All four are chosen from the selection: clear them, keep Atlas.
+      await app.clickSelector('[data-slot="agent-profile-all"]');
+      await app.execute(
+        `document.querySelector('[data-slot="agent-profile-option"][data-profile-id="${created[0].id}"]').click();`,
+      );
+      await dismissSurface(app);
+      assert.equal(
+        await app.execute(
+          `return document.querySelector('[data-slot="chat-composer"]').dataset.target;`,
+        ),
+        "chat",
+        "one profile is a chat until it repeats",
+      );
+      await app.fillSelector(
+        '[data-slot="chat-input"]',
+        "Read the inbox and note what is new",
+      );
+      await app.clickSelector('[data-slot="agent-repeat"]');
+      await app.clickSelector(
+        '[data-slot="agent-repeat-option"][data-repeat="weekdays"]',
+      );
+      // A time field takes no typed keys in every engine: set it as a pick does.
+      await app.execute(
+        `const input = document.querySelector('[data-slot="agent-repeat-time"]');
+         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, "08:30");
+         input.dispatchEvent(new Event("input", { bubbles: true }));`,
+      );
+      await captureBothThemes(app, "agent-repeat");
+      await dismissSurface(app);
+      assert.equal(
+        await app.execute(
+          `return document.querySelector('[data-slot="chat-send"]').innerText.trim();`,
+        ),
+        en.agent.chat.saveRoutine,
+      );
+      await app.clickSelector('[data-slot="chat-send"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-routine-item"]').length === 2 &&
+              document.querySelector('[data-slot="agent-routine"]')?.innerText.includes("Read the inbox");`,
+          ),
+        { description: "the scheduled routine" },
+      );
+      const scheduled = (await app.invoke("list_agent_routines")).find(
+        (routine) => routine.prompt === "Read the inbox and note what is new",
+      );
+      assert.equal(scheduled.schedule.cron, "30 8 * * 1-5");
+      assert.ok(scheduled.schedule.timezone.length > 0);
+      assert.equal(scheduled.profileIds.length, 1);
+      await captureBothThemes(app, "agent-routine-scheduled");
+
+      // Delete from its menu.
+      await app.clickSelector('[data-slot="agent-routine-menu"]');
+      await app.clickSelector('[data-slot="agent-routine-delete"]');
+      await app.clickSelector('[role="dialog"] button.bg-destructive');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-routine-item"]').length === 1;`,
+          ),
+        { description: "the routine deleted" },
+      );
+      assert.equal((await app.invoke("list_agent_routines")).length, 1);
+    },
+    {
+      // A paid account would get the welcome on sign-in.
+      settings: { paid_welcome_seen_for: ["ui-agent"] },
+      extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" },
+    },
+  );
+});
+
+test("a run that asks waits for an answer in the run, and a free plan sees the way to schedules", async () => {
+  await withApp(
+    "ui-agent-run-approval",
+    async (app) => {
+      for (const name of ["Atlas", "Borealis"]) {
+        await createUiProfile(app, name);
+      }
+      await signInWithAgent(app, agentUser(true));
+      await app.waitForText("Borealis");
+      await app.clickSelector(`[aria-label="${en.common.aria.selectAll}"]`);
+      await app.clickSelector('[data-bulk-action="agent-task"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="chat-composer"]')?.dataset.target === "run";`,
+          ),
+        { description: "the composer set to run" },
+      );
+
+      // Without the plan, schedules show the way to it.
+      await app.clickSelector('[data-slot="agent-repeat"]');
+      assert.ok(
+        await app.execute(
+          `return [...document.querySelectorAll('[data-slot="agent-repeat-option"]')]
+             .filter((n) => !["once", "manual"].includes(n.dataset.repeat))
+             .every((n) => n.disabled) &&
+             Boolean(document.querySelector('[data-slot="agent-repeat-plan"]'));`,
+        ),
+      );
+      await dismissSurface(app);
+
+      await app.fillSelector(
+        '[data-slot="chat-input"]',
+        "[approval] Book the 09:40 flight and stop before paying",
+      );
+      await app.clickSelector('[data-slot="chat-send"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-approval"]'));`,
+          ),
+        { timeoutMs: 30_000, description: "the approval" },
+      );
+      await captureBothThemes(app, "agent-batch-2-approval");
+      await app.waitFor(
+        () =>
+          app.execute(`
+            if (document.querySelector('[data-slot="agent-batch"]')?.dataset.finished === "true") return true;
+            const approve = document.querySelector('[data-slot="agent-approval-approve"]:not([disabled])');
+            if (approve) {
+              approve.click();
+              return false;
+            }
+            const first = document.querySelector('[data-slot="agent-batch-tile"]');
+            if (first?.dataset.state === "needs_you") first.click();
+            return false;
+          `),
+        { timeoutMs: 60_000, description: "both answered and the run done" },
+      );
+      assert.ok(
+        await app.execute(
+          `return Boolean(document.querySelector('[data-slot="agent-result"]'));`,
+        ),
+      );
     },
     { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
   );
@@ -8233,19 +8419,18 @@ test("an agent run on many profiles stays calm: strip, filters, keys and the one
       await signInWithAgent(app, agentUser(true));
       await app.waitForText("Store 25");
       await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
-      // With the agent, Chat leads and is the default tab; Tasks follows.
+      // With the agent, Chat leads and is the default tab.
       await app.waitFor(
         () =>
           app.execute(
             `const tabs = [...document.querySelectorAll('[data-testid^="agent-tab-"]')];
              return tabs[0]?.dataset.testid === "agent-tab-chat" &&
                tabs[0].getAttribute("data-state") === "active" &&
-               tabs[1]?.dataset.testid === "agent-tab-tasks";`,
+               tabs[1]?.dataset.testid === "agent-tab-conversation";`,
           ),
         { description: "Chat first and chosen" },
       );
-      await app.clickSelector('[data-testid="agent-tab-tasks"]');
-      await app.invoke("start_agent_batch", {
+      const started = await app.invoke("start_agent_batch", {
         request: {
           profileIds: ids,
           prompt: "[mixed] Check each order and note the delivery date",
@@ -8255,6 +8440,11 @@ test("an agent run on many profiles stays calm: strip, filters, keys and the one
           concurrency: 20,
         },
       });
+      // A run started elsewhere shows in the chat's sidebar.
+      await openSidebarItem(
+        app,
+        `[data-slot="agent-run-item"][data-batch-id="${started.id}"]`,
+      );
       await app.waitFor(
         () =>
           app.execute(
@@ -8675,4 +8865,290 @@ test("the agent chat streams steps, asks, answers in markdown, follows up, start
     },
     { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
   );
+});
+
+/** The open change card of a chat, once it shows. */
+async function waitHostCard(app, method) {
+  const selector = `[data-slot="chat-host-call"][data-method="${method}"]`;
+  await app.waitFor(
+    () =>
+      app.execute(`return Boolean(document.querySelector(arguments[0]));`, [
+        selector,
+      ]),
+    { timeoutMs: 30_000, description: `the ${method} card` },
+  );
+  return selector;
+}
+
+test("a chat asks the app to save, change, run and delete routines and to run in other profiles, and does only what the person approves", async () => {
+  await withApp(
+    "ui-agent-host",
+    async (app) => {
+      await createUiProfile(app, "Atlas");
+      await createUiProfile(app, "Borealis");
+      await signInWithAgent(app, agentUser(true));
+      await app.waitForText("Borealis");
+      await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="chat-empty"]'));`,
+          ),
+        { description: "a new chat" },
+      );
+      const lastAnswer = async () => (await chatState(app)).turns.at(-1);
+      const done = (count) => (s) =>
+        s.turns.length === count && s.turns[count - 1].status === "done";
+
+      // Reads are answered at once.
+      await sendChat(app, "[host:list] What do I have?");
+      await waitChat(app, done(1), "the read calls");
+      assert.match((await lastAnswer()).answer, /2 profiles and 0 routines/);
+
+      // A routine waits as a card; the person edits it before saving. A free
+      // plan sees the way to schedules and saves it to run by hand.
+      await sendChat(app, "[host:save] Watch the fare every weekday");
+      let card = await waitHostCard(app, "routines.save");
+      const shown = await app.execute(
+        `const card = document.querySelector(arguments[0]);
+         return {
+           name: card.querySelector('[data-slot="chat-host-name-text"]').innerText,
+           meta: card.querySelector('[data-slot="chat-host-meta"]').innerText,
+           plan: Boolean(card.querySelector('[data-slot="chat-host-plan"]')),
+         };`,
+        [card],
+      );
+      assert.equal(shown.name, "Fare watch");
+      assert.match(shown.meta, /Atlas/);
+      assert.match(shown.meta, /Borealis/);
+      assert.ok(shown.plan, "the plan line");
+      assert.equal(
+        (await chatState(app)).turns[1].status,
+        "needs_approval",
+        "the task waits for the person",
+      );
+      await captureBothThemes(app, "chat-host-save");
+      await app.clickSelector(`${card} [data-slot="chat-host-edit"]`);
+      await app.fillSelector(
+        `${card} [data-slot="chat-host-name"]`,
+        "Fare watch Tirana",
+      );
+      await captureBothThemes(app, "chat-host-save-edit");
+      await app.clickSelector(`${card} [data-slot="chat-host-approve"]`);
+      await waitChat(app, done(2), "the saved routine");
+      assert.match((await lastAnswer()).answer, /Saved Fare watch Tirana/);
+      let routines = await app.invoke("list_agent_routines");
+      assert.equal(routines.length, 1);
+      assert.equal(routines[0].name, "Fare watch Tirana");
+      assert.equal(routines[0].schedule, null);
+      assert.equal(routines[0].profileIds.length, 2);
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-routine-item"]').length === 1 &&
+              Boolean(document.querySelector('[data-slot="chat-host-done"][data-state="done"]'));`,
+          ),
+        { description: "the routine listed and the card settled" },
+      );
+
+      // A change keeps what the agent left out.
+      await sendChat(app, "[host:edit] Turn it off");
+      card = await waitHostCard(app, "routines.save");
+      await app.clickSelector(`${card} [data-slot="chat-host-approve"]`);
+      await waitChat(app, done(3), "the routine off");
+      routines = await app.invoke("list_agent_routines");
+      assert.equal(routines[0].enabled, false);
+      assert.equal(routines[0].name, "Fare watch Tirana");
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-routine-item"]')?.dataset.enabled === "false";`,
+          ),
+        { description: "the sidebar shows it off" },
+      );
+
+      // Declined: nothing runs, and the agent hears no.
+      await sendChat(app, "[host:tasks] Count the orders everywhere");
+      card = await waitHostCard(app, "tasks.run");
+      await app.clickSelector(`${card} [data-slot="chat-host-decline"]`);
+      await waitChat(app, done(4), "the declined run");
+      assert.match((await lastAnswer()).answer, /DECLINED/);
+      assert.equal((await app.invoke("list_agent_batches")).length, 0);
+
+      // A stop drops the open card.
+      await sendChat(app, "[host:delete] Delete it");
+      card = await waitHostCard(app, "routines.delete");
+      await app.clickSelector('[data-slot="chat-stop"]');
+      await waitChat(
+        app,
+        (s) => s.turns.length === 5 && s.turns[4].status === "stopped",
+        "the stopped turn",
+      );
+      assert.equal(
+        await app.execute(
+          `return document.querySelectorAll('[data-slot="chat-host-call"]').length;`,
+        ),
+        0,
+      );
+      assert.equal((await app.invoke("list_agent_routines")).length, 1);
+
+      // A run the person approves opens from the chat.
+      await sendChat(app, "[host:run] Run it now");
+      card = await waitHostCard(app, "routines.run");
+      await app.clickSelector(`${card} [data-slot="chat-host-approve"]`);
+      await waitChat(app, done(6), "the routine run started");
+      assert.match((await lastAnswer()).answer, /Started on 2 profiles/);
+      await app.clickSelector(
+        '[data-slot="chat-turn"]:last-child [data-slot="chat-host-open"]',
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-batch"]')?.dataset.finished === "true";`,
+          ),
+        { timeoutMs: 60_000, description: "the run, opened from the chat" },
+      );
+
+      // Back in the chat, the routine goes.
+      await app.clickSelector('[data-slot="chat-list-item"]');
+      await sendChat(app, "[host:delete] Delete it");
+      card = await waitHostCard(app, "routines.delete");
+      await captureBothThemes(app, "chat-host-delete");
+      await app.clickSelector(`${card} [data-slot="chat-host-approve"]`);
+      await waitChat(app, done(7), "the routine deleted");
+      assert.deepEqual(await app.invoke("list_agent_routines"), []);
+      await captureBothThemes(app, "chat-host-thread");
+
+      // A run is never offered the calls: its marker is only words.
+      const plain = await app.invoke("start_agent_batch", {
+        request: {
+          profileIds: [(await app.invoke("list_agent_chats"))[0].profileId],
+          prompt: "[host:delete] Delete everything",
+          startUrl: null,
+          autonomy: "auto",
+          maxCredits: null,
+          concurrency: null,
+        },
+      });
+      await app.waitFor(
+        async () =>
+          (await app.invoke("list_agent_batches")).find(
+            (batch) => batch.id === plain.id,
+          )?.finished === true,
+        { timeoutMs: 30_000, description: "the plain run" },
+      );
+      const ran = (await app.invoke("list_agent_batches")).find(
+        (batch) => batch.id === plain.id,
+      );
+      assert.equal(ran.tasks[0].status, "done");
+      assert.match(ran.tasks[0].result, /Three results/);
+    },
+    { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
+  );
+});
+
+test("a computer without the chat key keeps its chats, says so in one line, and erasing syncs them sealed", async () => {
+  const app = appFromEnvironment("ui-agent-chat-sync", {
+    extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" },
+  });
+  // Another computer made the account's chat key and has not shared it.
+  const cloud = path.join(
+    app.dataRoot,
+    "data",
+    "agent_chat_sync",
+    "e2e-cloud.json",
+  );
+  const foreignKey = "AAECAwQFBgcICQoLDA0ODw";
+  await mkdir(path.dirname(cloud), { recursive: true });
+  await writeFile(cloud, JSON.stringify({ keyId: foreignKey }));
+  const readCloud = async () => JSON.parse(await readFile(cloud, "utf8"));
+  try {
+    await app.start();
+    const atlas = await createUiProfile(app, "Atlas");
+    await signInWithAgent(app, agentUser(true));
+    await app.waitForText("Atlas");
+    await app.waitFor(
+      async () => (await app.invoke("get_agent_chat_sync")).locked,
+      { description: "this computer waits for the key" },
+    );
+
+    // Chats work here while locked, and nothing goes up.
+    const chat = await app.invoke("create_agent_chat", {
+      profileId: atlas.id,
+      text: "Find a quiet hotel in Porto",
+    });
+    await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
+    await app.clickSelector('[data-testid="agent-tab-chat"]');
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return document.querySelectorAll('[data-slot="chat-list-item"]').length === 1 &&
+             Boolean(document.querySelector('[data-slot="chat-sync-locked"]'));`,
+        ),
+      { description: "the chat and the locked line" },
+    );
+    assert.equal(
+      await app.execute(
+        `return document.querySelector('[data-slot="chat-sync-locked"] p').innerText.trim();`,
+      ),
+      en.agent.chat.sync.locked,
+    );
+    await captureBothThemes(app, "chat-sync-locked");
+    let server = await readCloud();
+    assert.equal(server.keyId, foreignKey);
+    assert.deepEqual(
+      server.chats ?? {},
+      {},
+      "a locked computer uploads nothing",
+    );
+
+    // Erase, after a confirmation.
+    const inPanel = await app.execute(
+      `const line = document.querySelector('[data-slot="chat-sync-locked"]');
+       return line.getBoundingClientRect().width > 0;`,
+    );
+    if (!inPanel) {
+      await app.clickSelector('[data-slot="chat-list-toggle"]');
+    }
+    await app.clickText(en.agent.chat.sync.erase);
+    await app.waitForText(en.agent.chat.sync.eraseBody);
+    await app.clickTextIn('[role="dialog"]', en.agent.chat.sync.eraseConfirm);
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return !document.querySelector('[data-slot="chat-sync-locked"]');`,
+        ),
+      { description: "the locked line gone" },
+    );
+    assert.equal((await app.invoke("get_agent_chat_sync")).locked, false);
+    assert.deepEqual(
+      (await app.invoke("list_agent_chats")).map((c) => c.id),
+      [chat.id],
+      "the chat on this computer stays",
+    );
+
+    // The server holds it sealed under the new key, never its words.
+    server = await app.waitFor(
+      async () => {
+        const now = await readCloud();
+        return now.chats?.[chat.id]?.data ? now : null;
+      },
+      { description: "the chat uploaded" },
+    );
+    assert.ok(server.keyId && server.keyId !== foreignKey);
+    const data = server.chats[chat.id].data;
+    assert.ok(data.startsWith(`v1.${server.keyId}.`));
+    assert.ok(!data.includes("Porto") && !data.includes("Atlas"));
+    assert.deepEqual(
+      Object.values(server.devices).map((device) => device.keyId),
+      [server.keyId],
+      "this computer holds the new key",
+    );
+    await app.invoke("watch_agent_chats", { open: false });
+  } catch (error) {
+    await app.capture("failure");
+    throw error;
+  } finally {
+    await app.close();
+  }
 });

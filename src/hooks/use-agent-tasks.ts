@@ -3,12 +3,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type AgentBatch,
   type AgentCredits,
+  type AgentRoutine,
   type AgentStep,
   appendStep,
   getAgentCredits,
   getAgentEngineStatus,
   getAgentTaskSteps,
   listAgentBatches,
+  listAgentRoutines,
+  ROUTINES_CHANGED,
   upsertBatch,
 } from "@/lib/agent-tasks";
 import { hasAgentAccess } from "@/lib/entitlements";
@@ -94,6 +97,40 @@ export function useAgentBatches(enabled: boolean) {
   }, []);
 
   return { batches, loaded, forget, adopt: setBatches };
+}
+
+/** The routine library, read again when a routine changes anywhere. */
+export function useAgentRoutines(enabled: boolean) {
+  const [routines, setRoutines] = useState<AgentRoutine[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  const reload = useCallback(() => {
+    listAgentRoutines()
+      .then((list) => {
+        setRoutines(list);
+        setError(null);
+      })
+      .catch((loadError: unknown) => {
+        setError(loadError);
+      })
+      .finally(() => {
+        setLoaded(true);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    reload();
+    const unlisten = listen(ROUTINES_CHANGED, reload);
+    return () => {
+      void unlisten.then((off) => {
+        off();
+      });
+    };
+  }, [enabled, reload]);
+
+  return { routines, loaded, error, adopt: setRoutines };
 }
 
 /** The credits left, read again when a run or a chat turn finishes. */

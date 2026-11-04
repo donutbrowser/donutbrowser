@@ -8,6 +8,7 @@
 //! never synced). Their words never reach the log.
 
 use super::engine::{EngineError, EngineLink};
+use super::host::{self, HostCall};
 use super::model::{EngineEvent, Task, TaskStatus};
 use super::{attach, ensure_entitled, error_code, load_profile, now_ms};
 use serde::{Deserialize, Serialize};
@@ -57,6 +58,9 @@ pub struct Turn {
   /// What the engine had counted for this task before the turn.
   #[serde(default)]
   pub credits_base: u64,
+  /// Changes the engine asked for in the app, open or answered.
+  #[serde(default)]
+  pub host_calls: Vec<HostCall>,
   #[serde(flatten)]
   pub task: Task,
 }
@@ -118,6 +122,7 @@ impl Turn {
       kind,
       steers: Vec::new(),
       credits_base,
+      host_calls: Vec::new(),
       task,
     }
   }
@@ -233,6 +238,7 @@ impl Chat {
         turn.task.approval = None;
         turn.task.finished_at.get_or_insert(now);
       }
+      host::drop_waiting(turn);
       while turn.task.steps.len() > MAX_TURN_STEPS {
         turn.task.steps.pop_front();
       }
@@ -362,9 +368,15 @@ impl Chats {
   /// Write a chat and show its current turn. A step alone waits for the next
   /// change, at most `STEP_SAVE_EVERY_MS`.
   fn changed(&mut self, id: &str, step_only: bool) {
-    let Some(chat) = self.chats.get(id) else {
+    let Some(chat) = self.chats.get_mut(id) else {
       return;
     };
+    if let Some(turn) = chat
+      .current_mut()
+      .filter(|turn| turn.task.status.is_final())
+    {
+      host::drop_waiting(turn);
+    }
     publish(chat);
     let now = now_ms();
     let last = self.saved_at.get(id).copied().unwrap_or(0);
@@ -536,6 +548,11 @@ async fn link_for(profile_id: &str, chat_id: &str) -> Result<EngineLink, String>
   Ok(link)
 }
 
+/// A chat task may ask the app to act; a routine or batch task never does.
+fn start_params(task_id: &str, text: &str) -> Value {
+  json!({ "taskId": task_id, "prompt": text, "autonomy": "ask", "host": host::METHODS })
+}
+
 /// Start or continue the engine task for the current turn.
 async fn run_turn(chat_id: String, turn_id: String) {
   let (profile_id, text, prior) = {
@@ -578,10 +595,7 @@ async fn run_turn(chat_id: String, turn_id: String) {
     let task_id = uuid::Uuid::new_v4().to_string();
     bind_task(&chat_id, &turn_id, &task_id, kind)?;
     link
-      .call(
-        "Wayfern.agentStart",
-        json!({ "taskId": task_id, "prompt": text, "autonomy": "ask" }),
-      )
+      .call("Wayfern.agentStart", start_params(&task_id, &text))
       .await
       .map_err(|e| e.code())?;
     Ok(kind)
@@ -609,7 +623,7 @@ async fn run_turn(chat_id: String, turn_id: String) {
 }
 
 /// The link and engine task of a chat's running turn.
-fn running_turn(chat_id: &str) -> Result<(EngineLink, String), String> {
+pub(super) fn running_turn(chat_id: &str) -> Result<(EngineLink, String), String> {
   let (profile_id, task_id) = {
     let store = chats();
     let chat = store.get(chat_id)?;
@@ -631,6 +645,47 @@ fn running_turn(chat_id: &str) -> Result<(EngineLink, String), String> {
     .cloned()
     .ok_or_else(|| crate::backend_error("AGENT_BROWSER_UNREACHABLE"))?;
   Ok((link, task_id))
+}
+
+/// The chat whose running turn is engine task `task_id` on the profile.
+pub(super) fn chat_of_task(profile_id: &str, task_id: &str) -> Option<String> {
+  chats()
+    .chats
+    .values()
+    .find(|chat| {
+      chat.profile_id == profile_id
+        && chat.current().is_some_and(|turn| {
+          turn.task.status.is_active() && turn.task.task_id.as_deref() == Some(task_id)
+        })
+    })
+    .map(|chat| chat.id.clone())
+}
+
+pub(super) fn current_turn(chat_id: &str) -> Result<Turn, String> {
+  chats()
+    .get(chat_id)?
+    .current()
+    .cloned()
+    .ok_or_else(|| crate::backend_error("AGENT_TASK_NOT_FOUND"))
+}
+
+/// Change a chat's current turn while it is still engine task `task_id`,
+/// then save and show it.
+pub(super) fn update_turn<R>(
+  chat_id: &str,
+  task_id: &str,
+  change: impl FnOnce(&mut Turn) -> R,
+) -> Result<R, String> {
+  let mut store = chats();
+  let chat = store.get_mut(chat_id)?;
+  let turn = chat
+    .current_mut()
+    .filter(|turn| turn.task.task_id.as_deref() == Some(task_id))
+    .ok_or_else(|| crate::backend_error("AGENT_TASK_NOT_FOUND"))?;
+  let out = change(turn);
+  chat.updated_at = now_ms();
+  store.changed(chat_id, false);
+  Ok(out)
 }
 
 fn set_turn_status(chat_id: &str, status: TaskStatus) {
@@ -986,6 +1041,31 @@ mod tests {
     )
     .unwrap();
     assert!(load_from(dir.path(), 1).is_empty());
+  }
+
+  #[test]
+  fn a_chat_task_is_offered_the_host_calls() {
+    let params = start_params("t1", "Save it as a routine");
+    assert_eq!(params["autonomy"], "ask");
+    assert_eq!(params["host"], json!(host::METHODS));
+  }
+
+  #[test]
+  fn an_open_change_does_not_outlive_its_turn() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut chat = started("Save a routine");
+    chat.current_mut().unwrap().host_calls.push(
+      serde_json::from_value(json!({
+        "callId": "c1",
+        "request": { "method": "routines.delete", "id": "r1", "name": "A" },
+        "state": "pending",
+        "at": 2,
+      }))
+      .unwrap(),
+    );
+    save_to(dir.path(), &chat).unwrap();
+    let loaded = load_from(dir.path(), 9);
+    assert!(loaded[&chat.id].current().unwrap().host_calls.is_empty());
   }
 
   #[test]

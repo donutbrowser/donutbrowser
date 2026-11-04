@@ -11,25 +11,13 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  LuCheck,
-  LuChevronDown,
-  LuRotateCcw,
-  LuSquare,
-  LuX,
-} from "react-icons/lu";
+import { LuRotateCcw, LuSquare, LuX } from "react-icons/lu";
 import {
   StateDot,
   statusLabelKey,
   useNumber,
 } from "@/components/agent-tasks/parts";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { useScrollFade } from "@/hooks/use-scroll-fade";
 import {
@@ -37,7 +25,6 @@ import {
   type AgentTask,
   dismissAgentBatch,
   isTaskMoving,
-  promptTitle,
   retryAgentBatch,
   rowsForAttention,
   STATE_FILL,
@@ -370,22 +357,18 @@ function RunRows({
   );
 }
 
-/** A run on one or many profiles: what it asked, how far it is, every profile. */
+/** A run on one or many profiles: how far it is, and every profile. */
 export function RunView({
   batch,
-  batches,
   nameOf,
   openProfileId,
   onOpen,
-  onPickBatch,
   onDismissed,
 }: {
   batch: AgentBatch;
-  batches: AgentBatch[];
   nameOf: (profileId: string) => string;
   openProfileId: string | null;
   onOpen: (profileId: string) => void;
-  onPickBatch: (batchId: string) => void;
   onDismissed: (batchId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -414,12 +397,6 @@ export function RunView({
     }
   };
 
-  const title = (
-    <span className="truncate text-sm font-medium">
-      {promptTitle(batch.prompt)}
-    </span>
-  );
-
   return (
     <article
       data-slot="agent-batch"
@@ -427,60 +404,8 @@ export function RunView({
       data-finished={batch.finished ? "true" : "false"}
       className="flex min-w-0 flex-col gap-3 @3xl:min-h-0 @3xl:flex-1"
     >
-      <header className="flex items-start gap-3">
+      <header className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          {batches.length > 1 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  data-slot="agent-batch-switch"
-                  title={batch.prompt}
-                  className="-mx-1.5 inline-flex max-w-full cursor-pointer items-center gap-1 self-start rounded-md px-1.5 py-0.5 text-left transition-colors duration-150 hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-expanded:bg-foreground/5"
-                >
-                  {title}
-                  <LuChevronDown
-                    className="size-3.5 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-80">
-                {batches.map((item) => {
-                  const done =
-                    item.tally.done + item.tally.failed + item.tally.stopped;
-                  return (
-                    <DropdownMenuItem
-                      key={item.id}
-                      data-slot="agent-batch-option"
-                      onSelect={() => {
-                        onPickBatch(item.id);
-                      }}
-                      className="gap-2"
-                    >
-                      <LuCheck
-                        aria-hidden="true"
-                        className={cn(
-                          "size-3.5",
-                          item.id === batch.id ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                      <span className="min-w-0 flex-1 truncate">
-                        {promptTitle(item.prompt, 60)}
-                      </span>
-                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {done}/{item.tasks.length}
-                      </span>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <h4 className="flex min-w-0" title={batch.prompt}>
-              {title}
-            </h4>
-          )}
           <p
             data-slot="agent-batch-summary"
             className="flex flex-wrap gap-x-2 text-xs text-muted-foreground tabular-nums"

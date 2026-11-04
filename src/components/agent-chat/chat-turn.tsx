@@ -425,7 +425,7 @@ export function ChatTurnView({
             onClick={onSaveRoutine}
           >
             <LuRepeat className="size-3.5" aria-hidden="true" />
-            {t("agent.chat.saveRoutine")}
+            {t("agent.chat.saveAsRoutine")}
           </Button>
         </div>
       )}

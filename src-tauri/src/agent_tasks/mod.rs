@@ -12,6 +12,7 @@ mod batch;
 pub mod chat;
 mod cloud;
 mod engine;
+pub mod host;
 #[cfg(feature = "e2e")]
 mod mock;
 mod model;
@@ -289,6 +290,10 @@ fn ensure_token_refresher() {
 // ---- Engine events ----
 
 pub(crate) fn on_engine_event(profile_id: &str, method: &str, params: &Value) {
+  if method == "Wayfern.agentHostCall" {
+    host::on_call(profile_id, params);
+    return;
+  }
   let Some((task_id, event)) = EngineEvent::parse(method, params, now_ms()) else {
     return;
   };
@@ -404,6 +409,14 @@ fn final_report(task: &Task) -> Value {
     task.total_credits(),
     task.error.as_deref(),
   )
+}
+
+fn open_link(profile_id: &str) -> Option<EngineLink> {
+  store()
+    .links
+    .get(profile_id)
+    .filter(|link| link.is_open())
+    .cloned()
 }
 
 fn load_profile(profile_id: &str) -> Result<crate::profile::BrowserProfile, String> {
@@ -678,6 +691,20 @@ struct BatchSpec {
   runs: HashMap<String, String>,
 }
 
+impl BatchSpec {
+  /// A run that belongs to no routine.
+  fn one_off(order: Order, profile_ids: Vec<String>, concurrency: Option<usize>) -> Self {
+    Self {
+      order,
+      profile_ids,
+      concurrency,
+      routine_id: None,
+      cloud_batch_id: None,
+      runs: HashMap::new(),
+    }
+  }
+}
+
 fn default_concurrency() -> usize {
   crate::settings_manager::SettingsManager::instance()
     .load_settings()
@@ -852,20 +879,17 @@ pub async fn start_agent_batch(request: TaskRequest) -> Result<BatchView, String
   if request.max_credits == Some(0) {
     return Err(crate::backend_error("AGENT_ROUTINE_INVALID"));
   }
-  start_batch(BatchSpec {
-    order: Order {
+  start_batch(BatchSpec::one_off(
+    Order {
       prompt,
       start_url,
       autonomy: request.autonomy,
       max_credits: request.max_credits,
       headless: false,
     },
-    profile_ids: request.profile_ids,
-    concurrency: request.concurrency,
-    routine_id: None,
-    cloud_batch_id: None,
-    runs: HashMap::new(),
-  })
+    request.profile_ids,
+    request.concurrency,
+  ))
 }
 
 #[tauri::command]
@@ -1085,31 +1109,41 @@ pub async fn list_agent_routines() -> Result<Vec<Routine>, String> {
   cloud::list_routines().await
 }
 
-async fn ensure_schedule_allowed(draft: &RoutineDraft) -> Result<(), String> {
+/// Create a routine (`id` none) or change one. Schedules need the plan.
+async fn save_routine(id: Option<&str>, draft: RoutineDraft) -> Result<Routine, String> {
   if draft.schedule.is_some() && !can_schedule().await {
     return Err(crate::backend_error("SCHEDULED_AUTOMATION_NOT_ENTITLED"));
   }
+  let saved = match id {
+    Some(id) => cloud::update_routine(id, draft).await?,
+    None => cloud::create_routine(draft).await?,
+  };
+  let _ = crate::events::emit_empty("agent-routines-changed");
+  Ok(saved)
+}
+
+async fn remove_routine(id: &str) -> Result<(), String> {
+  cloud::delete_routine(id).await?;
+  let _ = crate::events::emit_empty("agent-routines-changed");
   Ok(())
 }
 
 #[tauri::command]
 pub async fn create_agent_routine(routine: RoutineDraft) -> Result<Routine, String> {
   ensure_entitled().await?;
-  ensure_schedule_allowed(&routine).await?;
-  cloud::create_routine(routine).await
+  save_routine(None, routine).await
 }
 
 #[tauri::command]
 pub async fn update_agent_routine(id: String, routine: RoutineDraft) -> Result<Routine, String> {
   ensure_entitled().await?;
-  ensure_schedule_allowed(&routine).await?;
-  cloud::update_routine(&id, routine).await
+  save_routine(Some(&id), routine).await
 }
 
 #[tauri::command]
 pub async fn delete_agent_routine(id: String) -> Result<(), String> {
   ensure_entitled().await?;
-  cloud::delete_routine(&id).await
+  remove_routine(&id).await
 }
 
 #[tauri::command]
