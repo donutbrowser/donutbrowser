@@ -68,6 +68,8 @@ export interface AgentChat {
   id: string;
   title: string;
   profileId: string;
+  /** The profile's name when the chat last synced, for a device without it. */
+  profileName?: string;
   createdAt: number;
   updatedAt: number;
   turns: ChatTurn[];
@@ -77,6 +79,7 @@ export interface AgentChatSummary {
   id: string;
   title: string;
   profileId: string;
+  profileName: string | null;
   createdAt: number;
   updatedAt: number;
   status: AgentTaskStatus | null;
@@ -92,6 +95,11 @@ export interface ChatTurnEvent {
 }
 
 export type ChatControl = "pause" | "resume" | "stop";
+
+/** Chat sync on this device: `locked` until a device with the key shares it. */
+export interface AgentChatSync {
+  locked: boolean;
+}
 
 export const listAgentChats = () =>
   invoke<AgentChatSummary[]>("list_agent_chats");
@@ -117,6 +125,13 @@ export const answerAgentChatApproval = (
   });
 export const deleteAgentChat = (chatId: string) =>
   invoke<void>("delete_agent_chat", { chatId });
+export const getAgentChatSync = () =>
+  invoke<AgentChatSync>("get_agent_chat_sync");
+/** While the chat panel is open, other devices' changes arrive sooner. */
+export const watchAgentChats = (open: boolean) =>
+  invoke<void>("watch_agent_chats", { open });
+export const eraseSyncedAgentChats = () =>
+  invoke<void>("erase_synced_agent_chats");
 /** The person's answer to a change: the request as they left it, or null. */
 export const answerAgentChatHostCall = (
   chatId: string,

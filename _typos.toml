@@ -9,6 +9,8 @@ extend-exclude = [
     "CHANGELOG.md",
     # Upstream patches for the Flatpak's tray libraries, applied verbatim.
     "packaging/flatpak/patches/",
+    # Keys and ciphertext of the chat sync test vector, in base64url.
+    "src-tauri/src/agent_tasks/chat_sync/test-vector.json",
 ]
 
 [default.extend-words]

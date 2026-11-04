@@ -4,8 +4,9 @@
 //! while a turn runs steers it. An engine without `agentMessage`, or one that
 //! no longer knows the task, gets a new task in the same chat.
 //!
-//! Chats stay on this device (`agent_chats/<id>.json` in the data directory,
-//! never synced). Their words never reach the log.
+//! Chats live in `agent_chats/<id>.json` in the data directory, and sync
+//! sealed to the account's other devices (`chat_sync`). Their words never
+//! reach the log.
 
 use super::engine::{EngineError, EngineLink};
 use super::host::{self, HostCall};
@@ -71,6 +72,9 @@ pub struct Chat {
   pub id: String,
   pub title: String,
   pub profile_id: String,
+  /// The profile's name when the chat last synced, for a device without it.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub profile_name: Option<String>,
   pub created_at: u64,
   pub updated_at: u64,
   /// Credits the engine counts for the current task, all turns together.
@@ -85,6 +89,7 @@ pub struct ChatSummary {
   id: String,
   title: String,
   profile_id: String,
+  profile_name: Option<String>,
   created_at: u64,
   updated_at: u64,
   status: Option<TaskStatus>,
@@ -134,6 +139,7 @@ impl Chat {
       id: uuid::Uuid::new_v4().to_string(),
       title: title_of(&text),
       profile_id: profile_id.to_string(),
+      profile_name: None,
       created_at: now,
       updated_at: now,
       task_credits: 0,
@@ -146,6 +152,7 @@ impl Chat {
       id: self.id.clone(),
       title: self.title.clone(),
       profile_id: self.profile_id.clone(),
+      profile_name: self.profile_name.clone(),
       created_at: self.created_at,
       updated_at: self.updated_at,
       status: self.turns.last().map(|turn| turn.task.status),
@@ -378,6 +385,7 @@ impl Chats {
       host::drop_waiting(turn);
     }
     publish(chat);
+    super::chat_sync::changed();
     let now = now_ms();
     let last = self.saved_at.get(id).copied().unwrap_or(0);
     if step_only && now.saturating_sub(last) < STEP_SAVE_EVERY_MS {
@@ -868,24 +876,58 @@ pub async fn answer_agent_chat_approval(
 #[tauri::command]
 pub async fn delete_agent_chat(chat_id: String) -> Result<(), String> {
   ensure_entitled().await?;
-  if chats().get(&chat_id)?.is_active() {
-    let _ = control_agent_chat(chat_id.clone(), "stop".to_string()).await;
+  remove(&chat_id).await?;
+  log::info!("Agent chat deleted chat={chat_id}");
+  super::chat_sync::deleted(&chat_id);
+  let _ = crate::events::emit_empty("agent-chats-changed");
+  Ok(())
+}
+
+// ---- Sync ----
+
+/// Stop a chat's turn and drop the chat from this device.
+pub(super) async fn remove(chat_id: &str) -> Result<(), String> {
+  if chats().get(chat_id)?.is_active() {
+    let _ = control_agent_chat(chat_id.to_string(), "stop".to_string()).await;
   }
   let mut store = chats();
-  store.get(&chat_id)?;
-  store.chats.remove(&chat_id);
-  store.saved_at.remove(&chat_id);
-  if let Some(path) = chat_path(&chats_dir(), &chat_id) {
+  store.get(chat_id)?;
+  store.chats.remove(chat_id);
+  store.saved_at.remove(chat_id);
+  if let Some(path) = chat_path(&chats_dir(), chat_id) {
     if let Err(e) = std::fs::remove_file(&path) {
       if e.kind() != std::io::ErrorKind::NotFound {
         log::warn!("Agent chat delete failed chat={chat_id} err=\"{e}\"");
       }
     }
   }
-  drop(store);
-  log::info!("Agent chat deleted chat={chat_id}");
-  let _ = crate::events::emit_empty("agent-chats-changed");
   Ok(())
+}
+
+/// Each chat's id, last change and whether a turn runs.
+pub(super) fn stamps() -> Vec<(String, u64, bool)> {
+  chats()
+    .chats
+    .values()
+    .map(|chat| (chat.id.clone(), chat.updated_at, chat.is_active()))
+    .collect()
+}
+
+pub(super) fn snapshot(chat_id: &str) -> Option<Chat> {
+  chats().chats.get(chat_id).cloned()
+}
+
+/// A copy from another device, put in place of this one when `take` says so.
+pub(super) fn put_remote(remote: Chat, take: impl FnOnce(Option<&Chat>, &Chat) -> bool) {
+  let mut store = chats();
+  if !take(store.chats.get(&remote.id), &remote) {
+    return;
+  }
+  let id = remote.id.clone();
+  if let Err(e) = save_to(&chats_dir(), &remote) {
+    log::warn!("Agent chat save failed chat={id} err=\"{e}\"");
+  }
+  store.chats.insert(id, remote);
 }
 
 #[cfg(test)]

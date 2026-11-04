@@ -1,0 +1,24 @@
+{
+  "chatKey": "eri8qT6A8AH5NvxQeAzTt0LroNa1v4YeclLAaeDR0Mk",
+  "keyId": "30RIch3TvYfnAb28qmWaWw",
+  "deviceId": "6f1c2b7a-3d4e-4f5a-8b9c-0d1e2f3a4b5c",
+  "device": {
+    "d": "_q883BPyNIaDfK-fZkgEpnk9-NAS_YiWYqO1WJZruKQ",
+    "publicKey": "BCzEB1N3HBYlNwBZ_JLKh-eOJ6Sbw60on8uHrHCm51zliHVo9E7aJOm4Srnk_PNe-vOI3PlnmGDOjXje4wiSOk8"
+  },
+  "ephemeral": {
+    "d": "COuS-aw4GxjTzUpWRPMa8AZEYZLEs6DzOLS7D1h7IOE",
+    "publicKey": "BOjVe3WNkSfS_2mzhpTrDVPTZK2rmZaDikkS6PjfPPADlKaSyyTIDjtjWPolj0kD5jEe6hp0HTHSczd24DaPYxg"
+  },
+  "sharedSecret": "Eqo5GkgoFpS-L1c1Ij3mgv6aeJ_irUsBTcKkO3Yr0HM",
+  "wrappingKey": "UnN9azWN9JkBtMEPHi2LMjOLJte-U8PC32YRde3JQhU",
+  "wrapNonce": "CeU9wYK7pSu8mf8b",
+  "wrapAad": "donut-chat/v1 wrap|30RIch3TvYfnAb28qmWaWw|6f1c2b7a-3d4e-4f5a-8b9c-0d1e2f3a4b5c",
+  "wrappedKey": "v1.BOjVe3WNkSfS_2mzhpTrDVPTZK2rmZaDikkS6PjfPPADlKaSyyTIDjtjWPolj0kD5jEe6hp0HTHSczd24DaPYxg.CeU9wYK7pSu8mf8b.eH8Sjr5UPyobtu_o7wyGJYPNrAqGsM8JmPm0qS886DumDJnYPQGT0Ccn0OuKiz8W",
+  "chatId": "9a8b7c6d-5e4f-4a3b-9c2d-1e0f1a2b3c4d",
+  "chatJson": "{\"id\":\"9a8b7c6d-5e4f-4a3b-9c2d-1e0f1a2b3c4d\",\"title\":\"Find the cheapest flight to Lisbon\",\"profileId\":\"b3f9e0d2-6a7c-4c1e-9f2a-5d8e7c6b4a39\",\"profileName\":\"Travel\",\"createdAt\":1793700000000,\"updatedAt\":1793700042000,\"taskCredits\":14,\"turns\":[{\"id\":\"c0d1e2f3-a4b5-4c6d-8e7f-90a1b2c3d4e5\",\"text\":\"Find the cheapest flight to Lisbon next Friday.\",\"kind\":\"start\",\"steers\":[{\"text\":\"Only direct flights.\",\"at\":1793700010000}],\"creditsBase\":0,\"profileId\":\"b3f9e0d2-6a7c-4c1e-9f2a-5d8e7c6b4a39\",\"taskId\":\"t-1\",\"runId\":null,\"status\":\"done\",\"steps\":[{\"index\":0,\"kind\":\"think\",\"text\":\"Open a flight search.\",\"at\":1793700001000},{\"index\":1,\"kind\":\"act\",\"text\":\"Search LIS for Friday\",\"url\":\"https://example.com/flights\",\"tool\":\"type\",\"at\":1793700005000}],\"approval\":null,\"result\":\"**€89** with TAP, direct.\\n\\n- Departs 07:10\\n- Arrives 09:05\",\"error\":null,\"creditsUsed\":14,\"creditsBefore\":0,\"startedAt\":1793700000000,\"finishedAt\":1793700042000}]}",
+  "chatGzip": "H4sIAAAAAAAAE52STW7bMBCFr0LM0hAd_dmytEtbBAgQNAWSrposRuSoIqJQAjlybQTe9Dw9VU9SUJbjIsiiKHf8mff4vZkXMBoqKHFTF2qt5YryRuaY1bJUqZYJxU2CaZ2pXEMEbLgjqODKWC24JaFawoE8i6Yz31sW3Isb4-veQgSD6xvT0XXQr7OmpFinco2FkrlKSJZNinKlN1SodZ1jVp5LPuNzcLl3uKUOIlCOkElfMlRJUWZFPK8IxkG_vcnT6YbRP310pA17qJI8Ah6d9VB9ezkSq1gnlDaZxLxeyTywb6hoZBljUqcq0zmtAjHt-J-AhaUdiytnNO6XEMGTscHGMzqGCDwTuaP9LHlru73QxpE6iflQh3-hJAHy8DgFEEA-oCeo4v-KNuQxvWeZQARutGFnx64Ln0MePVSge0vHzw5zVFbTbrKcebg19umcy-1AVuApDE_oVPuWYsI4RK9iyasYKj5L3U3F4ub6TjS9m5OECEbXQQUt8-Criwva4fPQ0VL1zxdzakGi78Mj3g_01nw1R4jD4PotdidmR37sgu9i8fvnr025WIgfhltxf_klmtuyfLAPVopPNKBjL-KiSuJwcOmc2ZIXcVnFYUbIud6ddOdWffWkj3N36h01vTt2b5qJd8e5Mdb49p15Pjwe_gDx3NMNqgMAAA",
+  "chatNonce": "S2y5dgRBLu20Vake",
+  "chatAad": "donut-chat/v1 chat|9a8b7c6d-5e4f-4a3b-9c2d-1e0f1a2b3c4d",
+  "data": "v1.30RIch3TvYfnAb28qmWaWw.S2y5dgRBLu20Vake.XFgFMccIL_azCP5RqObyLCWN83_Pec5-9_54AeDI0bot1nMSMjJinkmgtvCsTFOcJShkKHg6yUt_-Eh4cZ2AZbWs1XA_YHr1VdUXnh-K6bFGy9PV-Wgbl0ngPsuXpbzHrVT-x1vPDiT7pw-zxxkt1Zreye2Bv54CcUWmDpk3XhK88YoxGuK2G07fxL5uSQHlIyrQuUXIJjvhFQOytwqqhpwvudjoKmdrBufsRCBIMOCmwZv4vomf6zVAnoCiycje4SV3Gtdy2LhlxKZ0QtbqBjXCoPCIWBdwye-MSay_9ZO9k_wUksI7VV-7ZQ6yb1BImD3Y7SSkkzn1u6S2VHlFRQYp3lARNA9j7IT5LBh5Q2NNoc9KvGvSRrFRQ61lXOo0W_4yfxoPkv3R04_WJCXpsuIQUVTwp7ob39bwIqV-jbeE1X7uKR1W5uukGfr6unOycAuAT8njrBt64hlZiTyRQPlLDERSKmCb9AqF2V5YO-bKtttyLe2C897khp3OOOkpdk2x3ghKPA-A9LBw4o9NSBn1Y8bU_eAWdIFMDZZ5WWUJugbtXzn5HFIWN2sgaZfDfcFXjHej9x3-wpODd52h1ZcsuCuu_gfdDUhxMtNTA2ShesuxGlFTnm7_MLeBZrA0n_XgTWD_2PydbP1bWsjsRTJ5R_S3VwMs_gf8KlaWWoiNQ_nfHhq53iusxdTR2tI"
+}

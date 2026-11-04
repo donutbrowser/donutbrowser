@@ -10,6 +10,7 @@
 
 mod batch;
 pub mod chat;
+pub mod chat_sync;
 mod cloud;
 mod engine;
 pub mod host;
@@ -45,6 +46,7 @@ static TOKEN_REFRESH: crate::log_streak::Streak =
 /// Called once at startup: launches need the app handle.
 pub fn init(app: &tauri::AppHandle) {
   let _ = APP.set(app.clone());
+  chat_sync::start(app);
 }
 
 #[derive(Default)]

@@ -10,6 +10,7 @@ import {
   ChatSidebar,
   type PaneSelection,
 } from "@/components/agent-chat/sidebar";
+import { ChatSyncLock } from "@/components/agent-chat/sync-lock";
 import {
   PaneHeader,
   ProfilePicker,
@@ -128,9 +129,16 @@ export function AgentChatPanel({
     () => profiles.filter((profile) => profile.browser === "wayfern"),
     [profiles],
   );
+  // A chat from another device names a profile this one may not have.
   const profileNames = useMemo(
-    () => new Map(profiles.map((profile) => [profile.id, profile.name])),
-    [profiles],
+    () =>
+      new Map([
+        ...chats.flatMap((chat) =>
+          chat.profileName ? [[chat.profileId, chat.profileName] as const] : [],
+        ),
+        ...profiles.map((profile) => [profile.id, profile.name] as const),
+      ]),
+    [chats, profiles],
   );
   const nameOf = (profileId: string) =>
     profileNames.get(profileId) ?? t("agent.tasks.unknownProfile");
@@ -153,6 +161,12 @@ export function AgentChatPanel({
   }
 
   const shown = chatId && chat?.id === chatId ? chat : null;
+  // Deleted on another device while open here.
+  const gone =
+    chatId !== null && chat === null && !chats.some((c) => c.id === chatId);
+  useEffect(() => {
+    if (gone) setSelection({ kind: "new" });
+  }, [gone]);
   const usableIds = new Set(usable.map((profile) => profile.id));
   const fallback =
     chats.find((c) => usableIds.has(c.profileId))?.profileId ??
@@ -252,14 +266,17 @@ export function AgentChatPanel({
   };
 
   const sidebar = (
-    <ChatSidebar
-      chats={chats}
-      batches={batches}
-      routines={routines}
-      selected={selection}
-      profileNames={profileNames}
-      onSelect={select}
-    />
+    <>
+      <ChatSyncLock />
+      <ChatSidebar
+        chats={chats}
+        batches={batches}
+        routines={routines}
+        selected={selection}
+        profileNames={profileNames}
+        onSelect={select}
+      />
+    </>
   );
 
   const lead = (
