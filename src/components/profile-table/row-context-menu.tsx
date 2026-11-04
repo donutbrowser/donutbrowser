@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import {
+  LuAppWindow,
   LuCloud,
   LuCopy,
   LuFolderInput,
@@ -34,6 +35,8 @@ export interface RowMenuActions {
   canRename: boolean;
   canTrash: boolean;
   onToggleRun: () => void;
+  /** Brings the browser window forward; only while it runs here. */
+  onShowWindow?: () => void;
   onOpenDetails: () => void;
   onRename: () => void;
   onDuplicate?: () => void;
@@ -116,6 +119,15 @@ export function RowContextMenuContent({
           : t("profiles.actions.launch")}
         <ContextMenuShortcut>{`${mod}${enter}`}</ContextMenuShortcut>
       </ContextMenuItem>
+      {actions.onShowWindow && (
+        <ContextMenuItem
+          data-slot="profile-row-show-window"
+          onSelect={actions.onShowWindow}
+        >
+          <LuAppWindow />
+          {t("profileTable.menu.showWindow")}
+        </ContextMenuItem>
+      )}
       <ContextMenuItem onSelect={actions.onOpenDetails}>
         <LuInfo />
         {t("profileTable.menu.openDetails")}

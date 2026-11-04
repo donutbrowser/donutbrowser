@@ -2472,7 +2472,8 @@
       "runRemote": "In der Cloud ausführen",
       "lockNow": "Jetzt sperren",
       "moveToTrash": "In den Papierkorb",
-      "askAgent": "Agenten fragen"
+      "askAgent": "Agenten fragen",
+      "showWindow": "Fenster anzeigen"
     },
     "emptyGroupTitle": "Diese Gruppe ist leer",
     "emptyGroupHint": "Erstellen Sie ein Profil in dieser Gruppe oder verschieben Sie vorhandene Profile hierher.",
@@ -3126,7 +3127,8 @@
       "profileInfo": "Info: {{name}}",
       "createProfile": "Profil erstellen",
       "about": "Über Donut Browser",
-      "agentChat": "Neuer Agent-Chat"
+      "agentChat": "Neuer Agent-Chat",
+      "showWindow": "Fenster von {{name}} anzeigen"
     },
     "pages": {
       "launch": {
@@ -3152,6 +3154,12 @@
         "title": "Gruppen",
         "placeholder": "Gruppen suchen...",
         "empty": "Noch keine Gruppen."
+      },
+      "window": {
+        "entry": "Fenster anzeigen…",
+        "title": "Fenster anzeigen",
+        "placeholder": "Laufende Profile suchen...",
+        "empty": "Kein Profil läuft."
       }
     },
     "emptyFor": "Keine Ergebnisse für „{{query}}“.",
@@ -3191,7 +3199,8 @@
       "stopAllRunning": "stoppen alle laufend beenden schließen",
       "focusSearch": "suchen finden filtern",
       "goBack": "zurück escape start",
-      "agentChat": "agent chat fragen assistent ki gespräch aufgabe"
+      "agentChat": "agent chat fragen assistent ki gespräch aufgabe",
+      "window": "fenster anzeigen fokus vorne wechseln"
     }
   },
   "shortcuts": {
@@ -3957,8 +3966,6 @@
       "activity": "Aktivität",
       "recipes": "Rezepte",
       "schedules": "Zeitpläne",
-      "tasks": "Aufgaben",
-      "routines": "Routinen",
       "chat": "Chat"
     },
     "header": {
@@ -4258,25 +4265,18 @@
       "noProfileMatch": "Kein Profil passt",
       "clearProfiles": "Auswahl aufheben",
       "allProfiles": "Alle auswählen",
-      "promptLabel": "Aufgabe",
       "promptPlaceholder": "Sag dem Agenten in eigenen Worten, was er tun soll",
       "startUrl": "Startseite",
-      "startUrlPlaceholder": "Startseite (optional)",
       "options": "Aufgabenoptionen",
       "autonomy": "Wann er handelt",
       "autonomyOptions": {
         "ask": "Vor wichtigen Schritten fragen",
         "auto": "Selbstständig handeln"
       },
-      "autonomyHints": {
-        "ask": "Er hält an und fragt, bevor er etwas absendet, kauft oder verschickt.",
-        "auto": "Er läuft ohne Rückfrage bis zum Ende."
-      },
       "creditCap": "Credit-Limit",
       "noCap": "Kein Limit",
       "concurrency": "Gleichzeitig",
       "concurrencyDefault": "Standard",
-      "run": "Ausführen",
       "stepKinds": {
         "think": "Denkt nach",
         "act": "Aktion",
@@ -4304,7 +4304,6 @@
       "stopAll": "Alle stoppen",
       "retryFailed": "Fehlgeschlagene wiederholen",
       "dismiss": "Aus der Liste entfernen",
-      "empty": "Schreib oben eine Aufgabe und wähle die Profile. Der Browser jedes Profils erledigt die Arbeit, und du siehst hier jeden Schritt.",
       "runOn_one": "Auf {{count}} Profil ausführen",
       "runOn_other": "Auf {{count}} Profilen ausführen",
       "profileCount_one": "{{count}} Profil",
@@ -4322,22 +4321,16 @@
       "prompt": "Aufgabe",
       "profiles": "Profile",
       "creditCap": "Credit-Limit pro Lauf",
-      "onSchedule": "Nach Zeitplan ausführen",
       "cron": "Cron-Ausdruck",
-      "cronHint": "Minute, Stunde, Tag, Monat, Wochentag. 0 9 * * 1-5 ist werktags um 09:00.",
-      "timezone": "Zeitzone",
       "noRuns": "Noch keine Läufe",
       "manual": "Von Hand starten",
-      "hint": "Speichere eine Aufgabe einmal und führe sie erneut auf denselben Profilen aus, von Hand oder nach Zeitplan.",
       "new": "Neue Routine",
-      "empty": "Noch keine Routinen",
       "runAria": "{{name}} ausführen",
       "run": "Ausführen",
       "history": "Läufe",
       "deleteTitle": "{{name}} löschen?",
       "deleteDescription": "Die Routine und ihr Zeitplan werden gelöscht.",
       "menuAria": "Mehr für {{name}}",
-      "lastRun": "Zuletzt {{when}}",
       "every": {
         "daily": "Täglich um {{time}}",
         "weekdays": "Werktags um {{time}}",
@@ -4372,7 +4365,41 @@
       "noCreditsTitle": "Keine Credits mehr",
       "noCreditsBody": "Der Agent pausiert bis zum nächsten Zeitraum oder bis Sie Credits kaufen.",
       "worked_one": "{{count}} Schritt erledigt",
-      "worked_other": "{{count}} Schritte erledigt"
+      "worked_other": "{{count}} Schritte erledigt",
+      "groups": "Gruppen",
+      "profiles": "Profile",
+      "runs": "Läufe",
+      "routines": "Routinen",
+      "placeholderRun": "Bitten Sie den Agenten um etwas in jedem Profil",
+      "placeholderRoutine": "Was soll die Routine tun?",
+      "saveRoutine": "Routine speichern",
+      "saveAsRoutine": "Als Routine speichern",
+      "routineOn": "An",
+      "routineOff": "Aus",
+      "repeat": {
+        "label": "Wiederholen",
+        "once": "Nicht wiederholen",
+        "hourly": "Stündlich",
+        "daily": "Täglich",
+        "weekdays": "Werktags",
+        "weekly": "Wöchentlich",
+        "custom": "Eigene",
+        "day": "Tag",
+        "at": "Uhrzeit",
+        "needsPlan": "Zeitpläne brauchen einen bezahlten Plan"
+      },
+      "host": {
+        "save": "Neue Routine",
+        "edit": "Routine ändern",
+        "run": "Routine ausführen",
+        "delete": "Routine löschen",
+        "tasks": "In anderen Profilen ausführen",
+        "saved": "{{name}} gespeichert",
+        "deleted": "{{name}} gelöscht",
+        "started_one": "In {{count}} Profil gestartet",
+        "started_other": "In {{count}} Profilen gestartet",
+        "declined": "Abgebrochen"
+      }
     }
   },
   "proxyDistribution": {

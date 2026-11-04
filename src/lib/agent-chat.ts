@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentApproval,
+  AgentRoutineDraft,
   AgentStep,
   AgentTaskStatus,
 } from "@/lib/agent-tasks";
@@ -18,11 +19,39 @@ export interface ChatSteer {
   at: number;
 }
 
+/**
+ * A change the engine asks for in the app, completed from the routine it
+ * names. Mirrors `HostRequest` in `src-tauri/src/agent_tasks/host.rs`.
+ */
+export type HostRequest =
+  | { method: "routines.save"; id: string | null; routine: AgentRoutineDraft }
+  | { method: "routines.run"; id: string; name: string; profileIds: string[] }
+  | { method: "routines.delete"; id: string; name: string }
+  | {
+      method: "tasks.run";
+      prompt: string;
+      startUrl: string | null;
+      profileIds: string[];
+    };
+
+export interface HostCall {
+  callId: string;
+  request: HostRequest;
+  state: "pending" | "done" | "declined";
+  outcome: {
+    routineId: string | null;
+    batchId: string | null;
+    profiles: number | null;
+  } | null;
+  at: number;
+}
+
 export interface ChatTurn {
   id: string;
   text: string;
   kind: ChatTurnKind;
   steers: ChatSteer[];
+  hostCalls: HostCall[];
   profileId: string;
   taskId: string | null;
   status: AgentTaskStatus;
@@ -88,6 +117,12 @@ export const answerAgentChatApproval = (
   });
 export const deleteAgentChat = (chatId: string) =>
   invoke<void>("delete_agent_chat", { chatId });
+/** The person's answer to a change: the request as they left it, or null. */
+export const answerAgentChatHostCall = (
+  chatId: string,
+  callId: string,
+  request: HostRequest | null,
+) => invoke<void>("answer_agent_chat_host_call", { chatId, callId, request });
 
 const ACTIVE: ReadonlySet<AgentTaskStatus> = new Set([
   "queued",

@@ -2472,7 +2472,8 @@
       "runRemote": "Chạy trên đám mây",
       "lockNow": "Khóa ngay",
       "moveToTrash": "Chuyển vào thùng rác",
-      "askAgent": "Hỏi tác tử"
+      "askAgent": "Hỏi tác tử",
+      "showWindow": "Hiện cửa sổ"
     },
     "emptyGroupTitle": "Nhóm này đang trống",
     "emptyGroupHint": "Tạo một hồ sơ trong nhóm này hoặc chuyển các hồ sơ hiện có vào đây.",
@@ -3126,7 +3127,8 @@
       "profileInfo": "Thông tin — {{name}}",
       "createProfile": "Tạo hồ sơ",
       "about": "Giới thiệu về Donut Browser",
-      "agentChat": "Trò chuyện mới với tác tử"
+      "agentChat": "Trò chuyện mới với tác tử",
+      "showWindow": "Hiện cửa sổ của {{name}}"
     },
     "pages": {
       "launch": {
@@ -3152,6 +3154,12 @@
         "title": "Nhóm",
         "placeholder": "Tìm nhóm...",
         "empty": "Chưa có nhóm nào."
+      },
+      "window": {
+        "entry": "Hiện cửa sổ…",
+        "title": "Hiện cửa sổ",
+        "placeholder": "Tìm profile đang chạy...",
+        "empty": "Không có profile nào đang chạy."
       }
     },
     "emptyFor": "Không có kết quả cho “{{query}}”.",
@@ -3191,7 +3199,8 @@
       "stopAllRunning": "dừng tất cả đang chạy đóng thoát",
       "focusSearch": "tìm kiếm lọc",
       "goBack": "quay lại escape trang chủ",
-      "agentChat": "tác tử trò chuyện hỏi trợ lý ai hội thoại nhiệm vụ"
+      "agentChat": "tác tử trò chuyện hỏi trợ lý ai hội thoại nhiệm vụ",
+      "window": "cửa sổ hiện chuyển lên trước"
     }
   },
   "shortcuts": {
@@ -3957,8 +3966,6 @@
       "activity": "Hoạt động",
       "recipes": "Công thức",
       "schedules": "Lịch chạy",
-      "tasks": "Tác vụ",
-      "routines": "Quy trình",
       "chat": "Trò chuyện"
     },
     "header": {
@@ -4258,25 +4265,18 @@
       "noProfileMatch": "Không có hồ sơ phù hợp",
       "clearProfiles": "Bỏ chọn",
       "allProfiles": "Chọn tất cả",
-      "promptLabel": "Tác vụ",
       "promptPlaceholder": "Nói cho tác tử biết cần làm gì, bằng lời của bạn",
       "startUrl": "Trang bắt đầu",
-      "startUrlPlaceholder": "Trang bắt đầu (không bắt buộc)",
       "options": "Tùy chọn tác vụ",
       "autonomy": "Khi nào nó hành động",
       "autonomyOptions": {
         "ask": "Hỏi trước các bước quan trọng",
         "auto": "Tự hành động"
       },
-      "autonomyHints": {
-        "ask": "Nó dừng lại và hỏi trước khi gửi, mua hoặc xác nhận.",
-        "auto": "Nó chạy đến cuối mà không hỏi."
-      },
       "creditCap": "Giới hạn tín dụng",
       "noCap": "Không giới hạn",
       "concurrency": "Cùng lúc",
       "concurrencyDefault": "Mặc định",
-      "run": "Chạy",
       "stepKinds": {
         "think": "Đang nghĩ",
         "act": "Hành động",
@@ -4304,7 +4304,6 @@
       "stopAll": "Dừng tất cả",
       "retryFailed": "Thử lại các tác vụ lỗi",
       "dismiss": "Xóa khỏi danh sách",
-      "empty": "Viết một tác vụ ở trên và chọn hồ sơ. Trình duyệt của mỗi hồ sơ làm việc, và bạn thấy từng bước ở đây.",
       "runOn_one": "Chạy trên {{count}} hồ sơ",
       "runOn_other": "Chạy trên {{count}} hồ sơ",
       "profileCount_one": "{{count}} hồ sơ",
@@ -4322,22 +4321,16 @@
       "prompt": "Tác vụ",
       "profiles": "Hồ sơ",
       "creditCap": "Giới hạn tín dụng mỗi lần chạy",
-      "onSchedule": "Chạy theo lịch",
       "cron": "Biểu thức cron",
-      "cronHint": "Phút, giờ, ngày, tháng, thứ. 0 9 * * 1-5 là 09:00 các ngày trong tuần.",
-      "timezone": "Múi giờ",
       "noRuns": "Chưa có lần chạy nào",
       "manual": "Chạy thủ công",
-      "hint": "Lưu một tác vụ một lần và chạy lại trên cùng các hồ sơ, thủ công hoặc theo lịch.",
       "new": "Quy trình mới",
-      "empty": "Chưa có quy trình nào",
       "runAria": "Chạy {{name}}",
       "run": "Chạy",
       "history": "Lần chạy",
       "deleteTitle": "Xóa {{name}}?",
       "deleteDescription": "Quy trình và lịch của nó sẽ bị xóa.",
       "menuAria": "Thêm cho {{name}}",
-      "lastRun": "Lần chạy gần nhất {{when}}",
       "every": {
         "daily": "Hằng ngày lúc {{time}}",
         "weekdays": "Các ngày trong tuần lúc {{time}}",
@@ -4372,7 +4365,41 @@
       "noCreditsTitle": "Hết tín dụng",
       "noCreditsBody": "Tác tử dừng đến kỳ tiếp theo hoặc đến khi bạn mua thêm tín dụng.",
       "worked_one": "Đã làm {{count}} bước",
-      "worked_other": "Đã làm {{count}} bước"
+      "worked_other": "Đã làm {{count}} bước",
+      "groups": "Nhóm",
+      "profiles": "Hồ sơ",
+      "runs": "Lần chạy",
+      "routines": "Quy trình",
+      "placeholderRun": "Nhờ tác tử làm một việc trong mỗi hồ sơ",
+      "placeholderRoutine": "Quy trình nên làm gì?",
+      "saveRoutine": "Lưu quy trình",
+      "saveAsRoutine": "Lưu thành quy trình",
+      "routineOn": "Bật",
+      "routineOff": "Tắt",
+      "repeat": {
+        "label": "Lặp lại",
+        "once": "Không lặp lại",
+        "hourly": "Mỗi giờ",
+        "daily": "Mỗi ngày",
+        "weekdays": "Ngày trong tuần",
+        "weekly": "Mỗi tuần",
+        "custom": "Tùy chỉnh",
+        "day": "Ngày",
+        "at": "Giờ",
+        "needsPlan": "Lịch chạy cần gói trả phí"
+      },
+      "host": {
+        "save": "Quy trình mới",
+        "edit": "Đổi quy trình",
+        "run": "Chạy quy trình",
+        "delete": "Xóa quy trình",
+        "tasks": "Chạy trong hồ sơ khác",
+        "saved": "Đã lưu {{name}}",
+        "deleted": "Đã xóa {{name}}",
+        "started_one": "Đã bắt đầu trong {{count}} hồ sơ",
+        "started_other": "Đã bắt đầu trong {{count}} hồ sơ",
+        "declined": "Đã hủy"
+      }
     }
   },
   "proxyDistribution": {

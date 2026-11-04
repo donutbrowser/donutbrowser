@@ -31,8 +31,6 @@ import { AgentProfiles } from "@/components/agent-profiles";
 import { AgentRecipes } from "@/components/agent-recipes";
 import { AgentSchedules } from "@/components/agent-schedules";
 import { CreditsMeter } from "@/components/agent-tasks/parts";
-import { AgentRoutinesPanel } from "@/components/agent-tasks/routines-panel";
-import { AgentTasksPanel } from "@/components/agent-tasks/tasks-panel";
 import { AnimatedSwitch } from "@/components/ui/animated-switch";
 import {
   AnimatedTabs,
@@ -74,8 +72,6 @@ import type { BrowserProfile, CloudUser } from "@/types";
 
 export type AgentTab =
   | "chat"
-  | "tasks"
-  | "routines"
   | "conversation"
   | "profiles"
   | "activity"
@@ -90,8 +86,8 @@ const TABS: AgentTab[] = [
   "schedules",
 ];
 
-/** Chat, tasks and routines run by Wayfern's engine; shown only with the agent. */
-const AGENT_TABS: AgentTab[] = ["chat", "tasks", "routines"];
+/** Chats, runs and routines of Wayfern's engine; shown only with the agent. */
+const AGENT_TABS: AgentTab[] = ["chat"];
 
 interface AgentPageProps {
   isOpen: boolean;
@@ -108,9 +104,10 @@ interface AgentPageProps {
   onOpenAccount: () => void;
   /** The account has the agent and the installed Wayfern runs it. */
   agentReady: boolean;
-  /** Profiles to start a task on, from the profiles table selection. */
-  agentSeed: string[] | null;
-  /** Opens a new chat, from a profile's menu or the command palette. */
+  /**
+   * Opens a new chat, from a profile's menu or the command palette, or a run
+   * on the profiles table selection.
+   */
   chatSeed: ChatSeed | null;
 }
 
@@ -310,7 +307,6 @@ export function AgentPage({
   onConnectAgent,
   onOpenAccount,
   agentReady,
-  agentSeed,
   chatSeed,
 }: AgentPageProps) {
   const { t } = useTranslation();
@@ -641,23 +637,12 @@ export function AgentPage({
                 >
                   <AgentChatPanel
                     chats={agentChats.chats}
+                    batches={agentBatches.batches}
                     profiles={profiles}
                     credits={credits}
+                    canSchedule={scheduled}
                     seed={chatSeed}
                     onOpenAccount={onOpenAccount}
-                  />
-                </AnimatedTabsContent>
-              )}
-
-              {agentReady && (
-                <AnimatedTabsContent
-                  value="tasks"
-                  className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
-                >
-                  <AgentTasksPanel
-                    profiles={profiles}
-                    batches={agentBatches.batches}
-                    seedProfileIds={agentSeed}
                     onBatchStarted={(batch) => {
                       agentBatches.adopt((current) =>
                         current.some((item) => item.id === batch.id)
@@ -666,30 +651,6 @@ export function AgentPage({
                       );
                     }}
                     onBatchDismissed={agentBatches.forget}
-                  />
-                </AnimatedTabsContent>
-              )}
-
-              {agentReady && (
-                <AnimatedTabsContent
-                  value="routines"
-                  className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
-                >
-                  <AgentRoutinesPanel
-                    profiles={profiles}
-                    canSchedule={scheduled}
-                    finishedRuns={
-                      agentBatches.batches.filter((batch) => batch.finished)
-                        .length
-                    }
-                    onRan={(batch) => {
-                      agentBatches.adopt((current) =>
-                        current.some((item) => item.id === batch.id)
-                          ? current
-                          : [batch, ...current],
-                      );
-                      changeTab("tasks");
-                    }}
                   />
                 </AnimatedTabsContent>
               )}

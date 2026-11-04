@@ -2472,7 +2472,8 @@
       "runRemote": "Run in cloud",
       "lockNow": "Lock now",
       "moveToTrash": "Move to Trash",
-      "askAgent": "Ask the agent"
+      "askAgent": "Ask the agent",
+      "showWindow": "Show window"
     },
     "emptyGroupTitle": "This group is empty",
     "emptyGroupHint": "Create a profile in this group, or move existing profiles into it.",
@@ -3126,7 +3127,8 @@
       "profileInfo": "Info — {{name}}",
       "createProfile": "Create profile",
       "about": "About Donut Browser",
-      "agentChat": "New agent chat"
+      "agentChat": "New agent chat",
+      "showWindow": "Show the window of {{name}}"
     },
     "pages": {
       "launch": {
@@ -3152,6 +3154,12 @@
         "title": "Groups",
         "placeholder": "Search groups...",
         "empty": "No groups yet."
+      },
+      "window": {
+        "entry": "Show window…",
+        "title": "Show window",
+        "placeholder": "Search running profiles...",
+        "empty": "No profile is running."
       }
     },
     "emptyFor": "No results for “{{query}}”.",
@@ -3191,7 +3199,8 @@
       "stopAllRunning": "stop all running quit kill close everything",
       "focusSearch": "search find filter focus",
       "goBack": "back escape return home",
-      "agentChat": "agent chat ask assistant ai conversation task"
+      "agentChat": "agent chat ask assistant ai conversation task",
+      "window": "window show focus front switch raise"
     }
   },
   "shortcuts": {
@@ -3957,8 +3966,6 @@
       "activity": "Activity",
       "recipes": "Recipes",
       "schedules": "Schedules",
-      "tasks": "Tasks",
-      "routines": "Routines",
       "chat": "Chat"
     },
     "header": {
@@ -4258,25 +4265,18 @@
       "noProfileMatch": "No profile matches",
       "clearProfiles": "Clear selection",
       "allProfiles": "Select all",
-      "promptLabel": "Task",
       "promptPlaceholder": "Tell the agent what to do, in your own words",
       "startUrl": "Start page",
-      "startUrlPlaceholder": "Start page (optional)",
       "options": "Task options",
       "autonomy": "When it acts",
       "autonomyOptions": {
         "ask": "Ask before important steps",
         "auto": "Act on its own"
       },
-      "autonomyHints": {
-        "ask": "It stops and asks before it submits, buys or sends.",
-        "auto": "It runs to the end without asking."
-      },
       "creditCap": "Credit cap",
       "noCap": "No cap",
       "concurrency": "At once",
       "concurrencyDefault": "Default",
-      "run": "Run",
       "stepKinds": {
         "think": "Thinking",
         "act": "Action",
@@ -4304,7 +4304,6 @@
       "stopAll": "Stop all",
       "retryFailed": "Retry failed",
       "dismiss": "Remove from the list",
-      "empty": "Write a task above and choose the profiles. The browser of each profile does the work, and you see each step here.",
       "runOn_one": "Run on {{count}} profile",
       "runOn_other": "Run on {{count}} profiles",
       "profileCount_one": "{{count}} profile",
@@ -4322,22 +4321,16 @@
       "prompt": "Task",
       "profiles": "Profiles",
       "creditCap": "Credit cap per run",
-      "onSchedule": "Run on a schedule",
       "cron": "Cron expression",
-      "cronHint": "Minute, hour, day, month, weekday. 0 9 * * 1-5 is 09:00 on weekdays.",
-      "timezone": "Time zone",
       "noRuns": "No runs yet",
       "manual": "Run by hand",
-      "hint": "Save a task once and run it again on the same profiles, by hand or on a schedule.",
       "new": "New routine",
-      "empty": "No routines yet",
       "runAria": "Run {{name}}",
       "run": "Run",
       "history": "Runs",
       "deleteTitle": "Delete {{name}}?",
       "deleteDescription": "The routine and its schedule are deleted.",
       "menuAria": "More for {{name}}",
-      "lastRun": "Last run {{when}}",
       "every": {
         "daily": "Every day at {{time}}",
         "weekdays": "Weekdays at {{time}}",
@@ -4372,7 +4365,41 @@
       "noCreditsTitle": "No credits left",
       "noCreditsBody": "The agent stops until the next period, or until you buy more credits.",
       "worked_one": "Worked through {{count}} step",
-      "worked_other": "Worked through {{count}} steps"
+      "worked_other": "Worked through {{count}} steps",
+      "groups": "Groups",
+      "profiles": "Profiles",
+      "runs": "Runs",
+      "routines": "Routines",
+      "placeholderRun": "Ask the agent to do something in each profile",
+      "placeholderRoutine": "What should the routine do?",
+      "saveRoutine": "Save routine",
+      "saveAsRoutine": "Save as routine",
+      "routineOn": "On",
+      "routineOff": "Off",
+      "repeat": {
+        "label": "Repeat",
+        "once": "Don't repeat",
+        "hourly": "Every hour",
+        "daily": "Every day",
+        "weekdays": "Weekdays",
+        "weekly": "Every week",
+        "custom": "Custom",
+        "day": "Day",
+        "at": "Time",
+        "needsPlan": "Schedules need a paid plan"
+      },
+      "host": {
+        "save": "New routine",
+        "edit": "Change routine",
+        "run": "Run routine",
+        "delete": "Delete routine",
+        "tasks": "Run in other profiles",
+        "saved": "Saved {{name}}",
+        "deleted": "Deleted {{name}}",
+        "started_one": "Started in {{count}} profile",
+        "started_other": "Started in {{count}} profiles",
+        "declined": "Cancelled"
+      }
     }
   },
   "proxyDistribution": {

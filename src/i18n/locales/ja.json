@@ -2472,7 +2472,8 @@
       "runRemote": "クラウドで実行",
       "lockNow": "今すぐロック",
       "moveToTrash": "ゴミ箱に移動",
-      "askAgent": "エージェントに依頼"
+      "askAgent": "エージェントに依頼",
+      "showWindow": "ウィンドウを表示"
     },
     "emptyGroupTitle": "このグループは空です",
     "emptyGroupHint": "このグループにプロファイルを作成するか、既存のプロファイルを移動してください。",
@@ -3126,7 +3127,8 @@
       "profileInfo": "情報 — {{name}}",
       "createProfile": "プロファイルを作成",
       "about": "Donut Browser について",
-      "agentChat": "新しいエージェントチャット"
+      "agentChat": "新しいエージェントチャット",
+      "showWindow": "{{name}} のウィンドウを表示"
     },
     "pages": {
       "launch": {
@@ -3152,6 +3154,12 @@
         "title": "グループ",
         "placeholder": "グループを検索...",
         "empty": "グループはまだありません。"
+      },
+      "window": {
+        "entry": "ウィンドウを表示…",
+        "title": "ウィンドウを表示",
+        "placeholder": "実行中のプロファイルを検索...",
+        "empty": "実行中のプロファイルはありません。"
       }
     },
     "emptyFor": "「{{query}}」に一致する結果はありません。",
@@ -3191,7 +3199,8 @@
       "stopAllRunning": "停止 すべて 実行中 終了 閉じる",
       "focusSearch": "検索 探す フィルター",
       "goBack": "戻る エスケープ ホーム",
-      "agentChat": "エージェント チャット 依頼 アシスタント AI 会話 タスク"
+      "agentChat": "エージェント チャット 依頼 アシスタント AI 会話 タスク",
+      "window": "ウィンドウ 表示 前面 切り替え"
     }
   },
   "shortcuts": {
@@ -3957,8 +3966,6 @@
       "activity": "アクティビティ",
       "recipes": "レシピ",
       "schedules": "スケジュール",
-      "tasks": "タスク",
-      "routines": "ルーティン",
       "chat": "チャット"
     },
     "header": {
@@ -4258,25 +4265,18 @@
       "noProfileMatch": "一致するプロファイルはありません",
       "clearProfiles": "選択を解除",
       "allProfiles": "すべて選択",
-      "promptLabel": "タスク",
       "promptPlaceholder": "エージェントにしてほしいことを書いてください",
       "startUrl": "開始ページ",
-      "startUrlPlaceholder": "開始ページ(任意)",
       "options": "タスクのオプション",
       "autonomy": "実行のしかた",
       "autonomyOptions": {
         "ask": "重要な操作の前に確認する",
         "auto": "自分の判断で進める"
       },
-      "autonomyHints": {
-        "ask": "送信、購入、確定の前に止まって確認します。",
-        "auto": "確認せずに最後まで進めます。"
-      },
       "creditCap": "クレジット上限",
       "noCap": "上限なし",
       "concurrency": "同時実行数",
       "concurrencyDefault": "既定",
-      "run": "実行",
       "stepKinds": {
         "think": "考え中",
         "act": "操作",
@@ -4304,7 +4304,6 @@
       "stopAll": "すべて停止",
       "retryFailed": "失敗分を再試行",
       "dismiss": "一覧から削除",
-      "empty": "上でタスクを書き、プロファイルを選んでください。各プロファイルのブラウザが作業し、ここで各手順を確認できます。",
       "runOn_one": "{{count}} 件のプロファイルで実行",
       "runOn_other": "{{count}} 件のプロファイルで実行",
       "profileCount_one": "{{count}} 件のプロファイル",
@@ -4322,22 +4321,16 @@
       "prompt": "タスク",
       "profiles": "プロファイル",
       "creditCap": "1 回あたりのクレジット上限",
-      "onSchedule": "スケジュールで実行",
       "cron": "cron 式",
-      "cronHint": "分、時、日、月、曜日。0 9 * * 1-5 は平日の 09:00 です。",
-      "timezone": "タイムゾーン",
       "noRuns": "まだ実行はありません",
       "manual": "手動で実行",
-      "hint": "タスクを一度保存して、同じプロファイルで手動またはスケジュールで繰り返し実行できます。",
       "new": "新しいルーティン",
-      "empty": "まだルーティンはありません",
       "runAria": "{{name}} を実行",
       "run": "実行",
       "history": "実行履歴",
       "deleteTitle": "{{name}} を削除しますか?",
       "deleteDescription": "ルーティンとそのスケジュールが削除されます。",
       "menuAria": "{{name}} のその他の操作",
-      "lastRun": "前回の実行: {{when}}",
       "every": {
         "daily": "毎日 {{time}}",
         "weekdays": "平日 {{time}}",
@@ -4372,7 +4365,41 @@
       "noCreditsTitle": "クレジットがありません",
       "noCreditsBody": "次の期間まで、またはクレジットを購入するまでエージェントは停止します。",
       "worked_one": "{{count}} ステップを実行",
-      "worked_other": "{{count}} ステップを実行"
+      "worked_other": "{{count}} ステップを実行",
+      "groups": "グループ",
+      "profiles": "プロファイル",
+      "runs": "実行",
+      "routines": "ルーティン",
+      "placeholderRun": "各プロファイルでエージェントに依頼する",
+      "placeholderRoutine": "ルーティンで何をしますか？",
+      "saveRoutine": "ルーティンを保存",
+      "saveAsRoutine": "ルーティンとして保存",
+      "routineOn": "オン",
+      "routineOff": "オフ",
+      "repeat": {
+        "label": "繰り返し",
+        "once": "繰り返さない",
+        "hourly": "毎時",
+        "daily": "毎日",
+        "weekdays": "平日",
+        "weekly": "毎週",
+        "custom": "カスタム",
+        "day": "曜日",
+        "at": "時刻",
+        "needsPlan": "スケジュールには有料プランが必要です"
+      },
+      "host": {
+        "save": "新しいルーティン",
+        "edit": "ルーティンを変更",
+        "run": "ルーティンを実行",
+        "delete": "ルーティンを削除",
+        "tasks": "他のプロファイルで実行",
+        "saved": "{{name}} を保存しました",
+        "deleted": "{{name}} を削除しました",
+        "started_one": "{{count}} 件のプロファイルで開始しました",
+        "started_other": "{{count}} 件のプロファイルで開始しました",
+        "declined": "キャンセルしました"
+      }
     }
   },
   "proxyDistribution": {

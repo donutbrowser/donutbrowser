@@ -160,6 +160,7 @@ import { useTableKeyboard } from "@/hooks/use-table-tools";
 import { useTeamLocks } from "@/hooks/use-team-locks";
 import { confirmLeave } from "@/hooks/use-unsaved-changes";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
+import { showProfileWindow } from "@/lib/agent-console";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
 import {
   getBrowserDisplayName,
@@ -442,6 +443,23 @@ function toggleRowRun(profile: BrowserProfile, meta: TableMeta) {
   if (!runtime.canToggle) return;
   if (runtime.isRunning) meta.stopRow(profile);
   else meta.launchRow(profile);
+}
+
+/** Whether the profile's browser window is on this device to bring forward. */
+function hasLocalWindow(profile: BrowserProfile, meta: TableMeta) {
+  const runtime = getRowRuntime(profile, meta);
+  return (
+    runtime.isRunning &&
+    !runtime.isRunningRemotely &&
+    !runtime.isLaunching &&
+    !runtime.isStopping
+  );
+}
+
+function showRowWindow(profile: BrowserProfile, meta: TableMeta) {
+  void showProfileWindow(profile.id).catch((error: unknown) => {
+    showErrorToast(translateBackendError(meta.t as never, error));
+  });
 }
 
 /** A backend error as the person reads it; a plain string gets `fallback`. */
@@ -2031,7 +2049,11 @@ const ProfileTableRow = React.memo(function ProfileTableRow({
             );
             if (control && !control.hasAttribute("data-row-name")) return;
             window.getSelection()?.removeAllRanges();
-            toggleRowRun(row.original, meta);
+            if (hasLocalWindow(row.original, meta)) {
+              showRowWindow(row.original, meta);
+            } else {
+              toggleRowRun(row.original, meta);
+            }
           }}
         >
           {row.getVisibleCells().map((cell, columnIndex) => (
@@ -4225,6 +4247,9 @@ export function ProfilesDataTable({
       canRename: !runtime.isRuntimeLocked && !crossOs,
       canTrash: !runtime.isRuntimeLocked && !runtime.isRunningRemotely,
       onToggleRun: () => toggleRowRun(menuProfile, tableMeta),
+      onShowWindow: hasLocalWindow(menuProfile, tableMeta)
+        ? () => showRowWindow(menuProfile, tableMeta)
+        : undefined,
       onOpenDetails: () =>
         openDetails(
           menuProfile,

@@ -2491,7 +2491,8 @@
       "runRemote": "Exécuter dans le cloud",
       "lockNow": "Verrouiller maintenant",
       "moveToTrash": "Placer dans la corbeille",
-      "askAgent": "Demander à l’agent"
+      "askAgent": "Demander à l’agent",
+      "showWindow": "Afficher la fenêtre"
     },
     "emptyGroupTitle": "Ce groupe est vide",
     "emptyGroupHint": "Créez un profil dans ce groupe ou déplacez-y des profils existants.",
@@ -3146,7 +3147,8 @@
       "profileInfo": "Informations — {{name}}",
       "createProfile": "Créer un profil",
       "about": "À propos de Donut Browser",
-      "agentChat": "Nouveau chat avec l’agent"
+      "agentChat": "Nouveau chat avec l’agent",
+      "showWindow": "Afficher la fenêtre de {{name}}"
     },
     "pages": {
       "launch": {
@@ -3172,6 +3174,12 @@
         "title": "Groupes",
         "placeholder": "Rechercher un groupe...",
         "empty": "Aucun groupe pour l'instant."
+      },
+      "window": {
+        "entry": "Afficher une fenêtre…",
+        "title": "Afficher la fenêtre",
+        "placeholder": "Rechercher un profil lancé...",
+        "empty": "Aucun profil n'est lancé."
       }
     },
     "emptyFor": "Aucun résultat pour « {{query}} ».",
@@ -3211,7 +3219,8 @@
       "stopAllRunning": "arrêter tous en cours fermer quitter",
       "focusSearch": "rechercher trouver filtrer",
       "goBack": "retour échap accueil",
-      "agentChat": "agent chat demander assistant ia conversation tâche"
+      "agentChat": "agent chat demander assistant ia conversation tâche",
+      "window": "fenêtre afficher focus avant basculer"
     }
   },
   "shortcuts": {
@@ -4005,8 +4014,6 @@
       "activity": "Activité",
       "recipes": "Recettes",
       "schedules": "Planifications",
-      "tasks": "Tâches",
-      "routines": "Routines",
       "chat": "Chat"
     },
     "header": {
@@ -4306,25 +4313,18 @@
       "noProfileMatch": "Aucun profil ne correspond",
       "clearProfiles": "Effacer la sélection",
       "allProfiles": "Tout sélectionner",
-      "promptLabel": "Tâche",
       "promptPlaceholder": "Dites à l’agent quoi faire, avec vos mots",
       "startUrl": "Page de départ",
-      "startUrlPlaceholder": "Page de départ (facultatif)",
       "options": "Options de la tâche",
       "autonomy": "Quand il agit",
       "autonomyOptions": {
         "ask": "Demander avant les étapes importantes",
         "auto": "Agir seul"
       },
-      "autonomyHints": {
-        "ask": "Il s’arrête et demande avant d’envoyer, d’acheter ou de valider.",
-        "auto": "Il va jusqu’au bout sans demander."
-      },
       "creditCap": "Plafond de crédits",
       "noCap": "Sans plafond",
       "concurrency": "En même temps",
       "concurrencyDefault": "Par défaut",
-      "run": "Lancer",
       "stepKinds": {
         "think": "Réflexion",
         "act": "Action",
@@ -4352,7 +4352,6 @@
       "stopAll": "Tout arrêter",
       "retryFailed": "Relancer les échecs",
       "dismiss": "Retirer de la liste",
-      "empty": "Écrivez une tâche ci-dessus et choisissez les profils. Le navigateur de chaque profil fait le travail, et vous voyez chaque étape ici.",
       "runOn_one": "Lancer sur {{count}} profil",
       "runOn_many": "Lancer sur {{count}} profils",
       "runOn_other": "Lancer sur {{count}} profils",
@@ -4373,22 +4372,16 @@
       "prompt": "Tâche",
       "profiles": "Profils",
       "creditCap": "Plafond de crédits par exécution",
-      "onSchedule": "Exécuter selon un calendrier",
       "cron": "Expression cron",
-      "cronHint": "Minute, heure, jour, mois, jour de la semaine. 0 9 * * 1-5 correspond à 09:00 en semaine.",
-      "timezone": "Fuseau horaire",
       "noRuns": "Aucune exécution pour l’instant",
       "manual": "Lancement manuel",
-      "hint": "Enregistrez une tâche une fois et relancez-la sur les mêmes profils, à la main ou selon un calendrier.",
       "new": "Nouvelle routine",
-      "empty": "Aucune routine pour l’instant",
       "runAria": "Lancer {{name}}",
       "run": "Lancer",
       "history": "Exécutions",
       "deleteTitle": "Supprimer {{name}} ?",
       "deleteDescription": "La routine et son calendrier sont supprimés.",
       "menuAria": "Plus d’options pour {{name}}",
-      "lastRun": "Dernière exécution {{when}}",
       "every": {
         "daily": "Chaque jour à {{time}}",
         "weekdays": "En semaine à {{time}}",
@@ -4425,7 +4418,41 @@
       "noCreditsBody": "L’agent s’arrête jusqu’à la prochaine période ou jusqu’à l’achat de crédits.",
       "worked_one": "{{count}} étape effectuée",
       "worked_many": "{{count}} étapes effectuées",
-      "worked_other": "{{count}} étapes effectuées"
+      "worked_other": "{{count}} étapes effectuées",
+      "groups": "Groupes",
+      "profiles": "Profils",
+      "runs": "Exécutions",
+      "routines": "Routines",
+      "placeholderRun": "Demandez quelque chose à l’agent dans chaque profil",
+      "placeholderRoutine": "Que doit faire la routine ?",
+      "saveRoutine": "Enregistrer la routine",
+      "saveAsRoutine": "Enregistrer comme routine",
+      "routineOn": "Activée",
+      "routineOff": "Désactivée",
+      "repeat": {
+        "label": "Répéter",
+        "once": "Ne pas répéter",
+        "hourly": "Toutes les heures",
+        "daily": "Chaque jour",
+        "weekdays": "En semaine",
+        "weekly": "Chaque semaine",
+        "custom": "Personnalisé",
+        "day": "Jour",
+        "at": "Heure",
+        "needsPlan": "Les planifications nécessitent un forfait payant"
+      },
+      "host": {
+        "save": "Nouvelle routine",
+        "edit": "Modifier la routine",
+        "run": "Lancer la routine",
+        "delete": "Supprimer la routine",
+        "tasks": "Lancer dans d’autres profils",
+        "saved": "{{name}} enregistrée",
+        "deleted": "{{name}} supprimée",
+        "started_one": "Lancée dans {{count}} profil",
+        "started_other": "Lancée dans {{count}} profils",
+        "declined": "Annulé"
+      }
     }
   },
   "proxyDistribution": {

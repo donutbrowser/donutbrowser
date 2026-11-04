@@ -2472,7 +2472,8 @@
       "runRemote": "在云端运行",
       "lockNow": "立即锁定",
       "moveToTrash": "移到回收站",
-      "askAgent": "询问智能体"
+      "askAgent": "询问智能体",
+      "showWindow": "显示窗口"
     },
     "emptyGroupTitle": "此分组为空",
     "emptyGroupHint": "在此分组中创建配置文件，或将现有配置文件移到这里。",
@@ -3126,7 +3127,8 @@
       "profileInfo": "信息 — {{name}}",
       "createProfile": "创建配置文件",
       "about": "关于 Donut Browser",
-      "agentChat": "新建智能体对话"
+      "agentChat": "新建智能体对话",
+      "showWindow": "显示 {{name}} 的窗口"
     },
     "pages": {
       "launch": {
@@ -3152,6 +3154,12 @@
         "title": "分组",
         "placeholder": "搜索分组...",
         "empty": "还没有分组。"
+      },
+      "window": {
+        "entry": "显示窗口…",
+        "title": "显示窗口",
+        "placeholder": "搜索运行中的配置文件...",
+        "empty": "没有正在运行的配置文件。"
       }
     },
     "emptyFor": "没有与“{{query}}”匹配的结果。",
@@ -3191,7 +3199,8 @@
       "stopAllRunning": "停止 全部 运行 关闭 退出",
       "focusSearch": "搜索 查找 筛选",
       "goBack": "返回 退出 主页",
-      "agentChat": "智能体 对话 询问 助手 ai 聊天 任务"
+      "agentChat": "智能体 对话 询问 助手 ai 聊天 任务",
+      "window": "窗口 显示 前台 切换"
     }
   },
   "shortcuts": {
@@ -3957,8 +3966,6 @@
       "activity": "活动",
       "recipes": "配方",
       "schedules": "计划",
-      "tasks": "任务",
-      "routines": "例程",
       "chat": "对话"
     },
     "header": {
@@ -4258,25 +4265,18 @@
       "noProfileMatch": "没有匹配的配置文件",
       "clearProfiles": "清除选择",
       "allProfiles": "全选",
-      "promptLabel": "任务",
       "promptPlaceholder": "用你自己的话告诉智能体要做什么",
       "startUrl": "起始页",
-      "startUrlPlaceholder": "起始页(可选)",
       "options": "任务选项",
       "autonomy": "何时行动",
       "autonomyOptions": {
         "ask": "重要步骤前先询问",
         "auto": "自主执行"
       },
-      "autonomyHints": {
-        "ask": "在提交、购买或发送前会停下来询问。",
-        "auto": "不询问,一直执行到结束。"
-      },
       "creditCap": "额度上限",
       "noCap": "不设上限",
       "concurrency": "同时运行",
       "concurrencyDefault": "默认",
-      "run": "运行",
       "stepKinds": {
         "think": "思考",
         "act": "操作",
@@ -4304,7 +4304,6 @@
       "stopAll": "全部停止",
       "retryFailed": "重试失败项",
       "dismiss": "从列表中移除",
-      "empty": "在上方写下任务并选择配置文件。每个配置文件的浏览器会完成工作,你可以在这里看到每一步。",
       "runOn_one": "在 {{count}} 个配置文件上运行",
       "runOn_other": "在 {{count}} 个配置文件上运行",
       "profileCount_one": "{{count}} 个配置文件",
@@ -4322,22 +4321,16 @@
       "prompt": "任务",
       "profiles": "配置文件",
       "creditCap": "每次运行的额度上限",
-      "onSchedule": "按计划运行",
       "cron": "Cron 表达式",
-      "cronHint": "分钟、小时、日、月、星期。0 9 * * 1-5 表示工作日 09:00。",
-      "timezone": "时区",
       "noRuns": "还没有运行记录",
       "manual": "手动运行",
-      "hint": "保存一次任务,然后在相同的配置文件上手动或按计划再次运行。",
       "new": "新建例程",
-      "empty": "还没有例程",
       "runAria": "运行 {{name}}",
       "run": "运行",
       "history": "运行记录",
       "deleteTitle": "删除 {{name}}?",
       "deleteDescription": "例程及其计划将被删除。",
       "menuAria": "{{name}} 的更多操作",
-      "lastRun": "上次运行 {{when}}",
       "every": {
         "daily": "每天 {{time}}",
         "weekdays": "工作日 {{time}}",
@@ -4372,7 +4365,41 @@
       "noCreditsTitle": "积分已用完",
       "noCreditsBody": "智能体将暂停，直到下一个周期或你购买更多积分。",
       "worked_one": "已完成 {{count}} 步",
-      "worked_other": "已完成 {{count}} 步"
+      "worked_other": "已完成 {{count}} 步",
+      "groups": "分组",
+      "profiles": "配置文件",
+      "runs": "运行",
+      "routines": "例程",
+      "placeholderRun": "让智能体在每个配置文件中做点什么",
+      "placeholderRoutine": "例程要做什么？",
+      "saveRoutine": "保存例程",
+      "saveAsRoutine": "保存为例程",
+      "routineOn": "开启",
+      "routineOff": "关闭",
+      "repeat": {
+        "label": "重复",
+        "once": "不重复",
+        "hourly": "每小时",
+        "daily": "每天",
+        "weekdays": "工作日",
+        "weekly": "每周",
+        "custom": "自定义",
+        "day": "星期",
+        "at": "时间",
+        "needsPlan": "定时运行需要付费套餐"
+      },
+      "host": {
+        "save": "新建例程",
+        "edit": "修改例程",
+        "run": "运行例程",
+        "delete": "删除例程",
+        "tasks": "在其他配置文件中运行",
+        "saved": "已保存 {{name}}",
+        "deleted": "已删除 {{name}}",
+        "started_one": "已在 {{count}} 个配置文件中开始",
+        "started_other": "已在 {{count}} 个配置文件中开始",
+        "declined": "已取消"
+      }
     }
   },
   "proxyDistribution": {

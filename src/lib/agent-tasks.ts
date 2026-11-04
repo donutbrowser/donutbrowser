@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { AgentChat } from "@/lib/agent-chat";
 
 /**
  * Agent tasks and routines that Wayfern's engine runs. Donut is the interface:
@@ -447,3 +448,151 @@ export function cronWords(cron: string): CronWords {
   if (weekday === null) return { kind: "custom" };
   return { kind: "weekly", minute, hour, weekday: weekday % 7 };
 }
+
+/** How a schedule is chosen: a few common shapes, or any cron. */
+export type RepeatPreset =
+  | "hourly"
+  | "daily"
+  | "weekdays"
+  | "weekly"
+  | "custom";
+
+export interface RepeatParts {
+  preset: RepeatPreset;
+  hour: number;
+  minute: number;
+  /** 0 is Sunday. */
+  weekday: number;
+  cron: string;
+}
+
+export const REPEAT_PRESETS: readonly RepeatPreset[] = [
+  "hourly",
+  "daily",
+  "weekdays",
+  "weekly",
+  "custom",
+];
+
+/** A cron read back into the shape it was chosen with. */
+export function repeatParts(cron: string): RepeatParts {
+  const words = cronWords(cron);
+  const base = { hour: 9, minute: 0, weekday: 1, cron: cron.trim() };
+  switch (words.kind) {
+    case "hourly":
+      return { ...base, preset: "hourly", minute: words.minute };
+    case "daily":
+    case "weekdays":
+      return {
+        ...base,
+        preset: words.kind,
+        hour: words.hour,
+        minute: words.minute,
+      };
+    case "weekly":
+      return {
+        ...base,
+        preset: "weekly",
+        hour: words.hour,
+        minute: words.minute,
+        weekday: words.weekday,
+      };
+    default:
+      return { ...base, preset: "custom" };
+  }
+}
+
+/** The cron for a chosen shape. */
+export function repeatCron(parts: RepeatParts): string {
+  const { minute, hour, weekday } = parts;
+  switch (parts.preset) {
+    case "hourly":
+      return `${minute} * * * *`;
+    case "daily":
+      return `${minute} ${hour} * * *`;
+    case "weekdays":
+      return `${minute} ${hour} * * 1-5`;
+    case "weekly":
+      return `${minute} ${hour} * * ${weekday}`;
+    default:
+      return parts.cron.trim();
+  }
+}
+
+const ROUTINE_NAME_CHARS = 60;
+
+/**
+ * A routine that repeats a chat turn: its words since the task began, its
+ * profile, and the first page it opened.
+ */
+export function routineFromTurn(
+  chat: AgentChat,
+  turnIndex: number,
+): AgentRoutineDraft {
+  let first = turnIndex;
+  while (first > 0 && chat.turns[first].kind === "follow_up") first -= 1;
+  const turns = chat.turns.slice(first, turnIndex + 1);
+  const startUrl =
+    turns
+      .flatMap((turn) => turn.steps)
+      .map((step) => step.url ?? "")
+      .find(isWebUrl) ?? null;
+  return {
+    name: promptTitle(chat.title, ROUTINE_NAME_CHARS),
+    prompt: turns.map((turn) => turn.text.trim()).join("\n\n"),
+    startUrl,
+    profileIds: [chat.profileId],
+    schedule: null,
+    maxCreditsPerRun: null,
+    concurrency: null,
+    enabled: true,
+  };
+}
+
+/** A routine that repeats a run on the same profiles. */
+export function routineFromBatch(batch: AgentBatch): AgentRoutineDraft {
+  return {
+    name: promptTitle(batch.prompt, ROUTINE_NAME_CHARS),
+    prompt: batch.prompt,
+    startUrl: batch.startUrl,
+    profileIds: batch.tasks.map((task) => task.profileId),
+    schedule: null,
+    maxCreditsPerRun: batch.maxCredits,
+    concurrency: null,
+    enabled: true,
+  };
+}
+
+/** A routine named after its first line. */
+export function routineFromPrompt(
+  prompt: string,
+  profileIds: string[],
+): AgentRoutineDraft {
+  return {
+    name: promptTitle(prompt, ROUTINE_NAME_CHARS),
+    prompt: prompt.trim(),
+    startUrl: null,
+    profileIds,
+    schedule: null,
+    maxCreditsPerRun: null,
+    concurrency: null,
+    enabled: true,
+  };
+}
+
+/** The one state a run shows as a dot: the most urgent of its tasks. */
+export function batchStatus(batch: AgentBatch): AgentTaskStatus {
+  if (batch.tasks.some((task) => task.status === "needs_approval")) {
+    return "needs_approval";
+  }
+  if (!batch.finished) return "running";
+  if (batch.tally.failed > 0) return "failed";
+  return batch.tally.done > 0 ? "done" : "stopped";
+}
+
+export function localTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+/** Read again when a routine is saved or deleted anywhere. */
+export const ROUTINES_CHANGED = "agent-routines-changed";

@@ -92,6 +92,7 @@ import { useUpdateNotifications } from "@/hooks/use-update-notifications";
 import { useVersionUpdater } from "@/hooks/use-version-updater";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { useWayfernTerms } from "@/hooks/use-wayfern-terms";
+import { showProfileWindow } from "@/lib/agent-console";
 import {
   leaseExpiryTime,
   parseBackendError,
@@ -463,10 +464,9 @@ export default function Home() {
   const [cookieBotInitialTab, setCookieBotInitialTab] =
     useState<CookieBotTab>("overview");
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
-  // Null until a tab is asked for: Tasks leads when the agent is on.
+  // Null until a tab is asked for: Chat leads when the agent is on.
   const [agentInitialTab, setAgentInitialTab] = useState<AgentTab | null>(null);
   const agentReady = useAgentAvailability(cloudUser);
-  const [agentSeed, setAgentSeed] = useState<string[] | null>(null);
   const [chatSeed, setChatSeed] = useState<ChatSeed | null>(null);
   const [createProfileDialogOpen, setCreateProfileDialogOpen] = useState(false);
   const teamReadOnly = isTeamLauncher(cloudUser);
@@ -2384,7 +2384,7 @@ export default function Home() {
   const handleAskAgent = useCallback(
     (profileId: string | null) => {
       setChatSeed((current) => ({
-        profileId,
+        profileIds: profileId ? [profileId] : [],
         nonce: (current?.nonce ?? 0) + 1,
       }));
       setAgentInitialTab("chat");
@@ -2394,8 +2394,11 @@ export default function Home() {
   );
 
   const handleRunAgentTask = useCallback(() => {
-    setAgentSeed([...selectedProfiles]);
-    setAgentInitialTab("tasks");
+    setChatSeed((current) => ({
+      profileIds: [...selectedProfiles],
+      nonce: (current?.nonce ?? 0) + 1,
+    }));
+    setAgentInitialTab("chat");
     handleRailNavigate("agent");
   }, [selectedProfiles, handleRailNavigate]);
 
@@ -3308,7 +3311,6 @@ export default function Home() {
                     handleRailNavigate("account");
                   }}
                   agentReady={agentReady}
-                  agentSeed={agentSeed}
                   chatSeed={chatSeed}
                 />
               )}
@@ -3374,6 +3376,11 @@ export default function Home() {
           }}
           onKillProfile={(profile) => {
             void handleKillProfile(profile);
+          }}
+          onShowProfileWindow={(profile) => {
+            void showProfileWindow(profile.id).catch((error: unknown) => {
+              showErrorToast(translateBackendError(t, error));
+            });
           }}
           onShowProfileInfo={(profile) => {
             goToProfilesThen(() => {

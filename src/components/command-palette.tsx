@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  LuAppWindow,
   LuArrowLeft,
   LuBadgeInfo,
   LuBot,
@@ -80,6 +81,8 @@ interface CommandPaletteProps {
   runningProfileIds: Set<string>;
   onLaunchProfile: (profile: BrowserProfile) => void;
   onKillProfile: (profile: BrowserProfile) => void;
+  /** Brings a running profile's browser window forward. */
+  onShowProfileWindow: (profile: BrowserProfile) => void;
   onShowProfileInfo: (profile: BrowserProfile) => void;
   onCreateProfile: () => void;
   onOpenAbout: () => void;
@@ -113,7 +116,7 @@ const ICONS: Record<ShortcutId, Icon> = {
 };
 
 /** Lists the palette opens into, with a breadcrumb and their own search. */
-type PageId = "launch" | "stop" | "info" | "group";
+type PageId = "launch" | "stop" | "window" | "info" | "group";
 
 interface PaletteCommand {
   /** Stable across sessions: recent commands are stored by it. */
@@ -241,6 +244,7 @@ export function CommandPalette({
   runningProfileIds,
   onLaunchProfile,
   onKillProfile,
+  onShowProfileWindow,
   onShowProfileInfo,
   onCreateProfile,
   onOpenAbout,
@@ -313,6 +317,24 @@ export function CommandPalette({
       sound: null,
     };
   };
+
+  const windowCommand = (
+    profile: BrowserProfile,
+    bare: boolean,
+  ): PaletteCommand => ({
+    id: `window:${profile.id}`,
+    label: bare
+      ? profile.name
+      : t("commandPalette.actions.showWindow", { name: profile.name }),
+    detail: profile.group_id ? groupName.get(profile.group_id) : undefined,
+    keywords: profileKeywords(profile),
+    icon: LuAppWindow,
+    run: () => {
+      onShowProfileWindow(profile);
+    },
+    sound: "open",
+    running: true,
+  });
 
   const infoCommand = (
     profile: BrowserProfile,
@@ -427,6 +449,10 @@ export function CommandPalette({
           ? infoCommand(profile, false)
           : toggleCommand(profile, false);
       }
+      case "window": {
+        const profile = runningProfiles.find((p) => p.id === key);
+        return profile ? windowCommand(profile, false) : null;
+      }
       case "group": {
         const index = groupTargets.findIndex((g) => g.id === key);
         return index === -1 ? null : groupCommand(groupTargets[index], index);
@@ -458,9 +484,11 @@ export function CommandPalette({
       ? stoppedProfiles.map((p) => toggleCommand(p, true))
       : id === "stop"
         ? runningProfiles.map((p) => toggleCommand(p, true))
-        : id === "info"
-          ? profiles.map((p) => infoCommand(p, true))
-          : groupTargets.map((target, index) => groupCommand(target, index));
+        : id === "window"
+          ? runningProfiles.map((p) => windowCommand(p, true))
+          : id === "info"
+            ? profiles.map((p) => infoCommand(p, true))
+            : groupTargets.map((target, index) => groupCommand(target, index));
 
   const openPage = (id: PageId) => {
     playUiSound("tap");
@@ -560,6 +588,9 @@ export function CommandPalette({
       ...(runningProfiles.length > 0
         ? [pageCommand("stop", LuCircleStop)]
         : []),
+      ...(runningProfiles.length > 0
+        ? [pageCommand("window", LuAppWindow)]
+        : []),
       ...(runningProfiles.length > 0 ? profileShortcut("stopAllRunning") : []),
       ...(profiles.length > 0 ? [pageCommand("info", LuInfo)] : []),
       pageCommand("group", LuUsers),
@@ -586,6 +617,9 @@ export function CommandPalette({
           {searching
             ? profiles.flatMap((p) => [
                 item(toggleCommand(p, false)),
+                ...(runningProfileIds.has(p.id)
+                  ? [item(windowCommand(p, false))]
+                  : []),
                 item(infoCommand(p, false)),
               ])
             : null}

@@ -2491,7 +2491,8 @@
       "runRemote": "Executar na nuvem",
       "lockNow": "Bloquear agora",
       "moveToTrash": "Mover para a lixeira",
-      "askAgent": "Perguntar ao agente"
+      "askAgent": "Perguntar ao agente",
+      "showWindow": "Mostrar janela"
     },
     "emptyGroupTitle": "Este grupo está vazio",
     "emptyGroupHint": "Crie um perfil neste grupo ou mova perfis existentes para ele.",
@@ -3146,7 +3147,8 @@
       "profileInfo": "Informações — {{name}}",
       "createProfile": "Criar perfil",
       "about": "Sobre o Donut Browser",
-      "agentChat": "Novo chat com o agente"
+      "agentChat": "Novo chat com o agente",
+      "showWindow": "Mostrar a janela de {{name}}"
     },
     "pages": {
       "launch": {
@@ -3172,6 +3174,12 @@
         "title": "Grupos",
         "placeholder": "Busque grupos...",
         "empty": "Ainda não há grupos."
+      },
+      "window": {
+        "entry": "Mostrar janela…",
+        "title": "Mostrar janela",
+        "placeholder": "Busque perfis em execução...",
+        "empty": "Nenhum perfil está em execução."
       }
     },
     "emptyFor": "Nenhum resultado para “{{query}}”.",
@@ -3211,7 +3219,8 @@
       "stopAllRunning": "parar todos execução fechar encerrar",
       "focusSearch": "pesquisar buscar encontrar filtrar",
       "goBack": "voltar escape início",
-      "agentChat": "agente chat perguntar assistente ia conversa tarefa"
+      "agentChat": "agente chat perguntar assistente ia conversa tarefa",
+      "window": "janela mostrar focar frente alternar"
     }
   },
   "shortcuts": {
@@ -4005,8 +4014,6 @@
       "activity": "Atividade",
       "recipes": "Receitas",
       "schedules": "Agendamentos",
-      "tasks": "Tarefas",
-      "routines": "Rotinas",
       "chat": "Chat"
     },
     "header": {
@@ -4306,25 +4313,18 @@
       "noProfileMatch": "Nenhum perfil corresponde",
       "clearProfiles": "Limpar seleção",
       "allProfiles": "Selecionar todos",
-      "promptLabel": "Tarefa",
       "promptPlaceholder": "Diga ao agente o que fazer, com suas palavras",
       "startUrl": "Página inicial",
-      "startUrlPlaceholder": "Página inicial (opcional)",
       "options": "Opções da tarefa",
       "autonomy": "Quando ele age",
       "autonomyOptions": {
         "ask": "Perguntar antes de passos importantes",
         "auto": "Agir por conta própria"
       },
-      "autonomyHints": {
-        "ask": "Ele para e pergunta antes de enviar, comprar ou submeter.",
-        "auto": "Ele vai até o fim sem perguntar."
-      },
       "creditCap": "Limite de créditos",
       "noCap": "Sem limite",
       "concurrency": "Ao mesmo tempo",
       "concurrencyDefault": "Padrão",
-      "run": "Executar",
       "stepKinds": {
         "think": "Pensando",
         "act": "Ação",
@@ -4352,7 +4352,6 @@
       "stopAll": "Parar todas",
       "retryFailed": "Repetir as que falharam",
       "dismiss": "Remover da lista",
-      "empty": "Escreva uma tarefa acima e escolha os perfis. O navegador de cada perfil faz o trabalho, e você vê cada passo aqui.",
       "runOn_one": "Executar em {{count}} perfil",
       "runOn_many": "Executar em {{count}} perfis",
       "runOn_other": "Executar em {{count}} perfis",
@@ -4373,22 +4372,16 @@
       "prompt": "Tarefa",
       "profiles": "Perfis",
       "creditCap": "Limite de créditos por execução",
-      "onSchedule": "Executar em uma agenda",
       "cron": "Expressão cron",
-      "cronHint": "Minuto, hora, dia, mês, dia da semana. 0 9 * * 1-5 é 09:00 nos dias úteis.",
-      "timezone": "Fuso horário",
       "noRuns": "Nenhuma execução ainda",
       "manual": "Execução manual",
-      "hint": "Salve uma tarefa uma vez e execute-a de novo nos mesmos perfis, manualmente ou em uma agenda.",
       "new": "Nova rotina",
-      "empty": "Nenhuma rotina ainda",
       "runAria": "Executar {{name}}",
       "run": "Executar",
       "history": "Execuções",
       "deleteTitle": "Excluir {{name}}?",
       "deleteDescription": "A rotina e sua agenda são excluídas.",
       "menuAria": "Mais opções de {{name}}",
-      "lastRun": "Última execução {{when}}",
       "every": {
         "daily": "Todos os dias às {{time}}",
         "weekdays": "Dias úteis às {{time}}",
@@ -4425,7 +4418,41 @@
       "noCreditsBody": "O agente para até o próximo período ou até você comprar mais créditos.",
       "worked_one": "Concluiu {{count}} passo",
       "worked_many": "Concluiu {{count}} passos",
-      "worked_other": "Concluiu {{count}} passos"
+      "worked_other": "Concluiu {{count}} passos",
+      "groups": "Grupos",
+      "profiles": "Perfis",
+      "runs": "Execuções",
+      "routines": "Rotinas",
+      "placeholderRun": "Peça algo ao agente em cada perfil",
+      "placeholderRoutine": "O que a rotina deve fazer?",
+      "saveRoutine": "Salvar rotina",
+      "saveAsRoutine": "Salvar como rotina",
+      "routineOn": "Ativa",
+      "routineOff": "Desativada",
+      "repeat": {
+        "label": "Repetir",
+        "once": "Não repetir",
+        "hourly": "A cada hora",
+        "daily": "Todos os dias",
+        "weekdays": "Dias úteis",
+        "weekly": "Toda semana",
+        "custom": "Personalizado",
+        "day": "Dia",
+        "at": "Hora",
+        "needsPlan": "Agendamentos precisam de um plano pago"
+      },
+      "host": {
+        "save": "Nova rotina",
+        "edit": "Alterar rotina",
+        "run": "Executar rotina",
+        "delete": "Excluir rotina",
+        "tasks": "Executar em outros perfis",
+        "saved": "{{name}} salva",
+        "deleted": "{{name}} excluída",
+        "started_one": "Iniciada em {{count}} perfil",
+        "started_other": "Iniciada em {{count}} perfis",
+        "declined": "Cancelado"
+      }
     }
   },
   "proxyDistribution": {

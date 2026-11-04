@@ -7,10 +7,12 @@ import {
   LuCheck,
   LuChevronRight,
   LuPause,
+  LuRepeat,
   LuRotateCcw,
   LuSquare,
   LuX,
 } from "react-icons/lu";
+import { HostCalls, type HostContext } from "@/components/agent-chat/host-call";
 import { ChatMarkdown } from "@/components/agent-chat/markdown";
 import { CreditsMeter, useNumber } from "@/components/agent-tasks/parts";
 import { StepRow } from "@/components/agent-tasks/step-stream";
@@ -367,12 +369,19 @@ export function ChatTurnView({
   chatId,
   turn,
   credits,
+  host,
+  last,
   onOpenAccount,
+  onSaveRoutine,
 }: {
   chatId: string;
   turn: ChatTurn;
   credits: AgentCredits | null;
+  host: HostContext;
+  /** The newest turn shows its actions without a hover. */
+  last: boolean;
   onOpenAccount: () => void;
+  onSaveRoutine: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -381,7 +390,7 @@ export function ChatTurnView({
       data-turn-id={turn.id}
       data-kind={turn.kind}
       data-status={turn.status}
-      className="flex flex-col gap-2"
+      className="group/turn flex flex-col gap-2"
     >
       <UserMessage text={turn.text} />
       {turn.steers.map((steer) => (
@@ -398,7 +407,28 @@ export function ChatTurnView({
       )}
       <WorkGroup turn={turn} />
       <Approval chatId={chatId} turn={turn} />
+      <HostCalls chatId={chatId} turn={turn} host={host} />
       <Outcome turn={turn} credits={credits} onOpenAccount={onOpenAccount} />
+      {turn.status === "done" && (
+        <div
+          className={cn(
+            "flex transition-opacity duration-150 group-hover/turn:opacity-100 focus-within:opacity-100 motion-reduce:transition-none",
+            !last && "opacity-0",
+          )}
+        >
+          <Button
+            type="button"
+            variant="subtle"
+            size="sm"
+            data-slot="chat-save-routine"
+            className="-ml-2 h-7 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground"
+            onClick={onSaveRoutine}
+          >
+            <LuRepeat className="size-3.5" aria-hidden="true" />
+            {t("agent.chat.saveRoutine")}
+          </Button>
+        </div>
+      )}
     </li>
   );
 }

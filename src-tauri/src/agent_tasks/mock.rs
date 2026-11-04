@@ -14,14 +14,21 @@
 //! steps and credits go on from where the task was. A message with `[old]`
 //! answers as a Wayfern without the method, one with `[replaced]` as an
 //! engine that no longer knows the task.
+//!
+//! A task whose start offered `host` calls the app on a `[host:...]` marker
+//! and waits for each reply: `list` reads profiles, routines and credits;
+//! `save` proposes a weekday routine on the first two profiles; `edit` turns
+//! the first routine off; `run` and `delete` act on the first routine;
+//! `tasks` runs a task in every profile. Without `host` the marker is text.
 
 use super::cloud::{Credits, Routine, RoutineDraft, RoutineRun, StartedBatch, StartedRun};
 use super::engine::{EngineError, EngineLink, Request};
 use super::token::AgentToken;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 pub fn active() -> bool {
   crate::e2e_automation_enabled()
@@ -37,6 +44,8 @@ pub fn token() -> AgentToken {
 
 static ROUTINES: Mutex<Vec<Routine>> = Mutex::new(Vec::new());
 static RUNS: Mutex<Vec<(String, RoutineRun)>> = Mutex::new(Vec::new());
+/// Host calls waiting for `Wayfern.agentHostReply`, by call id.
+static HOST_WAITS: Mutex<Option<HashMap<String, oneshot::Sender<Value>>>> = Mutex::new(None);
 /// How many `[mixed]` tasks started, so each one gets its own script.
 static MIXED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -213,6 +222,8 @@ pub fn link(profile_id: &str) -> EngineLink {
 async fn pump(profile_id: String, mut rx: mpsc::Receiver<Request>) {
   let mut control: Option<mpsc::UnboundedSender<Control>> = None;
   let mut last_task: Option<String> = None;
+  // What each task's start offered, so its follow-ups may call too.
+  let mut offered: HashMap<String, Value> = HashMap::new();
   while let Some(request) = rx.recv().await {
     let running = control.as_ref().filter(|tx| !tx.is_closed());
     let param = |key: &str| {
@@ -230,6 +241,10 @@ async fn pump(profile_id: String, mut rx: mpsc::Receiver<Request>) {
         let (tx, rx) = mpsc::unbounded_channel();
         control = Some(tx);
         last_task = Some(param("taskId"));
+        offered.insert(
+          param("taskId"),
+          request.params.get("host").cloned().unwrap_or(Value::Null),
+        );
         tokio::spawn(script(profile_id.clone(), request.params.clone(), rx));
         Ok(json!({ "taskId": request.params.get("taskId").cloned().unwrap_or(Value::Null) }))
       }
@@ -250,8 +265,26 @@ async fn pump(profile_id: String, mut rx: mpsc::Receiver<Request>) {
           "followUp": true,
         });
         params["startUrl"] = Value::Null;
+        params["host"] = offered
+          .get(&param("taskId"))
+          .cloned()
+          .unwrap_or(Value::Null);
         tokio::spawn(script(profile_id.clone(), params, rx));
         Ok(json!({}))
+      }
+      "Wayfern.agentHostReply" => {
+        let waiting = HOST_WAITS
+          .lock()
+          .unwrap_or_else(|p| p.into_inner())
+          .get_or_insert_with(HashMap::new)
+          .remove(&param("callId"));
+        match waiting {
+          Some(reply) => {
+            let _ = reply.send(request.params.clone());
+            Ok(json!({}))
+          }
+          None => Err(EngineError::Coded("AGENT_CALL_UNKNOWN".into())),
+        }
       }
       "Wayfern.agentControl" | "Wayfern.agentAnswer" => match running {
         None => Err(EngineError::Coded("AGENT_TASK_NOT_FOUND".into())),
@@ -377,6 +410,23 @@ async fn script(profile_id: String, params: Value, mut control: mpsc::UnboundedR
     0
   };
   let mut credits = spent(&task_id);
+  let offered = params
+    .get("host")
+    .and_then(Value::as_array)
+    .is_some_and(|methods| !methods.is_empty());
+  if let Some(scenario) = HOST_SCENARIOS
+    .into_iter()
+    .find(|name| offered && prompt.contains(&format!("[host:{name}]")))
+  {
+    let script = HostScript {
+      profile_id,
+      task_id,
+      index,
+      credits,
+      control,
+    };
+    return script.run(scenario).await;
+  }
   let mut paused = false;
   for (position, (kind, text)) in script.iter().enumerate() {
     loop {
@@ -423,4 +473,182 @@ async fn script(profile_id: String, params: Value, mut control: mpsc::UnboundedR
     }
   }
   finish("done", credits, Some(answer), None);
+}
+
+const HOST_SCENARIOS: [&str; 6] = ["list", "save", "edit", "run", "delete", "tasks"];
+
+/// A task that calls the app, one call at a time, as a chat engine would.
+struct HostScript {
+  profile_id: String,
+  task_id: String,
+  index: u64,
+  credits: u64,
+  control: mpsc::UnboundedReceiver<Control>,
+}
+
+/// Why a host call gave nothing: the task stopped, or the app refused.
+enum NoReply {
+  Stopped,
+  Refused(String),
+}
+
+impl HostScript {
+  fn emit(&self, method: &str, mut payload: Value) {
+    payload["taskId"] = Value::from(self.task_id.as_str());
+    super::on_engine_event(&self.profile_id, method, &payload);
+  }
+
+  fn step(&mut self, kind: &str, text: &str) {
+    self.emit(
+      "Wayfern.agentStep",
+      json!({ "index": self.index, "kind": kind, "text": text }),
+    );
+    self.index += 1;
+    self.credits += 7;
+    self.emit(
+      "Wayfern.agentCredits",
+      json!({ "creditsUsed": self.credits }),
+    );
+  }
+
+  fn finish(&self, status: &str, result: &str) {
+    remember_spent(&self.task_id, self.credits);
+    self.emit(
+      "Wayfern.agentFinished",
+      json!({ "status": status, "creditsUsed": self.credits, "result": result }),
+    );
+  }
+
+  async fn call(&mut self, method: &str, params: Value) -> Result<Value, NoReply> {
+    let call_id = uuid::Uuid::new_v4().to_string();
+    let (tx, mut rx) = oneshot::channel();
+    HOST_WAITS
+      .lock()
+      .unwrap_or_else(|p| p.into_inner())
+      .get_or_insert_with(HashMap::new)
+      .insert(call_id.clone(), tx);
+    self.emit(
+      "Wayfern.agentHostCall",
+      json!({ "callId": call_id, "method": method, "params": params }),
+    );
+    loop {
+      tokio::select! {
+        reply = &mut rx => {
+          let reply = reply.unwrap_or(Value::Null);
+          return match reply.get("result") {
+            Some(result) => Ok(result.clone()),
+            None => Err(NoReply::Refused(
+              reply["error"]["code"].as_str().unwrap_or("FAILED").to_string(),
+            )),
+          };
+        }
+        message = self.control.recv() => {
+          if matches!(message, None | Some(Control::Stop)) {
+            if let Some(waits) = HOST_WAITS.lock().unwrap_or_else(|p| p.into_inner()).as_mut() {
+              waits.remove(&call_id);
+            }
+            return Err(NoReply::Stopped);
+          }
+        }
+      }
+    }
+  }
+
+  async fn list(&mut self, method: &str, key: &str) -> Result<Vec<Value>, NoReply> {
+    let reply = self.call(method, json!({})).await?;
+    Ok(reply[key].as_array().cloned().unwrap_or_default())
+  }
+
+  async fn run(mut self, scenario: &str) {
+    self.step("think", "Reading the task and planning the steps");
+    let outcome = self.scenario(scenario).await;
+    match outcome {
+      Ok(result) => {
+        self.step("observe", "The app answered");
+        self.finish("done", &result);
+      }
+      Err(NoReply::Refused(code)) => {
+        self.step("observe", "The app said no");
+        self.finish("done", &format!("Nothing changed ({code})."));
+      }
+      Err(NoReply::Stopped) => self.finish("stopped", ""),
+    }
+  }
+
+  async fn scenario(&mut self, scenario: &str) -> Result<String, NoReply> {
+    let first_routine = |routines: &[Value]| {
+      routines
+        .first()
+        .cloned()
+        .ok_or_else(|| NoReply::Refused("NOT_FOUND".to_string()))
+    };
+    match scenario {
+      "list" => {
+        let profiles = self.list("profiles.list", "profiles").await?.len();
+        let routines = self.list("routines.list", "routines").await?.len();
+        let credits = self.call("credits.get", json!({})).await?;
+        Ok(format!(
+          "You have {profiles} profiles and {routines} routines. {} credits left.",
+          credits["balance"]
+        ))
+      }
+      "save" => {
+        let profiles = self.list("profiles.list", "profiles").await?;
+        let ids: Vec<Value> = profiles.iter().take(2).map(|p| p["id"].clone()).collect();
+        let saved = self
+          .call(
+            "routines.save",
+            json!({
+              "name": "Fare watch",
+              "prompt": "Check the fare from Tirana to Lisbon and note the cheapest",
+              "profileIds": ids,
+              "schedule": { "cron": "0 9 * * 1-5" },
+            }),
+          )
+          .await?;
+        Ok(format!(
+          "Saved **{}**.",
+          saved["routine"]["name"].as_str().unwrap_or_default()
+        ))
+      }
+      "edit" => {
+        let routine = first_routine(&self.list("routines.list", "routines").await?)?;
+        let saved = self
+          .call(
+            "routines.save",
+            json!({ "id": routine["id"], "enabled": false }),
+          )
+          .await?;
+        Ok(format!(
+          "Turned off **{}**.",
+          saved["routine"]["name"].as_str().unwrap_or_default()
+        ))
+      }
+      "run" => {
+        let routine = first_routine(&self.list("routines.list", "routines").await?)?;
+        let started = self
+          .call("routines.run", json!({ "id": routine["id"] }))
+          .await?;
+        Ok(format!("Started on {} profiles.", started["profiles"]))
+      }
+      "delete" => {
+        let routine = first_routine(&self.list("routines.list", "routines").await?)?;
+        self
+          .call("routines.delete", json!({ "id": routine["id"] }))
+          .await?;
+        Ok("Deleted.".to_string())
+      }
+      _ => {
+        let profiles = self.list("profiles.list", "profiles").await?;
+        let ids: Vec<Value> = profiles.iter().map(|p| p["id"].clone()).collect();
+        let started = self
+          .call(
+            "tasks.run",
+            json!({ "prompt": "Note the order count", "profileIds": ids }),
+          )
+          .await?;
+        Ok(format!("Started on {} profiles.", started["profiles"]))
+      }
+    }
+  }
 }

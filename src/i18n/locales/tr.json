@@ -2472,7 +2472,8 @@
       "runRemote": "Bulutta çalıştır",
       "lockNow": "Şimdi kilitle",
       "moveToTrash": "Çöp kutusuna taşı",
-      "askAgent": "Ajana sor"
+      "askAgent": "Ajana sor",
+      "showWindow": "Pencereyi göster"
     },
     "emptyGroupTitle": "Bu grup boş",
     "emptyGroupHint": "Bu grupta bir profil oluşturun veya mevcut profilleri buraya taşıyın.",
@@ -3126,7 +3127,8 @@
       "profileInfo": "Bilgi — {{name}}",
       "createProfile": "Profil oluştur",
       "about": "Donut Browser Hakkında",
-      "agentChat": "Yeni ajan sohbeti"
+      "agentChat": "Yeni ajan sohbeti",
+      "showWindow": "{{name}} penceresini göster"
     },
     "pages": {
       "launch": {
@@ -3152,6 +3154,12 @@
         "title": "Gruplar",
         "placeholder": "Grupları arayın...",
         "empty": "Henüz grup yok."
+      },
+      "window": {
+        "entry": "Pencereyi göster…",
+        "title": "Pencereyi göster",
+        "placeholder": "Çalışan profilleri arayın...",
+        "empty": "Çalışan profil yok."
       }
     },
     "emptyFor": "“{{query}}” için sonuç yok.",
@@ -3191,7 +3199,8 @@
       "stopAllRunning": "durdur tümü çalışan kapat sonlandır",
       "focusSearch": "ara bul filtrele",
       "goBack": "geri escape ana sayfa",
-      "agentChat": "ajan sohbet sor asistan yapay zeka konuşma görev"
+      "agentChat": "ajan sohbet sor asistan yapay zeka konuşma görev",
+      "window": "pencere göster öne getir geçiş"
     }
   },
   "shortcuts": {
@@ -3957,8 +3966,6 @@
       "activity": "Etkinlik",
       "recipes": "Tarifler",
       "schedules": "Zamanlamalar",
-      "tasks": "Görevler",
-      "routines": "Rutinler",
       "chat": "Sohbet"
     },
     "header": {
@@ -4258,25 +4265,18 @@
       "noProfileMatch": "Eşleşen profil yok",
       "clearProfiles": "Seçimi temizle",
       "allProfiles": "Tümünü seç",
-      "promptLabel": "Görev",
       "promptPlaceholder": "Ajana ne yapacağını kendi sözlerinle anlat",
       "startUrl": "Başlangıç sayfası",
-      "startUrlPlaceholder": "Başlangıç sayfası (isteğe bağlı)",
       "options": "Görev seçenekleri",
       "autonomy": "Ne zaman harekete geçer",
       "autonomyOptions": {
         "ask": "Önemli adımlardan önce sor",
         "auto": "Kendi başına hareket et"
       },
-      "autonomyHints": {
-        "ask": "Göndermeden, satın almadan veya onaylamadan önce durup sorar.",
-        "auto": "Sormadan sonuna kadar çalışır."
-      },
       "creditCap": "Kredi sınırı",
       "noCap": "Sınır yok",
       "concurrency": "Aynı anda",
       "concurrencyDefault": "Varsayılan",
-      "run": "Çalıştır",
       "stepKinds": {
         "think": "Düşünüyor",
         "act": "Eylem",
@@ -4304,7 +4304,6 @@
       "stopAll": "Tümünü durdur",
       "retryFailed": "Başarısızları yeniden dene",
       "dismiss": "Listeden kaldır",
-      "empty": "Yukarıya bir görev yaz ve profilleri seç. Her profilin tarayıcısı işi yapar, her adımı burada görürsün.",
       "runOn_one": "{{count}} profilde çalıştır",
       "runOn_other": "{{count}} profilde çalıştır",
       "profileCount_one": "{{count}} profil",
@@ -4322,22 +4321,16 @@
       "prompt": "Görev",
       "profiles": "Profiller",
       "creditCap": "Çalıştırma başına kredi sınırı",
-      "onSchedule": "Zamanlamaya göre çalıştır",
       "cron": "Cron ifadesi",
-      "cronHint": "Dakika, saat, gün, ay, haftanın günü. 0 9 * * 1-5 hafta içi saat 09:00 demektir.",
-      "timezone": "Saat dilimi",
       "noRuns": "Henüz çalıştırma yok",
       "manual": "Elle çalıştır",
-      "hint": "Bir görevi bir kez kaydet ve aynı profillerde yeniden çalıştır, elle ya da zamanlamayla.",
       "new": "Yeni rutin",
-      "empty": "Henüz rutin yok",
       "runAria": "{{name}} çalıştır",
       "run": "Çalıştır",
       "history": "Çalıştırmalar",
       "deleteTitle": "{{name}} silinsin mi?",
       "deleteDescription": "Rutin ve zamanlaması silinir.",
       "menuAria": "{{name}} için daha fazlası",
-      "lastRun": "Son çalıştırma {{when}}",
       "every": {
         "daily": "Her gün {{time}}",
         "weekdays": "Hafta içi {{time}}",
@@ -4372,7 +4365,41 @@
       "noCreditsTitle": "Kredi kalmadı",
       "noCreditsBody": "Ajan bir sonraki döneme veya kredi satın alana kadar durur.",
       "worked_one": "{{count}} adım tamamlandı",
-      "worked_other": "{{count}} adım tamamlandı"
+      "worked_other": "{{count}} adım tamamlandı",
+      "groups": "Gruplar",
+      "profiles": "Profiller",
+      "runs": "Çalıştırmalar",
+      "routines": "Rutinler",
+      "placeholderRun": "Her profilde ajandan bir şey isteyin",
+      "placeholderRoutine": "Rutin ne yapsın?",
+      "saveRoutine": "Rutini kaydet",
+      "saveAsRoutine": "Rutin olarak kaydet",
+      "routineOn": "Açık",
+      "routineOff": "Kapalı",
+      "repeat": {
+        "label": "Tekrarla",
+        "once": "Tekrarlama",
+        "hourly": "Her saat",
+        "daily": "Her gün",
+        "weekdays": "Hafta içi",
+        "weekly": "Her hafta",
+        "custom": "Özel",
+        "day": "Gün",
+        "at": "Saat",
+        "needsPlan": "Zamanlamalar ücretli plan gerektirir"
+      },
+      "host": {
+        "save": "Yeni rutin",
+        "edit": "Rutini değiştir",
+        "run": "Rutini çalıştır",
+        "delete": "Rutini sil",
+        "tasks": "Diğer profillerde çalıştır",
+        "saved": "{{name}} kaydedildi",
+        "deleted": "{{name}} silindi",
+        "started_one": "{{count}} profilde başlatıldı",
+        "started_other": "{{count}} profilde başlatıldı",
+        "declined": "İptal edildi"
+      }
     }
   },
   "proxyDistribution": {

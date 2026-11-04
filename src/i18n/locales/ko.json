@@ -2472,7 +2472,8 @@
       "runRemote": "클라우드에서 실행",
       "lockNow": "지금 잠그기",
       "moveToTrash": "휴지통으로 이동",
-      "askAgent": "에이전트에게 요청"
+      "askAgent": "에이전트에게 요청",
+      "showWindow": "창 표시"
     },
     "emptyGroupTitle": "이 그룹은 비어 있습니다",
     "emptyGroupHint": "이 그룹에 프로필을 만들거나 기존 프로필을 이 그룹으로 옮기세요.",
@@ -3126,7 +3127,8 @@
       "profileInfo": "정보 — {{name}}",
       "createProfile": "프로필 생성",
       "about": "Donut Browser 정보",
-      "agentChat": "새 에이전트 채팅"
+      "agentChat": "새 에이전트 채팅",
+      "showWindow": "{{name}} 창 표시"
     },
     "pages": {
       "launch": {
@@ -3152,6 +3154,12 @@
         "title": "그룹",
         "placeholder": "그룹 검색...",
         "empty": "아직 그룹이 없습니다."
+      },
+      "window": {
+        "entry": "창 표시…",
+        "title": "창 표시",
+        "placeholder": "실행 중인 프로필 검색...",
+        "empty": "실행 중인 프로필이 없습니다."
       }
     },
     "emptyFor": "“{{query}}”에 대한 결과가 없습니다.",
@@ -3191,7 +3199,8 @@
       "stopAllRunning": "중지 모두 실행 종료 닫기",
       "focusSearch": "검색 찾기 필터",
       "goBack": "뒤로 이스케이프 홈",
-      "agentChat": "에이전트 채팅 요청 어시스턴트 ai 대화 작업"
+      "agentChat": "에이전트 채팅 요청 어시스턴트 ai 대화 작업",
+      "window": "창 표시 앞으로 전환 포커스"
     }
   },
   "shortcuts": {
@@ -3957,8 +3966,6 @@
       "activity": "활동",
       "recipes": "레시피",
       "schedules": "일정",
-      "tasks": "작업",
-      "routines": "루틴",
       "chat": "채팅"
     },
     "header": {
@@ -4258,25 +4265,18 @@
       "noProfileMatch": "일치하는 프로필이 없습니다",
       "clearProfiles": "선택 해제",
       "allProfiles": "모두 선택",
-      "promptLabel": "작업",
       "promptPlaceholder": "에이전트가 할 일을 직접 적어 주세요",
       "startUrl": "시작 페이지",
-      "startUrlPlaceholder": "시작 페이지(선택)",
       "options": "작업 옵션",
       "autonomy": "실행 방식",
       "autonomyOptions": {
         "ask": "중요한 단계 전에 묻기",
         "auto": "스스로 진행"
       },
-      "autonomyHints": {
-        "ask": "제출, 구매, 전송 전에 멈추고 묻습니다.",
-        "auto": "묻지 않고 끝까지 진행합니다."
-      },
       "creditCap": "크레딧 한도",
       "noCap": "한도 없음",
       "concurrency": "동시 실행",
       "concurrencyDefault": "기본값",
-      "run": "실행",
       "stepKinds": {
         "think": "생각 중",
         "act": "동작",
@@ -4304,7 +4304,6 @@
       "stopAll": "모두 중지",
       "retryFailed": "실패한 작업 다시 시도",
       "dismiss": "목록에서 제거",
-      "empty": "위에 작업을 적고 프로필을 고르세요. 각 프로필의 브라우저가 작업하고, 모든 단계가 여기에 표시됩니다.",
       "runOn_one": "프로필 {{count}}개에서 실행",
       "runOn_other": "프로필 {{count}}개에서 실행",
       "profileCount_one": "프로필 {{count}}개",
@@ -4322,22 +4321,16 @@
       "prompt": "작업",
       "profiles": "프로필",
       "creditCap": "실행당 크레딧 한도",
-      "onSchedule": "일정에 따라 실행",
       "cron": "cron 표현식",
-      "cronHint": "분, 시, 일, 월, 요일. 0 9 * * 1-5는 평일 09:00입니다.",
-      "timezone": "시간대",
       "noRuns": "아직 실행 기록이 없습니다",
       "manual": "직접 실행",
-      "hint": "작업을 한 번 저장하고 같은 프로필에서 직접 또는 일정에 따라 다시 실행하세요.",
       "new": "새 루틴",
-      "empty": "아직 루틴이 없습니다",
       "runAria": "{{name}} 실행",
       "run": "실행",
       "history": "실행 기록",
       "deleteTitle": "{{name}}을(를) 삭제할까요?",
       "deleteDescription": "루틴과 일정이 삭제됩니다.",
       "menuAria": "{{name}} 더 보기",
-      "lastRun": "마지막 실행 {{when}}",
       "every": {
         "daily": "매일 {{time}}",
         "weekdays": "평일 {{time}}",
@@ -4372,7 +4365,41 @@
       "noCreditsTitle": "크레딧이 없습니다",
       "noCreditsBody": "다음 기간이 되거나 크레딧을 구매할 때까지 에이전트가 멈춥니다.",
       "worked_one": "{{count}}단계 완료",
-      "worked_other": "{{count}}단계 완료"
+      "worked_other": "{{count}}단계 완료",
+      "groups": "그룹",
+      "profiles": "프로필",
+      "runs": "실행",
+      "routines": "루틴",
+      "placeholderRun": "각 프로필에서 에이전트에게 요청하기",
+      "placeholderRoutine": "루틴이 무엇을 할까요?",
+      "saveRoutine": "루틴 저장",
+      "saveAsRoutine": "루틴으로 저장",
+      "routineOn": "켜짐",
+      "routineOff": "꺼짐",
+      "repeat": {
+        "label": "반복",
+        "once": "반복 안 함",
+        "hourly": "매시간",
+        "daily": "매일",
+        "weekdays": "평일",
+        "weekly": "매주",
+        "custom": "사용자 지정",
+        "day": "요일",
+        "at": "시간",
+        "needsPlan": "일정에는 유료 요금제가 필요합니다"
+      },
+      "host": {
+        "save": "새 루틴",
+        "edit": "루틴 변경",
+        "run": "루틴 실행",
+        "delete": "루틴 삭제",
+        "tasks": "다른 프로필에서 실행",
+        "saved": "{{name}} 저장됨",
+        "deleted": "{{name}} 삭제됨",
+        "started_one": "프로필 {{count}}개에서 시작됨",
+        "started_other": "프로필 {{count}}개에서 시작됨",
+        "declined": "취소됨"
+      }
     }
   },
   "proxyDistribution": {

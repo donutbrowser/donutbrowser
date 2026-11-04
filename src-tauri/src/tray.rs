@@ -2,7 +2,8 @@
 //! all, show and quit.
 //!
 //! The menu acts through the frontend: an item emits `tray-action`, and the
-//! page runs its own launch, stop and open code. The menu is built again when a
+//! page runs its own launch, stop and open code. "Show window" is the one
+//! exception: it raises the profile's browser window directly. The menu is built again when a
 //! profile starts, stops or changes.
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -35,6 +36,7 @@ pub(crate) struct Labels {
   pub recent: &'static str,
   pub stop_all: &'static str,
   pub stop: &'static str,
+  pub show_window: &'static str,
   pub open_details: &'static str,
 }
 
@@ -45,7 +47,8 @@ pub(crate) fn labels_for(language: &str) -> Labels {
     .next()
     .unwrap_or("en")
     .to_ascii_lowercase();
-  let (show, quit, running, recent, stop_all, stop, open_details) = match code.as_str() {
+  let (show, quit, running, recent, stop_all, stop, show_window, open_details) = match code.as_str()
+  {
     "de" => (
       "Donut Browser anzeigen",
       "Beenden",
@@ -53,6 +56,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "Zuletzt verwendet",
       "Alle laufenden stoppen",
       "Stoppen",
+      "Fenster anzeigen",
       "Details öffnen",
     ),
     "es" => (
@@ -62,6 +66,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "Recientes",
       "Detener todos",
       "Detener",
+      "Mostrar ventana",
       "Abrir detalles",
     ),
     "fr" => (
@@ -71,6 +76,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "Récents",
       "Tout arrêter",
       "Arrêter",
+      "Afficher la fenêtre",
       "Ouvrir les détails",
     ),
     "ja" => (
@@ -80,6 +86,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "最近使用",
       "実行中をすべて停止",
       "停止",
+      "ウィンドウを表示",
       "詳細を開く",
     ),
     "ko" => (
@@ -89,6 +96,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "최근 항목",
       "실행 중인 항목 모두 중지",
       "중지",
+      "창 표시",
       "세부 정보 열기",
     ),
     "pt" => (
@@ -98,6 +106,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "Recentes",
       "Parar todos",
       "Parar",
+      "Mostrar janela",
       "Abrir detalhes",
     ),
     "ru" => (
@@ -107,6 +116,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "Недавние",
       "Остановить все",
       "Остановить",
+      "Показать окно",
       "Открыть сведения",
     ),
     "tr" => (
@@ -116,6 +126,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "Son kullanılanlar",
       "Tümünü durdur",
       "Durdur",
+      "Pencereyi göster",
       "Ayrıntıları aç",
     ),
     "vi" => (
@@ -125,6 +136,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "Gần đây",
       "Dừng tất cả",
       "Dừng",
+      "Hiện cửa sổ",
       "Mở chi tiết",
     ),
     "zh" => (
@@ -134,6 +146,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "最近使用",
       "全部停止",
       "停止",
+      "显示窗口",
       "打开详情",
     ),
     _ => (
@@ -143,6 +156,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
       "Recent",
       "Stop all running",
       "Stop",
+      "Show window",
       "Open details",
     ),
   };
@@ -153,6 +167,7 @@ pub(crate) fn labels_for(language: &str) -> Labels {
     recent,
     stop_all,
     stop,
+    show_window,
     open_details,
   }
 }
@@ -244,6 +259,10 @@ fn build_menu(app: &AppHandle, state: &MenuState) -> tauri::Result<Menu<Wry>> {
       SubmenuBuilder::new(app, format!("{} ({})", labels.running, state.running.len()));
     for profile in &state.running {
       let submenu = SubmenuBuilder::new(app, item_text(&profile.name))
+        .item(
+          &MenuItemBuilder::with_id(format!("tray_window:{}", profile.id), labels.show_window)
+            .build(app)?,
+        )
         .item(
           &MenuItemBuilder::with_id(format!("tray_stop:{}", profile.id), labels.stop).build(app)?,
         )
@@ -358,6 +377,14 @@ pub(crate) fn action_for(id: &str) -> Option<TrayAction> {
   }
 }
 
+/// The profile whose browser window a "Show window" item brings forward.
+#[cfg(not(feature = "e2e"))]
+fn window_profile(id: &str) -> Option<String> {
+  id.strip_prefix("tray_window:")
+    .filter(|profile_id| uuid::Uuid::parse_str(profile_id).is_ok())
+    .map(str::to_string)
+}
+
 /// Whether the person has to see the window for this action: a launch that
 /// first asks for the profile's password does.
 #[cfg(not(feature = "e2e"))]
@@ -381,6 +408,15 @@ fn on_menu_event(app: &AppHandle, id: &str) {
   if id == "tray_quit" {
     crate::QUIT_CONFIRMED.store(true, Ordering::SeqCst);
     app.exit(0);
+    return;
+  }
+  if let Some(profile_id) = window_profile(id) {
+    // Raised by the browser itself; Donut's own window stays where it is.
+    tauri::async_runtime::spawn(async move {
+      let _ = crate::mcp_server::McpServer::instance()
+        .bring_profile_to_front(&profile_id)
+        .await;
+    });
     return;
   }
   let Some(action) = action_for(id) else {
@@ -545,6 +581,15 @@ mod tests {
     );
     assert_eq!(action("tray_launch:../x"), None);
     assert_eq!(action("tray_quit"), None);
+  }
+
+  #[cfg(not(feature = "e2e"))]
+  #[test]
+  fn show_window_items_name_a_profile_id() {
+    let id = uuid::Uuid::new_v4().to_string();
+    assert_eq!(window_profile(&format!("tray_window:{id}")), Some(id));
+    assert_eq!(window_profile("tray_window:../x"), None);
+    assert_eq!(window_profile("tray_stop:x"), None);
   }
 
   #[test]
