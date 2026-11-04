@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { ProxyCheckResult, StoredProxy } from "@/types";
 
@@ -7,8 +8,8 @@ import type { ProxyCheckResult, StoredProxy } from "@/types";
  *
  * The profile table renders a check button per row, so two profiles on the
  * same proxy are two buttons. A check run from one row is a fact about the
- * proxy, not the row, and the other row must show it too; the backend cache
- * is only re-read on mount, so it cannot carry that update by itself.
+ * proxy, not the row, and the other row must show it too. The backend cache
+ * is read on mount and again when the backend saves a check it ran itself.
  */
 export interface ProxyCheckEntry {
   /** The route the receipt and the in-flight check belong to. */
@@ -33,6 +34,50 @@ const anyListeners = new Set<() => void>();
 let version = 0;
 /** Cache reads in flight, keyed by route, so N rows cost one invoke. */
 const cacheReads = new Map<string, Promise<void>>();
+/** The route each proxy was last shown with, where a saved check goes. */
+const routes = new Map<string, string>();
+/** Checks saved per proxy; only the read after the newest one publishes. */
+const savedChecks = new Map<string, number>();
+let watchingSaves = false;
+
+/**
+ * A check the backend saved (the API, an agent, a launch): read its receipt
+ * again. A check this store runs publishes its own result.
+ */
+function onCheckSaved(proxyId: string) {
+  const routeKey = routes.get(proxyId);
+  if (!routeKey || entries.get(proxyId)?.checking) return;
+  const saved = nextSave(proxyId);
+  invoke<ProxyCheckResult | null>("get_cached_proxy_check", { proxyId })
+    .then((result) => {
+      const current = entries.get(proxyId);
+      if (savedChecks.get(proxyId) !== saved || current?.checking) return;
+      // A failed receipt keeps the words of the failure this store saw.
+      const failure =
+        !result?.is_valid && current?.routeKey === routeKey
+          ? current.failure
+          : null;
+      publish(proxyId, { routeKey, result, checking: false, failure });
+    })
+    .catch(() => {});
+}
+
+/** Counts a saved check; reads of the receipt from before it are dropped. */
+function nextSave(proxyId: string): number {
+  const saved = (savedChecks.get(proxyId) ?? 0) + 1;
+  savedChecks.set(proxyId, saved);
+  return saved;
+}
+
+function watchSavedChecks() {
+  if (watchingSaves) return;
+  watchingSaves = true;
+  listen<string>("proxy-check-saved", (event) =>
+    onCheckSaved(event.payload),
+  ).catch(() => {
+    watchingSaves = false;
+  });
+}
 
 /** Credentials and the endpoint decide whether an old receipt still applies. */
 export function proxyRouteKey(proxy: StoredProxy): string {
@@ -47,6 +92,7 @@ function publish(proxyId: string, next: ProxyCheckEntry) {
 }
 
 function subscribeAny(listener: () => void) {
+  watchSavedChecks();
   anyListeners.add(listener);
   return () => {
     anyListeners.delete(listener);
@@ -94,6 +140,7 @@ function entryFor(proxyId: string, routeKey: string): ProxyCheckEntry {
 }
 
 function subscribe(proxyId: string, listener: () => void) {
+  watchSavedChecks();
   const set = listeners.get(proxyId) ?? new Set();
   set.add(listener);
   listeners.set(proxyId, set);
@@ -104,6 +151,7 @@ function subscribe(proxyId: string, listener: () => void) {
 }
 
 async function loadCached(proxyId: string, routeKey: string) {
+  routes.set(proxyId, routeKey);
   const known = entries.get(proxyId);
   if (known?.routeKey === routeKey) return;
   const pending = cacheReads.get(routeKey);
@@ -149,9 +197,11 @@ export async function runProxyCheck(
       proxyId: proxy.id,
       proxySettings: proxy.proxy_settings,
     });
+    nextSave(proxy.id);
     publish(proxy.id, { routeKey, result, checking: false, failure: null });
     return result;
   } catch (error) {
+    nextSave(proxy.id);
     publish(proxy.id, {
       routeKey,
       result: {

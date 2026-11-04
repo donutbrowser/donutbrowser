@@ -619,6 +619,11 @@ impl ProxyManager {
     };
     let content = serde_json::to_string_pretty(&cache)?;
     crate::app_dirs::write_owner_only(&cache_file, content.as_bytes())?;
+    // The page reads a receipt once; a check run by the API or an agent
+    // reaches it only through this event.
+    if let Err(e) = events::emit("proxy-check-saved", proxy_id) {
+      log::warn!("Event emit failed event=proxy-check-saved err=\"{e}\"");
+    }
     Ok(())
   }
 
