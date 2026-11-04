@@ -1133,6 +1133,7 @@ impl AppAutoUpdater {
           update_info.new_version,
           started.elapsed().as_millis()
         );
+        crate::whats_new::remember(&update_info.new_version, &update_info.release_notes);
         let _ = events::emit("app-update-ready", update_info.new_version.clone());
         Ok(())
       }

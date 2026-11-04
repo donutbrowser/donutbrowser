@@ -86,3 +86,27 @@ export function resolveTableVisibility(
   for (const id of unavailable) result[id] = false;
   return result;
 }
+
+/** Pinned rows first, each part in the order it came. */
+export function pinnedFirst<T extends { id: string }>(
+  rows: readonly T[],
+  pinned: ReadonlySet<string>,
+): T[] {
+  if (pinned.size === 0) return [...rows];
+  return [
+    ...rows.filter((row) => pinned.has(row.id)),
+    ...rows.filter((row) => !pinned.has(row.id)),
+  ];
+}
+
+/** Pins `ids`, or unpins them when every one is pinned already. */
+export function togglePins(
+  pinned: readonly string[],
+  ids: readonly string[],
+): string[] {
+  const set = new Set(pinned);
+  if (ids.every((id) => set.has(id))) {
+    return pinned.filter((id) => !ids.includes(id));
+  }
+  return [...pinned, ...ids.filter((id) => !set.has(id))];
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { AnimatePresence, motion } from "motion/react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,6 +10,7 @@ import {
   LuBookmark,
   LuChevronDown,
   LuChevronUp,
+  LuFileUp,
   LuTrash2,
 } from "react-icons/lu";
 import { useEntityMotion } from "@/components/entity-page";
@@ -31,7 +33,7 @@ import {
 } from "@/components/ui/tooltip";
 import { translateBackendError } from "@/lib/backend-errors";
 import { MOTION_EASE_OUT, MOTION_SPRING_POSITION } from "@/lib/motion";
-import { showSuccessToast } from "@/lib/toast-utils";
+import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type { BrowserProfile, GroupBookmark } from "@/types";
 import { RippleButton } from "./ui/ripple";
@@ -39,6 +41,7 @@ import { RippleButton } from "./ui/ripple";
 interface GroupBookmarksDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  /** The group whose bookmarks these are; `null` for every profile's. */
   groupId: string | null;
   groupName: string;
   onBookmarksSaved: () => void;
@@ -119,11 +122,17 @@ export function GroupBookmarksDialog({
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const animate = useEntityMotion();
 
+  const everyProfile = groupId === null;
+
   useEffect(() => {
-    if (!isOpen || !groupId) return;
+    if (!isOpen) return;
     setError(null);
     setIsLoading(true);
-    void invoke<GroupBookmark[]>("get_group_bookmarks", { groupId })
+    void (
+      groupId
+        ? invoke<GroupBookmark[]>("get_group_bookmarks", { groupId })
+        : invoke<GroupBookmark[]>("get_shared_bookmarks")
+    )
       .then((bookmarks) => {
         setRows(toRows(bookmarks));
       })
@@ -158,8 +167,25 @@ export function GroupBookmarksDialog({
     });
   }, []);
 
+  const importFile = useCallback(async () => {
+    const path = await open({ multiple: false, directory: false });
+    if (typeof path !== "string") return;
+    try {
+      const found = await invoke<GroupBookmark[]>("read_bookmarks_file", {
+        path,
+      });
+      setRows((current) => {
+        const known = new Set(current.map((row) => row.url.trim()));
+        const added = toRows(found.filter((b) => !known.has(b.url)));
+        showSuccessToast(t("groupBookmarks.imported", { count: added.length }));
+        return [...current, ...added];
+      });
+    } catch (err) {
+      showErrorToast(translateBackendError(t, err));
+    }
+  }, [t]);
+
   const handleSave = useCallback(async () => {
-    if (!groupId) return;
     setIsSaving(true);
     setError(null);
     try {
@@ -168,10 +194,14 @@ export function GroupBookmarksDialog({
         url: row.url,
         folder: row.folder?.trim() ? row.folder.trim() : null,
       }));
-      const saved = await invoke<GroupBookmark[]>("set_group_bookmarks", {
-        groupId,
-        bookmarks,
-      });
+      const saved = groupId
+        ? await invoke<GroupBookmark[]>("set_group_bookmarks", {
+            groupId,
+            bookmarks,
+          })
+        : await invoke<GroupBookmark[]>("set_shared_bookmarks", {
+            bookmarks,
+          });
       setRows(toRows(saved));
 
       // Push the edit to the group's stopped profiles now instead of making
@@ -181,7 +211,7 @@ export function GroupBookmarksDialog({
       const members = await invoke<BrowserProfile[]>("list_browser_profiles");
       await Promise.allSettled(
         members
-          .filter((profile) => profile.group_id === groupId)
+          .filter((profile) => everyProfile || profile.group_id === groupId)
           .map((profile) =>
             invoke("apply_group_bookmarks_to_profile", {
               profileId: profile.id,
@@ -198,17 +228,21 @@ export function GroupBookmarksDialog({
     } finally {
       setIsSaving(false);
     }
-  }, [groupId, rows, onBookmarksSaved, onClose, t]);
+  }, [groupId, everyProfile, rows, onBookmarksSaved, onClose, t]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col">
         <DialogHeader>
           <DialogTitle>
-            {t("groupBookmarks.title", { name: groupName })}
+            {everyProfile
+              ? t("groupBookmarks.everyProfileTitle")
+              : t("groupBookmarks.title", { name: groupName })}
           </DialogTitle>
           <DialogDescription>
-            {t("groupBookmarks.description")}
+            {everyProfile
+              ? t("groupBookmarks.everyProfileDescription")
+              : t("groupBookmarks.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -344,24 +378,37 @@ export function GroupBookmarksDialog({
             </div>
           )}
 
-          <RippleButton
-            variant="soft"
-            size="sm"
-            data-testid="group-bookmark-add"
-            disabled={isSaving}
-            onClick={() => {
-              const key = newKey();
-              setFocusKey(key);
-              setRows((current) => [
-                ...current,
-                { key, title: "", url: "", folder: "" },
-              ]);
-            }}
-            className="flex items-center gap-2"
-          >
-            <GoPlus className="size-4" />
-            {t("groupBookmarks.addRow")}
-          </RippleButton>
+          <div className="flex flex-wrap gap-2">
+            <RippleButton
+              variant="soft"
+              size="sm"
+              data-testid="group-bookmark-add"
+              disabled={isSaving}
+              onClick={() => {
+                const key = newKey();
+                setFocusKey(key);
+                setRows((current) => [
+                  ...current,
+                  { key, title: "", url: "", folder: "" },
+                ]);
+              }}
+              className="flex items-center gap-2"
+            >
+              <GoPlus className="size-4" />
+              {t("groupBookmarks.addRow")}
+            </RippleButton>
+            <RippleButton
+              variant="soft"
+              size="sm"
+              data-testid="group-bookmark-import"
+              disabled={isSaving}
+              onClick={() => void importFile()}
+              className="flex items-center gap-2"
+            >
+              <LuFileUp className="size-4" />
+              {t("groupBookmarks.import")}
+            </RippleButton>
+          </div>
 
           {error && (
             <div

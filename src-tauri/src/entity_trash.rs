@@ -1136,6 +1136,7 @@ mod tests {
       homepage_url: None,
       source_kind: crate::extension_manager::SOURCE_KIND_ARCHIVE.to_string(),
       linked_path: None,
+      web_store_id: None,
     };
     let manager = lock(&EXTENSION_MANAGER);
     manager.update_extension_internal(&ext).unwrap();

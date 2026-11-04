@@ -547,14 +547,65 @@ fn checksum_node(node: &Value, md5: &mut Md5) {
 
 /// Resolve the group bookmarks a profile should carry, or `None` when it is in
 /// no group.
+/// Every profile's bookmarks, then its group's. `None` when the profile is in
+/// no group and no shared list was ever saved, so its file stays untouched; an
+/// emptied shared list still clears the folder it once wrote.
 fn bookmarks_for(profile: &BrowserProfile) -> Option<Vec<GroupBookmark>> {
-  let group_id = profile.group_id.as_deref()?;
-  let manager = crate::group_manager::GROUP_MANAGER.lock().ok()?;
-  let groups = manager.get_all_groups().ok()?;
-  groups
-    .into_iter()
-    .find(|g| g.id == group_id)
-    .map(|g| g.bookmarks)
+  let shared = saved_shared_bookmarks();
+  let group = profile.group_id.as_deref().and_then(|group_id| {
+    let manager = crate::group_manager::GROUP_MANAGER.lock().ok()?;
+    let groups = manager.get_all_groups().ok()?;
+    groups
+      .into_iter()
+      .find(|g| g.id == group_id)
+      .map(|g| g.bookmarks)
+  });
+  if shared.is_none() && group.is_none() {
+    return None;
+  }
+  let mut all = shared.unwrap_or_default();
+  for bookmark in group.unwrap_or_default() {
+    if !all
+      .iter()
+      .any(|b| b.url == bookmark.url && b.folder == bookmark.folder)
+    {
+      all.push(bookmark);
+    }
+  }
+  Some(all)
+}
+
+/// The bookmarks every profile on this device gets. Kept beside the
+/// settings, not synced.
+fn shared_bookmarks_path() -> PathBuf {
+  crate::app_dirs::settings_dir().join("shared_bookmarks.json")
+}
+
+/// `None` when no shared list was ever saved on this device.
+fn saved_shared_bookmarks() -> Option<Vec<GroupBookmark>> {
+  std::fs::read(shared_bookmarks_path())
+    .ok()
+    .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+}
+
+/// Tauri command: the bookmarks every profile gets.
+#[tauri::command]
+pub async fn get_shared_bookmarks() -> Result<Vec<GroupBookmark>, String> {
+  Ok(saved_shared_bookmarks().unwrap_or_default())
+}
+
+/// Tauri command: replace the bookmarks every profile gets.
+#[tauri::command]
+pub async fn set_shared_bookmarks(
+  bookmarks: Vec<GroupBookmark>,
+) -> Result<Vec<GroupBookmark>, String> {
+  let cleaned = validate(bookmarks)?;
+  let bytes = serde_json::to_vec_pretty(&cleaned)
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
+  crate::profile::encryption::atomic_write(&shared_bookmarks_path(), &bytes)
+    .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
+  log::info!("Shared bookmarks saved count={}", cleaned.len());
+  Ok(cleaned)
 }
 
 /// Whether this profile's `Bookmarks` file may be rewritten right now.

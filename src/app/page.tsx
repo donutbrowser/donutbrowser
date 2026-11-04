@@ -45,6 +45,7 @@ import {
   type PasswordDialogMode,
   ProfilePasswordDialog,
 } from "@/components/profile-password-dialog";
+import { ProfilePreviewsPage } from "@/components/profile-previews-page";
 import { ProfileSelectorDialog } from "@/components/profile-selector-dialog";
 import { ProfileSyncDialog } from "@/components/profile-sync-dialog";
 import { ProxyAssignmentDialog } from "@/components/proxy-assignment-dialog";
@@ -67,6 +68,7 @@ import { AutoHeight } from "@/components/ui/auto-height";
 import { WayfernConfigDialog } from "@/components/wayfern-config-dialog";
 import { WayfernTermsDialog } from "@/components/wayfern-terms-dialog";
 import { WelcomeDialog } from "@/components/welcome-dialog";
+import { type WhatsNew, WhatsNewDialog } from "@/components/whats-new-dialog";
 import { WindowResizeWarningDialog } from "@/components/window-resize-warning-dialog";
 import { useAgentConsole } from "@/hooks/use-agent-console";
 import { useAgentAvailability } from "@/hooks/use-agent-tasks";
@@ -75,6 +77,7 @@ import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { useCommercialTrial } from "@/hooks/use-commercial-trial";
 import { cookieBotScopeFor, useCookieBot } from "@/hooks/use-cookie-bot";
 import { useGroupEvents } from "@/hooks/use-group-events";
+import { useInterfaceZoom } from "@/hooks/use-interface-zoom";
 import { useKonamiCode } from "@/hooks/use-konami-code";
 import { useDocumentLanguage } from "@/hooks/use-language";
 import { useLaunchNotices } from "@/hooks/use-launch-notices";
@@ -105,8 +108,10 @@ import {
   getEntitlements,
   isTeamLauncher,
 } from "@/lib/entitlements";
+import { stepInterfaceZoom } from "@/lib/interface-zoom";
 import { setOnboardingActive } from "@/lib/onboarding-signal";
 import { type ProfileSearchContext } from "@/lib/profile-search";
+import { useProxyCountries } from "@/lib/proxy-check-store";
 import { startRemoteSession } from "@/lib/remote-sessions";
 import {
   matchesGroupDigit,
@@ -175,6 +180,8 @@ interface PendingUrl {
 
 export default function Home() {
   const { t } = useTranslation();
+  const { zoom: interfaceZoom, setZoom: setInterfaceZoom } = useInterfaceZoom();
+  const [whatsNew, setWhatsNew] = useState<WhatsNew | null>(null);
   const reducedMotion = useReducedMotion();
   // Mount global version update listener/toasts
   useVersionUpdater();
@@ -687,6 +694,7 @@ export default function Home() {
         setTrashPageOpen(true);
         break;
       case "shortcuts":
+      case "previews":
         // Plain page render — nothing else to open.
         break;
     }
@@ -943,9 +951,24 @@ export default function Home() {
         case "openTotp":
           setTotpToolOpen(true);
           break;
+        case "zoomIn":
+        case "zoomOut":
+        case "zoomReset":
+          void setInterfaceZoom(
+            stepInterfaceZoom(
+              interfaceZoom,
+              id === "zoomIn" ? 1 : id === "zoomOut" ? -1 : 0,
+            ),
+          ).catch((error: unknown) => {
+            showErrorToast(translateBackendError(t, error));
+          });
+          break;
       }
     },
     [
+      interfaceZoom,
+      setInterfaceZoom,
+      t,
       handleRailNavigate,
       currentPage,
       proxyManagementInitialTab,
@@ -1706,7 +1729,8 @@ export default function Home() {
         if (
           blocked ||
           checks.vpn_extensions.length > 0 ||
-          checks.route_unreachable
+          checks.route_unreachable ||
+          checks.route_missing
         ) {
           const decision = await requestGateDecision(
             {
@@ -1719,6 +1743,7 @@ export default function Home() {
                 probePending: checks.exit_probe_pending,
                 unverified: checks.exit_unverified,
                 routeUnreachable: checks.route_unreachable ?? null,
+                routeMissing: checks.route_missing ?? false,
               },
             },
             opts?.bulkRunId,
@@ -1752,6 +1777,10 @@ export default function Home() {
         // exactly once with the token it minted — bounded, so a gate loop is
         // structurally impossible.
         const parsed = parseBackendError(err);
+        if (parsed?.code === "LAUNCH_CANCELLED") {
+          noteLaunchError(profile.id, null);
+          return { status: "cancelled" };
+        }
         if (parsed?.code === "FINGERPRINT_EXIT_MISMATCH") {
           const decision = await requestGateDecision(
             {
@@ -2950,6 +2979,22 @@ export default function Home() {
     };
   }, []);
 
+  // The first start after an update says so, once; the notes open on request.
+  useEffect(() => {
+    void invoke<WhatsNew | null>("take_whats_new")
+      .then((notes) => {
+        if (!notes) return;
+        showSuccessToast(t("whatsNew.updated", { version: notes.version }), {
+          duration: 12000,
+          action: {
+            label: t("whatsNew.open"),
+            onClick: () => setWhatsNew(notes),
+          },
+        });
+      })
+      .catch(() => {});
+  }, [t]);
+
   // Profiles that were running when the app last quit open again, through
   // the bulk launch path, once the list is loaded and launches are allowed.
   const reopenCheckedRef = useRef(false);
@@ -2975,10 +3020,12 @@ export default function Home() {
   // handed the resolution up front. Built off the entity lists rather than off
   // `profiles`, because the alternative — a .find() per row per term — is
   // O(profiles x entities) on every single keystroke.
+  const proxyCountries = useProxyCountries(storedProxies);
   const searchContext = useMemo<ProfileSearchContext>(
     () => ({
       groupNames: new Map(groupsData.map((g) => [g.id, g.name])),
       proxyNames: new Map(storedProxies.map((p) => [p.id, p.name])),
+      proxyCountries,
       vpnNames: new Map(vpnConfigs.map((v) => [v.id, v.name])),
       extensionGroupNames: new Map(extensionGroups.map((e) => [e.id, e.name])),
       statusNames: new Map(profileStatuses.map((s) => [s.id, s.name])),
@@ -2991,6 +3038,7 @@ export default function Home() {
       extensionGroups,
       profileStatuses,
       runningProfiles,
+      proxyCountries,
     ],
   );
 
@@ -3193,6 +3241,16 @@ export default function Home() {
                 </div>
               )}
 
+              {currentPage === "previews" && (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <ProfilePreviewsPage
+                    profiles={profiles}
+                    runningProfileIds={runningProfiles}
+                    unlocked={automationUnlocked}
+                  />
+                </div>
+              )}
+
               {currentPage === "shortcuts" && (
                 <div className="flex min-h-0 flex-1 flex-col">
                   <ShortcutsPage
@@ -3361,6 +3419,7 @@ export default function Home() {
           crossOsUnlocked={crossOsUnlocked}
         />
 
+        <WhatsNewDialog whatsNew={whatsNew} onClose={() => setWhatsNew(null)} />
         <CommandPalette
           open={commandPaletteOpen}
           onOpenChange={setCommandPaletteOpen}

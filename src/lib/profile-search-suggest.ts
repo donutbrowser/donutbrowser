@@ -467,6 +467,7 @@ const VOCABULARY_FIELDS = [
   "state",
   "proxy",
   "vpn",
+  "country",
   "ext",
   "browser",
   "version",

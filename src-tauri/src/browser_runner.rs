@@ -47,6 +47,75 @@ pub(crate) async fn try_lock_profile_launch(
   profile_launch_lock(profile_id).await.try_lock_owned().ok()
 }
 
+/// Launches the person asked to stop before the browser opened, by profile.
+/// A launch checks between its stages and unwinds through the same paths a
+/// failure takes; one that finished anyway is stopped again.
+static LAUNCH_CANCELS: std::sync::LazyLock<
+  std::sync::Mutex<
+    std::collections::HashMap<String, std::sync::Arc<std::sync::atomic::AtomicBool>>,
+  >,
+> = std::sync::LazyLock::new(Default::default);
+
+/// A launch the cancel command can reach while it runs.
+struct LaunchCancel {
+  profile_id: String,
+  flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl LaunchCancel {
+  fn register(profile_id: &str) -> Self {
+    let flag = LAUNCH_CANCELS
+      .lock()
+      .unwrap_or_else(|e| e.into_inner())
+      .entry(profile_id.to_string())
+      .or_default()
+      .clone();
+    Self {
+      profile_id: profile_id.to_string(),
+      flag,
+    }
+  }
+
+  fn is_set(&self) -> bool {
+    self.flag.load(std::sync::atomic::Ordering::SeqCst)
+  }
+}
+
+impl Drop for LaunchCancel {
+  fn drop(&mut self) {
+    let mut cancels = LAUNCH_CANCELS.lock().unwrap_or_else(|e| e.into_inner());
+    // The map holds one reference and this launch another; a launch queued
+    // behind this one holds a third and keeps the entry.
+    if std::sync::Arc::strong_count(&self.flag) <= 2 {
+      cancels.remove(&self.profile_id);
+    }
+  }
+}
+
+fn launch_cancelled(profile_id: &str) -> bool {
+  LAUNCH_CANCELS
+    .lock()
+    .unwrap_or_else(|e| e.into_inner())
+    .get(profile_id)
+    .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::SeqCst))
+}
+
+fn is_cancelled_error(error: &str) -> bool {
+  error.contains("\"LAUNCH_CANCELLED\"")
+}
+
+/// Stop a launch of this profile that is still in progress. False when none is.
+#[tauri::command]
+pub fn cancel_profile_launch(profile_id: String) -> bool {
+  let cancels = LAUNCH_CANCELS.lock().unwrap_or_else(|e| e.into_inner());
+  let Some(flag) = cancels.get(&profile_id) else {
+    return false;
+  };
+  flag.store(true, std::sync::atomic::Ordering::SeqCst);
+  log::info!("Browser launch cancel requested profile={profile_id}");
+  true
+}
+
 fn emit_launch_stage(profile: &BrowserProfile, stage: &str, error: Option<&str>) {
   let _ = events::emit(
     "profile-launch-stage",
@@ -72,7 +141,7 @@ fn log_err(err: &str, profile: &BrowserProfile) -> String {
 }
 
 /// Outcomes the person meets as a dialog or a notice, not a fault.
-const LAUNCH_BLOCK_CODES: [&str; 12] = [
+const LAUNCH_BLOCK_CODES: [&str; 13] = [
   "FINGERPRINT_EXIT_MISMATCH",
   "LAUNCH_CONSENT_EXPIRED",
   "PROFILE_RUNNING",
@@ -83,6 +152,7 @@ const LAUNCH_BLOCK_CODES: [&str; 12] = [
   "PROFILE_LOCKED_ELSEWHERE",
   "PROFILE_ROUTE_REQUIRED",
   "PROFILE_ROUTE_UNAVAILABLE",
+  "LAUNCH_CANCELLED",
   "WAYFERN_CROSS_OS_REQUIRES_PLAN",
   "WAYFERN_CROSS_OS_PRIMARY_DEVICE",
 ];
@@ -369,6 +439,9 @@ impl BrowserRunner {
         WayfernConfig::default()
       });
 
+      if launch_cancelled(&profile.id.to_string()) {
+        return Err(crate::backend_error("LAUNCH_CANCELLED").into());
+      }
       emit_launch_stage(profile, "network", None);
       // Checked before any worker starts. A setting the worker cannot use would
       // otherwise fail the launch late, as an untranslated worker error.
@@ -725,6 +798,9 @@ impl BrowserRunner {
       let profile_path_str = profile_data_path.to_string_lossy().to_string();
 
       // Install extensions if an extension group is assigned
+      if launch_cancelled(&profile.id.to_string()) {
+        return Err(crate::backend_error("LAUNCH_CANCELLED").into());
+      }
       emit_launch_stage(profile, "extensions", None);
       let mut extension_paths = Vec::new();
       if updated_profile.extension_group_id.is_some() {
@@ -745,6 +821,9 @@ impl BrowserRunner {
       // Get proxy URL from config
       let proxy_url = wayfern_config.proxy.as_deref();
 
+      if launch_cancelled(&profile.id.to_string()) {
+        return Err(crate::backend_error("LAUNCH_CANCELLED").into());
+      }
       emit_launch_stage(profile, "starting", None);
       let mut launched = self
         .wayfern_manager
@@ -909,6 +988,7 @@ impl BrowserRunner {
       // Update profile with the process info
       updated_profile.process_id = Some(process_id);
       updated_profile.last_launch = Some(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs());
+      crate::profile::activity::launched(&updated_profile.id.to_string());
 
       // Save the updated profile
       if launch_only {
@@ -1391,6 +1471,7 @@ impl BrowserRunner {
       self
         .save_process_info(&updated_profile)
         .map_err(|e| format!("Failed to update profile: {e}"))?;
+      crate::profile::activity::stopped(&updated_profile.id.to_string());
       if let Some(pid) = profile.process_id {
         PROXY_MANAGER.stop_worker_of_exited_browser(pid).await;
       }
@@ -1722,17 +1803,22 @@ pub async fn launch_browser_profile_impl(
   url: Option<String>,
   options: LaunchOptions,
 ) -> Result<BrowserProfile, String> {
+  let cancel = LaunchCancel::register(&profile.id.to_string());
   let _profile_launch_guard = lock_profile_launch(&profile.id.to_string()).await;
   let started = std::time::Instant::now();
   emit_launch_stage(&profile, "queued", None);
   let mut profile = profile;
-  let mut result = launch_browser_profile_tracked(
-    app_handle.clone(),
-    profile.clone(),
-    url.clone(),
-    options.clone(),
-  )
-  .await;
+  let mut result = if cancel.is_set() {
+    Err(crate::backend_error("LAUNCH_CANCELLED"))
+  } else {
+    launch_browser_profile_tracked(
+      app_handle.clone(),
+      profile.clone(),
+      url.clone(),
+      options.clone(),
+    )
+    .await
+  };
   // Wayfern refuses some overrides a whole supplied device carries (which ones
   // depends on the values). Each refusal names one property, so the property
   // is dropped and the launch tried again, a bounded number of times.
@@ -1757,8 +1843,29 @@ pub async fn launch_browser_profile_impl(
     )
     .await;
   }
+  // Cancelled while the browser was already starting: it opened, so it is
+  // stopped again rather than left running against the person's choice.
+  if let (true, Ok(launched)) = (cancel.is_set(), &result) {
+    let launched = launched.clone();
+    if let Err(e) = kill_browser_profile(app_handle.clone(), launched).await {
+      log::warn!(
+        "Cancelled launch left its browser running profile={} err=\"{}\"",
+        profile.id,
+        log_err(&e, &profile)
+      );
+    }
+    result = Err(crate::backend_error("LAUNCH_CANCELLED"));
+  }
   match &result {
     Ok(_) => emit_launch_stage(&profile, "running", None),
+    Err(error) if is_cancelled_error(error) => {
+      log::info!(
+        "Browser launch cancelled profile={} elapsed_ms={}",
+        profile.id,
+        started.elapsed().as_millis()
+      );
+      emit_launch_stage(&profile, "cancelled", None);
+    }
     Err(error) => {
       log_launch_failure(&profile, error, started);
       emit_launch_stage(
@@ -1871,6 +1978,10 @@ async fn launch_browser_profile_tracked(
   if let Err(e) = crate::sync::download_before_first_launch(&app_handle, &profile).await {
     unwind_launch(&profile, acquired_team_lock).await;
     return Err(e);
+  }
+  if launch_cancelled(&profile.id.to_string()) {
+    unwind_launch(&profile, acquired_team_lock).await;
+    return Err(crate::backend_error("LAUNCH_CANCELLED"));
   }
 
   // Notify sync scheduler that profile is now running and queue sync for when it stops

@@ -11,6 +11,7 @@ import {
   LuEllipsis,
   LuInfo,
   LuKeyboard,
+  LuLayoutGrid,
   LuLightbulb,
   LuMessageSquareHeart,
   LuPlug,
@@ -49,6 +50,7 @@ export type AppPage =
   | "account"
   | "import"
   | "shortcuts"
+  | "previews"
   | "trash";
 
 const CLICK_THRESHOLD = 5;
@@ -239,6 +241,7 @@ export const PAGE_ICONS: Record<AppPage, PageIcon> = {
   account: LuCloud,
   import: LuDownload,
   shortcuts: LuKeyboard,
+  previews: LuLayoutGrid,
   trash: LuTrash2,
   settings: LuSettings,
 };
@@ -255,6 +258,7 @@ const PAGE_ORDER: AppPage[] = [
   "account",
   "import",
   "shortcuts",
+  "previews",
   "trash",
   "settings",
 ];
@@ -431,6 +435,13 @@ const MORE_PAGES: Array<MoreMenuItem & { page: AppPage }> = [
     Icon: PAGE_ICONS.shortcuts,
     labelKey: "rail.more.keyboardShortcuts",
     hintKey: "rail.more.keyboardShortcutsHint",
+  },
+  {
+    id: "previews",
+    page: "previews",
+    Icon: PAGE_ICONS.previews,
+    labelKey: "rail.more.previews",
+    hintKey: "rail.more.previewsHint",
   },
   {
     id: "trash",

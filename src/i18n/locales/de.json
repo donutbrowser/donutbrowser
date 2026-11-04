@@ -128,7 +128,8 @@
       "yourOwn": "Eigenes",
       "light": "Hell",
       "dark": "Dunkel",
-      "system": "System"
+      "system": "System",
+      "interfaceSize": "Größe der Oberfläche"
     },
     "language": {
       "title": "Sprache",
@@ -224,37 +225,14 @@
       "requireRoute": "Starts ohne Proxy oder VPN blockieren",
       "requireRouteDescription": "Ein Profil startet nie über Ihre eigene IP-Adresse: weder ohne Proxy oder VPN noch wenn sein Proxy oder VPN fehlt oder nicht antwortet.",
       "recordSites": "Besuchte Websites aufzeichnen",
-      "recordSitesDescription": "Die Traffic-Statistik listet die Websites, die jedes Profil erreicht hat. Wenn deaktiviert, werden nur Datenmengen gespeichert. Passwortgeschützte und flüchtige Profile zeichnen nie Websites auf."
+      "recordSitesDescription": "Die Traffic-Statistik listet die Websites, die jedes Profil erreicht hat. Wenn deaktiviert, werden nur Datenmengen gespeichert. Passwortgeschützte und flüchtige Profile zeichnen nie Websites auf.",
+      "askRoute": "Vor einem Start ohne Proxy oder VPN fragen",
+      "askRouteDescription": "Sie wählen jedes Mal: starten oder abbrechen."
     },
     "trashRetention": "Gelöschte Profile aufbewahren für",
     "trashRetentionDescription": "Gelöschte Profile bleiben im Papierkorb und können bis dahin wiederhergestellt werden. Danach werden sie endgültig entfernt.",
     "trashRetentionDays_one": "{{count}} Tag",
     "trashRetentionDays_other": "{{count}} Tage",
-    "dataRoot": {
-      "title": "Datenverzeichnis",
-      "current": "Aktueller Speicherort",
-      "usage": "{{size}} in {{files}} Dateien",
-      "description": "Profile, heruntergeladene Browser und Einstellungen liegen alle hier. Verschieben Sie sie auf ein anderes Laufwerk, wenn der Platz auf dem Systemlaufwerk knapp wird.",
-      "choose": "Ordner auswählen",
-      "chooseTitle": "Ordner für das Datenverzeichnis auswählen",
-      "move": "Verschieben",
-      "willMoveTo": "Alles wird verschoben nach",
-      "moved": "Datenverzeichnis verschoben. Starten Sie Donut Browser neu, um es zu verwenden.",
-      "reading": "Datenverzeichnis wird gelesen...",
-      "restartRequired": "Starten Sie Donut Browser neu, um den neuen Speicherort zu verwenden. Bis dahin wird weiter der alte verwendet.",
-      "environmentOverride": "DONUTBROWSER_DATA_DIR ist gesetzt, daher verwendet die App diesen Speicherort, unabhängig von der Auswahl hier.",
-      "missing": "Das ausgewählte Datenverzeichnis ist nicht vorhanden. Wenn es auf einem Wechseldatenträger liegt, schließen Sie diesen wieder an und starten Sie neu.",
-      "useDefault": "Wieder den Standardspeicherort verwenden",
-      "usingDefault": "Beim nächsten Start wird der Standardspeicherort verwendet.",
-      "copiedCount": "{{copied}} von {{total}} Dateien",
-      "phase": {
-        "scanning": "Aktuelles Verzeichnis wird vermessen",
-        "copying": "Wird kopiert",
-        "verifying": "Kopie wird geprüft",
-        "cleaning": "Altes Verzeichnis wird entfernt",
-        "done": "Fertig"
-      }
-    },
     "trashRetentionOff": "Sofort löschen",
     "scrollSectionsLeft": "Abschnitte nach links scrollen",
     "scrollSectionsRight": "Abschnitte nach rechts scrollen",
@@ -378,7 +356,8 @@
       "ephemeral": "Flüchtiges Profil",
       "created": "Erstellungsdatum",
       "launched": "Datum des letzten Starts",
-      "state": "Profilstatus"
+      "state": "Profilstatus",
+      "country": "Proxy-Land"
     },
     "operators": {
       "negate": "Schließt Treffer aus",
@@ -455,7 +434,8 @@
       "emptyFilteredTitle": "Keine Profile gefunden",
       "emptyFilteredHint": "Keine Profile passen zu dieser Gruppe oder Suche. Versuchen Sie einen anderen Filter oder erstellen Sie ein neues Profil.",
       "bot": "Bot",
-      "profileId": "ID"
+      "profileId": "ID",
+      "runningFor": "Läuft seit {{duration}}"
     },
     "actions": {
       "launch": "Starten",
@@ -1670,7 +1650,8 @@
       "localDataTransfer": "Lokale Datenübertragung",
       "created": "Erstellt",
       "windowColor": "Fensterfarbe",
-      "dns": "DNS"
+      "dns": "DNS",
+      "runTime": "Laufzeit"
     },
     "values": {
       "none": "Keine",
@@ -1927,7 +1908,17 @@
     "fetchSuccess": "Erweiterung heruntergeladen. Prüfen Sie den Namen und fügen Sie sie dann hinzu.",
     "fetchFailed": "Die Erweiterung konnte nicht heruntergeladen werden",
     "searchExtensions": "Erweiterungen suchen",
-    "membersSelected": "{{selected}} von {{total}} ausgewählt"
+    "membersSelected": "{{selected}} von {{total}} ausgewählt",
+    "updates": {
+      "check": "Nach Updates suchen",
+      "none": "Alle Erweiterungen sind aktuell",
+      "found": "Verfügbare Updates: {{count}}",
+      "updateTo": "Auf {{version}} aktualisieren",
+      "updated": "{{name}} auf {{version}} aktualisiert",
+      "consentTitle": "{{name}} aktualisieren?",
+      "consentBody": "Die neue Version verlangt mehr Zugriff: {{permissions}}",
+      "update": "Aktualisieren"
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -2462,7 +2453,8 @@
       "sync": "Synchronisierung von {{name}}: {{status}}",
       "launchError": "Letzter Start fehlgeschlagen: {{error}}",
       "health": "Verbindung von {{name}}: {{status}}",
-      "traffic": "Datenverkehr von {{name}}"
+      "traffic": "Datenverkehr von {{name}}",
+      "cancelLaunch": "Start von {{name}} abbrechen"
     },
     "menu": {
       "openDetails": "Details öffnen",
@@ -2473,7 +2465,9 @@
       "lockNow": "Jetzt sperren",
       "moveToTrash": "In den Papierkorb",
       "askAgent": "Agenten fragen",
-      "showWindow": "Fenster anzeigen"
+      "showWindow": "Fenster anzeigen",
+      "pin": "Anheften",
+      "unpin": "Lösen"
     },
     "emptyGroupTitle": "Diese Gruppe ist leer",
     "emptyGroupHint": "Erstellen Sie ein Profil in dieser Gruppe oder verschieben Sie vorhandene Profile hierher.",
@@ -2489,7 +2483,8 @@
       "launching": "Wird gestartet…",
       "stopping": "Wird beendet…",
       "singleInstance": "Von diesem Browser kann nur eine Instanz gleichzeitig laufen. Beende zuerst die laufende."
-    }
+    },
+    "pinned": "Angeheftet"
   },
   "dataTableActionBar": {
     "selected": "{{count}} ausgewählt",
@@ -2980,7 +2975,13 @@
     "siteStorageIoFailed": "Donut konnte die Websitedaten nicht ändern: {{detail}}",
     "agentChatNotFound": "Dieser Chat existiert nicht mehr.",
     "profileLeaseHeld": "Dieses Profil ist auf {{device}} geöffnet. Es wird um {{time}} frei oder wenn dieses Gerät es schließt.",
-    "profileStillSyncing": "Dieses Profil wird noch synchronisiert. Versuchen Sie es gleich erneut."
+    "profileStillSyncing": "Dieses Profil wird noch synchronisiert. Versuchen Sie es gleich erneut.",
+    "launchCancelled": "Start abgebrochen.",
+    "extensionUpdateCheckFailed": "Der Chrome Web Store konnte nicht nach Updates abgefragt werden.",
+    "extensionNotFromStore": "Diese Erweiterung stammt nicht aus dem Chrome Web Store.",
+    "extensionUpdateNeedsConsent": "Die neue Version verlangt mehr Zugriff: {{permissions}}",
+    "bookmarksFileInvalid": "Donut kann aus dieser Datei keine Lesezeichen lesen. Verwenden Sie die Bookmarks-Datei von Chrome oder eine exportierte HTML-Datei.",
+    "previewsNotEntitled": "Die Live-Vorschau braucht den Pro-Tarif oder höher."
   },
   "rail": {
     "profiles": "Profile",
@@ -3001,7 +3002,9 @@
       "tips": "Tipps",
       "tipsHint": "Funktionen Schritt für Schritt",
       "feedback": "Feedback senden",
-      "feedbackHint": "Fehler melden oder Idee teilen"
+      "feedbackHint": "Fehler melden oder Idee teilen",
+      "previews": "Live-Vorschau",
+      "previewsHint": "Alle laufenden Profile auf einen Blick"
     },
     "network": "Netzwerk",
     "integrations": "Integrationen",
@@ -3119,7 +3122,8 @@
       "profiles": "Profile",
       "actions": "Aktionen",
       "profileGroups": "Profilgruppen",
-      "recent": "Zuletzt verwendet"
+      "recent": "Zuletzt verwendet",
+      "pinned": "Angeheftet"
     },
     "actions": {
       "launchProfile": "{{name}} starten",
@@ -3200,7 +3204,10 @@
       "focusSearch": "suchen finden filtern",
       "goBack": "zurück escape start",
       "agentChat": "agent chat fragen assistent ki gespräch aufgabe",
-      "window": "fenster anzeigen fokus vorne wechseln"
+      "window": "fenster anzeigen fokus vorne wechseln",
+      "zoomIn": "zoom vergrößern größer skalieren",
+      "zoomOut": "zoom verkleinern kleiner skalieren",
+      "zoomReset": "zoom zurücksetzen standard originalgröße 100"
     }
   },
   "shortcuts": {
@@ -3223,7 +3230,10 @@
     "newProfile": "Neues Profil",
     "stopAllRunning": "Alle laufenden Profile stoppen",
     "focusSearch": "Profile suchen",
-    "goBack": "Zurück zu „Profile“"
+    "goBack": "Zurück zu „Profile“",
+    "zoomIn": "Größere Oberfläche",
+    "zoomOut": "Kleinere Oberfläche",
+    "zoomReset": "Standardgröße der Oberfläche"
   },
   "closeConfirm": {
     "title": "Donut Browser schließen?",
@@ -3769,7 +3779,9 @@
     "exitUnverifiedLanguage": "Die Sprache des Fingerprints dieses Profils lässt sich nicht mit dem Exit-Land vergleichen, daher ist diese Prüfung nicht verifiziert statt bestanden.",
     "routeProxyHeading": "Proxy antwortet nicht",
     "routeVpnHeading": "VPN antwortet nicht",
-    "routeExplainer": "Seiten laden möglicherweise nicht. Prüfe den Proxy oder das VPN oder starte trotzdem."
+    "routeExplainer": "Seiten laden möglicherweise nicht. Prüfe den Proxy oder das VPN oder starte trotzdem.",
+    "routeMissingHeading": "Kein Proxy oder VPN",
+    "routeMissingBody": "Websites sehen Ihre echte IP-Adresse."
   },
   "profileMotion": {
     "inspectorSections": "Profilbereiche",
@@ -3869,7 +3881,8 @@
       "starting": "Browser wird gestartet",
       "running": "Browser läuft",
       "failed": "Start fehlgeschlagen",
-      "stopped": "Letzter Start abgeschlossen; der Browser ist gestoppt"
+      "stopped": "Letzter Start abgeschlossen; der Browser ist gestoppt",
+      "cancelled": "Start abgebrochen"
     },
     "checking": "Wird geprüft…",
     "testConnection": "Verbindung testen",
@@ -4399,6 +4412,13 @@
         "started_one": "In {{count}} Profil gestartet",
         "started_other": "In {{count}} Profilen gestartet",
         "declined": "Abgebrochen"
+      },
+      "sync": {
+        "locked": "Öffnen Sie Donut auf einem Computer mit Ihren Chats, um sie hier zu synchronisieren.",
+        "erase": "Synchronisierte Chats löschen",
+        "eraseTitle": "Synchronisierte Chats löschen?",
+        "eraseBody": "Sie werden von allen Geräten entfernt. Chats auf diesem Computer bleiben.",
+        "eraseConfirm": "Löschen"
       }
     }
   },
@@ -4439,7 +4459,12 @@
     "titlePlaceholder": "Helpdesk",
     "urlPlaceholder": "https://example.com",
     "folderPlaceholder": "Optional",
-    "saved": "Gruppenlesezeichen gespeichert"
+    "saved": "Gruppenlesezeichen gespeichert",
+    "import": "Aus Datei importieren",
+    "imported": "Hinzugefügte Lesezeichen: {{count}}",
+    "everyProfileAction": "Lesezeichen für alle Profile",
+    "everyProfileTitle": "Lesezeichen für alle Profile",
+    "everyProfileDescription": "Jedes Profil auf diesem Gerät erhält diese Lesezeichen in einem Ordner, den Donut verwaltet. Andere Lesezeichen bleiben unverändert."
   },
   "tips": {
     "title": "Tipps",
@@ -5040,5 +5065,17 @@
     "description": "{{profile}} ist bis {{time}} auf {{device}} geöffnet. Wenn Sie es übernehmen, synchronisiert dieses Gerät es nicht mehr, und seine Änderungen seit dem Öffnen gehen verloren.",
     "confirm": "Übernehmen",
     "lost": "{{device}} hat {{profile}} übernommen. Änderungen auf diesem Gerät werden nicht synchronisiert."
+  },
+  "previews": {
+    "title": "Live-Vorschau",
+    "description": "Was jedes laufende Profil gerade zeigt. Klicken Sie auf eines, um sein Fenster nach vorn zu holen.",
+    "locked": "Die Live-Vorschau laufender Profile gehört zu Pro und höheren Tarifen.",
+    "seePlans": "Tarife ansehen",
+    "empty": "Kein Profil läuft."
+  },
+  "whatsNew": {
+    "updated": "Auf {{version}} aktualisiert",
+    "open": "Neuigkeiten",
+    "title": "Neu in {{version}}"
   }
 }

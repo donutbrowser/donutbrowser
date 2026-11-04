@@ -67,6 +67,8 @@ export interface Extension {
   /** Absolute folder the extension is loaded from in place. Set means nothing
    * was copied into Donut, so the extension is machine-local and never syncs. */
   linked_path?: string;
+  /** Chrome Web Store id, when it came from the store; it can update then. */
+  web_store_id?: string | null;
 }
 
 export interface ExtensionGroup {
@@ -337,6 +339,7 @@ export interface FetchedExtension {
   description?: string;
   source_url: string;
   from_web_store: boolean;
+  web_store_id?: string | null;
 }
 
 export function isSyncEnabled(profile: BrowserProfile): boolean {
@@ -1036,6 +1039,8 @@ export interface PreLaunchChecks {
   consent_token: string | null;
   /** The profile's proxy or VPN did not answer a check. A warning, not a block. */
   route_unreachable?: RouteUnreachable | null;
+  /** No proxy or VPN, and the person asked to be asked before such a launch. */
+  route_missing?: boolean;
 }
 
 export interface RouteUnreachable {

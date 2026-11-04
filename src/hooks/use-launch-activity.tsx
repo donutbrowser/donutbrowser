@@ -10,7 +10,8 @@ export type LaunchStage =
   | "extensions"
   | "starting"
   | "running"
-  | "failed";
+  | "failed"
+  | "cancelled";
 export interface LaunchEvent {
   id: string;
   stage: LaunchStage;

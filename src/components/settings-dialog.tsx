@@ -85,6 +85,7 @@ import { ScrollStrip } from "@/components/ui/scroll-strip";
 import { StatusLight } from "@/components/ui/settings-panel";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { useCommercialTrial } from "@/hooks/use-commercial-trial";
+import { useInterfaceZoom } from "@/hooks/use-interface-zoom";
 import { useLanguage } from "@/hooks/use-language";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import type { PermissionType } from "@/hooks/use-permissions";
@@ -93,6 +94,7 @@ import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import type { SupportedLanguage } from "@/i18n";
 import { translateBackendError } from "@/lib/backend-errors";
 import { effectivePlanOf } from "@/lib/entitlements";
+import { INTERFACE_ZOOM_STEPS } from "@/lib/interface-zoom";
 import {
   MOTION_DURATION,
   MOTION_EASE_OUT,
@@ -127,6 +129,7 @@ interface AppSettings extends SoundFields {
   fingerprint_gate_disabled?: boolean;
   vpn_extension_warning_disabled?: boolean;
   require_route_for_launch?: boolean;
+  ask_route_for_launch?: boolean;
   trash_retention_days?: number;
   record_traffic_domains?: boolean;
   bulk_launch_delay_ms?: number;
@@ -344,6 +347,7 @@ export function SettingsDialog({
   } | null>(null);
 
   const { t, i18n } = useTranslation();
+  const interfaceZoom = useInterfaceZoom();
   const { setTheme } = useTheme();
   const {
     requestPermission,
@@ -909,6 +913,12 @@ export function SettingsDialog({
       section: "privacy",
     },
     {
+      key: "ask_route_for_launch",
+      changed: flagChanged("ask_route_for_launch"),
+      label: t("settings.privacy.askRoute"),
+      section: "privacy",
+    },
+    {
       key: "fingerprint_gate_disabled",
       changed: flagChanged("fingerprint_gate_disabled"),
       label: t("settings.privacy.consistencyWarning"),
@@ -1261,6 +1271,34 @@ export function SettingsDialog({
                       />
                     </SettingBlock>
                   </AnimatedDisclosureContent>
+                  <SettingBlock label={t("settings.appearance.interfaceSize")}>
+                    <ChoiceGroup
+                      value={String(interfaceZoom.zoom)}
+                      onValueChange={(value) => {
+                        void interfaceZoom
+                          .setZoom(Number(value))
+                          .catch((error: unknown) => {
+                            showErrorToast(translateBackendError(t, error));
+                          });
+                      }}
+                      label={t("settings.appearance.interfaceSize")}
+                      slot="settings-interface-size"
+                      className="flex flex-wrap gap-1.5"
+                    >
+                      {INTERFACE_ZOOM_STEPS.map((step) => (
+                        <ChoiceCard
+                          key={step}
+                          value={String(step)}
+                          slot="settings-interface-size-option"
+                          className="px-3 py-1.5 text-sm font-medium tabular-nums hover:bg-foreground/4"
+                        >
+                          {new Intl.NumberFormat(i18n.language, {
+                            style: "percent",
+                          }).format(step / 100)}
+                        </ChoiceCard>
+                      ))}
+                    </ChoiceGroup>
+                  </SettingBlock>
                 </SettingsCard>
               </SettingsSection>
 
@@ -1646,6 +1684,20 @@ export function SettingsDialog({
                       updateSetting("require_route_for_launch", v)
                     }
                   />
+                  <AnimatedDisclosureContent
+                    open={!(settings.require_route_for_launch ?? false)}
+                  >
+                    <SwitchRow
+                      id="settings-ask-route"
+                      label={t("settings.privacy.askRoute")}
+                      description={t("settings.privacy.askRouteDescription")}
+                      changed={isChanged("ask_route_for_launch")}
+                      checked={settings.ask_route_for_launch ?? false}
+                      onCheckedChange={(v) =>
+                        updateSetting("ask_route_for_launch", v)
+                      }
+                    />
+                  </AnimatedDisclosureContent>
                   <SwitchRow
                     id="settings-consistency-warning"
                     label={t("settings.privacy.consistencyWarning")}

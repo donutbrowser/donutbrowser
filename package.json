@@ -69,7 +69,7 @@
     "copy-proxy-binary:release": "node src-tauri/copy-proxy-binary.mjs --release",
     "pretauri:dev": "pnpm copy-proxy-binary",
     "precargo": "pnpm copy-proxy-binary",
-    "test:table-tools": "node --test src/lib/table-tools.test.mjs src/components/profile-table/column-fit.test.mjs src/lib/table-views.test.mjs"
+    "test:table-tools": "node --test src/lib/table-tools.test.mjs src/components/profile-table/column-fit.test.mjs src/lib/table-views.test.mjs src/lib/relative-time.test.mjs src/lib/interface-zoom.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.4.1",

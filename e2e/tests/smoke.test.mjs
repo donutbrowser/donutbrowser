@@ -27,6 +27,7 @@ test("table views persist separately, migrate the old sort, and reject invalid s
         { id: "sync", desc: false },
       ],
       density: "comfortable",
+      pinned: ["3f2504e0-4f89-11d3-9a0c-0305e82c3301"],
     };
     await app.invoke("save_table_preferences", {
       tableId: "proxies",
@@ -49,6 +50,10 @@ test("table views persist separately, migrate the old sort, and reject invalid s
       },
       {
         tableId: "proxies",
+        preferences: { ...preferences, pinned: ["a", "a"] },
+      },
+      {
+        tableId: "proxies",
         preferences: {
           ...preferences,
           sorting: [
@@ -66,6 +71,10 @@ test("table views persist separately, migrate the old sort, and reject invalid s
       await app.invokeError("get_table_preferences", { tableId: "../outside" }),
       /TABLE_PREFERENCES_INVALID/,
     );
+    assert.equal(await app.invoke("set_interface_zoom", { zoom: 118 }), 125);
+    assert.equal((await app.invoke("get_app_settings")).interface_zoom, 125);
+    assert.equal(await app.invoke("set_interface_zoom", { zoom: 100 }), 100);
+    assert.equal(await app.invoke("take_whats_new"), null);
     await app.restart();
     assert.deepEqual(
       await app.invoke("get_table_preferences", { tableId: "proxies" }),

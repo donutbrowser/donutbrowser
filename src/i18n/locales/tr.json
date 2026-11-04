@@ -128,7 +128,8 @@
       "yourOwn": "Kendi temanız",
       "light": "Açık",
       "dark": "Koyu",
-      "system": "Sistem"
+      "system": "Sistem",
+      "interfaceSize": "Arayüz boyutu"
     },
     "language": {
       "title": "Dil",
@@ -224,37 +225,14 @@
       "requireRoute": "Proxy veya VPN olmadan başlatmayı engelle",
       "requireRouteDescription": "Bir profil asla kendi IP adresinizden başlamaz: proxy veya VPN yoksa da, proxy veya VPN kaldırıldıysa ya da yanıt vermiyorsa da.",
       "recordSites": "Ziyaret edilen siteleri kaydet",
-      "recordSitesDescription": "Trafik istatistikleri her profilin ulaştığı siteleri listeler. Kapalıyken yalnızca veri toplamları tutulur. Parola korumalı ve geçici profiller hiçbir zaman site kaydetmez."
+      "recordSitesDescription": "Trafik istatistikleri her profilin ulaştığı siteleri listeler. Kapalıyken yalnızca veri toplamları tutulur. Parola korumalı ve geçici profiller hiçbir zaman site kaydetmez.",
+      "askRoute": "Proxy veya VPN olmadan başlatmadan önce sor",
+      "askRouteDescription": "Her seferinde siz seçersiniz: başlat veya iptal et."
     },
     "trashRetention": "Silinen profilleri şu süre boyunca sakla",
     "trashRetentionDescription": "Silinen profiller çöp kutusunda bekler ve o zamana kadar geri yüklenebilir. Sonrasında kalıcı olarak kaldırılır.",
     "trashRetentionDays_one": "{{count}} gün",
     "trashRetentionDays_other": "{{count}} gün",
-    "dataRoot": {
-      "title": "Veri dizini",
-      "current": "Geçerli konum",
-      "usage": "{{files}} dosyada {{size}}",
-      "description": "Profiller, indirilen tarayıcılar ve ayarlar burada durur. Sistem diski dolduğunda başka bir sürücüye taşıyın.",
-      "choose": "Klasör seç",
-      "chooseTitle": "Veri dizini için bir klasör seçin",
-      "move": "Taşı",
-      "willMoveTo": "Her şey buraya taşınır",
-      "moved": "Veri dizini taşındı. Kullanmak için Donut Browser'ı yeniden başlatın.",
-      "reading": "Veri dizini okunuyor…",
-      "restartRequired": "Yeni konumu kullanmak için Donut Browser'ı yeniden başlatın. O zamana kadar eski konumdan çalışır.",
-      "environmentOverride": "DONUTBROWSER_DATA_DIR tanımlı; burada ne seçilirse seçilsin uygulama o konumu kullanır.",
-      "missing": "Seçilen veri dizini yok. Çıkarılabilir bir sürücüdeyse tekrar takıp yeniden başlatın.",
-      "useDefault": "Yeniden varsayılan konumu kullan",
-      "usingDefault": "Bir sonraki açılışta varsayılan konum kullanılacak.",
-      "copiedCount": "{{total}} dosyanın {{copied}} tanesi",
-      "phase": {
-        "scanning": "Geçerli dizin ölçülüyor",
-        "copying": "Kopyalanıyor",
-        "verifying": "Kopya denetleniyor",
-        "cleaning": "Eski dizin siliniyor",
-        "done": "Bitti"
-      }
-    },
     "trashRetentionOff": "Hemen sil",
     "scrollSectionsLeft": "Bölümleri sola kaydır",
     "scrollSectionsRight": "Bölümleri sağa kaydır",
@@ -378,7 +356,8 @@
       "ephemeral": "Geçici profil",
       "created": "Oluşturulma tarihi",
       "launched": "Son başlatma tarihi",
-      "state": "Profil durumu"
+      "state": "Profil durumu",
+      "country": "Proxy ülkesi"
     },
     "operators": {
       "negate": "Eşleşenleri hariç tutar",
@@ -455,7 +434,8 @@
       "emptyFilteredTitle": "Profil bulunamadı",
       "emptyFilteredHint": "Bu grup veya aramayla eşleşen profil yok. Başka bir filtre deneyin veya yeni bir profil oluşturun.",
       "bot": "Bot",
-      "profileId": "ID"
+      "profileId": "ID",
+      "runningFor": "{{duration}} süredir çalışıyor"
     },
     "actions": {
       "launch": "Başlat",
@@ -1670,7 +1650,8 @@
       "localDataTransfer": "Yerel veri aktarımı",
       "created": "Oluşturulma",
       "windowColor": "Pencere rengi",
-      "dns": "DNS"
+      "dns": "DNS",
+      "runTime": "Çalışma süresi"
     },
     "values": {
       "none": "Yok",
@@ -1927,7 +1908,17 @@
     "fetchSuccess": "Uzantı indirildi. Adı kontrol edip ekleyin.",
     "fetchFailed": "Uzantı indirilemedi",
     "searchExtensions": "Uzantılarda ara",
-    "membersSelected": "{{total}} uzantıdan {{selected}} seçili"
+    "membersSelected": "{{total}} uzantıdan {{selected}} seçili",
+    "updates": {
+      "check": "Güncellemeleri denetle",
+      "none": "Tüm uzantılar güncel",
+      "found": "Kullanılabilir güncelleme: {{count}}",
+      "updateTo": "{{version}} sürümüne güncelle",
+      "updated": "{{name}}, {{version}} sürümüne güncellendi",
+      "consentTitle": "{{name}} güncellensin mi?",
+      "consentBody": "Yeni sürüm daha fazla erişim istiyor: {{permissions}}",
+      "update": "Güncelle"
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -2462,7 +2453,8 @@
       "sync": "{{name}} eşitlemesi: {{status}}",
       "launchError": "Son başlatma başarısız oldu: {{error}}",
       "health": "{{name}} bağlantısı: {{status}}",
-      "traffic": "{{name}} trafik ayrıntıları"
+      "traffic": "{{name}} trafik ayrıntıları",
+      "cancelLaunch": "{{name}} başlatmasını iptal et"
     },
     "menu": {
       "openDetails": "Ayrıntıları aç",
@@ -2473,7 +2465,9 @@
       "lockNow": "Şimdi kilitle",
       "moveToTrash": "Çöp kutusuna taşı",
       "askAgent": "Ajana sor",
-      "showWindow": "Pencereyi göster"
+      "showWindow": "Pencereyi göster",
+      "pin": "Sabitle",
+      "unpin": "Sabitlemeyi kaldır"
     },
     "emptyGroupTitle": "Bu grup boş",
     "emptyGroupHint": "Bu grupta bir profil oluşturun veya mevcut profilleri buraya taşıyın.",
@@ -2489,7 +2483,8 @@
       "launching": "Başlatılıyor…",
       "stopping": "Durduruluyor…",
       "singleInstance": "Bu tarayıcının aynı anda yalnızca bir örneği çalışabilir. Önce çalışanı durdurun."
-    }
+    },
+    "pinned": "Sabitlendi"
   },
   "dataTableActionBar": {
     "selected": "{{count}} seçildi",
@@ -2980,7 +2975,13 @@
     "siteStorageIoFailed": "Donut site verisini değiştiremedi: {{detail}}",
     "agentChatNotFound": "Bu sohbet artık yok.",
     "profileLeaseHeld": "Bu profil {{device}} üzerinde açık. {{time}} saatinde veya o cihaz kapattığında serbest kalır.",
-    "profileStillSyncing": "Bu profil hâlâ eşitleniyor. Birazdan yeniden deneyin."
+    "profileStillSyncing": "Bu profil hâlâ eşitleniyor. Birazdan yeniden deneyin.",
+    "launchCancelled": "Başlatma iptal edildi.",
+    "extensionUpdateCheckFailed": "Chrome Web Mağazası'nda güncellemeler denetlenemedi.",
+    "extensionNotFromStore": "Bu uzantı Chrome Web Mağazası'ndan gelmedi.",
+    "extensionUpdateNeedsConsent": "Yeni sürüm daha fazla erişim istiyor: {{permissions}}",
+    "bookmarksFileInvalid": "Donut bu dosyadan yer imlerini okuyamıyor. Chrome'un Bookmarks dosyasını veya dışa aktarılmış bir HTML dosyasını kullanın.",
+    "previewsNotEntitled": "Canlı önizlemeler için Pro veya üstü plan gerekir."
   },
   "rail": {
     "profiles": "Profiller",
@@ -3001,7 +3002,9 @@
       "tips": "İpuçları",
       "tipsHint": "Özellik turları",
       "feedback": "Geri bildirim gönder",
-      "feedbackHint": "Hata bildirin veya fikir paylaşın"
+      "feedbackHint": "Hata bildirin veya fikir paylaşın",
+      "previews": "Canlı önizlemeler",
+      "previewsHint": "Çalışan tüm profiller tek bakışta"
     },
     "network": "Ağ",
     "integrations": "Entegrasyonlar",
@@ -3119,7 +3122,8 @@
       "profiles": "Profiller",
       "actions": "İşlemler",
       "profileGroups": "Profil grupları",
-      "recent": "Son kullanılanlar"
+      "recent": "Son kullanılanlar",
+      "pinned": "Sabitlenenler"
     },
     "actions": {
       "launchProfile": "{{name}} profilini başlat",
@@ -3200,7 +3204,10 @@
       "focusSearch": "ara bul filtrele",
       "goBack": "geri escape ana sayfa",
       "agentChat": "ajan sohbet sor asistan yapay zeka konuşma görev",
-      "window": "pencere göster öne getir geçiş"
+      "window": "pencere göster öne getir geçiş",
+      "zoomIn": "yakınlaştır büyüt boyut ölçek",
+      "zoomOut": "uzaklaştır küçült boyut ölçek",
+      "zoomReset": "yakınlaştırma sıfırla varsayılan boyut 100"
     }
   },
   "shortcuts": {
@@ -3223,7 +3230,10 @@
     "newProfile": "Yeni profil",
     "stopAllRunning": "Çalışan tüm profilleri durdur",
     "focusSearch": "Profillerde ara",
-    "goBack": "Profiller'e dön"
+    "goBack": "Profiller'e dön",
+    "zoomIn": "Arayüzü büyüt",
+    "zoomOut": "Arayüzü küçült",
+    "zoomReset": "Varsayılan arayüz boyutu"
   },
   "closeConfirm": {
     "title": "Donut Browser kapatılsın mı?",
@@ -3769,7 +3779,9 @@
     "exitUnverifiedLanguage": "Bu profilin parmak izi dili çıkış ülkesiyle karşılaştırılamıyor, bu nedenle bu kontrol geçmiş değil doğrulanmamış sayılır.",
     "routeProxyHeading": "Proxy yanıt vermiyor",
     "routeVpnHeading": "VPN yanıt vermiyor",
-    "routeExplainer": "Sayfalar yüklenmeyebilir. Proxy'yi veya VPN'i kontrol edin ya da yine de başlatın."
+    "routeExplainer": "Sayfalar yüklenmeyebilir. Proxy'yi veya VPN'i kontrol edin ya da yine de başlatın.",
+    "routeMissingHeading": "Proxy veya VPN yok",
+    "routeMissingBody": "Siteler gerçek IP adresinizi görür."
   },
   "profileMotion": {
     "inspectorSections": "Profil bölümleri",
@@ -3869,7 +3881,8 @@
       "starting": "Tarayıcı başlatılıyor",
       "running": "Tarayıcı çalışıyor",
       "failed": "Başlatma başarısız",
-      "stopped": "Son başlatma tamamlandı; tarayıcı durduruldu"
+      "stopped": "Son başlatma tamamlandı; tarayıcı durduruldu",
+      "cancelled": "Başlatma iptal edildi"
     },
     "checking": "Kontrol ediliyor…",
     "testConnection": "Bağlantıyı test et",
@@ -4399,6 +4412,13 @@
         "started_one": "{{count}} profilde başlatıldı",
         "started_other": "{{count}} profilde başlatıldı",
         "declined": "İptal edildi"
+      },
+      "sync": {
+        "locked": "Sohbetlerinizi buraya eşitlemek için Donut'u onların bulunduğu bir bilgisayarda açın.",
+        "erase": "Eşitlenen sohbetleri sil",
+        "eraseTitle": "Eşitlenen sohbetler silinsin mi?",
+        "eraseBody": "Tüm cihazlardan kaldırılırlar. Bu bilgisayardaki sohbetler kalır.",
+        "eraseConfirm": "Sil"
       }
     }
   },
@@ -4439,7 +4459,12 @@
     "titlePlaceholder": "Destek masası",
     "urlPlaceholder": "https://ornek.com",
     "folderPlaceholder": "İsteğe bağlı",
-    "saved": "Grup yer imleri kaydedildi"
+    "saved": "Grup yer imleri kaydedildi",
+    "import": "Dosyadan içe aktar",
+    "imported": "Eklenen yer imi: {{count}}",
+    "everyProfileAction": "Tüm profiller için yer imleri",
+    "everyProfileTitle": "Tüm profiller için yer imleri",
+    "everyProfileDescription": "Bu cihazdaki her profil bu yer imlerini Donut'ın yönettiği bir klasörde alır. Diğer yer imleri değişmez."
   },
   "tips": {
     "title": "İpuçları",
@@ -5040,5 +5065,17 @@
     "description": "{{profile}}, {{time}} saatine kadar {{device}} üzerinde açık. Devralırsanız o cihaz eşitlemeyi durdurur ve açıldığından beri yaptığı değişiklikler kaybolur.",
     "confirm": "Devral",
     "lost": "{{device}}, {{profile}} profilini devraldı. Burada yapılan değişiklikler eşitlenmeyecek."
+  },
+  "previews": {
+    "title": "Canlı önizlemeler",
+    "description": "Çalışan her profilin şu anda gösterdiği. Penceresini öne getirmek için birine tıklayın.",
+    "locked": "Çalışan profillerin canlı önizlemeleri Pro ve üstü planlara dahildir.",
+    "seePlans": "Planları gör",
+    "empty": "Çalışan profil yok."
+  },
+  "whatsNew": {
+    "updated": "{{version}} sürümüne güncellendi",
+    "open": "Yenilikler",
+    "title": "{{version}} sürümündeki yenilikler"
   }
 }

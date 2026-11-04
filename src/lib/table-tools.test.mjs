@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   filterTableRows,
+  pinnedFirst,
   resolveTableVisibility,
   selectTableRange,
+  togglePins,
 } from "./table-tools.ts";
 
 const rows = [
@@ -95,4 +97,22 @@ test("column preferences override responsive defaults but cannot hide identity o
     ),
     { note: true, tags: false, name: true, bot: false },
   );
+});
+
+test("pinned rows come first and keep the sort inside each part", () => {
+  const rows = ["a", "b", "c", "d"].map((id) => ({ id }));
+  assert.deepEqual(
+    pinnedFirst(rows, new Set(["c", "a"])).map((row) => row.id),
+    ["a", "c", "b", "d"],
+  );
+  assert.deepEqual(
+    pinnedFirst(rows, new Set()).map((row) => row.id),
+    ["a", "b", "c", "d"],
+  );
+});
+
+test("a pin toggle pins the rest, or unpins when all are pinned", () => {
+  assert.deepEqual(togglePins(["a"], ["b"]), ["a", "b"]);
+  assert.deepEqual(togglePins(["a"], ["a", "b"]), ["a", "b"]);
+  assert.deepEqual(togglePins(["a", "b", "c"], ["a", "c"]), ["b"]);
 });

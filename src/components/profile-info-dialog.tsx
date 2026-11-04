@@ -120,9 +120,9 @@ import { confirmLeave, useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { translateBackendError } from "@/lib/backend-errors";
 import { getProfileIcon, getProfileNativeOs } from "@/lib/browser-utils";
 import { DNS_BLOCKLIST_LEVELS } from "@/lib/dns-blocklist-levels";
-import { formatRelativeTime } from "@/lib/flag-utils";
 import { MOTION_DURATION, MOTION_EASE_OUT, MOTION_SPRING } from "@/lib/motion";
 import { rotateProxyIps } from "@/lib/proxy-rotation";
+import { formatDuration, formatTimeAgo } from "@/lib/relative-time";
 import type { RemoteHandoffState } from "@/lib/remote-sessions";
 import { startPagesFromText } from "@/lib/start-pages";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
@@ -320,6 +320,54 @@ function LocalDataTransferCard({
 
   return (
     <InfoCard label={t("profileInfo.fields.localDataTransfer")} value={value} />
+  );
+}
+
+interface ProfileActivity {
+  launches: number;
+  run_seconds: number;
+  running_since?: number;
+}
+
+/** Launches and run time on this device; the open session counts too. */
+function ActivityCards({ profileId }: { profileId: string }) {
+  const { t, i18n } = useTranslation();
+  const [activity, setActivity] = React.useState<ProfileActivity | null>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+    invoke<ProfileActivity>("get_profile_activity", { profileId })
+      .then((next) => {
+        if (mounted) setActivity(next);
+      })
+      .catch(() => {
+        if (mounted) setActivity(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [profileId]);
+
+  const now = Math.floor(Date.now() / 1000);
+  const seconds = activity
+    ? activity.run_seconds +
+      (activity.running_since ? now - activity.running_since : 0)
+    : null;
+  return (
+    <>
+      <InfoCard
+        label={t("profileInfo.fields.totalSessions")}
+        value={
+          activity
+            ? new Intl.NumberFormat(i18n.language).format(activity.launches)
+            : "—"
+        }
+      />
+      <InfoCard
+        label={t("profileInfo.fields.runTime")}
+        value={seconds === null ? "—" : formatDuration(seconds, i18n.language)}
+      />
+    </>
   );
 }
 
@@ -1096,6 +1144,7 @@ function ProfileInfoLayout({
   visibleActions,
   t,
 }: ProfileInfoLayoutProps) {
+  const { i18n } = useTranslation();
   const contentId = React.useId();
   const motionAllowed = useMotionAllowed();
   const [unlocked, recheckUnlocked] = useProfileUnlocked(profile, isRunning);
@@ -1532,9 +1581,18 @@ function ProfileInfoLayout({
                         isRunning
                           ? t("profileInfo.values.activeNow")
                           : profile.last_launch
-                            ? formatRelativeTime(profile.last_launch)
+                            ? formatTimeAgo(
+                                profile.last_launch,
+                                Math.floor(Date.now() / 1000),
+                                i18n.language,
+                              )
                             : t("profileInfo.values.never")
                       }
+                    />
+                    {/* Read again when the browser starts or stops. */}
+                    <ActivityCards
+                      key={`${profile.id}:${isRunning}`}
+                      profileId={profile.id}
                     />
                     <LocalDataTransferCard profileId={profile.id} t={t} />
                   </div>

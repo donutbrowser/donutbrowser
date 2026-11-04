@@ -54,6 +54,8 @@ pub struct FetchedExtension {
   /// True when the id was resolved through the Chrome Web Store update
   /// service rather than downloaded from a link the user typed in full.
   pub from_web_store: bool,
+  /// The store id, so the extension can update from the store later.
+  pub web_store_id: Option<String>,
 }
 
 /// A Chrome extension id is 32 characters drawn from `a`-`p`: the store
@@ -394,6 +396,10 @@ pub async fn fetch_extension(input: &str) -> Result<FetchedExtension, String> {
       download_url
     },
     from_web_store,
+    web_store_id: match source {
+      ExtensionSource::WebStore(id) => Some(id),
+      ExtensionSource::Direct(_) => None,
+    },
   })
 }
 

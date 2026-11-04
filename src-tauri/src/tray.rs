@@ -33,6 +33,7 @@ pub(crate) struct Labels {
   pub show: &'static str,
   pub quit: &'static str,
   pub running: &'static str,
+  pub pinned: &'static str,
   pub recent: &'static str,
   pub stop_all: &'static str,
   pub stop: &'static str,
@@ -47,123 +48,135 @@ pub(crate) fn labels_for(language: &str) -> Labels {
     .next()
     .unwrap_or("en")
     .to_ascii_lowercase();
-  let (show, quit, running, recent, stop_all, stop, show_window, open_details) = match code.as_str()
-  {
-    "de" => (
-      "Donut Browser anzeigen",
-      "Beenden",
-      "Laufend",
-      "Zuletzt verwendet",
-      "Alle laufenden stoppen",
-      "Stoppen",
-      "Fenster anzeigen",
-      "Details öffnen",
-    ),
-    "es" => (
-      "Mostrar Donut Browser",
-      "Salir",
-      "En ejecución",
-      "Recientes",
-      "Detener todos",
-      "Detener",
-      "Mostrar ventana",
-      "Abrir detalles",
-    ),
-    "fr" => (
-      "Afficher Donut Browser",
-      "Quitter",
-      "En cours",
-      "Récents",
-      "Tout arrêter",
-      "Arrêter",
-      "Afficher la fenêtre",
-      "Ouvrir les détails",
-    ),
-    "ja" => (
-      "Donut Browser を表示",
-      "終了",
-      "実行中",
-      "最近使用",
-      "実行中をすべて停止",
-      "停止",
-      "ウィンドウを表示",
-      "詳細を開く",
-    ),
-    "ko" => (
-      "Donut Browser 표시",
-      "종료",
-      "실행 중",
-      "최근 항목",
-      "실행 중인 항목 모두 중지",
-      "중지",
-      "창 표시",
-      "세부 정보 열기",
-    ),
-    "pt" => (
-      "Mostrar Donut Browser",
-      "Sair",
-      "Em execução",
-      "Recentes",
-      "Parar todos",
-      "Parar",
-      "Mostrar janela",
-      "Abrir detalhes",
-    ),
-    "ru" => (
-      "Показать Donut Browser",
-      "Выход",
-      "Запущенные",
-      "Недавние",
-      "Остановить все",
-      "Остановить",
-      "Показать окно",
-      "Открыть сведения",
-    ),
-    "tr" => (
-      "Donut Browser'ı Göster",
-      "Çık",
-      "Çalışanlar",
-      "Son kullanılanlar",
-      "Tümünü durdur",
-      "Durdur",
-      "Pencereyi göster",
-      "Ayrıntıları aç",
-    ),
-    "vi" => (
-      "Hiển thị Donut Browser",
-      "Thoát",
-      "Đang chạy",
-      "Gần đây",
-      "Dừng tất cả",
-      "Dừng",
-      "Hiện cửa sổ",
-      "Mở chi tiết",
-    ),
-    "zh" => (
-      "显示 Donut Browser",
-      "退出",
-      "运行中",
-      "最近使用",
-      "全部停止",
-      "停止",
-      "显示窗口",
-      "打开详情",
-    ),
-    _ => (
-      "Show Donut Browser",
-      "Quit",
-      "Running",
-      "Recent",
-      "Stop all running",
-      "Stop",
-      "Show window",
-      "Open details",
-    ),
-  };
+  let (show, quit, running, pinned, recent, stop_all, stop, show_window, open_details) =
+    match code.as_str() {
+      "de" => (
+        "Donut Browser anzeigen",
+        "Beenden",
+        "Laufend",
+        "Angeheftet",
+        "Zuletzt verwendet",
+        "Alle laufenden stoppen",
+        "Stoppen",
+        "Fenster anzeigen",
+        "Details öffnen",
+      ),
+      "es" => (
+        "Mostrar Donut Browser",
+        "Salir",
+        "En ejecución",
+        "Fijados",
+        "Recientes",
+        "Detener todos",
+        "Detener",
+        "Mostrar ventana",
+        "Abrir detalles",
+      ),
+      "fr" => (
+        "Afficher Donut Browser",
+        "Quitter",
+        "En cours",
+        "Épinglés",
+        "Récents",
+        "Tout arrêter",
+        "Arrêter",
+        "Afficher la fenêtre",
+        "Ouvrir les détails",
+      ),
+      "ja" => (
+        "Donut Browser を表示",
+        "終了",
+        "実行中",
+        "ピン留め",
+        "最近使用",
+        "実行中をすべて停止",
+        "停止",
+        "ウィンドウを表示",
+        "詳細を開く",
+      ),
+      "ko" => (
+        "Donut Browser 표시",
+        "종료",
+        "실행 중",
+        "고정됨",
+        "최근 항목",
+        "실행 중인 항목 모두 중지",
+        "중지",
+        "창 표시",
+        "세부 정보 열기",
+      ),
+      "pt" => (
+        "Mostrar Donut Browser",
+        "Sair",
+        "Em execução",
+        "Fixados",
+        "Recentes",
+        "Parar todos",
+        "Parar",
+        "Mostrar janela",
+        "Abrir detalhes",
+      ),
+      "ru" => (
+        "Показать Donut Browser",
+        "Выход",
+        "Запущенные",
+        "Закреплённые",
+        "Недавние",
+        "Остановить все",
+        "Остановить",
+        "Показать окно",
+        "Открыть сведения",
+      ),
+      "tr" => (
+        "Donut Browser'ı Göster",
+        "Çık",
+        "Çalışanlar",
+        "Sabitlenenler",
+        "Son kullanılanlar",
+        "Tümünü durdur",
+        "Durdur",
+        "Pencereyi göster",
+        "Ayrıntıları aç",
+      ),
+      "vi" => (
+        "Hiển thị Donut Browser",
+        "Thoát",
+        "Đang chạy",
+        "Đã ghim",
+        "Gần đây",
+        "Dừng tất cả",
+        "Dừng",
+        "Hiện cửa sổ",
+        "Mở chi tiết",
+      ),
+      "zh" => (
+        "显示 Donut Browser",
+        "退出",
+        "运行中",
+        "已置顶",
+        "最近使用",
+        "全部停止",
+        "停止",
+        "显示窗口",
+        "打开详情",
+      ),
+      _ => (
+        "Show Donut Browser",
+        "Quit",
+        "Running",
+        "Pinned",
+        "Recent",
+        "Stop all running",
+        "Stop",
+        "Show window",
+        "Open details",
+      ),
+    };
   Labels {
     show,
     quit,
     running,
+    pinned,
     recent,
     stop_all,
     stop,
@@ -190,13 +203,16 @@ pub(crate) struct MenuProfile {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct MenuState {
   pub running: Vec<MenuProfile>,
+  pub pinned: Vec<MenuProfile>,
   pub recent: Vec<MenuProfile>,
 }
 
-/// The running profiles by name, and the most recently launched of the rest.
-/// A profile bound to another OS cannot launch here and is not offered.
+/// The running profiles by name, the pinned ones in pin order, and the most
+/// recently launched of the rest. A profile bound to another OS cannot launch
+/// here and is not offered.
 pub(crate) fn menu_state(
   profiles: &[crate::profile::BrowserProfile],
+  pinned_ids: &[String],
   is_running: impl Fn(&crate::profile::BrowserProfile) -> bool,
 ) -> MenuState {
   let entry = |profile: &crate::profile::BrowserProfile| MenuProfile {
@@ -208,13 +224,22 @@ pub(crate) fn menu_state(
   running.sort_by_key(|p| p.name.to_lowercase());
   running.truncate(RUNNING_LIMIT);
 
-  let mut recent: Vec<_> = idle
+  let launchable: Vec<_> = idle.into_iter().filter(|p| !p.is_cross_os()).collect();
+  let is_pinned = |p: &crate::profile::BrowserProfile| pinned_ids.contains(&p.id.to_string());
+  let pinned: Vec<MenuProfile> = pinned_ids
+    .iter()
+    .filter_map(|id| launchable.iter().find(|p| p.id.to_string() == *id))
+    .take(RUNNING_LIMIT)
+    .map(|p| entry(p))
+    .collect();
+  let mut recent: Vec<_> = launchable
     .into_iter()
-    .filter(|p| p.last_launch.is_some() && !p.is_cross_os())
+    .filter(|p| p.last_launch.is_some() && !is_pinned(p))
     .collect();
   recent.sort_by_key(|p| std::cmp::Reverse(p.last_launch));
   MenuState {
     running,
+    pinned,
     recent: recent.into_iter().take(RECENT_LIMIT).map(entry).collect(),
   }
 }
@@ -223,7 +248,10 @@ fn current_state() -> MenuState {
   let profiles = crate::profile::ProfileManager::instance()
     .list_profiles()
     .unwrap_or_default();
-  menu_state(&profiles, |profile| {
+  let pinned = crate::settings_manager::get_table_preferences("profiles".into())
+    .map(|preferences| preferences.pinned)
+    .unwrap_or_default();
+  menu_state(&profiles, &pinned, |profile| {
     profile
       .process_id
       .is_some_and(crate::proxy_storage::is_process_running)
@@ -274,6 +302,18 @@ fn build_menu(app: &AppHandle, state: &MenuState) -> tauri::Result<Menu<Wry>> {
       running = running.item(&submenu);
     }
     menu = menu.item(&running.build()?);
+  }
+  if !state.pinned.is_empty() {
+    let mut pinned = SubmenuBuilder::new(app, labels.pinned);
+    for profile in &state.pinned {
+      let item = MenuItemBuilder::with_id(
+        format!("tray_launch:{}", profile.id),
+        item_text(&profile.name),
+      )
+      .build(app)?;
+      pinned = pinned.item(&item);
+    }
+    menu = menu.item(&pinned.build()?);
   }
   if !state.recent.is_empty() {
     let mut recent = SubmenuBuilder::new(app, labels.recent);
@@ -546,7 +586,7 @@ mod tests {
       profile("new", Some(50)),
     ];
     let running_ids = [profiles[0].id, profiles[1].id];
-    let state = menu_state(&profiles, |p| running_ids.contains(&p.id));
+    let state = menu_state(&profiles, &[], |p| running_ids.contains(&p.id));
     let names = |list: &[MenuProfile]| list.iter().map(|p| p.name.clone()).collect::<Vec<_>>();
     assert_eq!(names(&state.running), ["Alpha", "beta"]);
     assert_eq!(names(&state.recent), ["new", "old"]);
@@ -555,9 +595,25 @@ mod tests {
   #[test]
   fn recent_keeps_the_five_latest() {
     let profiles: Vec<_> = (0..8).map(|n| profile(&format!("p{n}"), Some(n))).collect();
-    let state = menu_state(&profiles, |_| false);
+    let state = menu_state(&profiles, &[], |_| false);
     let names: Vec<_> = state.recent.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(names, ["p7", "p6", "p5", "p4", "p3"]);
+  }
+
+  #[test]
+  fn pinned_profiles_keep_their_order_and_leave_recent() {
+    let profiles: Vec<_> = (0..4).map(|n| profile(&format!("p{n}"), Some(n))).collect();
+    let pins = [
+      profiles[1].id.to_string(),
+      profiles[3].id.to_string(),
+      profiles[0].id.to_string(),
+    ];
+    let running = profiles[0].id;
+    let state = menu_state(&profiles, &pins, |p| p.id == running);
+    let names = |list: &[MenuProfile]| list.iter().map(|p| p.name.clone()).collect::<Vec<_>>();
+    assert_eq!(names(&state.pinned), ["p1", "p3"]);
+    assert_eq!(names(&state.recent), ["p2"]);
+    assert_eq!(names(&state.running), ["p0"]);
   }
 
   #[cfg(not(feature = "e2e"))]

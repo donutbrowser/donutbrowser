@@ -65,6 +65,9 @@ pub struct TablePreferences {
   /// The id of the view applied when the app starts.
   #[serde(skip_serializing_if = "Option::is_none")]
   pub default_view: Option<String>,
+  /// Rows kept above the rest under any sort, on this device only.
+  #[serde(skip_serializing_if = "Vec::is_empty")]
+  pub pinned: Vec<String>,
 }
 
 impl Default for TablePreferences {
@@ -80,11 +83,24 @@ impl Default for TablePreferences {
       column_order: Vec::new(),
       views: Vec::new(),
       default_view: None,
+      pinned: Vec::new(),
     }
   }
 }
 
 const TABLE_VIEW_LIMIT: usize = 32;
+const TABLE_PIN_LIMIT: usize = 500;
+
+fn valid_table_pins(pinned: &[String]) -> bool {
+  let mut ids = HashSet::new();
+  pinned.len() <= TABLE_PIN_LIMIT
+    && pinned.iter().all(|id| {
+      !id.is_empty()
+        && id.len() <= 64
+        && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        && ids.insert(id.as_str())
+    })
+}
 
 fn valid_table_column_id(id: &str) -> bool {
   !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
@@ -143,6 +159,7 @@ fn table_preferences_valid(table_id: &str, preferences: &TablePreferences) -> bo
     })
     && valid_table_sorting(&preferences.sorting)
     && valid_table_column_order(&preferences.column_order)
+    && valid_table_pins(&preferences.pinned)
     && preferences.views.len() <= TABLE_VIEW_LIMIT
     && preferences
       .views
@@ -335,6 +352,10 @@ pub struct AppSettings {
   /// VPN: a profile with no route, and one whose proxy or VPN is gone.
   #[serde(default)]
   pub require_route_for_launch: bool,
+  /// Ask before a launch with no proxy or VPN. `require_route_for_launch`
+  /// wins when both are set.
+  #[serde(default)]
+  pub ask_route_for_launch: bool,
   /// Days a deleted profile can still be restored. 0 destroys it at once.
   #[serde(default = "default_trash_retention_days")]
   pub trash_retention_days: u32,
@@ -391,6 +412,10 @@ pub struct AppSettings {
   /// Open again, at startup, the profiles that were running when Donut quit.
   #[serde(default)]
   pub reopen_running_profiles: bool,
+  /// The app's own interface size in percent, one of `INTERFACE_ZOOM_STEPS`.
+  /// Written only by `set_interface_zoom`.
+  #[serde(default = "default_interface_zoom")]
+  pub interface_zoom: u16,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -448,6 +473,65 @@ where
       .round()
       .clamp(1.0, f64::from(MAX_BULK_LAUNCH_CONCURRENCY)) as u32,
   )
+}
+
+/// Interface sizes the app offers, in percent. Matches `INTERFACE_ZOOM_STEPS`
+/// in `src/lib/interface-zoom.ts`.
+pub const INTERFACE_ZOOM_STEPS: [u16; 6] = [80, 90, 100, 110, 125, 150];
+pub const DEFAULT_INTERFACE_ZOOM: u16 = 100;
+
+fn default_interface_zoom() -> u16 {
+  DEFAULT_INTERFACE_ZOOM
+}
+
+/// The offered size nearest to `zoom`.
+fn nearest_interface_zoom(zoom: u16) -> u16 {
+  INTERFACE_ZOOM_STEPS
+    .into_iter()
+    .min_by_key(|step| step.abs_diff(zoom))
+    .unwrap_or(DEFAULT_INTERFACE_ZOOM)
+}
+
+fn apply_zoom(window: &tauri::WebviewWindow, zoom: u16) {
+  if let Err(e) = window.set_zoom(f64::from(zoom) / 100.0) {
+    log::warn!("Interface size not applied zoom={zoom} err=\"{e}\"");
+  }
+}
+
+/// Put the saved interface size on the main window.
+pub fn apply_interface_zoom(window: &tauri::WebviewWindow) {
+  let zoom = SettingsManager::instance()
+    .load_settings()
+    .map(|settings| nearest_interface_zoom(settings.interface_zoom))
+    .unwrap_or(DEFAULT_INTERFACE_ZOOM);
+  if zoom != DEFAULT_INTERFACE_ZOOM {
+    apply_zoom(window, zoom);
+  }
+}
+
+/// Save and apply the interface size; answers the size it took.
+#[tauri::command]
+pub fn set_interface_zoom(app_handle: tauri::AppHandle, zoom: u16) -> Result<u16, String> {
+  use tauri::{Emitter, Manager};
+  let zoom = nearest_interface_zoom(zoom);
+  {
+    let _serial = TIPS_WRITE
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let manager = SettingsManager::instance();
+    let mut settings = manager
+      .load_settings()
+      .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
+    settings.interface_zoom = zoom;
+    manager
+      .save_settings(&settings)
+      .map_err(|e| crate::backend_error_with_detail("INTERNAL_ERROR", e))?;
+  }
+  if let Some(window) = app_handle.get_webview_window("main") {
+    apply_zoom(&window, zoom);
+  }
+  let _ = app_handle.emit("interface-zoom-changed", zoom);
+  Ok(zoom)
 }
 
 fn default_system_notifications() -> bool {
@@ -533,6 +617,7 @@ impl Default for AppSettings {
       paid_welcome_seen_for: Vec::new(),
       cloud_plan_memory: std::collections::HashMap::new(),
       require_route_for_launch: false,
+      ask_route_for_launch: false,
       trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
       record_traffic_domains: true,
       ui_sounds: true,
@@ -547,6 +632,7 @@ impl Default for AppSettings {
       system_notifications: true,
       launch_at_login: false,
       reopen_running_profiles: false,
+      interface_zoom: DEFAULT_INTERFACE_ZOOM,
     }
   }
 }
@@ -935,6 +1021,7 @@ pub async fn save_app_settings(
       previous_retention = Some(current.trash_retention_days);
       keep_tips_state(&mut settings, &current);
       settings.window_resize_warning_dismissed = current.window_resize_warning_dismissed;
+      settings.interface_zoom = current.interface_zoom;
       settings.mcp_remote_enabled = current.mcp_remote_enabled;
       settings.mcp_remote_key_id = current.mcp_remote_key_id;
       settings.feedback_sent_at = current.feedback_sent_at;
@@ -1979,12 +2066,24 @@ mod tests {
   }
 
   #[test]
+  fn an_interface_size_snaps_to_an_offered_one() {
+    assert_eq!(nearest_interface_zoom(100), 100);
+    assert_eq!(nearest_interface_zoom(118), 125);
+    assert_eq!(nearest_interface_zoom(10), 80);
+    assert_eq!(nearest_interface_zoom(900), 150);
+    let old: AppSettings = serde_json::from_str("{}").unwrap();
+    assert_eq!(old.interface_zoom, DEFAULT_INTERFACE_ZOOM);
+    assert!(!old.ask_route_for_launch);
+  }
+
+  #[test]
   fn table_preferences_from_an_older_file_get_empty_views() {
     let old = r#"{"visibility":{"note":false},"sizing":{"name":280.5},"sorting":[{"id":"name","desc":true}],"density":"comfortable"}"#;
     let preferences: TablePreferences = serde_json::from_str(old).unwrap();
     assert!(preferences.column_order.is_empty());
     assert!(preferences.views.is_empty());
     assert_eq!(preferences.default_view, None);
+    assert!(preferences.pinned.is_empty());
     assert!(table_preferences_valid("profiles", &preferences));
     assert_eq!(
       serde_json::to_value(&preferences).unwrap(),
@@ -2038,6 +2137,12 @@ mod tests {
       &|p| p.views[0].column_order = vec!["name".into(), "name".into()]
     ));
     assert!(!with(&|p| p.column_order = vec!["a b".into()]));
+    assert!(with(&|p| p.pinned = vec![uuid::Uuid::new_v4().to_string()]));
+    assert!(!with(&|p| p.pinned = vec!["a".into(), "a".into()]));
+    assert!(!with(&|p| p.pinned = vec!["../a".into()]));
+    assert!(!with(&|p| {
+      p.pinned = (0..=TABLE_PIN_LIMIT).map(|i| format!("p{i}")).collect();
+    }));
     assert!(!with(&|p| {
       p.views = (0..=TABLE_VIEW_LIMIT)
         .map(|i| table_view(&format!("v{i}"), "View"))
@@ -2114,6 +2219,7 @@ mod tests {
       paid_welcome_seen_for: Vec::new(),
       cloud_plan_memory: std::collections::HashMap::new(),
       require_route_for_launch: true,
+      ask_route_for_launch: false,
       trash_retention_days: 7,
       record_traffic_domains: false,
       ui_sounds: false,
@@ -2128,6 +2234,7 @@ mod tests {
       system_notifications: true,
       launch_at_login: false,
       reopen_running_profiles: false,
+      interface_zoom: DEFAULT_INTERFACE_ZOOM,
     };
 
     let save_result = manager.save_settings(&test_settings);

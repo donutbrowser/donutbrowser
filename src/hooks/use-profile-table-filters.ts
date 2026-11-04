@@ -13,12 +13,30 @@ import type { BrowserProfile } from "@/types";
 
 const noTextSearch = () => "";
 
+/** Every known exit country, by its name in the app's language. */
+function countryOptions(
+  countries: ReadonlyMap<string, string> | undefined,
+  language: string,
+) {
+  const names = new Intl.DisplayNames([language], { type: "region" });
+  const label = (code: string) => {
+    try {
+      return names.of(code) ?? code;
+    } catch {
+      return code;
+    }
+  };
+  return [...new Set(countries?.values() ?? [])]
+    .map((code) => ({ value: code, label: label(code) }))
+    .sort((a, b) => a.label.localeCompare(b.label, language));
+}
+
 export function useProfileTableFilters(
   profiles: BrowserProfile[],
   query: string,
   context: ProfileSearchContext,
 ) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const searched = useMemo(() => {
     const parsed = parseProfileSearch(query);
     return parsed.isEmpty
@@ -73,6 +91,16 @@ export function useProfileTableFilters(
         ],
       },
       {
+        id: "country",
+        label: t("search.fields.country"),
+        value: (row) =>
+          (row.proxy_id && context.proxyCountries?.get(row.proxy_id)) || "",
+        options: [
+          { value: "", label: t("profileInfo.values.unknown") },
+          ...countryOptions(context.proxyCountries, i18n.language),
+        ],
+      },
+      {
         id: "sync",
         label: t("proxies.management.syncCol"),
         value: (row) => row.sync_mode ?? "Disabled",
@@ -83,7 +111,7 @@ export function useProfileTableFilters(
         ],
       },
     ],
-    [profiles, context, t],
+    [profiles, context, t, i18n.language],
   );
   return useTableFilters(searched, noTextSearch, definitions, "profiles");
 }

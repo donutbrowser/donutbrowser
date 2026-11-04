@@ -23,6 +23,8 @@ export interface StoredTablePreferences extends TablePreferences {
   column_order?: string[];
   views?: SavedTableView[];
   default_view?: string | null;
+  /** Row ids kept above the rest, on this device only. */
+  pinned?: string[];
 }
 
 export interface TableViewState {

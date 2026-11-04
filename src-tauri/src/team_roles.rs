@@ -85,6 +85,7 @@ const TEAM_DATA_COMMANDS: &[&str] = &[
   "add_unpacked_extension",
   "update_extension",
   "update_extension_from_path",
+  "update_extension_from_store",
   "delete_extension",
   "create_extension_group",
   "update_extension_group",

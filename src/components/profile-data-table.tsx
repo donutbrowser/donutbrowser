@@ -32,6 +32,8 @@ import {
   LuInfo,
   LuLock,
   LuMoon,
+  LuPin,
+  LuPinOff,
   LuPlay,
   LuPuzzle,
   LuRefreshCw,
@@ -186,9 +188,14 @@ import {
   MOTION_SPRING_POSITION,
 } from "@/lib/motion";
 import { isMacOS } from "@/lib/platform";
+import { formatDuration, formatTimeAgo } from "@/lib/relative-time";
 import type { RemoteHandoffState } from "@/lib/remote-sessions";
 import { isKey } from "@/lib/shortcuts";
-import { resolveTableVisibility } from "@/lib/table-tools";
+import {
+  pinnedFirst,
+  resolveTableVisibility,
+  togglePins,
+} from "@/lib/table-tools";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type {
@@ -237,12 +244,16 @@ interface TableMeta {
   launchErrors: Record<string, string>;
   /** Measured route health of running profiles. */
   proxyHealth: Map<string, ProxyHealth>;
+  /** Profiles pinned above the rest on this device. */
+  pinned: ReadonlySet<string>;
   openDetails: (
     profile: BrowserProfile,
     method: "pointer" | "keyboard",
   ) => void;
   startRename: (profile: BrowserProfile) => void;
   launchRow: (profile: BrowserProfile) => void;
+  /** Stops a launch in progress before its browser opens. */
+  cancelRow: (profile: BrowserProfile) => void;
   stopRow: (profile: BrowserProfile) => void;
   selectedProfiles: string[];
   selectedDragProfiles: BrowserProfile[];
@@ -500,6 +511,7 @@ const FIXED_COLUMNS_WIDTH = SELECT_COLUMN_WIDTH + 44 + 28 + 32;
  */
 const FIT_COLUMNS: FitColumn[] = [
   { id: "profileId", floor: 100, pct: 0 },
+  { id: "launched", floor: 92, pct: 0.08 },
   { id: "note", floor: 80, pct: 0.1 },
   { id: "tags", floor: 100, pct: 0.12 },
   { id: "ext", floor: 95, pct: 0.11 },
@@ -999,6 +1011,45 @@ function ProfileIdCell({
         successMessage={meta.t("toasts.success.copied")}
       />
     </div>
+  );
+}
+
+/** Unix seconds now, again each minute while mounted. */
+function useMinuteClock() {
+  const [now, setNow] = React.useState(() => Math.floor(Date.now() / 1000));
+  React.useEffect(() => {
+    const id = window.setInterval(() => {
+      setNow(Math.floor(Date.now() / 1000));
+    }, 60_000);
+    return () => {
+      window.clearInterval(id);
+    };
+  }, []);
+  return now;
+}
+
+function LaunchedCell({ profile }: { profile: BrowserProfile }) {
+  const { t, i18n } = useTranslation();
+  const now = useMinuteClock();
+  return (
+    <span className="block truncate text-xs text-muted-foreground">
+      {profile.last_launch
+        ? formatTimeAgo(profile.last_launch, now, i18n.language)
+        : t("profileInfo.values.never")}
+    </span>
+  );
+}
+
+/** How long the browser has run, read when its tooltip opens. */
+function RunningFor({ since }: { since: number }) {
+  const { t, i18n } = useTranslation();
+  const [now] = React.useState(() => Math.floor(Date.now() / 1000));
+  return (
+    <span className="block">
+      {t("profiles.table.runningFor", {
+        duration: formatDuration(now - since, i18n.language),
+      })}
+    </span>
   );
 }
 
@@ -2252,6 +2303,13 @@ export function ProfilesDataTable({
     "pointer" | "keyboard"
   >("pointer");
   const view = useTablePreferences("profiles");
+  const pinned = React.useMemo(() => new Set(view.pinned), [view.pinned]);
+  const togglePinned = React.useCallback(
+    (ids: string[]) => {
+      if (ids.length > 0) view.setPinned(togglePins(view.pinned, ids));
+    },
+    [view.pinned, view.setPinned],
+  );
   const sorting = view.preferences.sorting;
 
   const rowSelection = React.useMemo<RowSelectionState>(
@@ -2990,10 +3048,14 @@ export function ProfilesDataTable({
       motionAllowed,
       launchErrors,
       proxyHealth,
+      pinned,
       openDetails,
       startRename,
       launchRow: (profile: BrowserProfile) => {
         void launchRow(profile);
+      },
+      cancelRow: (profile: BrowserProfile) => {
+        void invoke("cancel_profile_launch", { profileId: profile.id });
       },
       stopRow: (profile: BrowserProfile) => {
         void stopRow(profile);
@@ -3115,6 +3177,7 @@ export function ProfilesDataTable({
       motionAllowed,
       launchErrors,
       proxyHealth,
+      pinned,
       openDetails,
       startRename,
       launchRow,
@@ -3237,13 +3300,22 @@ export function ProfilesDataTable({
           const isLeader = syncInfo?.isLeader === true;
           const isFollower = syncInfo?.isLeader === false;
           const isDesynced = isFollower && syncInfo.failedAtUrl != null;
-          const stopTooltip = isLeader
+          const stopLabel = isLeader
             ? meta.t("profiles.synchronizer.stopLeader")
             : isFollower
               ? meta.t("profiles.synchronizer.stopFollower", {
                   leaderName: syncInfo.session.leader_profile_name ?? "",
                 })
               : tooltipContent;
+          const stopTooltip =
+            hasLocalWindow(profile, meta) && profile.last_launch ? (
+              <>
+                {stopLabel && <span className="block">{stopLabel}</span>}
+                <RunningFor since={profile.last_launch} />
+              </>
+            ) : (
+              stopLabel
+            );
 
           return (
             <div className="flex items-center gap-2">
@@ -3272,6 +3344,7 @@ export function ProfilesDataTable({
                 tooltip={runtime.isRunning ? stopTooltip : tooltipContent}
                 onLaunch={() => meta.launchRow(profile)}
                 onStop={() => meta.stopRow(profile)}
+                onCancel={() => meta.cancelRow(profile)}
               />
             </div>
           );
@@ -3465,6 +3538,13 @@ export function ProfilesDataTable({
                   text={name}
                   className="text-left leading-none font-medium"
                 />
+                {meta.pinned.has(profile.id) && (
+                  <LuPin
+                    data-slot="profile-pinned"
+                    aria-label={meta.t("profileTable.pinned")}
+                    className="size-3 shrink-0 text-muted-foreground"
+                  />
+                )}
                 {runtime.isRunning && <LiveDot />}
               </button>
               {launchErrorText && (
@@ -3528,6 +3608,15 @@ export function ProfilesDataTable({
             </div>
           );
         },
+      },
+      {
+        id: "launched",
+        size: 92,
+        header: ({ table }) => {
+          const meta = table.options.meta as TableMeta;
+          return meta.t("profileInfo.fields.lastLaunched");
+        },
+        cell: ({ row }) => <LaunchedCell profile={row.original} />,
       },
       {
         id: "profileId",
@@ -3904,6 +3993,7 @@ export function ProfilesDataTable({
       { id: "name", label: t("common.labels.name"), hideable: false },
       { id: "created_at", label: t("search.fields.created"), hideable: false },
       { id: "profileId", label: t("profiles.table.profileId") },
+      { id: "launched", label: t("profileInfo.fields.lastLaunched") },
       { id: "state", label: t("profileStatuses.column") },
       { id: "tags", label: t("profileTable.tagsHeader") },
       { id: "note", label: t("profileTable.noteHeader") },
@@ -3941,6 +4031,7 @@ export function ProfilesDataTable({
               )?.name ?? ""
             );
           if (id === "dns") return row.dns_blocklist ?? "";
+          if (id === "launched") return row.last_launch ?? 0;
           if (id === "state")
             return (
               profileStatuses.find((status) => status.id === row.status_id)
@@ -3968,7 +4059,13 @@ export function ProfilesDataTable({
                 enableSorting: true,
                 sortingFn: "alphanumeric" as const,
               }
-            : {}),
+            : id === "launched"
+              ? {
+                  accessorFn: accessor,
+                  enableSorting: true,
+                  sortingFn: "basic" as const,
+                }
+              : {}),
         };
       }),
     [columns, storedProxies, vpnConfigs, extensionGroups, profileStatuses],
@@ -4042,7 +4139,11 @@ export function ProfilesDataTable({
     },
     [columnFit, view.preferences.sizing],
   );
-  const sortedRows = table.getRowModel().rows;
+  const modelRows = table.getRowModel().rows;
+  const sortedRows = React.useMemo(
+    () => pinnedFirst(modelRows, pinned),
+    [modelRows, pinned],
+  );
   useScrollFade(scrollParentRef);
 
   React.useEffect(() => {
@@ -4265,6 +4366,8 @@ export function ProfilesDataTable({
       onMoveToGroup: onAssignProfilesToGroup
         ? () => onAssignProfilesToGroup([menuProfile.id])
         : undefined,
+      isPinned: pinned.has(menuProfile.id),
+      onTogglePin: () => togglePinned([menuProfile.id]),
       onRunRemote: onRunRemote ? () => onRunRemote(menuProfile) : undefined,
       onAskAgent: onAskAgent ? () => onAskAgent(menuProfile) : undefined,
       onLockNow: onLockProfile ? () => onLockProfile(menuProfile) : undefined,
@@ -4836,6 +4939,21 @@ export function ProfilesDataTable({
           onClick={() => setBulkEditOpen(true)}
         >
           <LuSlidersHorizontal />
+        </DataTableActionBarAction>
+        <DataTableActionBarAction
+          data-bulk-action="pin"
+          tooltip={
+            selectedProfiles.every((id) => pinned.has(id))
+              ? t("profileTable.menu.unpin")
+              : t("profileTable.menu.pin")
+          }
+          onClick={() => togglePinned(selectedProfiles)}
+        >
+          {selectedProfiles.every((id) => pinned.has(id)) ? (
+            <LuPinOff />
+          ) : (
+            <LuPin />
+          )}
         </DataTableActionBarAction>
         {onBulkGroupAssignment && (
           <DataTableActionBarAction

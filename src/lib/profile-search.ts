@@ -84,6 +84,12 @@ export const PROFILE_SEARCH_FIELDS: readonly ProfileSearchField[] = [
   },
   { key: "vpn", aliases: [], kind: "lookup", labelKey: "search.fields.vpn" },
   {
+    key: "country",
+    aliases: ["geo"],
+    kind: "lookup",
+    labelKey: "search.fields.country",
+  },
+  {
     key: "ext",
     aliases: ["extension"],
     kind: "lookup",
@@ -227,6 +233,8 @@ export interface ProfileSearchContext {
   /** Profile status id to its name. */
   readonly statusNames: ReadonlyMap<string, string>;
   readonly runningProfiles: ReadonlySet<string>;
+  /** Proxy id to the ISO country code of its exit, where one is known. */
+  readonly proxyCountries?: ReadonlyMap<string, string>;
   /** Epoch ms the relative dates count back from. Defaults to the wall clock. */
   readonly now?: number;
 }
@@ -666,6 +674,10 @@ export function profileSearchFieldValue(
       return lookupValue(profile.proxy_id, ctx.proxyNames);
     case "vpn":
       return lookupValue(profile.vpn_id, ctx.vpnNames);
+    case "country":
+      return one(
+        profile.proxy_id ? ctx.proxyCountries?.get(profile.proxy_id) : null,
+      );
     case "ext":
       return lookupValue(profile.extension_group_id, ctx.extensionGroupNames);
     case "dns":
@@ -691,7 +703,7 @@ function matchesFieldValue(term: FieldTerm, value: string, actual: FieldValue) {
       term.exact ? candidate === value : candidate.startsWith(value),
     );
   }
-  if (term.field.kind === "enum") {
+  if (term.field.kind === "enum" || term.field.key === "country") {
     // A prefix is enough, so `status:run` works while the user is still typing.
     return actual.candidates.some((candidate) =>
       term.exact ? candidate === value : candidate.startsWith(value),

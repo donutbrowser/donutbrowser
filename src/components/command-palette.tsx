@@ -23,6 +23,7 @@ import {
   LuPlug,
   LuPlus,
   LuPuzzle,
+  LuScaling,
   LuSearch,
   LuSearchX,
   LuSettings,
@@ -30,6 +31,8 @@ import {
   LuUser,
   LuUsers,
   LuWifi,
+  LuZoomIn,
+  LuZoomOut,
 } from "react-icons/lu";
 
 import {
@@ -43,6 +46,7 @@ import {
 } from "@/components/ui/command";
 import { KbdGroup } from "@/components/ui/kbd";
 import { MatchText } from "@/components/ui/match-text";
+import { useTablePreferences } from "@/hooks/use-table-preferences";
 import { MOTION_EASE_OUT } from "@/lib/motion";
 import {
   paletteScore,
@@ -113,6 +117,9 @@ const ICONS: Record<ShortcutId, Icon> = {
   goAccount: LuCloud,
   goSettings: LuSettings,
   goTrash: LuTrash2,
+  zoomIn: LuZoomIn,
+  zoomOut: LuZoomOut,
+  zoomReset: LuScaling,
 };
 
 /** Lists the palette opens into, with a breadcrumb and their own search. */
@@ -259,6 +266,7 @@ export function CommandPalette({
   const [direction, setDirection] = useState(0);
   const [recents, setRecents] = useState<string[]>([]);
   const page = pages.at(-1)?.id ?? null;
+  const { pinned } = useTablePreferences("profiles");
 
   useEffect(() => {
     if (open) {
@@ -596,8 +604,21 @@ export function CommandPalette({
       pageCommand("group", LuUsers),
       ...(profiles.length > 0 ? profileShortcut("focusSearch") : []),
     ];
+    const pinnedProfiles = searching
+      ? []
+      : pinned.flatMap((id) => profiles.filter((p) => p.id === id));
     return (
       <>
+        {pinnedProfiles.length > 0 ? (
+          <CommandGroup
+            value="pinned"
+            heading={t("commandPalette.groups.pinned")}
+          >
+            {pinnedProfiles.map((p) =>
+              item(toggleCommand(p, false), `pinned:${p.id}`),
+            )}
+          </CommandGroup>
+        ) : null}
         {recentCommands.length > 0 ? (
           <CommandGroup
             value="recent"

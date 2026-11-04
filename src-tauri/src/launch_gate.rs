@@ -203,6 +203,16 @@ fn route_required() -> bool {
     .unwrap_or(false)
 }
 
+/// "Ask before a launch without a proxy or VPN": on, and not overruled by the
+/// block, which refuses the launch outright instead.
+fn route_missing(profile: &BrowserProfile) -> bool {
+  let declares_route = profile.proxy_id.is_some() || profile.vpn_id.is_some();
+  !declares_route
+    && crate::settings_manager::SettingsManager::instance()
+      .load_settings()
+      .is_ok_and(|s| s.ask_route_for_launch && !s.require_route_for_launch)
+}
+
 fn extension_warning_disabled() -> bool {
   crate::settings_manager::SettingsManager::instance()
     .load_settings()
@@ -434,6 +444,8 @@ pub struct PreLaunchChecks {
   /// The profile's proxy or VPN did not answer a check just now. A warning
   /// the user can launch past, never a block.
   pub route_unreachable: Option<crate::proxy_manager::RouteUnreachable>,
+  /// No proxy or VPN, and the person asked to be asked before such a launch.
+  pub route_missing: bool,
 }
 
 fn load_profile(profile_id: &str) -> Result<BrowserProfile, String> {
@@ -529,6 +541,7 @@ pub async fn get_profile_pre_launch_checks(profile_id: String) -> Result<PreLaun
     exit_measurement_unreliable,
     consent_token,
     route_unreachable,
+    route_missing: route_missing(&profile),
   })
 }
 

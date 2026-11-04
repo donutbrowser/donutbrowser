@@ -382,3 +382,23 @@ test("every field carries a translation key and unique tokens", () => {
     }
   }
 });
+
+test("country matches the ISO code of the proxy's exit", () => {
+  const context = {
+    ...ctx,
+    proxyCountries: new Map([
+      ["p1", "DE"],
+      ["p2", "AD"],
+    ]),
+  };
+  const de = profile({ proxy_id: "p1" });
+  const ad = profile({ proxy_id: "p2" });
+  const direct = profile();
+  assert.equal(hit("country:de", de, context), true);
+  assert.equal(hit("country:d", ad, context), false, "a prefix, not a part");
+  assert.equal(hit("geo:us,de", de, context), true);
+  assert.equal(hit("-country:de", de, context), false);
+  assert.equal(hit("country:none", direct, context), true);
+  assert.equal(hit("country:any", direct, context), false);
+  assert.equal(hit("country:de", de), false, "no known exits, no match");
+});

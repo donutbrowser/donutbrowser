@@ -20,6 +20,7 @@ const DEFAULT_PREFERENCES: StoredTablePreferences = {
   density: "compact",
 };
 const SAVE_DELAY_MS = 180;
+const NO_PINS: string[] = [];
 
 interface Snapshot {
   preferences: StoredTablePreferences;
@@ -164,13 +165,16 @@ export function useTablePreferences(id: TableId) {
       ) => void,
       setDensity: (value: StoredTablePreferences["density"]) =>
         change(id, (previous) => ({ ...previous, density: value })),
-      /** Restores the columns, sort and row height; saved views stay. */
+      /** Restores the columns, sort and row height; saved views and pins stay. */
       reset: () =>
         change(id, (previous) => ({
           ...DEFAULT_PREFERENCES,
           views: previous.views,
           default_view: previous.default_view,
+          pinned: previous.pinned,
         })),
+      setPinned: (pinned: string[]) =>
+        change(id, (previous) => ({ ...previous, pinned })),
       setViews: (
         views: SavedTableView[],
         defaultView: string | null | undefined,
@@ -208,6 +212,7 @@ export function useTablePreferences(id: TableId) {
     views: preferences.views ?? [],
     defaultView: preferences.default_view ?? null,
     columnOrder: preferences.column_order ?? [],
+    pinned: preferences.pinned ?? NO_PINS,
     ...setters,
   };
 }

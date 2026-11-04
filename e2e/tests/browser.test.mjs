@@ -698,8 +698,30 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       profileId: profile.id,
       url: `${fixtureUrl}/direct-open`,
     });
+    await app.invoke("show_profile_window", { profileId: profile.id });
+    assert.match(
+      (await app.invoke("capture_profile_preview", {
+        profileId: profile.id,
+      })) ?? "",
+      /^data:image\/jpeg;base64,/,
+    );
+    assert.equal(
+      await app.invoke("cancel_profile_launch", { profileId: profile.id }),
+      false,
+      "nothing is launching",
+    );
+    const running = await app.invoke("get_profile_activity", {
+      profileId: profile.id,
+    });
+    assert.ok(running.launches >= 1, "the launch is counted");
+    assert.ok(running.running_since, "the session is open while it runs");
     await app.invoke("kill_browser_profile", { profile: directLaunch });
     await waitForProcessExit(app, directLaunch.process_id);
+    const stopped = await app.invoke("get_profile_activity", {
+      profileId: profile.id,
+    });
+    assert.equal(stopped.launches, running.launches);
+    assert.equal(stopped.running_since, undefined, "a stop closes the session");
 
     const settings = await app.invoke("get_app_settings");
     const saved = await app.invoke("save_app_settings", {

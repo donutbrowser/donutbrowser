@@ -128,7 +128,8 @@
       "yourOwn": "Le vôtre",
       "light": "Clair",
       "dark": "Sombre",
-      "system": "Système"
+      "system": "Système",
+      "interfaceSize": "Taille de l'interface"
     },
     "language": {
       "title": "Langue",
@@ -224,38 +225,15 @@
       "requireRoute": "Bloquer les lancements sans proxy ni VPN",
       "requireRouteDescription": "Un profil ne démarre jamais depuis votre propre adresse IP : ni sans proxy ou VPN, ni lorsque son proxy ou VPN a disparu ou ne répond pas.",
       "recordSites": "Enregistrer les sites visités",
-      "recordSitesDescription": "Les statistiques de trafic listent les sites atteints par chaque profil. Désactivé, seuls les volumes de données sont conservés. Les profils protégés par mot de passe et éphémères n'enregistrent jamais de sites."
+      "recordSitesDescription": "Les statistiques de trafic listent les sites atteints par chaque profil. Désactivé, seuls les volumes de données sont conservés. Les profils protégés par mot de passe et éphémères n'enregistrent jamais de sites.",
+      "askRoute": "Demander avant un lancement sans proxy ni VPN",
+      "askRouteDescription": "Vous choisissez à chaque fois : lancer ou annuler."
     },
     "trashRetention": "Conserver les profils supprimés pendant",
     "trashRetentionDescription": "Les profils supprimés attendent dans la corbeille et peuvent être restaurés jusque-là. Ensuite, ils sont supprimés définitivement.",
     "trashRetentionDays_one": "{{count}} jour",
     "trashRetentionDays_other": "{{count}} jours",
     "trashRetentionDays_many": "{{count}} jours",
-    "dataRoot": {
-      "title": "Répertoire de données",
-      "current": "Emplacement actuel",
-      "usage": "{{size}} répartis sur {{files}} fichiers",
-      "description": "Les profils, les navigateurs téléchargés et les réglages sont tous ici. Déplacez-les sur un autre disque quand le disque système se remplit.",
-      "choose": "Choisir un dossier",
-      "chooseTitle": "Choisissez un dossier pour le répertoire de données",
-      "move": "Déplacer",
-      "willMoveTo": "Tout est déplacé vers",
-      "moved": "Répertoire de données déplacé. Redémarrez Donut Browser pour l'utiliser.",
-      "reading": "Lecture du répertoire de données...",
-      "restartRequired": "Redémarrez Donut Browser pour utiliser le nouvel emplacement. En attendant, il continue de travailler depuis l'ancien.",
-      "environmentOverride": "DONUTBROWSER_DATA_DIR est défini : l'application utilise cet emplacement quel que soit celui choisi ici.",
-      "missing": "Le répertoire de données choisi est absent. S'il est sur un disque amovible, rebranchez-le et redémarrez.",
-      "useDefault": "Revenir à l'emplacement par défaut",
-      "usingDefault": "L'emplacement par défaut sera utilisé au prochain démarrage.",
-      "copiedCount": "{{copied}} fichiers sur {{total}}",
-      "phase": {
-        "scanning": "Mesure du répertoire actuel",
-        "copying": "Copie",
-        "verifying": "Vérification de la copie",
-        "cleaning": "Suppression de l'ancien répertoire",
-        "done": "Terminé"
-      }
-    },
     "trashRetentionOff": "Supprimer aussitôt",
     "scrollSectionsLeft": "Faire défiler les sections vers la gauche",
     "scrollSectionsRight": "Faire défiler les sections vers la droite",
@@ -379,7 +357,8 @@
       "ephemeral": "Profil éphémère",
       "created": "Date de création",
       "launched": "Date du dernier lancement",
-      "state": "Statut du profil"
+      "state": "Statut du profil",
+      "country": "Pays du proxy"
     },
     "operators": {
       "negate": "Exclut ce qui correspond",
@@ -456,7 +435,8 @@
       "emptyFilteredTitle": "Aucun profil trouvé",
       "emptyFilteredHint": "Aucun profil ne correspond à ce groupe ou à cette recherche. Essayez un autre filtre ou créez-en un.",
       "bot": "Bot",
-      "profileId": "ID"
+      "profileId": "ID",
+      "runningFor": "Lancé depuis {{duration}}"
     },
     "actions": {
       "launch": "Lancer",
@@ -1681,7 +1661,8 @@
       "localDataTransfer": "Transfert de données local",
       "created": "Créé le",
       "windowColor": "Couleur de la fenêtre",
-      "dns": "DNS"
+      "dns": "DNS",
+      "runTime": "Durée d'exécution"
     },
     "values": {
       "none": "Aucun",
@@ -1938,7 +1919,17 @@
     "fetchSuccess": "Extension téléchargée. Vérifiez le nom, puis ajoutez-la.",
     "fetchFailed": "Échec du téléchargement de l'extension",
     "searchExtensions": "Rechercher des extensions",
-    "membersSelected": "{{selected}} sur {{total}} sélectionnées"
+    "membersSelected": "{{selected}} sur {{total}} sélectionnées",
+    "updates": {
+      "check": "Rechercher des mises à jour",
+      "none": "Toutes les extensions sont à jour",
+      "found": "Mises à jour disponibles : {{count}}",
+      "updateTo": "Mettre à jour vers {{version}}",
+      "updated": "{{name}} mis à jour vers {{version}}",
+      "consentTitle": "Mettre à jour {{name}} ?",
+      "consentBody": "La nouvelle version demande plus d'accès : {{permissions}}",
+      "update": "Mettre à jour"
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -2481,7 +2472,8 @@
       "sync": "Synchronisation de {{name}} : {{status}}",
       "launchError": "Le dernier lancement a échoué : {{error}}",
       "health": "Connexion de {{name}} : {{status}}",
-      "traffic": "Détails du trafic de {{name}}"
+      "traffic": "Détails du trafic de {{name}}",
+      "cancelLaunch": "Annuler le lancement de {{name}}"
     },
     "menu": {
       "openDetails": "Ouvrir les détails",
@@ -2492,7 +2484,9 @@
       "lockNow": "Verrouiller maintenant",
       "moveToTrash": "Placer dans la corbeille",
       "askAgent": "Demander à l’agent",
-      "showWindow": "Afficher la fenêtre"
+      "showWindow": "Afficher la fenêtre",
+      "pin": "Épingler",
+      "unpin": "Désépingler"
     },
     "emptyGroupTitle": "Ce groupe est vide",
     "emptyGroupHint": "Créez un profil dans ce groupe ou déplacez-y des profils existants.",
@@ -2508,7 +2502,8 @@
       "launching": "Lancement…",
       "stopping": "Arrêt…",
       "singleInstance": "Une seule instance de ce navigateur peut tourner à la fois. Arrêtez d'abord celle qui tourne."
-    }
+    },
+    "pinned": "Épinglé"
   },
   "dataTableActionBar": {
     "selected": "{{count}} sélectionné(s)",
@@ -3000,7 +2995,13 @@
     "siteStorageIoFailed": "Donut n'a pas pu modifier les données du site : {{detail}}",
     "agentChatNotFound": "Ce chat n’existe plus.",
     "profileLeaseHeld": "Ce profil est ouvert sur {{device}}. Il sera libre à {{time}}, ou quand cet appareil le fermera.",
-    "profileStillSyncing": "Ce profil est encore en cours de synchronisation. Réessayez dans un instant."
+    "profileStillSyncing": "Ce profil est encore en cours de synchronisation. Réessayez dans un instant.",
+    "launchCancelled": "Lancement annulé.",
+    "extensionUpdateCheckFailed": "Impossible de rechercher des mises à jour sur le Chrome Web Store.",
+    "extensionNotFromStore": "Cette extension ne vient pas du Chrome Web Store.",
+    "extensionUpdateNeedsConsent": "La nouvelle version demande plus d'accès : {{permissions}}",
+    "bookmarksFileInvalid": "Donut ne peut pas lire de favoris dans ce fichier. Utilisez le fichier Bookmarks de Chrome ou un fichier HTML exporté.",
+    "previewsNotEntitled": "Les aperçus en direct nécessitent le forfait Pro ou supérieur."
   },
   "rail": {
     "profiles": "Profils",
@@ -3021,7 +3022,9 @@
       "tips": "Astuces",
       "tipsHint": "Découverte des fonctions",
       "feedback": "Envoyer un avis",
-      "feedbackHint": "Signaler un bug ou partager une idée"
+      "feedbackHint": "Signaler un bug ou partager une idée",
+      "previews": "Aperçus en direct",
+      "previewsHint": "Tous les profils lancés d'un coup d'œil"
     },
     "network": "Réseau",
     "integrations": "Intégrations",
@@ -3139,7 +3142,8 @@
       "profiles": "Profils",
       "actions": "Actions",
       "profileGroups": "Groupes de profils",
-      "recent": "Récents"
+      "recent": "Récents",
+      "pinned": "Épinglés"
     },
     "actions": {
       "launchProfile": "Lancer {{name}}",
@@ -3220,7 +3224,10 @@
       "focusSearch": "rechercher trouver filtrer",
       "goBack": "retour échap accueil",
       "agentChat": "agent chat demander assistant ia conversation tâche",
-      "window": "fenêtre afficher focus avant basculer"
+      "window": "fenêtre afficher focus avant basculer",
+      "zoomIn": "zoom agrandir plus grand taille échelle",
+      "zoomOut": "zoom réduire plus petit taille échelle",
+      "zoomReset": "zoom réinitialiser défaut taille réelle 100"
     }
   },
   "shortcuts": {
@@ -3243,7 +3250,10 @@
     "newProfile": "Nouveau profil",
     "stopAllRunning": "Arrêter tous les profils en cours",
     "focusSearch": "Rechercher des profils",
-    "goBack": "Retour aux Profils"
+    "goBack": "Retour aux Profils",
+    "zoomIn": "Interface plus grande",
+    "zoomOut": "Interface plus petite",
+    "zoomReset": "Taille d'interface par défaut"
   },
   "closeConfirm": {
     "title": "Fermer Donut Browser ?",
@@ -3810,7 +3820,9 @@
     "exitUnverifiedLanguage": "La langue de l'empreinte de ce profil ne peut pas être comparée au pays de sortie ; cette vérification reste donc non vérifiée, et non réussie.",
     "routeProxyHeading": "Le proxy ne répond pas",
     "routeVpnHeading": "Le VPN ne répond pas",
-    "routeExplainer": "Les pages risquent de ne pas se charger. Vérifiez le proxy ou le VPN, ou lancez quand même."
+    "routeExplainer": "Les pages risquent de ne pas se charger. Vérifiez le proxy ou le VPN, ou lancez quand même.",
+    "routeMissingHeading": "Aucun proxy ni VPN",
+    "routeMissingBody": "Les sites voient votre véritable adresse IP."
   },
   "profileMotion": {
     "inspectorSections": "Sections du profil",
@@ -3910,7 +3922,8 @@
       "starting": "Démarrage du navigateur",
       "running": "Navigateur en cours d’exécution",
       "failed": "Échec du lancement",
-      "stopped": "Dernier lancement terminé ; le navigateur est arrêté"
+      "stopped": "Dernier lancement terminé ; le navigateur est arrêté",
+      "cancelled": "Lancement annulé"
     },
     "checking": "Vérification…",
     "testConnection": "Tester la connexion",
@@ -4452,6 +4465,13 @@
         "started_one": "Lancée dans {{count}} profil",
         "started_other": "Lancée dans {{count}} profils",
         "declined": "Annulé"
+      },
+      "sync": {
+        "locked": "Ouvrez Donut sur un ordinateur qui a vos chats pour les synchroniser ici.",
+        "erase": "Effacer les chats synchronisés",
+        "eraseTitle": "Effacer les chats synchronisés ?",
+        "eraseBody": "Ils sont supprimés de tous les appareils. Les chats de cet ordinateur restent.",
+        "eraseConfirm": "Effacer"
       }
     }
   },
@@ -4492,7 +4512,12 @@
     "titlePlaceholder": "Service d'assistance",
     "urlPlaceholder": "https://exemple.com",
     "folderPlaceholder": "Facultatif",
-    "saved": "Favoris du groupe enregistrés"
+    "saved": "Favoris du groupe enregistrés",
+    "import": "Importer depuis un fichier",
+    "imported": "Favoris ajoutés : {{count}}",
+    "everyProfileAction": "Favoris pour tous les profils",
+    "everyProfileTitle": "Favoris pour tous les profils",
+    "everyProfileDescription": "Chaque profil de cet appareil reçoit ces favoris dans un dossier géré par Donut. Les autres favoris ne changent pas."
   },
   "tips": {
     "title": "Astuces",
@@ -5095,5 +5120,17 @@
     "description": "{{profile}} est ouvert sur {{device}} jusqu'à {{time}}. Si vous le reprenez, cet appareil cesse de le synchroniser et ses modifications depuis l'ouverture sont perdues.",
     "confirm": "Reprendre",
     "lost": "{{device}} a repris {{profile}}. Les modifications faites ici ne seront pas synchronisées."
+  },
+  "previews": {
+    "title": "Aperçus en direct",
+    "description": "Ce que chaque profil lancé affiche maintenant. Cliquez sur l'un d'eux pour mettre sa fenêtre au premier plan.",
+    "locked": "Les aperçus en direct des profils lancés font partie de Pro et des forfaits supérieurs.",
+    "seePlans": "Voir les forfaits",
+    "empty": "Aucun profil n'est lancé."
+  },
+  "whatsNew": {
+    "updated": "Mis à jour vers {{version}}",
+    "open": "Nouveautés",
+    "title": "Nouveautés de {{version}}"
   }
 }

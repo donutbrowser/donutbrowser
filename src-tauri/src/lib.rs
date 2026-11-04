@@ -93,6 +93,7 @@ fn clear_stale_browser_pids() {
       profile.id,
       stale.process_id.unwrap_or_default()
     );
+    crate::profile::activity::stopped(&profile.id.to_string());
     let _ = events::emit("profile-updated", &profile);
     let _ = events::emit(
       "profile-running-changed",
@@ -171,6 +172,7 @@ pub mod app_dirs;
 mod app_proxy;
 mod auto_updater;
 mod automation_rate_limiter;
+mod bookmark_import;
 mod browser;
 mod browser_runner;
 mod browser_tabs;
@@ -187,6 +189,7 @@ mod entity_trash;
 mod ephemeral_dirs;
 mod extension_fetch;
 mod extension_manager;
+mod extension_updates;
 mod extraction;
 mod feedback;
 mod file_stamp;
@@ -214,6 +217,7 @@ mod profile_dns;
 mod profile_generation_limiter;
 mod profile_import;
 mod profile_importer;
+mod profile_previews;
 mod profile_statuses;
 mod profile_templates;
 mod profile_totp;
@@ -242,6 +246,7 @@ mod wayfern_identity_storage;
 mod wayfern_manager;
 mod wayfern_persona;
 mod wayfern_terms;
+mod whats_new;
 mod window_decorations;
 // mod theme_detector; // removed: theme detection handled in webview via CSS prefers-color-scheme
 mod agent_console;
@@ -2790,6 +2795,7 @@ pub fn run_with_builder(
 
       #[allow(unused_variables)]
       let window = win_builder.build().unwrap();
+      settings_manager::apply_interface_zoom(&window);
 
       // Extract icons and metadata for existing extensions that don't have
       // them yet. It reads every extension's files, so it waits for no one.
@@ -3593,6 +3599,7 @@ pub fn run_with_builder(
       create_browser_profile_new,
       list_browser_profiles,
       launch_browser_profile,
+      browser_runner::cancel_profile_launch,
       fetch_browser_versions_with_count,
       fetch_browser_versions_cached_first,
       fetch_browser_versions_with_count_cached_first,
@@ -3611,6 +3618,7 @@ pub fn run_with_builder(
       update_profile_dns_server,
       update_profile_start_urls,
       bulk_update_profiles,
+      profile::activity::get_profile_activity,
       profile_dns::describe_dns_server,
       profile_statuses::list_profile_statuses,
       profile_statuses::create_profile_status,
@@ -3641,6 +3649,7 @@ pub fn run_with_builder(
       network_capture::get_network_request,
       rename_profile,
       get_app_settings,
+      settings_manager::set_interface_zoom,
       save_app_settings,
       read_log_files,
       log_viewer::read_app_log,
@@ -3673,6 +3682,7 @@ pub fn run_with_builder(
       check_for_app_updates_manual,
       download_and_prepare_app_update,
       restart_application,
+      whats_new::take_whats_new,
       detect_existing_profiles,
       import_browser_profiles,
       cancel_profile_import,
@@ -3705,6 +3715,9 @@ pub fn run_with_builder(
       assign_profiles_to_group,
       get_group_bookmarks,
       set_group_bookmarks,
+      group_bookmarks::get_shared_bookmarks,
+      group_bookmarks::set_shared_bookmarks,
+      bookmark_import::read_bookmarks_file,
       apply_group_bookmarks_to_profile,
       delete_selected_profiles,
       plan_proxy_distribution,
@@ -3714,6 +3727,9 @@ pub fn run_with_builder(
       add_extension,
       add_unpacked_extension,
       fetch_extension_from_url,
+      extension_updates::check_extension_updates,
+      extension_updates::update_extension_from_store,
+      profile_previews::capture_profile_preview,
       update_extension,
       update_extension_from_path,
       delete_extension,
@@ -3825,6 +3841,10 @@ pub fn run_with_builder(
       agent_tasks::chat::control_agent_chat,
       agent_tasks::chat::answer_agent_chat_approval,
       agent_tasks::chat::delete_agent_chat,
+      agent_tasks::chat_sync::get_agent_chat_sync,
+      agent_tasks::chat_sync::watch_agent_chats,
+      agent_tasks::chat_sync::erase_synced_agent_chats,
+      agent_tasks::host::answer_agent_chat_host_call,
       start_mcp_remote_bridge,
       stop_mcp_remote_bridge,
       get_mcp_remote_status,
@@ -3955,6 +3975,7 @@ pub fn run_with_builder(
           let _ = window.hide();
         }
         autostart::remember_running_profiles();
+        crate::profile::activity::close_all();
         remote_session::stop_session_events();
         // Same reasoning for the remote-control bridge, plus one of its own:
         // one account holds one bridge at a time, so an instance that exits

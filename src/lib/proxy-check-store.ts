@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { ProxyCheckResult, StoredProxy } from "@/types";
 
 /**
@@ -28,6 +28,9 @@ const IDLE: ProxyCheckEntry = {
 
 const entries = new Map<string, ProxyCheckEntry>();
 const listeners = new Map<string, Set<() => void>>();
+/** Told about every receipt; `version` counts them. */
+const anyListeners = new Set<() => void>();
+let version = 0;
 /** Cache reads in flight, keyed by route, so N rows cost one invoke. */
 const cacheReads = new Map<string, Promise<void>>();
 
@@ -38,7 +41,51 @@ export function proxyRouteKey(proxy: StoredProxy): string {
 
 function publish(proxyId: string, next: ProxyCheckEntry) {
   entries.set(proxyId, next);
+  version += 1;
   for (const listener of listeners.get(proxyId) ?? []) listener();
+  for (const listener of anyListeners) listener();
+}
+
+function subscribeAny(listener: () => void) {
+  anyListeners.add(listener);
+  return () => {
+    anyListeners.delete(listener);
+  };
+}
+
+const readVersion = () => version;
+
+/** Proxy id to the ISO code of the exit its last good check found. */
+function exitCountries(
+  proxies: readonly StoredProxy[],
+  _version: number,
+): ReadonlyMap<string, string> {
+  const countries = new Map<string, string>();
+  for (const proxy of proxies) {
+    const entry = entries.get(proxy.id);
+    const checked =
+      entry?.routeKey === proxyRouteKey(proxy) && entry.result?.is_valid
+        ? entry.result.country_code
+        : undefined;
+    const code = checked ?? proxy.geo_country;
+    if (code) countries.set(proxy.id, code.toUpperCase());
+  }
+  return countries;
+}
+
+/**
+ * The exit country of every proxy, from its last check; a cloud location
+ * proxy names its own. Reads each proxy's cached receipt once.
+ */
+export function useProxyCountries(
+  proxies: readonly StoredProxy[],
+): ReadonlyMap<string, string> {
+  const seen = useSyncExternalStore(subscribeAny, readVersion, readVersion);
+  useEffect(() => {
+    for (const proxy of proxies)
+      void loadCached(proxy.id, proxyRouteKey(proxy));
+  }, [proxies]);
+  return useMemo(() => exitCountries(proxies, seen), [proxies, seen]);
 }
 
 function entryFor(proxyId: string, routeKey: string): ProxyCheckEntry {

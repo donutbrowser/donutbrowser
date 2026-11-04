@@ -16,8 +16,13 @@ export function ProfileLaunchActivity({
   const events = useLaunchActivity(profileId);
   const current = events.at(-1);
   if (!current) return null;
-  const terminal = current.stage === "running" || current.stage === "failed";
-  const lastStage = events.findLast((event) => event.stage !== "failed")?.stage;
+  const terminal =
+    current.stage === "running" ||
+    current.stage === "failed" ||
+    current.stage === "cancelled";
+  const lastStage = events.findLast(
+    (event) => event.stage !== "failed" && event.stage !== "cancelled",
+  )?.stage;
   const active = ["network", "extensions"].includes(lastStage ?? "")
     ? 1
     : ["starting", "running"].includes(lastStage ?? "")
@@ -63,9 +68,9 @@ export function ProfileLaunchActivity({
             label: t("appFeedback.browser"),
             detail: terminal
               ? t(
-                  current.stage === "failed"
-                    ? "appFeedback.launch.failed"
-                    : "appFeedback.finished",
+                  current.stage === "running"
+                    ? "appFeedback.finished"
+                    : `appFeedback.launch.${current.stage}`,
                 )
               : t("appFeedback.waiting"),
           },

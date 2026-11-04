@@ -1353,6 +1353,51 @@ test("cookie import/copy/export, profile encryption, and traffic-stat read/clear
       false,
     );
 
+    assert.deepEqual(
+      await app.invoke("get_profile_activity", { profileId: source.id }),
+      { launches: 0, run_seconds: 0 },
+    );
+    const sharedBookmarks = [{ title: "Docs", url: "https://docs.example" }];
+    assert.deepEqual(await app.invoke("get_shared_bookmarks"), []);
+    assert.deepEqual(
+      await app.invoke("set_shared_bookmarks", { bookmarks: sharedBookmarks }),
+      sharedBookmarks,
+    );
+    assert.deepEqual(await app.invoke("get_shared_bookmarks"), sharedBookmarks);
+    await app.invoke("set_shared_bookmarks", { bookmarks: [] });
+    const bookmarksFile = path.join(app.dataRoot, "Bookmarks");
+    await writeFile(
+      bookmarksFile,
+      JSON.stringify({
+        roots: {
+          bookmark_bar: {
+            type: "folder",
+            name: "Bar",
+            children: [
+              { type: "url", name: "Docs", url: "https://docs.example" },
+            ],
+          },
+        },
+      }),
+    );
+    assert.deepEqual(
+      await app.invoke("read_bookmarks_file", { path: bookmarksFile }),
+      sharedBookmarks,
+    );
+    assert.match(
+      await app.invokeError("read_bookmarks_file", {
+        path: path.join(app.dataRoot, "missing"),
+      }),
+      /BOOKMARKS_FILE_INVALID/,
+    );
+    assert.deepEqual(await app.invoke("check_extension_updates"), []);
+    assert.match(
+      await app.invokeError("update_extension_from_store", {
+        extensionId: "missing",
+        acceptNewPermissions: false,
+      }),
+      /EXTENSION_NOT_FOUND/,
+    );
     assert.deepEqual(await app.invoke("get_all_traffic_snapshots"), []);
     assert.equal(
       await app.invoke("get_profile_traffic_snapshot", {

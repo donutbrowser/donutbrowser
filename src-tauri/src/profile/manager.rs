@@ -1043,6 +1043,7 @@ impl ProfileManager {
     crate::traffic_stats::delete_traffic_stats(profile_id);
     // Device-only 2FA keys for the profile's accounts.
     crate::profile_totp::forget_profile(profile_id);
+    crate::profile::activity::forget(profile_id);
   }
 
   /// Bookkeeping after one or more profiles left the live list.
@@ -2222,12 +2223,14 @@ impl ProfileManager {
             // needs a live owner recorded or nothing will ever reap it.
             crate::proxy_manager::PROXY_MANAGER
               .set_browser_pid_for_profile(&merged.id.to_string(), pid);
+            crate::profile::activity::resumed(&merged.id.to_string());
           }
         }
       } else if let Some(old_pid) = merged.process_id {
         // Clear the PID if no process found
         merged.process_id = None;
         log::info!("Browser exit detected profile={} pid={old_pid}", merged.id);
+        crate::profile::activity::stopped(&merged.id.to_string());
         if let Err(e) = self.save_profile(&merged) {
           log::warn!("Profile pid clear failed profile={} err=\"{e}\"", merged.id);
         }

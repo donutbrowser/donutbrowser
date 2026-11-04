@@ -128,7 +128,8 @@
       "yourOwn": "自定义",
       "light": "浅色",
       "dark": "深色",
-      "system": "跟随系统"
+      "system": "跟随系统",
+      "interfaceSize": "界面大小"
     },
     "language": {
       "title": "语言",
@@ -224,37 +225,14 @@
       "requireRoute": "阻止未使用代理或 VPN 的启动",
       "requireRouteDescription": "配置文件绝不会使用您自己的 IP 地址启动：无论是没有代理或 VPN，还是其代理或 VPN 已被删除或无响应。",
       "recordSites": "记录访问过的网站",
-      "recordSitesDescription": "流量统计会列出每个配置文件访问过的网站。关闭后仅保留数据总量。受密码保护的配置文件和临时配置文件从不记录网站。"
+      "recordSitesDescription": "流量统计会列出每个配置文件访问过的网站。关闭后仅保留数据总量。受密码保护的配置文件和临时配置文件从不记录网站。",
+      "askRoute": "在没有代理或 VPN 时启动前询问",
+      "askRouteDescription": "每次由你选择：启动或取消。"
     },
     "trashRetention": "已删除配置文件的保留时间",
     "trashRetentionDescription": "已删除的配置文件会保留在回收站中，在此期间可以恢复。之后将被永久删除。",
     "trashRetentionDays_one": "{{count}} 天",
     "trashRetentionDays_other": "{{count}} 天",
-    "dataRoot": {
-      "title": "数据目录",
-      "current": "当前位置",
-      "usage": "{{files}} 个文件，共 {{size}}",
-      "description": "配置文件、已下载的浏览器和设置都保存在这里。系统盘空间不足时，可以把它们移到别的磁盘。",
-      "choose": "选择文件夹",
-      "chooseTitle": "为数据目录选择一个文件夹",
-      "move": "移动",
-      "willMoveTo": "全部移动到",
-      "moved": "数据目录已移动。重启 Donut Browser 后生效。",
-      "reading": "正在读取数据目录…",
-      "restartRequired": "重启 Donut Browser 以使用新位置。在此之前仍从旧位置运行。",
-      "environmentOverride": "已设置 DONUTBROWSER_DATA_DIR，因此无论在这里选择哪里，应用都会使用该位置。",
-      "missing": "所选的数据目录不存在。如果它在可移动磁盘上，请重新接上并重启。",
-      "useDefault": "重新使用默认位置",
-      "usingDefault": "下次启动时将使用默认位置。",
-      "copiedCount": "{{total}} 个文件中的 {{copied}} 个",
-      "phase": {
-        "scanning": "正在统计当前目录",
-        "copying": "正在复制",
-        "verifying": "正在校验副本",
-        "cleaning": "正在删除旧目录",
-        "done": "完成"
-      }
-    },
     "trashRetentionOff": "立即删除",
     "scrollSectionsLeft": "向左滚动分区",
     "scrollSectionsRight": "向右滚动分区",
@@ -378,7 +356,8 @@
       "ephemeral": "临时配置文件",
       "created": "创建日期",
       "launched": "上次启动日期",
-      "state": "配置文件状态"
+      "state": "配置文件状态",
+      "country": "代理国家/地区"
     },
     "operators": {
       "negate": "排除匹配的结果",
@@ -455,7 +434,8 @@
       "emptyFilteredTitle": "未找到配置文件",
       "emptyFilteredHint": "没有符合此分组或搜索的配置文件。请尝试其他筛选条件或新建一个。",
       "bot": "机器人",
-      "profileId": "ID"
+      "profileId": "ID",
+      "runningFor": "已运行 {{duration}}"
     },
     "actions": {
       "launch": "启动",
@@ -1670,7 +1650,8 @@
       "localDataTransfer": "本地数据传输",
       "created": "创建时间",
       "windowColor": "窗口颜色",
-      "dns": "DNS"
+      "dns": "DNS",
+      "runTime": "运行时间"
     },
     "values": {
       "none": "无",
@@ -1927,7 +1908,17 @@
     "fetchSuccess": "扩展已下载。请确认名称后再添加。",
     "fetchFailed": "下载扩展失败",
     "searchExtensions": "搜索扩展",
-    "membersSelected": "已选 {{selected}}/{{total}}"
+    "membersSelected": "已选 {{selected}}/{{total}}",
+    "updates": {
+      "check": "检查更新",
+      "none": "所有扩展都是最新的",
+      "found": "可用更新：{{count}}",
+      "updateTo": "更新到 {{version}}",
+      "updated": "{{name}} 已更新到 {{version}}",
+      "consentTitle": "更新 {{name}}？",
+      "consentBody": "新版本请求更多权限：{{permissions}}",
+      "update": "更新"
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -2462,7 +2453,8 @@
       "sync": "{{name}} 的同步：{{status}}",
       "launchError": "上次启动失败：{{error}}",
       "health": "{{name}} 的连接：{{status}}",
-      "traffic": "{{name}} 的流量详情"
+      "traffic": "{{name}} 的流量详情",
+      "cancelLaunch": "取消启动 {{name}}"
     },
     "menu": {
       "openDetails": "打开详情",
@@ -2473,7 +2465,9 @@
       "lockNow": "立即锁定",
       "moveToTrash": "移到回收站",
       "askAgent": "询问智能体",
-      "showWindow": "显示窗口"
+      "showWindow": "显示窗口",
+      "pin": "置顶",
+      "unpin": "取消置顶"
     },
     "emptyGroupTitle": "此分组为空",
     "emptyGroupHint": "在此分组中创建配置文件，或将现有配置文件移到这里。",
@@ -2489,7 +2483,8 @@
       "launching": "正在启动…",
       "stopping": "正在停止…",
       "singleInstance": "此浏览器同一时间只能运行一个实例。请先停止正在运行的实例。"
-    }
+    },
+    "pinned": "已置顶"
   },
   "dataTableActionBar": {
     "selected": "已选择 {{count}}",
@@ -2980,7 +2975,13 @@
     "siteStorageIoFailed": "Donut 无法更改网站数据:{{detail}}",
     "agentChatNotFound": "此对话已不存在。",
     "profileLeaseHeld": "此配置文件已在 {{device}} 上打开。它将在 {{time}} 或该设备关闭它时释放。",
-    "profileStillSyncing": "此配置文件仍在同步。请稍后再试。"
+    "profileStillSyncing": "此配置文件仍在同步。请稍后再试。",
+    "launchCancelled": "已取消启动。",
+    "extensionUpdateCheckFailed": "无法在 Chrome 应用商店检查更新。",
+    "extensionNotFromStore": "此扩展并非来自 Chrome 应用商店。",
+    "extensionUpdateNeedsConsent": "新版本请求更多权限：{{permissions}}",
+    "bookmarksFileInvalid": "Donut 无法从此文件读取书签。请使用 Chrome 的 Bookmarks 文件或导出的 HTML 文件。",
+    "previewsNotEntitled": "实时预览需要 Pro 或更高套餐。"
   },
   "rail": {
     "profiles": "配置文件",
@@ -3001,7 +3002,9 @@
       "tips": "小贴士",
       "tipsHint": "功能演示",
       "feedback": "发送反馈",
-      "feedbackHint": "报告问题或分享想法"
+      "feedbackHint": "报告问题或分享想法",
+      "previews": "实时预览",
+      "previewsHint": "一览所有运行中的配置文件"
     },
     "network": "网络",
     "integrations": "集成",
@@ -3119,7 +3122,8 @@
       "profiles": "配置文件",
       "actions": "操作",
       "profileGroups": "配置文件分组",
-      "recent": "最近使用"
+      "recent": "最近使用",
+      "pinned": "已置顶"
     },
     "actions": {
       "launchProfile": "启动 {{name}}",
@@ -3200,7 +3204,10 @@
       "focusSearch": "搜索 查找 筛选",
       "goBack": "返回 退出 主页",
       "agentChat": "智能体 对话 询问 助手 ai 聊天 任务",
-      "window": "窗口 显示 前台 切换"
+      "window": "窗口 显示 前台 切换",
+      "zoomIn": "放大 缩放 大小",
+      "zoomOut": "缩小 缩放 大小",
+      "zoomReset": "缩放 重置 默认 实际大小 100"
     }
   },
   "shortcuts": {
@@ -3223,7 +3230,10 @@
     "newProfile": "新建配置文件",
     "stopAllRunning": "停止所有运行中的配置文件",
     "focusSearch": "搜索配置文件",
-    "goBack": "返回配置文件"
+    "goBack": "返回配置文件",
+    "zoomIn": "放大界面",
+    "zoomOut": "缩小界面",
+    "zoomReset": "默认界面大小"
   },
   "closeConfirm": {
     "title": "关闭 Donut Browser？",
@@ -3769,7 +3779,9 @@
     "exitUnverifiedLanguage": "此配置文件的指纹语言无法与出口国家/地区比较，因此该项检测属于未验证，而非通过。",
     "routeProxyHeading": "代理无响应",
     "routeVpnHeading": "VPN 无响应",
-    "routeExplainer": "页面可能无法加载。请检查代理或 VPN，或仍然启动。"
+    "routeExplainer": "页面可能无法加载。请检查代理或 VPN，或仍然启动。",
+    "routeMissingHeading": "没有代理或 VPN",
+    "routeMissingBody": "网站会看到你的真实 IP 地址。"
   },
   "profileMotion": {
     "inspectorSections": "配置文件分区",
@@ -3869,7 +3881,8 @@
       "starting": "正在启动浏览器",
       "running": "浏览器正在运行",
       "failed": "启动失败",
-      "stopped": "上次启动已完成；浏览器已停止"
+      "stopped": "上次启动已完成；浏览器已停止",
+      "cancelled": "已取消启动"
     },
     "checking": "正在检查…",
     "testConnection": "测试连接",
@@ -4399,6 +4412,13 @@
         "started_one": "已在 {{count}} 个配置文件中开始",
         "started_other": "已在 {{count}} 个配置文件中开始",
         "declined": "已取消"
+      },
+      "sync": {
+        "locked": "在有你对话的电脑上打开 Donut，即可同步到这里。",
+        "erase": "清除已同步的对话",
+        "eraseTitle": "清除已同步的对话？",
+        "eraseBody": "它们会从所有设备上移除。这台电脑上的对话会保留。",
+        "eraseConfirm": "清除"
       }
     }
   },
@@ -4439,7 +4459,12 @@
     "titlePlaceholder": "支持中心",
     "urlPlaceholder": "https://example.com",
     "folderPlaceholder": "可选",
-    "saved": "分组书签已保存"
+    "saved": "分组书签已保存",
+    "import": "从文件导入",
+    "imported": "已添加书签：{{count}}",
+    "everyProfileAction": "所有配置文件的书签",
+    "everyProfileTitle": "所有配置文件的书签",
+    "everyProfileDescription": "此设备上的每个配置文件都会在 Donut 管理的文件夹中获得这些书签。其他书签保持不变。"
   },
   "tips": {
     "title": "小贴士",
@@ -5040,5 +5065,17 @@
     "description": "{{profile}} 在 {{device}} 上打开,直到 {{time}}。接管后,该设备将停止同步它,并且自打开以来的更改将丢失。",
     "confirm": "接管",
     "lost": "{{device}} 已接管 {{profile}}。此处的更改将不会同步。"
+  },
+  "previews": {
+    "title": "实时预览",
+    "description": "每个运行中配置文件当前显示的内容。点击一个即可将其窗口置于前台。",
+    "locked": "运行中配置文件的实时预览包含在 Pro 及更高套餐中。",
+    "seePlans": "查看套餐",
+    "empty": "没有正在运行的配置文件。"
+  },
+  "whatsNew": {
+    "updated": "已更新到 {{version}}",
+    "open": "新功能",
+    "title": "{{version}} 的新功能"
   }
 }

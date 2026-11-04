@@ -55,6 +55,9 @@ pub struct Extension {
   /// and never sync.
   #[serde(default)]
   pub linked_path: Option<String>,
+  /// The Chrome Web Store id, when it came from the store; it can update then.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub web_store_id: Option<String>,
 }
 
 impl Extension {
@@ -848,6 +851,7 @@ impl ExtensionManager {
       homepage_url,
       source_kind,
       linked_path: None,
+      web_store_id: None,
     };
 
     let file_dir = self.get_file_dir(&ext.id);
@@ -901,6 +905,7 @@ impl ExtensionManager {
       homepage_url,
       source_kind: SOURCE_KIND_UNPACKED.to_string(),
       linked_path: Some(absolute.to_string_lossy().to_string()),
+      web_store_id: None,
     };
 
     if let Some((icon_data, icon_ext)) = extract_icon_from_dir(&absolute, manifest) {
@@ -1243,6 +1248,19 @@ impl ExtensionManager {
     }
 
     Ok(ext)
+  }
+
+  /// Remember the Chrome Web Store id an extension was added from.
+  pub fn set_web_store_id(
+    &self,
+    id: &str,
+    store_id: &str,
+  ) -> Result<Extension, Box<dyn std::error::Error>> {
+    let store_id = crate::extension_fetch::parse_extension_id(store_id)
+      .ok_or_else(|| err_code("EXTENSION_NOT_FROM_STORE"))?;
+    let mut ext = self.get_extension(id)?;
+    ext.web_store_id = Some(store_id);
+    self.finish_update(ext)
   }
 
   pub fn delete_extension(
@@ -2186,11 +2204,18 @@ pub async fn add_extension(
   name: String,
   file_name: String,
   file_data: Vec<u8>,
+  web_store_id: Option<String>,
 ) -> Result<Extension, String> {
   let mgr = EXTENSION_MANAGER.lock().unwrap();
-  mgr
+  let added = mgr
     .add_extension(name, file_name, file_data)
-    .map_err(|e| crate::wrap_backend_error(e, "Failed to add extension"))
+    .map_err(|e| crate::wrap_backend_error(e, "Failed to add extension"))?;
+  match web_store_id {
+    Some(store_id) => mgr
+      .set_web_store_id(&added.id, &store_id)
+      .map_err(|e| crate::wrap_backend_error(e, "Failed to add extension")),
+    None => Ok(added),
+  }
 }
 
 /// Import a folder holding a top-level `manifest.json`. `link` loads it in

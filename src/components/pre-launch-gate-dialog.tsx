@@ -41,6 +41,8 @@ export interface GateFindings {
   /// The proxy or VPN did not answer a check just now. A warning: the user
   /// may launch anyway.
   routeUnreachable?: RouteUnreachable | null;
+  /// The profile has no proxy or VPN and the person asked to be asked first.
+  routeMissing?: boolean;
 }
 
 export interface GateDecision {
@@ -325,6 +327,17 @@ export function PreLaunchGateDialog({
               )}
               <p className="text-xs text-muted-foreground">
                 {t("consistencyWarning.explainer")}
+              </p>
+            </div>
+          )}
+
+          {findings?.routeMissing && (
+            <div data-slot="gate-route-missing" className="space-y-1">
+              <p className="font-medium">
+                {t("prelaunchGate.routeMissingHeading")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("prelaunchGate.routeMissingBody")}
               </p>
             </div>
           )}

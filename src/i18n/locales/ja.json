@@ -128,7 +128,8 @@
       "yourOwn": "カスタム",
       "light": "ライト",
       "dark": "ダーク",
-      "system": "システム"
+      "system": "システム",
+      "interfaceSize": "表示サイズ"
     },
     "language": {
       "title": "言語",
@@ -224,37 +225,14 @@
       "requireRoute": "プロキシまたは VPN なしの起動をブロック",
       "requireRouteDescription": "プロファイルが自分の IP アドレスから起動することはありません。プロキシや VPN がない場合も、プロキシや VPN が削除されたり応答しない場合も同様です。",
       "recordSites": "訪問したサイトを記録",
-      "recordSitesDescription": "トラフィック統計には各プロファイルがアクセスしたサイトが記録されます。オフにするとデータ量の合計だけが残ります。パスワード保護されたプロファイルと一時プロファイルはサイトを記録しません。"
+      "recordSitesDescription": "トラフィック統計には各プロファイルがアクセスしたサイトが記録されます。オフにするとデータ量の合計だけが残ります。パスワード保護されたプロファイルと一時プロファイルはサイトを記録しません。",
+      "askRoute": "プロキシや VPN なしで起動する前に確認する",
+      "askRouteDescription": "毎回、起動するかキャンセルするかを選びます。"
     },
     "trashRetention": "削除したプロファイルの保持期間",
     "trashRetentionDescription": "削除したプロファイルはゴミ箱に保管され、期限まで復元できます。期限を過ぎると完全に削除されます。",
     "trashRetentionDays_one": "{{count}}日",
     "trashRetentionDays_other": "{{count}}日",
-    "dataRoot": {
-      "title": "データディレクトリ",
-      "current": "現在の場所",
-      "usage": "{{files}} 個のファイルで {{size}}",
-      "description": "プロファイル、ダウンロードしたブラウザー、設定はすべてここにあります。システムディスクが手狭になったら別のドライブへ移せます。",
-      "choose": "フォルダーを選ぶ",
-      "chooseTitle": "データディレクトリにするフォルダーを選んでください",
-      "move": "移動",
-      "willMoveTo": "すべての移動先",
-      "moved": "データディレクトリを移動しました。Donut Browser を再起動すると使われます。",
-      "reading": "データディレクトリを読み込んでいます…",
-      "restartRequired": "新しい場所を使うには Donut Browser を再起動してください。それまでは以前の場所で動きます。",
-      "environmentOverride": "DONUTBROWSER_DATA_DIR が設定されているため、ここで何を選んでもアプリはその場所を使います。",
-      "missing": "選んだデータディレクトリが見つかりません。取り外し可能なドライブにある場合は、つなぎ直して再起動してください。",
-      "useDefault": "既定の場所に戻す",
-      "usingDefault": "次回の起動から既定の場所を使います。",
-      "copiedCount": "{{total}} 個中 {{copied}} 個",
-      "phase": {
-        "scanning": "現在のディレクトリを計測しています",
-        "copying": "コピー中",
-        "verifying": "コピーを確認しています",
-        "cleaning": "以前のディレクトリを削除しています",
-        "done": "完了"
-      }
-    },
     "trashRetentionOff": "すぐに削除",
     "scrollSectionsLeft": "セクションを左へスクロール",
     "scrollSectionsRight": "セクションを右へスクロール",
@@ -378,7 +356,8 @@
       "ephemeral": "一時プロファイル",
       "created": "作成日",
       "launched": "最終起動日",
-      "state": "プロファイルのステータス"
+      "state": "プロファイルのステータス",
+      "country": "プロキシの国"
     },
     "operators": {
       "negate": "一致するものを除外します",
@@ -455,7 +434,8 @@
       "emptyFilteredTitle": "プロファイルが見つかりません",
       "emptyFilteredHint": "このグループまたは検索に一致するプロファイルはありません。別のフィルターを試すか、新規作成してください。",
       "bot": "ボット",
-      "profileId": "ID"
+      "profileId": "ID",
+      "runningFor": "{{duration}}実行中"
     },
     "actions": {
       "launch": "起動",
@@ -1670,7 +1650,8 @@
       "localDataTransfer": "ローカルデータ転送量",
       "created": "作成日",
       "windowColor": "ウィンドウの色",
-      "dns": "DNS"
+      "dns": "DNS",
+      "runTime": "実行時間"
     },
     "values": {
       "none": "なし",
@@ -1927,7 +1908,17 @@
     "fetchSuccess": "拡張機能をダウンロードしました。名前を確認して追加してください。",
     "fetchFailed": "拡張機能をダウンロードできませんでした",
     "searchExtensions": "拡張機能を検索",
-    "membersSelected": "{{total}} 件中 {{selected}} 件を選択"
+    "membersSelected": "{{total}} 件中 {{selected}} 件を選択",
+    "updates": {
+      "check": "アップデートを確認",
+      "none": "すべての拡張機能は最新です",
+      "found": "利用できるアップデート: {{count}}",
+      "updateTo": "{{version}} にアップデート",
+      "updated": "{{name}} を {{version}} にアップデートしました",
+      "consentTitle": "{{name}} をアップデートしますか?",
+      "consentBody": "新しいバージョンは追加のアクセスを求めています: {{permissions}}",
+      "update": "アップデート"
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -2462,7 +2453,8 @@
       "sync": "{{name}} の同期: {{status}}",
       "launchError": "前回の起動に失敗しました: {{error}}",
       "health": "{{name}} の接続: {{status}}",
-      "traffic": "{{name}} のトラフィック詳細"
+      "traffic": "{{name}} のトラフィック詳細",
+      "cancelLaunch": "{{name}} の起動をキャンセル"
     },
     "menu": {
       "openDetails": "詳細を開く",
@@ -2473,7 +2465,9 @@
       "lockNow": "今すぐロック",
       "moveToTrash": "ゴミ箱に移動",
       "askAgent": "エージェントに依頼",
-      "showWindow": "ウィンドウを表示"
+      "showWindow": "ウィンドウを表示",
+      "pin": "ピン留め",
+      "unpin": "ピン留めを解除"
     },
     "emptyGroupTitle": "このグループは空です",
     "emptyGroupHint": "このグループにプロファイルを作成するか、既存のプロファイルを移動してください。",
@@ -2489,7 +2483,8 @@
       "launching": "起動中…",
       "stopping": "停止中…",
       "singleInstance": "このブラウザーは一度に 1 つしか実行できません。先に実行中のものを停止してください。"
-    }
+    },
+    "pinned": "ピン留め済み"
   },
   "dataTableActionBar": {
     "selected": "{{count}} 件選択",
@@ -2980,7 +2975,13 @@
     "siteStorageIoFailed": "Donut はサイトデータを変更できませんでした: {{detail}}",
     "agentChatNotFound": "このチャットはもう存在しません。",
     "profileLeaseHeld": "このプロファイルは {{device}} で開かれています。{{time}} またはそのデバイスが閉じると使用できます。",
-    "profileStillSyncing": "このプロファイルはまだ同期中です。しばらくしてからもう一度お試しください。"
+    "profileStillSyncing": "このプロファイルはまだ同期中です。しばらくしてからもう一度お試しください。",
+    "launchCancelled": "起動をキャンセルしました。",
+    "extensionUpdateCheckFailed": "Chrome ウェブストアでアップデートを確認できませんでした。",
+    "extensionNotFromStore": "この拡張機能は Chrome ウェブストアから追加されたものではありません。",
+    "extensionUpdateNeedsConsent": "新しいバージョンは追加のアクセスを求めています: {{permissions}}",
+    "bookmarksFileInvalid": "このファイルからブックマークを読み込めません。Chrome の Bookmarks ファイルか、書き出した HTML ファイルを使ってください。",
+    "previewsNotEntitled": "ライブプレビューには Pro 以上のプランが必要です。"
   },
   "rail": {
     "profiles": "プロファイル",
@@ -3001,7 +3002,9 @@
       "tips": "ヒント",
       "tipsHint": "機能の使い方",
       "feedback": "フィードバックを送信",
-      "feedbackHint": "不具合の報告やアイデアの共有"
+      "feedbackHint": "不具合の報告やアイデアの共有",
+      "previews": "ライブプレビュー",
+      "previewsHint": "実行中のすべてのプロファイルを一覧"
     },
     "network": "ネットワーク",
     "integrations": "連携",
@@ -3119,7 +3122,8 @@
       "profiles": "プロファイル",
       "actions": "アクション",
       "profileGroups": "プロファイルグループ",
-      "recent": "最近使用"
+      "recent": "最近使用",
+      "pinned": "ピン留め"
     },
     "actions": {
       "launchProfile": "{{name}} を起動",
@@ -3200,7 +3204,10 @@
       "focusSearch": "検索 探す フィルター",
       "goBack": "戻る エスケープ ホーム",
       "agentChat": "エージェント チャット 依頼 アシスタント AI 会話 タスク",
-      "window": "ウィンドウ 表示 前面 切り替え"
+      "window": "ウィンドウ 表示 前面 切り替え",
+      "zoomIn": "ズーム 拡大 大きく サイズ",
+      "zoomOut": "ズーム 縮小 小さく サイズ",
+      "zoomReset": "ズーム リセット 標準 100"
     }
   },
   "shortcuts": {
@@ -3223,7 +3230,10 @@
     "newProfile": "新しいプロファイル",
     "stopAllRunning": "実行中のプロファイルをすべて停止",
     "focusSearch": "プロファイルを検索",
-    "goBack": "プロファイルに戻る"
+    "goBack": "プロファイルに戻る",
+    "zoomIn": "表示を拡大",
+    "zoomOut": "表示を縮小",
+    "zoomReset": "表示サイズを標準に戻す"
   },
   "closeConfirm": {
     "title": "Donut Browser を閉じますか？",
@@ -3769,7 +3779,9 @@
     "exitUnverifiedLanguage": "このプロファイルのフィンガープリントの言語は出口の国と比較できないため、このチェックは合格ではなく未検証のままです。",
     "routeProxyHeading": "プロキシが応答しません",
     "routeVpnHeading": "VPN が応答しません",
-    "routeExplainer": "ページが読み込まれない可能性があります。プロキシや VPN を確認するか、そのまま起動してください。"
+    "routeExplainer": "ページが読み込まれない可能性があります。プロキシや VPN を確認するか、そのまま起動してください。",
+    "routeMissingHeading": "プロキシも VPN もありません",
+    "routeMissingBody": "サイトにあなたの実際の IP アドレスが見えます。"
   },
   "profileMotion": {
     "inspectorSections": "プロファイルのセクション",
@@ -3869,7 +3881,8 @@
       "starting": "ブラウザーを起動中",
       "running": "ブラウザーは実行中です",
       "failed": "起動に失敗しました",
-      "stopped": "前回の起動は完了しました。ブラウザーは停止中です"
+      "stopped": "前回の起動は完了しました。ブラウザーは停止中です",
+      "cancelled": "起動をキャンセルしました"
     },
     "checking": "チェック中…",
     "testConnection": "接続をテスト",
@@ -4399,6 +4412,13 @@
         "started_one": "{{count}} 件のプロファイルで開始しました",
         "started_other": "{{count}} 件のプロファイルで開始しました",
         "declined": "キャンセルしました"
+      },
+      "sync": {
+        "locked": "チャットがあるコンピューターで Donut を開くと、ここに同期されます。",
+        "erase": "同期したチャットを消去",
+        "eraseTitle": "同期したチャットを消去しますか？",
+        "eraseBody": "すべてのデバイスから削除されます。このコンピューターのチャットは残ります。",
+        "eraseConfirm": "消去"
       }
     }
   },
@@ -4439,7 +4459,12 @@
     "titlePlaceholder": "サポートデスク",
     "urlPlaceholder": "https://example.com",
     "folderPlaceholder": "任意",
-    "saved": "グループのブックマークを保存しました"
+    "saved": "グループのブックマークを保存しました",
+    "import": "ファイルから読み込む",
+    "imported": "追加したブックマーク: {{count}}",
+    "everyProfileAction": "すべてのプロファイルのブックマーク",
+    "everyProfileTitle": "すべてのプロファイルのブックマーク",
+    "everyProfileDescription": "このデバイスのすべてのプロファイルに、Donut が管理するフォルダーでこれらのブックマークが入ります。ほかのブックマークは変わりません。"
   },
   "tips": {
     "title": "ヒント",
@@ -5040,5 +5065,17 @@
     "description": "{{profile}} は {{time}} まで {{device}} で開かれています。引き継ぐと、そのデバイスは同期を停止し、開いてからの変更は失われます。",
     "confirm": "引き継ぐ",
     "lost": "{{device}} が {{profile}} を引き継ぎました。ここでの変更は同期されません。"
+  },
+  "previews": {
+    "title": "ライブプレビュー",
+    "description": "実行中の各プロファイルの今の表示です。クリックするとそのウィンドウを前面に出します。",
+    "locked": "実行中のプロファイルのライブプレビューは Pro 以上のプランに含まれます。",
+    "seePlans": "プランを見る",
+    "empty": "実行中のプロファイルはありません。"
+  },
+  "whatsNew": {
+    "updated": "{{version}} にアップデートしました",
+    "open": "新機能",
+    "title": "{{version}} の新機能"
   }
 }

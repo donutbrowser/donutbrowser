@@ -362,6 +362,12 @@ export type BackendErrorCode =
   | "WAYFERN_152_REQUIRED"
   | "RECORDING_FAILED"
   | "LAUNCH_CONSENT_EXPIRED"
+  | "LAUNCH_CANCELLED"
+  | "EXTENSION_UPDATE_CHECK_FAILED"
+  | "EXTENSION_NOT_FROM_STORE"
+  | "EXTENSION_UPDATE_NEEDS_CONSENT"
+  | "PREVIEWS_NOT_ENTITLED"
+  | "BOOKMARKS_FILE_INVALID"
   | "VPN_WORKER_START_FAILED"
   | "EXIT_PROBE_FAILED"
   | "CAMOUFOX_REMOVED"
@@ -1270,6 +1276,20 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.recordingFailed", {
         detail: parsed.params?.detail ?? "",
       });
+    case "LAUNCH_CANCELLED":
+      return t("backendErrors.launchCancelled");
+    case "EXTENSION_UPDATE_CHECK_FAILED":
+      return t("backendErrors.extensionUpdateCheckFailed");
+    case "EXTENSION_NOT_FROM_STORE":
+      return t("backendErrors.extensionNotFromStore");
+    case "EXTENSION_UPDATE_NEEDS_CONSENT":
+      return t("backendErrors.extensionUpdateNeedsConsent", {
+        permissions: parsed.params?.permissions ?? "",
+      });
+    case "PREVIEWS_NOT_ENTITLED":
+      return t("backendErrors.previewsNotEntitled");
+    case "BOOKMARKS_FILE_INVALID":
+      return t("backendErrors.bookmarksFileInvalid");
     case "LAUNCH_CONSENT_EXPIRED":
       return t("backendErrors.launchConsentExpired");
     case "VPN_WORKER_START_FAILED":

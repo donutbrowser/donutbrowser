@@ -99,6 +99,8 @@ export function GroupManagementDialog({
   );
   const [isDeleting, setIsDeleting] = useState(false);
   const [bookmarksDialogOpen, setBookmarksDialogOpen] = useState(false);
+  /** The bookmarks dialog edits every profile's set instead of a group's. */
+  const [bookmarksForAll, setBookmarksForAll] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<GroupWithCount | null>(
@@ -253,6 +255,7 @@ export function GroupManagementDialog({
 
   const handleEditBookmarks = useCallback((group: GroupWithCount) => {
     setSelectedGroup(group);
+    setBookmarksForAll(false);
     setBookmarksDialogOpen(true);
   }, []);
 
@@ -558,14 +561,25 @@ export function GroupManagementDialog({
                   </AnimatedTabsTrigger>
                 </AnimatedTabsList>
               </AnimatedTabs>
-              <PageAction
-                primary
-                icon={<LuPlus className="size-4" />}
-                label={t("groupManagement.newGroup")}
-                onClick={() => {
-                  setCreateDialogOpen(true);
-                }}
-              />
+              <div className="flex items-center gap-2">
+                <PageAction
+                  data-slot="every-profile-bookmarks"
+                  icon={<LuBookmark className="size-4" />}
+                  label={t("groupBookmarks.everyProfileAction")}
+                  onClick={() => {
+                    setBookmarksForAll(true);
+                    setBookmarksDialogOpen(true);
+                  }}
+                />
+                <PageAction
+                  primary
+                  icon={<LuPlus className="size-4" />}
+                  label={t("groupManagement.newGroup")}
+                  onClick={() => {
+                    setCreateDialogOpen(true);
+                  }}
+                />
+              </div>
             </div>
 
             {error && (
@@ -684,7 +698,7 @@ export function GroupManagementDialog({
         onClose={() => {
           setBookmarksDialogOpen(false);
         }}
-        groupId={selectedGroup?.id ?? null}
+        groupId={bookmarksForAll ? null : (selectedGroup?.id ?? null)}
         groupName={selectedGroup?.name ?? ""}
         onBookmarksSaved={() => {
           void loadGroups();

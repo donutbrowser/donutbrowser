@@ -12,6 +12,8 @@ import {
   LuLock,
   LuMessagesSquare,
   LuPencil,
+  LuPin,
+  LuPinOff,
   LuPlay,
   LuSquare,
   LuSquareStack,
@@ -41,6 +43,8 @@ export interface RowMenuActions {
   onRename: () => void;
   onDuplicate?: () => void;
   onMoveToGroup?: () => void;
+  isPinned: boolean;
+  onTogglePin: () => void;
   onRunRemote?: () => void;
   onAskAgent?: () => void;
   onLockNow?: () => void;
@@ -152,6 +156,15 @@ export function RowContextMenuContent({
           {t("profileTable.menu.moveToGroup")}
         </ContextMenuItem>
       )}
+      <ContextMenuItem
+        data-slot="profile-row-pin"
+        onSelect={actions.onTogglePin}
+      >
+        {actions.isPinned ? <LuPinOff /> : <LuPin />}
+        {actions.isPinned
+          ? t("profileTable.menu.unpin")
+          : t("profileTable.menu.pin")}
+      </ContextMenuItem>
       <ContextMenuItem onSelect={() => void copyId()}>
         <LuCopy />
         {t("profileTable.menu.copyId")}

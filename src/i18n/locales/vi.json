@@ -128,7 +128,8 @@
       "yourOwn": "Của riêng bạn",
       "light": "Sáng",
       "dark": "Tối",
-      "system": "Theo hệ thống"
+      "system": "Theo hệ thống",
+      "interfaceSize": "Cỡ giao diện"
     },
     "language": {
       "title": "Ngôn ngữ",
@@ -224,37 +225,14 @@
       "requireRoute": "Chặn khởi chạy khi không có proxy hoặc VPN",
       "requireRouteDescription": "Hồ sơ không bao giờ khởi chạy từ địa chỉ IP của bạn: kể cả khi không có proxy hoặc VPN, hoặc khi proxy hay VPN của nó đã mất hoặc không phản hồi.",
       "recordSites": "Ghi lại trang đã truy cập",
-      "recordSitesDescription": "Thống kê lưu lượng liệt kê các trang mà mỗi hồ sơ đã truy cập. Khi tắt, chỉ lưu tổng dung lượng dữ liệu. Hồ sơ có mật khẩu và hồ sơ tạm thời không bao giờ ghi lại trang."
+      "recordSitesDescription": "Thống kê lưu lượng liệt kê các trang mà mỗi hồ sơ đã truy cập. Khi tắt, chỉ lưu tổng dung lượng dữ liệu. Hồ sơ có mật khẩu và hồ sơ tạm thời không bao giờ ghi lại trang.",
+      "askRoute": "Hỏi trước khi khởi chạy không có proxy hoặc VPN",
+      "askRouteDescription": "Mỗi lần bạn chọn: khởi chạy hoặc hủy."
     },
     "trashRetention": "Giữ hồ sơ đã xóa trong",
     "trashRetentionDescription": "Hồ sơ đã xóa được giữ trong thùng rác và có thể khôi phục cho đến lúc đó. Sau đó chúng sẽ bị xóa vĩnh viễn.",
     "trashRetentionDays_one": "{{count}} ngày",
     "trashRetentionDays_other": "{{count}} ngày",
-    "dataRoot": {
-      "title": "Thư mục dữ liệu",
-      "current": "Vị trí hiện tại",
-      "usage": "{{size}} trong {{files}} tệp",
-      "description": "Hồ sơ, trình duyệt đã tải và cài đặt đều nằm ở đây. Hãy chuyển sang ổ khác khi ổ hệ thống sắp đầy.",
-      "choose": "Chọn thư mục",
-      "chooseTitle": "Chọn một thư mục cho thư mục dữ liệu",
-      "move": "Chuyển",
-      "willMoveTo": "Mọi thứ sẽ chuyển đến",
-      "moved": "Đã chuyển thư mục dữ liệu. Khởi động lại Donut Browser để dùng nó.",
-      "reading": "Đang đọc thư mục dữ liệu…",
-      "restartRequired": "Khởi động lại Donut Browser để dùng vị trí mới. Đến lúc đó nó vẫn chạy từ vị trí cũ.",
-      "environmentOverride": "DONUTBROWSER_DATA_DIR đã được đặt, nên ứng dụng dùng vị trí đó dù bạn chọn gì ở đây.",
-      "missing": "Không thấy thư mục dữ liệu đã chọn. Nếu nó nằm trên ổ rời, hãy cắm lại và khởi động lại.",
-      "useDefault": "Dùng lại vị trí mặc định",
-      "usingDefault": "Lần khởi động tới sẽ dùng vị trí mặc định.",
-      "copiedCount": "{{copied}} trên {{total}} tệp",
-      "phase": {
-        "scanning": "Đang đo thư mục hiện tại",
-        "copying": "Đang sao chép",
-        "verifying": "Đang kiểm tra bản sao",
-        "cleaning": "Đang xoá thư mục cũ",
-        "done": "Xong"
-      }
-    },
     "trashRetentionOff": "Xóa ngay",
     "scrollSectionsLeft": "Cuộn các mục sang trái",
     "scrollSectionsRight": "Cuộn các mục sang phải",
@@ -378,7 +356,8 @@
       "ephemeral": "Hồ sơ tạm thời",
       "created": "Ngày tạo",
       "launched": "Ngày khởi chạy gần nhất",
-      "state": "Trạng thái profile"
+      "state": "Trạng thái profile",
+      "country": "Quốc gia proxy"
     },
     "operators": {
       "negate": "Loại trừ những gì khớp",
@@ -455,7 +434,8 @@
       "emptyFilteredTitle": "Không tìm thấy hồ sơ",
       "emptyFilteredHint": "Không có hồ sơ nào khớp với nhóm hoặc tìm kiếm này. Hãy thử bộ lọc khác hoặc tạo mới.",
       "bot": "Bot",
-      "profileId": "ID"
+      "profileId": "ID",
+      "runningFor": "Đang chạy {{duration}}"
     },
     "actions": {
       "launch": "Khởi chạy",
@@ -1670,7 +1650,8 @@
       "localDataTransfer": "Truyền dữ liệu cục bộ",
       "created": "Đã tạo",
       "windowColor": "Màu cửa sổ",
-      "dns": "DNS"
+      "dns": "DNS",
+      "runTime": "Thời gian chạy"
     },
     "values": {
       "none": "Không có",
@@ -1927,7 +1908,17 @@
     "fetchSuccess": "Đã tải tiện ích. Hãy kiểm tra tên rồi thêm vào.",
     "fetchFailed": "Không tải được tiện ích",
     "searchExtensions": "Tìm tiện ích",
-    "membersSelected": "Đã chọn {{selected}}/{{total}}"
+    "membersSelected": "Đã chọn {{selected}}/{{total}}",
+    "updates": {
+      "check": "Kiểm tra cập nhật",
+      "none": "Tất cả tiện ích đã được cập nhật",
+      "found": "Bản cập nhật có sẵn: {{count}}",
+      "updateTo": "Cập nhật lên {{version}}",
+      "updated": "Đã cập nhật {{name}} lên {{version}}",
+      "consentTitle": "Cập nhật {{name}}?",
+      "consentBody": "Phiên bản mới yêu cầu thêm quyền: {{permissions}}",
+      "update": "Cập nhật"
+    }
   },
   "pro": {
     "badge": "PRO",
@@ -2462,7 +2453,8 @@
       "sync": "Đồng bộ của {{name}}: {{status}}",
       "launchError": "Lần khởi chạy gần nhất thất bại: {{error}}",
       "health": "Kết nối của {{name}}: {{status}}",
-      "traffic": "Chi tiết lưu lượng của {{name}}"
+      "traffic": "Chi tiết lưu lượng của {{name}}",
+      "cancelLaunch": "Hủy khởi chạy {{name}}"
     },
     "menu": {
       "openDetails": "Mở chi tiết",
@@ -2473,7 +2465,9 @@
       "lockNow": "Khóa ngay",
       "moveToTrash": "Chuyển vào thùng rác",
       "askAgent": "Hỏi tác tử",
-      "showWindow": "Hiện cửa sổ"
+      "showWindow": "Hiện cửa sổ",
+      "pin": "Ghim",
+      "unpin": "Bỏ ghim"
     },
     "emptyGroupTitle": "Nhóm này đang trống",
     "emptyGroupHint": "Tạo một hồ sơ trong nhóm này hoặc chuyển các hồ sơ hiện có vào đây.",
@@ -2489,7 +2483,8 @@
       "launching": "Đang khởi chạy…",
       "stopping": "Đang dừng…",
       "singleInstance": "Trình duyệt này chỉ chạy được một phiên bản cùng lúc. Hãy dừng phiên bản đang chạy trước."
-    }
+    },
+    "pinned": "Đã ghim"
   },
   "dataTableActionBar": {
     "selected": "Đã chọn {{count}}",
@@ -2980,7 +2975,13 @@
     "siteStorageIoFailed": "Donut không thể thay đổi dữ liệu trang: {{detail}}",
     "agentChatNotFound": "Cuộc trò chuyện này không còn nữa.",
     "profileLeaseHeld": "Hồ sơ này đang mở trên {{device}}. Hồ sơ sẽ trống lúc {{time}} hoặc khi thiết bị đó đóng nó.",
-    "profileStillSyncing": "Hồ sơ này vẫn đang đồng bộ. Hãy thử lại sau ít phút."
+    "profileStillSyncing": "Hồ sơ này vẫn đang đồng bộ. Hãy thử lại sau ít phút.",
+    "launchCancelled": "Đã hủy khởi chạy.",
+    "extensionUpdateCheckFailed": "Không thể kiểm tra cập nhật trên Chrome Web Store.",
+    "extensionNotFromStore": "Tiện ích này không đến từ Chrome Web Store.",
+    "extensionUpdateNeedsConsent": "Phiên bản mới yêu cầu thêm quyền: {{permissions}}",
+    "bookmarksFileInvalid": "Donut không đọc được dấu trang từ tệp này. Hãy dùng tệp Bookmarks của Chrome hoặc tệp HTML đã xuất.",
+    "previewsNotEntitled": "Xem trước trực tiếp cần gói Pro trở lên."
   },
   "rail": {
     "profiles": "Profile",
@@ -3001,7 +3002,9 @@
       "tips": "Mẹo",
       "tipsHint": "Hướng dẫn tính năng",
       "feedback": "Gửi phản hồi",
-      "feedbackHint": "Báo lỗi hoặc chia sẻ ý tưởng"
+      "feedbackHint": "Báo lỗi hoặc chia sẻ ý tưởng",
+      "previews": "Xem trước trực tiếp",
+      "previewsHint": "Mọi profile đang chạy trong một màn hình"
     },
     "network": "Mạng",
     "integrations": "Tích hợp",
@@ -3119,7 +3122,8 @@
       "profiles": "Profile",
       "actions": "Hành động",
       "profileGroups": "Nhóm profile",
-      "recent": "Gần đây"
+      "recent": "Gần đây",
+      "pinned": "Đã ghim"
     },
     "actions": {
       "launchProfile": "Khởi chạy {{name}}",
@@ -3200,7 +3204,10 @@
       "focusSearch": "tìm kiếm lọc",
       "goBack": "quay lại escape trang chủ",
       "agentChat": "tác tử trò chuyện hỏi trợ lý ai hội thoại nhiệm vụ",
-      "window": "cửa sổ hiện chuyển lên trước"
+      "window": "cửa sổ hiện chuyển lên trước",
+      "zoomIn": "phóng to lớn hơn cỡ thu phóng",
+      "zoomOut": "thu nhỏ nhỏ hơn cỡ thu phóng",
+      "zoomReset": "thu phóng đặt lại mặc định cỡ 100"
     }
   },
   "shortcuts": {
@@ -3223,7 +3230,10 @@
     "newProfile": "Profile mới",
     "stopAllRunning": "Dừng tất cả profile đang chạy",
     "focusSearch": "Tìm profile",
-    "goBack": "Quay lại Profile"
+    "goBack": "Quay lại Profile",
+    "zoomIn": "Giao diện lớn hơn",
+    "zoomOut": "Giao diện nhỏ hơn",
+    "zoomReset": "Cỡ giao diện mặc định"
   },
   "closeConfirm": {
     "title": "Đóng Donut Browser?",
@@ -3769,7 +3779,9 @@
     "exitUnverifiedLanguage": "Ngôn ngữ vân tay của hồ sơ này không thể so sánh với quốc gia thoát, nên kiểm tra đó là chưa xác minh chứ không phải đã đạt.",
     "routeProxyHeading": "Proxy không phản hồi",
     "routeVpnHeading": "VPN không phản hồi",
-    "routeExplainer": "Trang có thể không tải được. Hãy kiểm tra proxy hoặc VPN, hoặc vẫn khởi chạy."
+    "routeExplainer": "Trang có thể không tải được. Hãy kiểm tra proxy hoặc VPN, hoặc vẫn khởi chạy.",
+    "routeMissingHeading": "Không có proxy hoặc VPN",
+    "routeMissingBody": "Các trang web thấy địa chỉ IP thật của bạn."
   },
   "profileMotion": {
     "inspectorSections": "Các mục hồ sơ",
@@ -3869,7 +3881,8 @@
       "starting": "Đang khởi động trình duyệt",
       "running": "Trình duyệt đang chạy",
       "failed": "Khởi chạy thất bại",
-      "stopped": "Lần khởi chạy trước đã hoàn tất; trình duyệt đã dừng"
+      "stopped": "Lần khởi chạy trước đã hoàn tất; trình duyệt đã dừng",
+      "cancelled": "Đã hủy khởi chạy"
     },
     "checking": "Đang kiểm tra…",
     "testConnection": "Kiểm tra kết nối",
@@ -4399,6 +4412,13 @@
         "started_one": "Đã bắt đầu trong {{count}} hồ sơ",
         "started_other": "Đã bắt đầu trong {{count}} hồ sơ",
         "declined": "Đã hủy"
+      },
+      "sync": {
+        "locked": "Mở Donut trên máy tính có các cuộc trò chuyện của bạn để đồng bộ chúng tại đây.",
+        "erase": "Xóa các cuộc trò chuyện đã đồng bộ",
+        "eraseTitle": "Xóa các cuộc trò chuyện đã đồng bộ?",
+        "eraseBody": "Chúng sẽ bị xóa khỏi mọi thiết bị. Các cuộc trò chuyện trên máy tính này vẫn giữ nguyên.",
+        "eraseConfirm": "Xóa"
       }
     }
   },
@@ -4439,7 +4459,12 @@
     "titlePlaceholder": "Bộ phận hỗ trợ",
     "urlPlaceholder": "https://vidu.com",
     "folderPlaceholder": "Tùy chọn",
-    "saved": "Đã lưu dấu trang của nhóm"
+    "saved": "Đã lưu dấu trang của nhóm",
+    "import": "Nhập từ tệp",
+    "imported": "Đã thêm dấu trang: {{count}}",
+    "everyProfileAction": "Dấu trang cho mọi profile",
+    "everyProfileTitle": "Dấu trang cho mọi profile",
+    "everyProfileDescription": "Mọi profile trên thiết bị này nhận các dấu trang này trong một thư mục do Donut quản lý. Các dấu trang khác giữ nguyên."
   },
   "tips": {
     "title": "Mẹo",
@@ -5040,5 +5065,17 @@
     "description": "{{profile}} đang mở trên {{device}} đến {{time}}. Nếu bạn tiếp quản, thiết bị đó ngừng đồng bộ hồ sơ và các thay đổi từ khi mở sẽ bị mất.",
     "confirm": "Tiếp quản",
     "lost": "{{device}} đã tiếp quản {{profile}}. Các thay đổi ở đây sẽ không được đồng bộ."
+  },
+  "previews": {
+    "title": "Xem trước trực tiếp",
+    "description": "Nội dung mỗi profile đang chạy hiển thị lúc này. Nhấp vào một profile để đưa cửa sổ lên trước.",
+    "locked": "Xem trước trực tiếp các profile đang chạy có trong gói Pro trở lên.",
+    "seePlans": "Xem các gói",
+    "empty": "Không có profile nào đang chạy."
+  },
+  "whatsNew": {
+    "updated": "Đã cập nhật lên {{version}}",
+    "open": "Có gì mới",
+    "title": "Có gì mới trong {{version}}"
   }
 }

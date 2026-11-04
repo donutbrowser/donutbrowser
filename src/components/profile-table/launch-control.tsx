@@ -27,6 +27,7 @@ const STAGE_PROGRESS: Record<LaunchStage, number> = {
   starting: 0.6,
   running: 0.9,
   failed: 0,
+  cancelled: 0,
 };
 
 const RING_SPRING = { type: "spring" as const, stiffness: 300, damping: 30 };
@@ -54,7 +55,8 @@ function LaunchControlTooltip({
     launching &&
     stage !== undefined &&
     stage !== "running" &&
-    stage !== "failed";
+    stage !== "failed" &&
+    stage !== "cancelled";
   return (
     <Tooltip open={live ? true : undefined}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
@@ -144,6 +146,8 @@ export interface LaunchControlProps {
   tooltip: React.ReactNode;
   onLaunch: () => void;
   onStop: () => void;
+  /** Stops a launch in progress before its browser opens. */
+  onCancel?: () => void;
 }
 
 /**
@@ -162,6 +166,7 @@ export function LaunchControl({
   tooltip,
   onLaunch,
   onStop,
+  onCancel,
 }: LaunchControlProps) {
   const { t } = useTranslation();
   const motionAllowed = useMotionAllowed();
@@ -219,17 +224,19 @@ export function LaunchControl({
           size="sm"
           data-running={isRunning ? "true" : undefined}
           data-launch-control={profileId}
-          disabled={!canLaunch || busy}
+          disabled={isStopping || (isLaunching ? !onCancel : !canLaunch)}
           aria-label={
-            isRunning
-              ? t("profileTable.aria.stop", { name: profileName })
-              : t("profileTable.aria.launch", { name: profileName })
+            isLaunching
+              ? t("profileTable.aria.cancelLaunch", { name: profileName })
+              : isRunning
+                ? t("profileTable.aria.stop", { name: profileName })
+                : t("profileTable.aria.launch", { name: profileName })
           }
           aria-busy={busy || undefined}
           className={cn(
             "grid size-7 place-items-center rounded-full p-0 transition-[background-color,color,transform] duration-150",
-            !canLaunch && "cursor-not-allowed opacity-50",
-            canLaunch && "cursor-pointer",
+            !canLaunch && !isLaunching && "cursor-not-allowed opacity-50",
+            (canLaunch || isLaunching) && "cursor-pointer",
             !isRunning &&
               !busy &&
               "hover:bg-primary hover:text-primary-foreground",
@@ -237,7 +244,9 @@ export function LaunchControl({
               !isFollower &&
               "bg-destructive/12 text-destructive-text hover:bg-destructive/20",
           )}
-          onClick={() => (isRunning ? onStop() : onLaunch())}
+          onClick={() =>
+            isLaunching ? onCancel?.() : isRunning ? onStop() : onLaunch()
+          }
         >
           <span className="relative grid size-7 place-items-center">
             {motionAllowed ? (

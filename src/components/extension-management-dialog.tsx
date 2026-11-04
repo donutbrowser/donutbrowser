@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import {
   LuArchive,
   LuChrome,
+  LuCircleArrowUp,
   LuExternalLink,
   LuFolder,
   LuFolderOpen,
@@ -94,14 +95,27 @@ import { useEntityTrash } from "@/hooks/use-trash-events";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
 import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
+import { cn } from "@/lib/utils";
 import type { Extension, ExtensionGroup, FetchedExtension } from "@/types";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { RippleButton } from "./ui/ripple";
 
 /** A payload staged in the UI, before it is handed to the backend. */
 type PendingSource =
-  | { kind: "archive"; fileName: string; data: number[] }
+  | {
+      kind: "archive";
+      fileName: string;
+      data: number[];
+      /** Set when it came from the Chrome Web Store, so it can update. */
+      webStoreId?: string | null;
+    }
   | { kind: "folder"; path: string };
+
+interface ExtensionUpdate {
+  extension_id: string;
+  version: string;
+  available: string;
+}
 
 const ARCHIVE_EXTENSIONS = [".crx", ".zip"];
 
@@ -180,6 +194,15 @@ export function ExtensionManagementDialog({
     name: string;
     version: string | null;
     source: string;
+  } | null>(null);
+
+  // Web Store updates found by the last check, by extension id.
+  const [updates, setUpdates] = useState<Record<string, ExtensionUpdate>>({});
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [consent, setConsent] = useState<{
+    extension: Extension;
+    permissions: string;
   } | null>(null);
 
   // Group state
@@ -561,6 +584,7 @@ export function ExtensionManagementDialog({
         kind: "archive",
         fileName: fetched.file_name,
         data: fetched.file_data,
+        webStoreId: fetched.web_store_id,
       });
       setExtensionName(identity || fetched.file_name.replace(/\.zip$/i, ""));
       setLinkFolder(false);
@@ -579,6 +603,61 @@ export function ExtensionManagementDialog({
     }
   }, [urlInput, isFetchingUrl, showActionError, t]);
 
+  const checkUpdates = useCallback(async () => {
+    setCheckingUpdates(true);
+    try {
+      const found = await invoke<ExtensionUpdate[]>("check_extension_updates");
+      setUpdates(
+        Object.fromEntries(
+          found.map((update) => [update.extension_id, update]),
+        ),
+      );
+      showSuccessToast(
+        found.length > 0
+          ? t("extensions.updates.found", { count: found.length })
+          : t("extensions.updates.none"),
+      );
+    } catch (err) {
+      showErrorToast(translateBackendError(t, err));
+    } finally {
+      setCheckingUpdates(false);
+    }
+  }, [t]);
+
+  const updateFromStore = useCallback(
+    async (extension: Extension, acceptNewPermissions: boolean) => {
+      setUpdatingId(extension.id);
+      try {
+        const updated = await invoke<Extension>("update_extension_from_store", {
+          extensionId: extension.id,
+          acceptNewPermissions,
+        });
+        setUpdates(({ [extension.id]: _done, ...rest }) => rest);
+        setConsent(null);
+        showSuccessToast(
+          t("extensions.updates.updated", {
+            name: updated.name,
+            version: updated.version ?? "",
+          }),
+        );
+        void loadData();
+      } catch (err) {
+        const parsed = parseBackendError(err);
+        if (parsed?.code === "EXTENSION_UPDATE_NEEDS_CONSENT") {
+          setConsent({
+            extension,
+            permissions: String(parsed.params?.permissions ?? ""),
+          });
+        } else {
+          showErrorToast(translateBackendError(t, err));
+        }
+      } finally {
+        setUpdatingId(null);
+      }
+    },
+    [loadData, t],
+  );
+
   const handleUpload = useCallback(async () => {
     if (!pendingSource || !extensionName.trim() || uploadingRef.current) return;
     uploadingRef.current = true;
@@ -595,6 +674,7 @@ export function ExtensionManagementDialog({
           name: extensionName.trim(),
           fileName: pendingSource.fileName,
           fileData: pendingSource.data,
+          webStoreId: pendingSource.webStoreId ?? null,
         });
       }
       showSuccessToast(t("extensions.uploadSuccess"));
@@ -1090,8 +1170,21 @@ export function ExtensionManagementDialog({
         ),
         cell: ({ row }) => {
           const ext = row.original;
+          const update = updates[ext.id];
           return (
             <RowActions>
+              {update && (
+                <RowAction
+                  label={t("extensions.updates.updateTo", {
+                    version: update.available,
+                  })}
+                  icon={<LuCircleArrowUp />}
+                  disabled={updatingId === ext.id}
+                  onClick={() => {
+                    void updateFromStore(ext, false);
+                  }}
+                />
+              )}
               <RowAction
                 label={t("extensions.editExtension")}
                 icon={<LuPencil />}
@@ -1122,6 +1215,9 @@ export function ExtensionManagementDialog({
       handleToggleExtSync,
       openExtensionEditor,
       trashExtension,
+      updates,
+      updatingId,
+      updateFromStore,
       renderExtensionIcon,
       renderCompatIcons,
       renderSource,
@@ -1407,6 +1503,23 @@ export function ExtensionManagementDialog({
                 <div className="flex items-center gap-2">
                   {activeTab === "extensions" ? (
                     <>
+                      {extensions.some((ext) => ext.web_store_id) && (
+                        <PageAction
+                          data-slot="extensions-check-updates"
+                          icon={
+                            <LuRefreshCw
+                              className={cn(
+                                "size-4",
+                                checkingUpdates &&
+                                  "animate-spin motion-reduce:animate-none",
+                              )}
+                            />
+                          }
+                          label={t("extensions.updates.check")}
+                          disabled={limitedMode || checkingUpdates}
+                          onClick={() => void checkUpdates()}
+                        />
+                      )}
                       <PageAction
                         icon={<LuGlobe className="size-4" />}
                         label={t("extensions.fromUrl")}
@@ -2193,6 +2306,25 @@ export function ExtensionManagementDialog({
           name: groupToDelete?.name ?? "",
         })}
         isLoading={isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        isOpen={consent !== null}
+        onClose={() => {
+          setConsent(null);
+        }}
+        onConfirm={async () => {
+          if (consent) await updateFromStore(consent.extension, true);
+        }}
+        title={t("extensions.updates.consentTitle", {
+          name: consent?.extension.name ?? "",
+        })}
+        description={t("extensions.updates.consentBody", {
+          permissions: consent?.permissions ?? "",
+        })}
+        confirmButtonText={t("extensions.updates.update")}
+        confirmButtonVariant="default"
+        isLoading={updatingId !== null}
       />
 
       {/* Bulk delete extensions confirmation */}

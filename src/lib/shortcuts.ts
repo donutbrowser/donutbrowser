@@ -22,6 +22,8 @@ export interface ShortcutDef {
   group: ShortcutGroup;
   /** Lowercased `KeyboardEvent.key`, e.g. "k", ",", "/". */
   key: string;
+  /** Other keys that do the same, such as "=" for "+" without Shift. */
+  aliases?: string[];
   /** Require the primary modifier (Cmd on mac, Ctrl elsewhere). */
   mod?: boolean;
   shift?: boolean;
@@ -55,7 +57,10 @@ export type ShortcutId =
   | "goIntegrations"
   | "goAccount"
   | "goSettings"
-  | "goTrash";
+  | "goTrash"
+  | "zoomIn"
+  | "zoomOut"
+  | "zoomReset";
 
 export const SHORTCUTS: ShortcutDef[] = [
   // Profiles
@@ -128,6 +133,30 @@ export const SHORTCUTS: ShortcutDef[] = [
     labelKey: "shortcuts.importProfile",
     group: "actions",
     key: "o",
+    mod: true,
+  },
+  {
+    // "+" is Shift+"=" on most layouts; both work.
+    id: "zoomIn",
+    labelKey: "shortcuts.zoomIn",
+    group: "actions",
+    key: "+",
+    aliases: ["="],
+    mod: true,
+    anyShift: true,
+  },
+  {
+    id: "zoomOut",
+    labelKey: "shortcuts.zoomOut",
+    group: "actions",
+    key: "-",
+    mod: true,
+  },
+  {
+    id: "zoomReset",
+    labelKey: "shortcuts.zoomReset",
+    group: "actions",
+    key: "0",
     mod: true,
   },
   // Navigation
@@ -348,7 +377,14 @@ function prettyKey(key: string): string {
  * Ctrl+K).
  */
 export function matchesShortcut(s: ShortcutDef, e: KeyboardEvent): boolean {
-  if (!isKey(e) || e.key.toLowerCase() !== s.key.toLowerCase()) return false;
+  if (!isKey(e)) return false;
+  const pressed = e.key.toLowerCase();
+  if (
+    pressed !== s.key.toLowerCase() &&
+    !s.aliases?.some((alias) => alias.toLowerCase() === pressed)
+  ) {
+    return false;
+  }
   const mod = isMac() ? e.metaKey : e.ctrlKey;
   const oppositeMod = isMac() ? e.ctrlKey : e.metaKey;
   if (Boolean(s.mod) !== mod) return false;
