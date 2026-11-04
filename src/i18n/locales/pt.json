@@ -4020,14 +4020,12 @@
     "deletedMany_many": "{{count}} itens excluídos"
   },
   "agent": {
-    "description": "Veja o que o seu agente de IA faz no Donut, responda às perguntas dele e intervenha quando uma página precisar de si.",
     "tabs": {
       "conversation": "Conversa",
       "profiles": "Perfis",
       "activity": "Atividade",
       "recipes": "Receitas",
-      "schedules": "Agendamentos",
-      "chat": "Chat"
+      "schedules": "Agendamentos"
     },
     "header": {
       "quota": "Restam {{left}} de {{limit}} chamadas nesta hora",
@@ -4375,7 +4373,8 @@
       "stepCount_many": "{{count}} passos",
       "stepCount_other": "{{count}} passos",
       "filterLabel": "Mostrar perfis por estado",
-      "rowsLabel": "Perfis desta execução"
+      "rowsLabel": "Perfis desta execução",
+      "allProfilesBack": "Voltar a todos os perfis"
     },
     "routines": {
       "updated": "Rotina salva",
@@ -4414,8 +4413,6 @@
       "justNow": "Agora",
       "delete": "Excluir chat",
       "confirmDelete": "Clique de novo para excluir",
-      "emptyTitle": "O que o agente deve fazer?",
-      "emptyBody": "Ele trabalha no navegador do perfil que você escolher. Você vê cada passo e pode intervir a qualquer momento.",
       "noProfiles": "Crie primeiro um perfil Wayfern. O agente trabalha no navegador dele.",
       "placeholderStart": "Peça algo ao agente",
       "placeholderFollowUp": "Escreva um acompanhamento",
@@ -4434,7 +4431,6 @@
       "worked_other": "Concluiu {{count}} passos",
       "groups": "Grupos",
       "profiles": "Perfis",
-      "runs": "Execuções",
       "routines": "Rotinas",
       "placeholderRun": "Peça algo ao agente em cada perfil",
       "placeholderRoutine": "O que a rotina deve fazer?",
@@ -4473,6 +4469,55 @@
         "eraseBody": "Eles são removidos de todos os dispositivos. Os chats deste computador continuam.",
         "eraseConfirm": "Apagar"
       }
+    },
+    "shell": {
+      "sidebar": "Chats, execuções e rotinas",
+      "showSidebar": "Mostrar a barra lateral"
+    },
+    "sidebar": {
+      "live": "Em andamento",
+      "noMatch": "Nenhum resultado.",
+      "nextRun": "Próxima {{when}}"
+    },
+    "console": {
+      "title": "Agentes conectados",
+      "back": "Voltar aos chats"
+    },
+    "home": {
+      "title": "O que seus perfis devem fazer?",
+      "startersLabel": "Ideias para começar",
+      "starters": {
+        "warmUp": {
+          "title": "Aquecer perfis",
+          "hint": "Navegar como um visitante real",
+          "prompt": "Aqueça este perfil: visite por cerca de 10 minutos alguns sites populares de notícias e compras, aceite os avisos de cookies, role e abra algumas páginas como um visitante normal. Não faça login nem compre nada."
+        },
+        "accounts": {
+          "title": "Verificar contas",
+          "hint": "Conectada, limitada ou bloqueada",
+          "prompt": "Abra minha conta em [site] e diga se ela está conectada, limitada ou se pede uma verificação. Se estiver desconectada e o navegador tiver a senha salva, faça login de novo."
+        },
+        "orders": {
+          "title": "Verificar pedidos",
+          "hint": "Pedidos novos desde ontem",
+          "prompt": "Abra meu painel de vendedor em [site] e liste os pedidos novos desde ontem: número do pedido, comprador, total e status."
+        },
+        "collect": {
+          "title": "Coletar dados",
+          "hint": "De páginas para uma tabela",
+          "prompt": "Vá para [página] e reúna numa tabela o nome, o preço e o estoque de cada produto."
+        }
+      }
+    },
+    "engine": {
+      "title": "O agente chega com a próxima atualização do Wayfern",
+      "body": "O Donut a instala sozinho. Sua mensagem fica aqui para você enviar depois.",
+      "updateReady": "Uma versão mais nova do Wayfern está pronta para instalar.",
+      "updating": "Atualizando o Wayfern, {{percent}}%",
+      "updateAction": "Atualizar o Wayfern"
+    },
+    "live": {
+      "label": "Visualização ao vivo de {{name}}"
     }
   },
   "proxyDistribution": {

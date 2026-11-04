@@ -1,50 +1,71 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LuRepeat } from "react-icons/lu";
-import { PaneHeader } from "@/components/agent-tasks/parts";
+import { LuArrowLeft, LuRepeat } from "react-icons/lu";
+import { LiveView } from "@/components/agent-chat/live-view";
+import { SidebarToggle } from "@/components/agent-shell";
+import { PaneHeader, statusLabelKey } from "@/components/agent-tasks/parts";
 import { RunView } from "@/components/agent-tasks/run-view";
 import { StepStream } from "@/components/agent-tasks/step-stream";
 import { Button } from "@/components/ui/button";
-import { FadingScrollArea } from "@/components/ui/fading-scroll-area";
-import { type AgentBatch, promptTitle } from "@/lib/agent-tasks";
+import { useProfilePreviews } from "@/hooks/use-profile-previews";
+import { type AgentBatch, isTaskActive, promptTitle } from "@/lib/agent-tasks";
+
+const MAX_LIVE_TILES = 12;
 
 /**
- * A run in the main pane: every profile, and the steps of the one open. The
- * one that needs the person opens first, then one that works.
+ * A run in the main pane: a live tile for every profile, the one that needs
+ * the person first. A tile opens that profile's steps beside its window.
  */
 export function RunPane({
   batch,
-  lead,
   nameOf,
   onSaveRoutine,
   onDismissed,
 }: {
   batch: AgentBatch;
-  lead: ReactNode;
   nameOf: (profileId: string) => string;
   onSaveRoutine: () => void;
   onDismissed: (batchId: string) => void;
 }) {
   const { t } = useTranslation();
-  const [picked, setPicked] = useState<string | null>(null);
-  const task = useMemo(
-    () =>
-      batch.tasks.find((item) => item.profileId === picked) ??
-      batch.tasks.find((item) => item.status === "needs_approval") ??
-      batch.tasks.find((item) => item.status === "running") ??
-      batch.tasks[0],
-    [batch.tasks, picked],
-  );
+  const [openId, setOpenId] = useState<string | null>(null);
+  const task = openId
+    ? batch.tasks.find((item) => item.profileId === openId)
+    : undefined;
+  // Pictures cost a capture each: the open profile, or the first few at work.
+  const watched = useMemo(() => {
+    const working = batch.tasks
+      .filter((item) => isTaskActive(item.status) && item.taskId)
+      .map((item) => item.profileId);
+    return openId
+      ? working.filter((id) => id === openId)
+      : working.slice(0, MAX_LIVE_TILES);
+  }, [batch.tasks, openId]);
+  const images = useProfilePreviews(watched, watched.length > 0);
+  const live =
+    task && isTaskActive(task.status)
+      ? {
+          profileId: task.profileId,
+          profileName: nameOf(task.profileId),
+          status: task.status,
+          step:
+            task.status === "needs_approval"
+              ? t("agent.tasks.needsYou")
+              : (task.lastStep?.text ?? t(statusLabelKey(task.status))),
+          url: task.lastStep?.url ?? null,
+          image: images[task.profileId],
+        }
+      : null;
 
   return (
     <section
       data-slot="agent-run-pane"
       data-batch-id={batch.id}
-      className="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
+      className="@container flex min-h-0 min-w-0 flex-1 flex-col gap-3"
     >
-      <PaneHeader lead={lead} title={promptTitle(batch.prompt)}>
+      <PaneHeader lead={<SidebarToggle />} title={promptTitle(batch.prompt)}>
         {!batch.routineId && (
           <Button
             type="button"
@@ -59,29 +80,54 @@ export function RunPane({
           </Button>
         )}
       </PaneHeader>
-      {/* On a short window the pane scrolls; on a tall one the rows and the
-          steps fill it and scroll on their own. */}
-      <FadingScrollArea className="@container flex min-h-0 flex-1 flex-col">
-        <div className="flex flex-1 flex-col gap-4 @3xl:min-h-64 @3xl:flex-row">
-          <RunView
-            batch={batch}
-            nameOf={nameOf}
-            openProfileId={task?.profileId ?? null}
-            onOpen={setPicked}
-            onDismissed={onDismissed}
-          />
-          {task && (
-            <div className="flex min-h-80 min-w-0 flex-col rounded-2xl bg-foreground/3 p-4 @3xl:min-h-0 @3xl:w-[min(30rem,46%)] @3xl:shrink-0">
-              <StepStream
-                key={`${batch.id}:${task.profileId}`}
-                batch={batch}
-                task={task}
-                profileName={nameOf(task.profileId)}
-              />
+      {task ? (
+        <div className="flex min-h-0 flex-1 gap-5">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <StepStream
+              key={`${batch.id}:${task.profileId}`}
+              batch={batch}
+              task={task}
+              profileName={nameOf(task.profileId)}
+              media={
+                live && (
+                  <div className="shrink-0 @[52rem]:hidden">
+                    <LiveView layout="strip" {...live} />
+                  </div>
+                )
+              }
+              lead={
+                <Button
+                  type="button"
+                  variant="subtle"
+                  size="sm"
+                  data-slot="agent-run-back"
+                  aria-label={t("agent.tasks.allProfilesBack")}
+                  title={t("agent.tasks.allProfilesBack")}
+                  className="size-8 shrink-0 rounded-xl p-0"
+                  onClick={() => {
+                    setOpenId(null);
+                  }}
+                >
+                  <LuArrowLeft className="size-4" aria-hidden="true" />
+                </Button>
+              }
+            />
+          </div>
+          {live && (
+            <div className="hidden w-[min(28rem,44%)] shrink-0 flex-col @[52rem]:flex">
+              <LiveView layout="panel" {...live} />
             </div>
           )}
         </div>
-      </FadingScrollArea>
+      ) : (
+        <RunView
+          batch={batch}
+          nameOf={nameOf}
+          images={images}
+          onOpen={setOpenId}
+          onDismissed={onDismissed}
+        />
+      )}
     </section>
   );
 }

@@ -3972,14 +3972,12 @@
     "deletedMany_other": "已删除 {{count}} 项"
   },
   "agent": {
-    "description": "查看你的 AI 智能体在 Donut 中做了什么，回答它的问题，并在页面需要人工操作时介入。",
     "tabs": {
       "conversation": "对话",
       "profiles": "配置文件",
       "activity": "活动",
       "recipes": "配方",
-      "schedules": "计划",
-      "chat": "对话"
+      "schedules": "计划"
     },
     "header": {
       "quota": "本小时剩余 {{left}} / {{limit}} 次调用",
@@ -4324,7 +4322,8 @@
       "stepCount_one": "{{count}} 步",
       "stepCount_other": "{{count}} 步",
       "filterLabel": "按状态显示配置文件",
-      "rowsLabel": "本次运行的配置文件"
+      "rowsLabel": "本次运行的配置文件",
+      "allProfilesBack": "返回所有配置文件"
     },
     "routines": {
       "updated": "例程已保存",
@@ -4362,8 +4361,6 @@
       "justNow": "刚刚",
       "delete": "删除对话",
       "confirmDelete": "再次点击以删除",
-      "emptyTitle": "要让智能体做什么？",
-      "emptyBody": "它在所选配置文件的浏览器中工作。你可以看到每一步，并随时介入。",
       "noProfiles": "请先创建一个 Wayfern 配置文件。智能体在它的浏览器中工作。",
       "placeholderStart": "让智能体做点什么",
       "placeholderFollowUp": "继续追问",
@@ -4381,7 +4378,6 @@
       "worked_other": "已完成 {{count}} 步",
       "groups": "分组",
       "profiles": "配置文件",
-      "runs": "运行",
       "routines": "例程",
       "placeholderRun": "让智能体在每个配置文件中做点什么",
       "placeholderRoutine": "例程要做什么？",
@@ -4420,6 +4416,55 @@
         "eraseBody": "它们会从所有设备上移除。这台电脑上的对话会保留。",
         "eraseConfirm": "清除"
       }
+    },
+    "shell": {
+      "sidebar": "对话、运行和例程",
+      "showSidebar": "显示侧边栏"
+    },
+    "sidebar": {
+      "live": "正在运行",
+      "noMatch": "没有匹配项。",
+      "nextRun": "下次 {{when}}"
+    },
+    "console": {
+      "title": "已连接的智能体",
+      "back": "返回对话"
+    },
+    "home": {
+      "title": "你的配置文件要做什么？",
+      "startersLabel": "可以从这些开始",
+      "starters": {
+        "warmUp": {
+          "title": "预热配置文件",
+          "hint": "像真实访客一样浏览",
+          "prompt": "预热这个配置文件：用大约 10 分钟访问几个热门新闻和购物网站，接受 Cookie 横幅，像普通访客一样滚动并打开一些页面。不要登录，也不要购买任何东西。"
+        },
+        "accounts": {
+          "title": "检查账号",
+          "hint": "已登录、受限或被锁定",
+          "prompt": "打开我在 [网站] 上的账号，告诉我它是否已登录、是否受限或是否要求验证。如果已退出登录且浏览器保存了密码，请重新登录。"
+        },
+        "orders": {
+          "title": "检查订单",
+          "hint": "昨天以来的新订单",
+          "prompt": "打开我在 [网站] 上的卖家后台，列出昨天以来的新订单：订单号、买家、总额和状态。"
+        },
+        "collect": {
+          "title": "收集数据",
+          "hint": "从页面整理成表格",
+          "prompt": "前往 [页面]，把每个商品的名称、价格和库存整理成一张表格。"
+        }
+      }
+    },
+    "engine": {
+      "title": "智能体将随下一次 Wayfern 更新推出",
+      "body": "Donut 会自动安装。你的消息会留在这里，到时即可发送。",
+      "updateReady": "有更新的 Wayfern 可以安装。",
+      "updating": "正在更新 Wayfern，{{percent}}%",
+      "updateAction": "更新 Wayfern"
+    },
+    "live": {
+      "label": "{{name}} 的实时画面"
     }
   },
   "proxyDistribution": {

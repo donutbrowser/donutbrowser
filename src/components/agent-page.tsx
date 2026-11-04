@@ -1,109 +1,46 @@
 "use client";
 
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LuLogIn } from "react-icons/lu";
 import {
-  LuHourglass,
-  LuLock,
-  LuLogIn,
-  LuPause,
-  LuPlay,
-  LuPlug,
-  LuPower,
-} from "react-icons/lu";
-import { AgentActivityFeed } from "@/components/agent-activity";
-import {
-  AgentChatPanel,
+  type AgentView,
+  AgentWorkspace,
   type ChatSeed,
-} from "@/components/agent-chat/chat-panel";
+} from "@/components/agent-chat/workspace";
+import { SetupPanel } from "@/components/agent-console-parts";
+import { AgentShell } from "@/components/agent-shell";
 import {
-  SetupPanel,
-  useNow,
-  useTimeFormat,
-} from "@/components/agent-console-parts";
-import {
-  AgentConversation,
-  NeedsYouList,
-} from "@/components/agent-conversation";
-import { AgentProfiles } from "@/components/agent-profiles";
-import { AgentRecipes } from "@/components/agent-recipes";
-import { AgentSchedules } from "@/components/agent-schedules";
-import { CreditsMeter } from "@/components/agent-tasks/parts";
-import { AnimatedSwitch } from "@/components/ui/animated-switch";
-import {
-  AnimatedTabs,
-  AnimatedTabsContent,
-  AnimatedTabsList,
-  AnimatedTabsTrigger,
-} from "@/components/ui/animated-tabs";
+  ConnectedAgentsNav,
+  ConnectedAgentsPane,
+  type ConsoleTab,
+  useConnectedAgents,
+} from "@/components/connected-agents";
 import { Button } from "@/components/ui/button";
-import { CodeSnippet } from "@/components/ui/code-snippet";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { SoftFields } from "@/components/ui/field-variant";
-import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from "@/components/ui/popover";
-import { ProBadge } from "@/components/ui/pro-badge";
-import { RippleButton } from "@/components/ui/ripple";
-import { Textarea } from "@/components/ui/textarea";
-import { useAgentChats } from "@/hooks/use-agent-chat";
 import type { AgentConsole } from "@/hooks/use-agent-console";
-import { useAgentBatches, useAgentCredits } from "@/hooks/use-agent-tasks";
-import { MAX_TEXT_CHARS, profileRollup, quotaLeft } from "@/lib/agent-console";
-import {
-  canUseRemoteControl,
-  canUseScheduledAutomation,
-  getEntitlements,
-} from "@/lib/entitlements";
-import type { McpRemoteStatus } from "@/lib/mcp";
-import { showSuccessToast } from "@/lib/toast-utils";
-import { cn } from "@/lib/utils";
+import type { AgentAvailability } from "@/hooks/use-agent-tasks";
+import { canUseScheduledAutomation } from "@/lib/entitlements";
 import type { BrowserProfile, CloudUser } from "@/types";
 
-export type AgentTab =
-  | "chat"
-  | "conversation"
-  | "profiles"
-  | "activity"
-  | "recipes"
-  | "schedules";
-
-const TABS: AgentTab[] = [
-  "conversation",
-  "profiles",
-  "activity",
-  "recipes",
-  "schedules",
-];
-
-/** Chats, runs and routines of Wayfern's engine; shown only with the agent. */
-const AGENT_TABS: AgentTab[] = ["chat"];
+export type { AgentView };
 
 interface AgentPageProps {
   isOpen: boolean;
   onClose: () => void;
   subPage?: boolean;
-  initialTab?: AgentTab;
-  /** Reports manual tab changes, so Mod+J toggles from where the user is. */
-  onTabChange?: (tab: AgentTab) => void;
+  /** The view asked for; null leaves the page on its default. */
+  initialView: AgentView | null;
+  /** Reports the person's own moves, so Mod+J toggles from where they are. */
+  onViewChange?: (view: AgentView) => void;
   profiles: BrowserProfile[];
   cloudUser: CloudUser | null;
   agentConsole: AgentConsole;
   /** Opens Integrations on its remote tab. */
   onConnectAgent: () => void;
   onOpenAccount: () => void;
-  /** The account has the agent and the installed Wayfern runs it. */
-  agentReady: boolean;
+  agent: AgentAvailability;
   /**
    * Opens a new chat, from a profile's menu or the command palette, or a run
    * on the profiles table selection.
@@ -111,646 +48,126 @@ interface AgentPageProps {
   chatSeed: ChatSeed | null;
 }
 
-function useRemoteStatus(isOpen: boolean) {
-  const [remote, setRemote] = useState<McpRemoteStatus | null>(null);
-  const [known, setKnown] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-    invoke<McpRemoteStatus>("get_mcp_remote_status")
-      .then((status) => {
-        if (!cancelled) setRemote(status);
-      })
-      .catch((error: unknown) => {
-        console.warn("Failed to get MCP remote status:", error);
-      })
-      .finally(() => {
-        if (!cancelled) setKnown(true);
-      });
-    const unlisten = listen<McpRemoteStatus>("mcp-remote-status", (event) => {
-      setRemote(event.payload);
-      setKnown(true);
-    });
-    return () => {
-      cancelled = true;
-      void unlisten.then((off) => {
-        off();
-      });
-    };
-  }, [isOpen]);
-
-  return { remote, known };
-}
-
-function PauseControl({ agentConsole }: { agentConsole: AgentConsole }) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const switchId = useId();
-  const noteId = useId();
-  const paused = agentConsole.paused !== null;
-
-  const pause = async () => {
-    setBusy(true);
-    const trimmed = note.trim();
-    const ok = await agentConsole.setPaused(true, trimmed || null);
-    setBusy(false);
-    if (ok) {
-      setOpen(false);
-      setNote("");
-      showSuccessToast(t("agent.pause.pausedToast"));
-    }
-  };
-
-  const resume = async () => {
-    setBusy(true);
-    const ok = await agentConsole.setPaused(false, null);
-    setBusy(false);
-    if (ok) showSuccessToast(t("agent.pause.resumedToast"));
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverAnchor asChild>
-        <div className="flex items-center gap-2">
-          <AnimatedSwitch
-            id={switchId}
-            checked={paused || open}
-            disabled={busy}
-            data-testid="agent-pause-switch"
-            onCheckedChange={(checked) => {
-              if (checked) setOpen(true);
-              else if (paused) void resume();
-              else setOpen(false);
-            }}
-          />
-          <Label htmlFor={switchId} className="text-xs whitespace-nowrap">
-            {t("agent.pause.label")}
-          </Label>
-        </div>
-      </PopoverAnchor>
-      <PopoverContent align="end" className="w-72 p-3">
-        <form
-          className="flex flex-col gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void pause();
-          }}
-        >
-          <Label
-            htmlFor={noteId}
-            className="text-xs font-medium text-muted-foreground"
-          >
-            {t("agent.pause.noteLabel")}
-          </Label>
-          <Textarea
-            id={noteId}
-            variant="soft"
-            rows={3}
-            value={note}
-            maxLength={MAX_TEXT_CHARS}
-            placeholder={t("agent.pause.notePlaceholder")}
-            className="min-h-16 resize-none text-sm"
-            data-testid="agent-pause-note"
-            onChange={(event) => {
-              setNote(event.target.value);
-            }}
-          />
-          <p className="text-[11px] text-muted-foreground">
-            {t("agent.pause.explain")}
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="subtle"
-              size="sm"
-              className="h-8 rounded-lg text-xs"
-              onClick={() => {
-                setOpen(false);
-              }}
-            >
-              {t("common.buttons.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              className="h-8 rounded-lg text-xs"
-              disabled={busy}
-              aria-busy={busy}
-              data-testid="agent-pause-confirm"
-            >
-              {t("agent.pause.confirm")}
-            </Button>
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function PausedBanner({ agentConsole }: { agentConsole: AgentConsole }) {
-  const { t } = useTranslation();
-  const { shortClock } = useTimeFormat();
-  const [busy, setBusy] = useState(false);
-  const paused = agentConsole.paused;
-  if (!paused) return null;
-  return (
-    <div
-      role="status"
-      data-testid="agent-paused-banner"
-      className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl bg-warning/10 px-3 py-2 text-sm text-warning-text"
-    >
-      <LuPause className="size-4 shrink-0" aria-hidden="true" />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="font-medium">
-          {t("agent.pause.banner", { time: shortClock(paused.since) })}
-        </span>
-        {paused.note && (
-          <span className="truncate text-xs">
-            {t("agent.pause.bannerNote", { note: paused.note })}
-          </span>
-        )}
-      </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="soft"
-        className="h-8 gap-1.5 rounded-lg text-xs"
-        disabled={busy}
-        aria-busy={busy}
-        data-testid="agent-resume"
-        onClick={async () => {
-          setBusy(true);
-          const ok = await agentConsole.setPaused(false, null);
-          setBusy(false);
-          if (ok) showSuccessToast(t("agent.pause.resumedToast"));
-        }}
-      >
-        <LuPlay className="size-3.5" aria-hidden="true" />
-        {t("agent.pause.resume")}
-      </Button>
-    </div>
-  );
-}
-
+/**
+ * The agent page. With the agent: chats first, and connected agents from the
+ * sidebar. Without it: the console of agents connected over remote control.
+ */
 export function AgentPage({
   isOpen,
   onClose,
   subPage,
-  initialTab = "conversation",
-  onTabChange,
+  initialView,
+  onViewChange,
   profiles,
   cloudUser,
   agentConsole,
   onConnectAgent,
   onOpenAccount,
-  agentReady,
+  agent,
   chatSeed,
 }: AgentPageProps) {
   const { t } = useTranslation();
-  const now = useNow();
-  const { remote, known: remoteKnown } = useRemoteStatus(isOpen);
-  const tabs = agentReady ? [...AGENT_TABS, ...TABS] : TABS;
-  const agentBatches = useAgentBatches(agentReady && isOpen);
-  const agentChats = useAgentChats(agentReady && isOpen);
-  const credits = useAgentCredits(
-    agentReady && isOpen,
-    agentBatches.batches,
-    agentChats.ended,
-  );
-
-  const [activeTab, setActiveTab] = useState<AgentTab>(initialTab);
-  const [adoptedInitialTab, setAdoptedInitialTab] = useState(initialTab);
-  if (adoptedInitialTab !== initialTab) {
-    setAdoptedInitialTab(initialTab);
-    setActiveTab(initialTab);
+  const fallback: AgentView = agent.entitled ? "chat" : "conversation";
+  const asked = initialView ?? fallback;
+  const [view, setView] = useState<AgentView>(asked);
+  const [adopted, setAdopted] = useState(asked);
+  if (adopted !== asked) {
+    setAdopted(asked);
+    setView(asked);
   }
-  const shownTab: AgentTab = tabs.includes(activeTab)
-    ? activeTab
-    : "conversation";
-  const changeTab = useCallback(
-    (tab: AgentTab) => {
-      setActiveTab(tab);
-      onTabChange?.(tab);
+  // Only an account with the agent has chats to show.
+  const shownView: AgentView =
+    view === "chat" && !agent.entitled ? "conversation" : view;
+  const changeView = useCallback(
+    (next: AgentView) => {
+      setView(next);
+      onViewChange?.(next);
     },
-    [onTabChange],
+    [onViewChange],
   );
+  const consoleState = useConnectedAgents({
+    enabled: isOpen && cloudUser !== null,
+    cloudUser,
+    agentConsole,
+  });
 
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
-    null,
-  );
-  const [composerProfileId, setComposerProfileId] = useState<string | null>(
-    null,
-  );
-  const [focusComposer, setFocusComposer] = useState(false);
-  const onComposerFocused = useCallback(() => {
-    setFocusComposer(false);
-  }, []);
-
-  const signedIn = cloudUser !== null;
-  const entitled = canUseRemoteControl(cloudUser);
-  const automation = getEntitlements(cloudUser).browserAutomation;
-  // Solo keeps recipes for the schedules it pays for, without on-demand runs.
-  const scheduled = canUseScheduledAutomation(cloudUser);
-  const blocker = !signedIn ? "signedOut" : !entitled ? "plan" : null;
-  const remoteOff = remoteKnown && remote !== null && !remote.enabled;
-  const hasSessions = agentConsole.sessions.length > 0;
-  const quota = quotaLeft(agentConsole.quota);
-
-  const effectiveSessionId =
-    selectedSessionId !== null &&
-    agentConsole.sessions.some(
-      (session) => session.session_id === selectedSessionId,
-    )
-      ? selectedSessionId
-      : null;
-
-  const profileNames = useMemo(
-    () => new Map(profiles.map((profile) => [profile.id, profile.name])),
-    [profiles],
-  );
-
-  const preferredProfileIds = useMemo(
-    () =>
-      profileRollup(agentConsole.activity, agentConsole.holds, now).map(
-        (row) => row.profile_id,
-      ),
-    [agentConsole.activity, agentConsole.holds, now],
-  );
-
-  const openComposerFor = useCallback(
-    (profileId: string, sessionId: string | null) => {
-      setComposerProfileId(profileId);
-      setSelectedSessionId(sessionId);
-      setFocusComposer(true);
-      changeTab("conversation");
-    },
-    [changeTab],
-  );
-
-  const blockerPanel =
-    blocker === "signedOut" ? (
-      <SetupPanel
-        testId="agent-setup-signed-out"
-        icon={<LuLogIn />}
-        title={t("agent.setup.signedOutTitle")}
-        body={t("agent.setup.signedOutBody")}
-      >
-        <RippleButton
-          size="sm"
-          className="h-8 rounded-lg text-xs"
-          data-testid="agent-setup-sign-in"
-          onClick={onOpenAccount}
+  const body = () => {
+    if (!cloudUser) {
+      return (
+        <SetupPanel
+          testId="agent-setup-signed-out"
+          icon={<LuLogIn />}
+          title={t("agent.setup.signedOutTitle")}
+          body={t("agent.setup.signedOutBody")}
         >
-          {t("agent.setup.signedOutAction")}
-        </RippleButton>
-      </SetupPanel>
-    ) : blocker === "plan" ? (
-      <SetupPanel
-        testId="agent-setup-plan"
-        icon={<LuLock />}
-        title={t("agent.setup.planTitle")}
-        body={t("agent.setup.planBody")}
-      >
-        <div className="flex items-center gap-2">
-          <ProBadge />
           <Button
             size="sm"
-            variant="soft"
             className="h-8 rounded-lg text-xs"
-            data-testid="agent-setup-plan-account"
+            data-testid="agent-setup-sign-in"
             onClick={onOpenAccount}
           >
-            {t("agent.setup.planAction")}
+            {t("agent.setup.signedOutAction")}
           </Button>
-        </div>
-      </SetupPanel>
-    ) : null;
-
-  const remoteOffPanel = (
-    <SetupPanel
-      testId="agent-setup-remote-off"
-      icon={<LuPower />}
-      title={t("agent.setup.remoteOffTitle")}
-      body={t("agent.setup.remoteOffBody")}
-    >
-      <RippleButton
-        size="sm"
-        className="h-8 rounded-lg text-xs"
-        data-testid="agent-setup-turn-on"
-        onClick={onConnectAgent}
-      >
-        {t("agent.setup.remoteOffAction")}
-      </RippleButton>
-    </SetupPanel>
-  );
-
-  const waitingPanel = (
-    <SetupPanel
-      testId="agent-setup-waiting"
-      icon={<LuHourglass />}
-      title={t("agent.setup.waitingTitle")}
-      body={t("agent.setup.waitingBody")}
-    >
-      <div className="flex w-full max-w-xl flex-col gap-2 text-left">
-        <span className="text-xs font-medium text-muted-foreground">
-          {t("agent.setup.starterLabel")}
-        </span>
-        <CodeSnippet
-          multiline
-          wrap
-          data-testid="agent-starter-text"
-          code={t("agent.setup.starter")}
-          copyLabel={t("agent.setup.starterLabel")}
-          successMessage={t("agent.setup.starterCopied")}
-          className="font-sans text-xs leading-relaxed"
+        </SetupPanel>
+      );
+    }
+    if (agent.entitled) {
+      return (
+        <AgentWorkspace
+          enabled={isOpen}
+          availability={agent}
+          view={shownView}
+          onViewChange={changeView}
+          profiles={profiles}
+          agentConsole={agentConsole}
+          consoleState={consoleState}
+          canSchedule={canUseScheduledAutomation(cloudUser)}
+          seed={chatSeed}
+          onConnectAgent={onConnectAgent}
+          onOpenAccount={onOpenAccount}
         />
-        <Button
-          size="sm"
-          variant="soft"
-          className="mt-1 h-8 gap-1.5 self-center rounded-lg text-xs"
-          data-testid="agent-setup-connect"
-          onClick={onConnectAgent}
-        >
-          <LuPlug className="size-3.5" aria-hidden="true" />
-          {t("agent.header.connect")}
-        </Button>
-      </div>
-    </SetupPanel>
-  );
-
-  const conversationBody = () => {
-    if (blockerPanel) return blockerPanel;
-    const ready = agentConsole.loaded && remoteKnown;
+      );
+    }
+    const tab = shownView as ConsoleTab;
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
-        {agentConsole.openRequests.length > 0 && (
-          <NeedsYouList
+      <AgentShell
+        label={t("agent.console.title")}
+        sidebar={
+          <ConnectedAgentsNav
+            tab={tab}
+            onTab={changeView}
+            state={consoleState}
             agentConsole={agentConsole}
-            profileNames={profileNames}
-            now={now}
+            onConnectAgent={onConnectAgent}
           />
-        )}
-        {!ready && !hasSessions ? null : !hasSessions ? (
-          remoteOff ? (
-            remoteOffPanel
-          ) : (
-            waitingPanel
-          )
-        ) : (
-          <>
-            {remoteOff && (
-              <div
-                data-testid="agent-setup-remote-off"
-                className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl bg-foreground/4 px-3 py-2 text-xs text-muted-foreground"
-              >
-                <LuPower className="size-3.5 shrink-0" aria-hidden="true" />
-                <span className="min-w-0 flex-1">
-                  {t("agent.setup.remoteOffInline")}
-                </span>
-                <Button
-                  size="sm"
-                  variant="soft"
-                  className="h-8 rounded-lg text-xs"
-                  data-testid="agent-setup-turn-on"
-                  onClick={onConnectAgent}
-                >
-                  {t("agent.setup.remoteOffAction")}
-                </Button>
-              </div>
-            )}
-            <AgentConversation
-              agentConsole={agentConsole}
-              profiles={profiles}
-              profileNames={profileNames}
-              selectedSessionId={effectiveSessionId}
-              onSelectSession={setSelectedSessionId}
-              composerProfileId={composerProfileId}
-              onComposerProfileChange={setComposerProfileId}
-              focusComposer={focusComposer}
-              onComposerFocused={onComposerFocused}
-              preferredProfileIds={preferredProfileIds}
-              now={now}
-            />
-          </>
-        )}
-      </div>
+        }
+      >
+        <ConnectedAgentsPane
+          tab={tab}
+          onTab={changeView}
+          state={consoleState}
+          agentConsole={agentConsole}
+          profiles={profiles}
+          onConnectAgent={onConnectAgent}
+          onOpenAccount={onOpenAccount}
+        />
+      </AgentShell>
     );
   };
 
-  const title = t("rail.agent");
-  const description = t("agent.description");
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose} subPage={subPage}>
-      <DialogContent className="flex max-h-[85vh] max-w-[min(80rem,calc(100%-4rem))] flex-col">
+      <DialogContent className="flex h-[85vh] max-w-[min(80rem,calc(100%-4rem))] flex-col">
+        {!subPage && (
+          <DialogTitle className="sr-only">{t("rail.agent")}</DialogTitle>
+        )}
         <SoftFields>
           <div
             data-testid="agent-page"
-            className={cn(
-              "@container flex min-h-0 w-full flex-1 flex-col gap-3",
-              subPage && "mx-auto max-w-4xl",
-            )}
+            data-view={shownView}
+            className="flex min-h-0 w-full flex-1 flex-col"
           >
-            <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 flex-col gap-1">
-                {subPage ? (
-                  // The shell's header already names the page.
-                  <p className="text-xs text-muted-foreground">{description}</p>
-                ) : (
-                  <>
-                    <DialogTitle>{title}</DialogTitle>
-                    <DialogDescription>{description}</DialogDescription>
-                  </>
-                )}
-              </div>
-              {(blocker === null || agentReady) && (
-                <div className="flex flex-wrap items-center gap-3">
-                  {agentReady && <CreditsMeter credits={credits} />}
-                  {blocker === null && quota && (
-                    <span
-                      data-testid="agent-quota"
-                      className={cn(
-                        "text-xs tabular-nums",
-                        quota.left === 0
-                          ? "text-warning-text"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {t("agent.header.quota", {
-                        left: quota.left,
-                        limit: quota.limit,
-                      })}
-                    </span>
-                  )}
-                  {blocker === null && (
-                    <>
-                      <PauseControl agentConsole={agentConsole} />
-                      <RippleButton
-                        size="sm"
-                        className="flex h-8 items-center gap-1.5 rounded-lg text-xs"
-                        data-testid="agent-connect"
-                        onClick={onConnectAgent}
-                      >
-                        <LuPlug className="size-3.5" aria-hidden="true" />
-                        {t("agent.header.connect")}
-                      </RippleButton>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {blocker === null && <PausedBanner agentConsole={agentConsole} />}
-
-            <AnimatedTabs
-              value={shownTab}
-              onValueChange={(value) => {
-                changeTab(value as AgentTab);
-              }}
-              className="flex min-h-0 flex-1 flex-col"
-            >
-              <AnimatedTabsList className="shrink-0">
-                {tabs.map((tab) => (
-                  <AnimatedTabsTrigger
-                    key={tab}
-                    value={tab}
-                    data-testid={`agent-tab-${tab}`}
-                  >
-                    {t(`agent.tabs.${tab}`)}
-                    {tab === "conversation" &&
-                      agentConsole.openRequests.length > 0 && (
-                        <span className="rounded-full bg-warning/15 px-1.5 text-xs tabular-nums text-warning-text">
-                          {agentConsole.openRequests.length}
-                        </span>
-                      )}
-                  </AnimatedTabsTrigger>
-                ))}
-              </AnimatedTabsList>
-
-              {agentReady && (
-                <AnimatedTabsContent
-                  value="chat"
-                  className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
-                >
-                  <AgentChatPanel
-                    chats={agentChats.chats}
-                    batches={agentBatches.batches}
-                    profiles={profiles}
-                    credits={credits}
-                    canSchedule={scheduled}
-                    seed={chatSeed}
-                    onOpenAccount={onOpenAccount}
-                    onBatchStarted={(batch) => {
-                      agentBatches.adopt((current) =>
-                        current.some((item) => item.id === batch.id)
-                          ? current
-                          : [batch, ...current],
-                      );
-                    }}
-                    onBatchDismissed={agentBatches.forget}
-                  />
-                </AnimatedTabsContent>
-              )}
-
-              <AnimatedTabsContent
-                value="conversation"
-                className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
-              >
-                {conversationBody()}
-              </AnimatedTabsContent>
-
-              <AnimatedTabsContent
-                value="profiles"
-                className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
-              >
-                {blockerPanel ?? (
-                  <AgentProfiles
-                    agentConsole={agentConsole}
-                    profileNames={profileNames}
-                    now={now}
-                    onNote={openComposerFor}
-                  />
-                )}
-              </AnimatedTabsContent>
-
-              <AnimatedTabsContent
-                value="activity"
-                className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
-              >
-                {blockerPanel ?? (
-                  <AgentActivityFeed
-                    agentConsole={agentConsole}
-                    profileNames={profileNames}
-                    now={now}
-                  />
-                )}
-              </AnimatedTabsContent>
-
-              <AnimatedTabsContent
-                value="recipes"
-                className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
-              >
-                {blockerPanel ??
-                  (automation || scheduled ? (
-                    <AgentRecipes
-                      profiles={profiles}
-                      canRunOnDesktop={automation}
-                      desktopConnected={remote?.connected ?? false}
-                    />
-                  ) : (
-                    <SetupPanel
-                      testId="agent-recipes-plan"
-                      icon={<LuLock />}
-                      title={t("agent.tabs.recipes")}
-                      body={t("agent.recipes.needsAutomation")}
-                    >
-                      <div className="flex items-center gap-2">
-                        <ProBadge />
-                        <Button
-                          size="sm"
-                          variant="soft"
-                          className="h-8 rounded-lg text-xs"
-                          onClick={onOpenAccount}
-                        >
-                          {t("agent.setup.planAction")}
-                        </Button>
-                      </div>
-                    </SetupPanel>
-                  ))}
-              </AnimatedTabsContent>
-
-              <AnimatedTabsContent
-                value="schedules"
-                className="mt-3 min-h-0 flex-1 flex-col data-[state=active]:flex"
-              >
-                {blockerPanel ??
-                  (scheduled ? (
-                    <AgentSchedules
-                      profiles={profiles}
-                      canRunOnDesktop={automation}
-                    />
-                  ) : (
-                    <SetupPanel
-                      testId="agent-schedules-plan"
-                      icon={<LuLock />}
-                      title={t("agent.tabs.schedules")}
-                      body={t("agent.schedules.needsPlan")}
-                    >
-                      <Button
-                        size="sm"
-                        variant="soft"
-                        className="h-8 rounded-lg text-xs"
-                        onClick={onOpenAccount}
-                      >
-                        {t("agent.setup.planAction")}
-                      </Button>
-                    </SetupPanel>
-                  ))}
-              </AnimatedTabsContent>
-            </AnimatedTabs>
+            {body()}
           </div>
         </SoftFields>
       </DialogContent>

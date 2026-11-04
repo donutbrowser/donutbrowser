@@ -340,7 +340,7 @@ export function AgentSchedules({
                 {runsFor === schedule.id && (
                   <ul
                     data-slot="agent-schedule-runs"
-                    className="flex flex-col gap-1 border-t border-border pt-2 text-xs"
+                    className="flex flex-col gap-1 pt-2 text-xs"
                   >
                     {runs.length === 0 ? (
                       <li className="text-muted-foreground">

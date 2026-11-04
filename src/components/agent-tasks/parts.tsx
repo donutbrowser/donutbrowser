@@ -23,12 +23,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   type AgentAutonomy,
   type AgentCredits,
+  type AgentRoutine,
   type AgentRoutineSchedule,
   type AgentTaskStatus,
   creditsLeft,
   cronWords,
   isWebUrl,
   MAX_CONCURRENCY,
+  nextRunAt,
   STATE_FILL,
   TASK_STATUSES,
   taskState,
@@ -94,8 +96,17 @@ export function useScheduleWords() {
   }, [t, language]);
 }
 
-/** The credits left this period, as a number and a thin bar. */
-export function CreditsMeter({ credits }: { credits: AgentCredits | null }) {
+/**
+ * The credits left this period, as a number and a thin bar: side by side, or
+ * spread across the width.
+ */
+export function CreditsMeter({
+  credits,
+  layout = "inline",
+}: {
+  credits: AgentCredits | null;
+  layout?: "inline" | "spread";
+}) {
   const { t } = useTranslation();
   const format = useNumber();
   if (!credits) return null;
@@ -108,10 +119,14 @@ export function CreditsMeter({ credits }: { credits: AgentCredits | null }) {
     );
   }
   const empty = left.left === 0;
+  const spread = layout === "spread";
   return (
     <div
       data-slot="agent-credits"
-      className="flex items-center gap-2"
+      className={cn(
+        "flex items-center gap-2",
+        spread && "justify-between gap-3",
+      )}
       title={t("agent.credits.detail", {
         used: format(credits.used),
         total: format(credits.allowance + credits.extra),
@@ -131,7 +146,7 @@ export function CreditsMeter({ credits }: { credits: AgentCredits | null }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={100 - left.percentUsed}
-        className="h-1 w-16 overflow-hidden rounded-full bg-foreground/8"
+        className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-foreground/8"
       >
         <span
           className={cn(
@@ -143,6 +158,31 @@ export function CreditsMeter({ credits }: { credits: AgentCredits | null }) {
       </span>
     </div>
   );
+}
+
+/**
+ * What a routine does next, in a few words: "Next Fri 09:00", "Off", or the
+ * schedule itself when its next run is not known here.
+ */
+export function useNextRunWords() {
+  const { t, i18n } = useTranslation();
+  const scheduleWords = useScheduleWords();
+  const language = i18n.language;
+  return useMemo(() => {
+    const time = (at: Date) =>
+      at.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" });
+    return (routine: AgentRoutine, now: number): string => {
+      if (!routine.enabled) return t("agent.chat.routineOff");
+      if (!routine.schedule) return t("agent.routines.manual");
+      const next = nextRunAt(routine.schedule, new Date(now));
+      if (!next) return scheduleWords(routine.schedule);
+      const today = new Date(now).toDateString() === next.toDateString();
+      const when = today
+        ? time(next)
+        : `${next.toLocaleDateString(language, { weekday: "short" })} ${time(next)}`;
+      return t("agent.sidebar.nextRun", { when });
+    };
+  }, [t, language, scheduleWords]);
 }
 
 /** Task statuses, and the run statuses only the cloud reports. */
@@ -225,6 +265,7 @@ export function ProfilePicker({
   disabled,
   single = false,
   noneLabel,
+  icon,
   className,
 }: {
   id?: string;
@@ -235,6 +276,8 @@ export function ProfilePicker({
   disabled?: boolean;
   single?: boolean;
   noneLabel?: string;
+  /** A mark before the choice, where the picker reads as a chip. */
+  icon?: ReactNode;
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -284,7 +327,8 @@ export function ProfilePicker({
             className,
           )}
         >
-          <span className="truncate">{label}</span>
+          {icon}
+          <span className="min-w-0 flex-1 truncate text-left">{label}</span>
           <LuChevronsUpDown className="size-3.5 text-muted-foreground" />
         </Button>
       </PopoverTrigger>

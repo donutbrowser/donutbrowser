@@ -8,8 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AboutDialog } from "@/components/about-dialog";
 import { AccountPage } from "@/components/account-page";
-import type { ChatSeed } from "@/components/agent-chat/chat-panel";
-import { AgentPage, type AgentTab } from "@/components/agent-page";
+import type { ChatSeed } from "@/components/agent-chat/workspace";
+import { AgentPage, type AgentView } from "@/components/agent-page";
 import { CloneProfileDialog } from "@/components/clone-profile-dialog";
 import { CloseConfirmDialog } from "@/components/close-confirm-dialog";
 import { CommandPalette } from "@/components/command-palette";
@@ -471,9 +471,9 @@ export default function Home() {
   const [cookieBotInitialTab, setCookieBotInitialTab] =
     useState<CookieBotTab>("overview");
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
-  // Null until a tab is asked for: Chat leads when the agent is on.
-  const [agentInitialTab, setAgentInitialTab] = useState<AgentTab | null>(null);
-  const agentReady = useAgentAvailability(cloudUser);
+  // Null until a view is asked for: chats lead when the agent is on.
+  const [agentView, setAgentView] = useState<AgentView | null>(null);
+  const agent = useAgentAvailability(cloudUser);
   const [chatSeed, setChatSeed] = useState<ChatSeed | null>(null);
   const [createProfileDialogOpen, setCreateProfileDialogOpen] = useState(false);
   const teamReadOnly = isTeamLauncher(cloudUser);
@@ -742,7 +742,7 @@ export default function Home() {
   );
 
   const openAgentConversation = useCallback(() => {
-    setAgentInitialTab("conversation");
+    setAgentView("conversation");
     handleRailNavigate("agent");
   }, [handleRailNavigate]);
   const agentConsole = useAgentConsole({
@@ -913,12 +913,22 @@ export default function Home() {
           break;
         }
         case "goAgent": {
-          // Mod+J: navigate first time; flip conversation↔activity while
-          // already there, matching how Mod+B flips the Cookie Bot tabs.
+          // Mod+J: navigate first time; flip chats↔connected agents (or,
+          // without the agent, conversation↔activity) while already there,
+          // matching how Mod+B flips the Cookie Bot tabs.
           if (currentPage === "agent") {
-            setAgentInitialTab((cur) =>
-              cur === "conversation" ? "activity" : "conversation",
+            setAgentView((cur) =>
+              agent.entitled
+                ? (cur ?? "chat") === "chat"
+                  ? "conversation"
+                  : "chat"
+                : cur === "conversation" || cur === null
+                  ? "activity"
+                  : "conversation",
             );
+          } else if (agent.entitled) {
+            setAgentView("chat");
+            handleRailNavigate("agent");
           } else {
             openAgentConversation();
           }
@@ -975,6 +985,7 @@ export default function Home() {
       cloudUser,
       openTips,
       openAgentConversation,
+      agent.entitled,
       openCreateProfile,
       focusProfileSearch,
     ],
@@ -2416,7 +2427,7 @@ export default function Home() {
         profileIds: profileId ? [profileId] : [],
         nonce: (current?.nonce ?? 0) + 1,
       }));
-      setAgentInitialTab("chat");
+      setAgentView("chat");
       handleRailNavigate("agent");
     },
     [handleRailNavigate],
@@ -2427,7 +2438,7 @@ export default function Home() {
       profileIds: [...selectedProfiles],
       nonce: (current?.nonce ?? 0) + 1,
     }));
-    setAgentInitialTab("chat");
+    setAgentView("chat");
     handleRailNavigate("agent");
   }, [selectedProfiles, handleRailNavigate]);
 
@@ -3198,7 +3209,9 @@ export default function Home() {
                     onBulkCopyCookies={handleBulkCopyCookies}
                     onBulkRun={handleBulkRun}
                     onBulkStop={handleBulkStop}
-                    onRunAgentTask={agentReady ? handleRunAgentTask : undefined}
+                    onRunAgentTask={
+                      agent.entitled ? handleRunAgentTask : undefined
+                    }
                     bulkActionsUnlocked={automationUnlocked}
                     onBulkExtensionGroupAssignment={
                       handleBulkExtensionGroupAssignment
@@ -3226,7 +3239,7 @@ export default function Home() {
                     onLockProfile={(profile) => void handleLockProfile(profile)}
                     onRunRemote={(profile) => void handleRunRemote(profile)}
                     onAskAgent={
-                      agentReady
+                      agent.entitled
                         ? (profile) => {
                             handleAskAgent(profile.id);
                           }
@@ -3354,10 +3367,8 @@ export default function Home() {
                     closeSubPage(() => setAgentDialogOpen(false));
                   }}
                   subPage={currentPage === "agent"}
-                  initialTab={
-                    agentInitialTab ?? (agentReady ? "chat" : "conversation")
-                  }
-                  onTabChange={setAgentInitialTab}
+                  initialView={agentView}
+                  onViewChange={setAgentView}
                   profiles={profiles}
                   cloudUser={cloudUser}
                   agentConsole={agentConsole}
@@ -3368,7 +3379,7 @@ export default function Home() {
                   onOpenAccount={() => {
                     handleRailNavigate("account");
                   }}
-                  agentReady={agentReady}
+                  agent={agent}
                   chatSeed={chatSeed}
                 />
               )}
@@ -3452,7 +3463,7 @@ export default function Home() {
             setAboutDialogOpen(true);
           }}
           onNewAgentChat={
-            agentReady
+            agent.entitled
               ? () => {
                   handleAskAgent(null);
                 }

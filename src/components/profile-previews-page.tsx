@@ -1,63 +1,20 @@
 "use client";
 
-import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { LuAppWindow, LuLayoutGrid } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
 import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { ProBadge } from "@/components/ui/pro-badge";
+import { useProfilePreviews } from "@/hooks/use-profile-previews";
 import { showProfileWindow } from "@/lib/agent-console";
 import { translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type { BrowserProfile } from "@/types";
 
-/** Time between two pictures of one window. */
-const REFRESH_MS = 3000;
 const PRICING_URL = "https://donutbrowser.com/pricing";
-
-/** The latest picture of each running profile, while the page is in view. */
-function usePreviews(profileIds: string[], enabled: boolean) {
-  const [images, setImages] = useState<Record<string, string>>({});
-  const key = profileIds.join(",");
-
-  useEffect(() => {
-    if (!enabled) return;
-    const ids = key ? key.split(",") : [];
-    let active = true;
-    let timer = 0;
-    const refresh = async () => {
-      if (document.visibilityState === "visible") {
-        const shots = await Promise.all(
-          ids.map((id) =>
-            invoke<string | null>("capture_profile_preview", {
-              profileId: id,
-            }).catch(() => null),
-          ),
-        );
-        if (!active) return;
-        setImages((previous) => {
-          const next: Record<string, string> = {};
-          ids.forEach((id, index) => {
-            const shot = shots[index] ?? previous[id];
-            if (shot) next[id] = shot;
-          });
-          return next;
-        });
-      }
-      if (active) timer = window.setTimeout(refresh, REFRESH_MS);
-    };
-    void refresh();
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [key, enabled]);
-
-  return images;
-}
 
 export function ProfilePreviewsPage({
   profiles,
@@ -77,7 +34,7 @@ export function ProfilePreviewsPage({
         .sort((a, b) => a.name.localeCompare(b.name)),
     [profiles, runningProfileIds],
   );
-  const images = usePreviews(
+  const images = useProfilePreviews(
     running.map((profile) => profile.id),
     unlocked,
   );

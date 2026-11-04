@@ -3972,14 +3972,12 @@
     "deletedMany_other": "항목 {{count}}개를 삭제했습니다"
   },
   "agent": {
-    "description": "AI 에이전트가 Donut에서 무엇을 하는지 보고, 질문에 답하고, 페이지에 사람이 필요할 때 직접 개입하세요.",
     "tabs": {
       "conversation": "대화",
       "profiles": "프로필",
       "activity": "활동",
       "recipes": "레시피",
-      "schedules": "일정",
-      "chat": "채팅"
+      "schedules": "일정"
     },
     "header": {
       "quota": "이번 시간 남은 호출: {{left}}/{{limit}}",
@@ -4324,7 +4322,8 @@
       "stepCount_one": "{{count}}단계",
       "stepCount_other": "{{count}}단계",
       "filterLabel": "상태별 프로필 보기",
-      "rowsLabel": "이 실행의 프로필"
+      "rowsLabel": "이 실행의 프로필",
+      "allProfilesBack": "모든 프로필로 돌아가기"
     },
     "routines": {
       "updated": "루틴을 저장했습니다",
@@ -4362,8 +4361,6 @@
       "justNow": "지금",
       "delete": "채팅 삭제",
       "confirmDelete": "삭제하려면 다시 클릭",
-      "emptyTitle": "에이전트가 무엇을 할까요?",
-      "emptyBody": "선택한 프로필의 브라우저에서 작업합니다. 모든 단계를 보고 언제든지 개입할 수 있습니다.",
       "noProfiles": "먼저 Wayfern 프로필을 만드세요. 에이전트는 그 브라우저에서 작업합니다.",
       "placeholderStart": "에이전트에게 요청하기",
       "placeholderFollowUp": "후속 메시지 작성",
@@ -4381,7 +4378,6 @@
       "worked_other": "{{count}}단계 완료",
       "groups": "그룹",
       "profiles": "프로필",
-      "runs": "실행",
       "routines": "루틴",
       "placeholderRun": "각 프로필에서 에이전트에게 요청하기",
       "placeholderRoutine": "루틴이 무엇을 할까요?",
@@ -4420,6 +4416,55 @@
         "eraseBody": "모든 기기에서 삭제됩니다. 이 컴퓨터의 채팅은 그대로 남습니다.",
         "eraseConfirm": "지우기"
       }
+    },
+    "shell": {
+      "sidebar": "채팅, 실행, 루틴",
+      "showSidebar": "사이드바 표시"
+    },
+    "sidebar": {
+      "live": "실행 중",
+      "noMatch": "일치하는 항목이 없습니다.",
+      "nextRun": "다음 {{when}}"
+    },
+    "console": {
+      "title": "연결된 에이전트",
+      "back": "채팅으로 돌아가기"
+    },
+    "home": {
+      "title": "프로필이 무엇을 할까요?",
+      "startersLabel": "시작 아이디어",
+      "starters": {
+        "warmUp": {
+          "title": "프로필 워밍업",
+          "hint": "실제 방문자처럼 둘러보기",
+          "prompt": "이 프로필을 워밍업하세요: 인기 있는 뉴스 및 쇼핑 사이트를 약 10분 동안 방문하고, 쿠키 배너를 수락하고, 일반 방문자처럼 스크롤하며 몇 페이지를 여세요. 로그인하거나 아무것도 구매하지 마세요."
+        },
+        "accounts": {
+          "title": "계정 확인",
+          "hint": "로그인, 제한 또는 잠김",
+          "prompt": "[사이트]에서 내 계정을 열고 로그인되어 있는지, 제한되었는지, 인증을 요구하는지 알려 주세요. 로그아웃되어 있고 브라우저에 비밀번호가 저장되어 있으면 다시 로그인하세요."
+        },
+        "orders": {
+          "title": "주문 확인",
+          "hint": "어제 이후 새 주문",
+          "prompt": "[사이트]에서 판매자 대시보드를 열고 어제 이후 새 주문을 나열하세요: 주문 번호, 구매자, 합계, 상태."
+        },
+        "collect": {
+          "title": "데이터 수집",
+          "hint": "페이지에서 표로",
+          "prompt": "[페이지]로 이동해 각 상품의 이름, 가격, 재고를 표로 정리하세요."
+        }
+      }
+    },
+    "engine": {
+      "title": "에이전트는 다음 Wayfern 업데이트와 함께 제공됩니다",
+      "body": "Donut이 자동으로 설치합니다. 메시지는 여기에 남아 있으니 그때 보내면 됩니다.",
+      "updateReady": "새 Wayfern을 설치할 수 있습니다.",
+      "updating": "Wayfern 업데이트 중, {{percent}}%",
+      "updateAction": "Wayfern 업데이트"
+    },
+    "live": {
+      "label": "{{name}} 실시간 보기"
     }
   },
   "proxyDistribution": {

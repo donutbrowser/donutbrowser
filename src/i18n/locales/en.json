@@ -3972,14 +3972,12 @@
     "deletedMany_other": "{{count}} items deleted"
   },
   "agent": {
-    "description": "See what your AI agent does in Donut, answer its questions and step in when a page needs you.",
     "tabs": {
       "conversation": "Conversation",
       "profiles": "Profiles",
       "activity": "Activity",
       "recipes": "Recipes",
-      "schedules": "Schedules",
-      "chat": "Chat"
+      "schedules": "Schedules"
     },
     "header": {
       "quota": "{{left}} of {{limit}} calls left this hour",
@@ -4324,7 +4322,8 @@
       "stepCount_one": "{{count}} step",
       "stepCount_other": "{{count}} steps",
       "filterLabel": "Show profiles by state",
-      "rowsLabel": "Profiles in this run"
+      "rowsLabel": "Profiles in this run",
+      "allProfilesBack": "Back to all profiles"
     },
     "routines": {
       "updated": "Routine saved",
@@ -4362,8 +4361,6 @@
       "justNow": "Now",
       "delete": "Delete chat",
       "confirmDelete": "Click again to delete",
-      "emptyTitle": "What should the agent do?",
-      "emptyBody": "It works in the browser of the profile you choose. You see each step, and you can step in at any time.",
       "noProfiles": "Create a Wayfern profile first. The agent works in its browser.",
       "placeholderStart": "Ask the agent to do something",
       "placeholderFollowUp": "Write a follow-up",
@@ -4381,7 +4378,6 @@
       "worked_other": "Worked through {{count}} steps",
       "groups": "Groups",
       "profiles": "Profiles",
-      "runs": "Runs",
       "routines": "Routines",
       "placeholderRun": "Ask the agent to do something in each profile",
       "placeholderRoutine": "What should the routine do?",
@@ -4420,6 +4416,55 @@
         "eraseBody": "This removes them from every device. Chats on this computer stay.",
         "eraseConfirm": "Erase"
       }
+    },
+    "shell": {
+      "sidebar": "Chats, runs and routines",
+      "showSidebar": "Show the sidebar"
+    },
+    "sidebar": {
+      "live": "Working now",
+      "noMatch": "Nothing matches.",
+      "nextRun": "Next {{when}}"
+    },
+    "console": {
+      "title": "Connected agents",
+      "back": "Back to chats"
+    },
+    "home": {
+      "title": "What should your profiles do?",
+      "startersLabel": "Ideas to start from",
+      "starters": {
+        "warmUp": {
+          "title": "Warm up profiles",
+          "hint": "Browse like a real visitor",
+          "prompt": "Warm up this profile: visit a few popular news and shopping sites for about 10 minutes, accept cookie banners, scroll and open some pages like a normal visitor. Do not sign in or buy anything."
+        },
+        "accounts": {
+          "title": "Check accounts",
+          "hint": "Signed in, limited or locked",
+          "prompt": "Open my account on [site] and tell me if it is signed in, limited or asks for a verification. If it is signed out and the browser has the password saved, sign in again."
+        },
+        "orders": {
+          "title": "Check orders",
+          "hint": "New orders since yesterday",
+          "prompt": "Open my seller dashboard on [site] and list the new orders since yesterday: order number, buyer, total and status."
+        },
+        "collect": {
+          "title": "Collect data",
+          "hint": "From pages into a table",
+          "prompt": "Go to [page] and collect the name, price and stock of each product into a table."
+        }
+      }
+    },
+    "engine": {
+      "title": "The agent comes with the next Wayfern update",
+      "body": "Donut installs it on its own. Your message stays here, so you can send it then.",
+      "updateReady": "A newer Wayfern is ready to install.",
+      "updating": "Updating Wayfern, {{percent}}%",
+      "updateAction": "Update Wayfern"
+    },
+    "live": {
+      "label": "Live view of {{name}}"
     }
   },
   "proxyDistribution": {

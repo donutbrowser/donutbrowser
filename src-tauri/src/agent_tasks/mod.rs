@@ -291,6 +291,12 @@ fn ensure_token_refresher() {
 
 // ---- Engine events ----
 
+/// Whether a task of the agent works in this profile now: a chat turn or a
+/// run. Only an entitled account starts one.
+pub(crate) fn working_in(profile_id: &str) -> bool {
+  store().busy(profile_id, None) || chat::busy(profile_id, None)
+}
+
 pub(crate) fn on_engine_event(profile_id: &str, method: &str, params: &Value) {
   if method == "Wayfern.agentHostCall" {
     host::on_call(profile_id, params);

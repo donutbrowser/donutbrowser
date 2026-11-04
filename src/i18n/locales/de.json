@@ -3972,14 +3972,12 @@
     "deletedMany_other": "{{count}} Einträge gelöscht"
   },
   "agent": {
-    "description": "Sehen Sie, was Ihr KI-Agent in Donut tut, beantworten Sie seine Fragen und greifen Sie ein, wenn eine Seite Sie braucht.",
     "tabs": {
       "conversation": "Unterhaltung",
       "profiles": "Profile",
       "activity": "Aktivität",
       "recipes": "Rezepte",
-      "schedules": "Zeitpläne",
-      "chat": "Chat"
+      "schedules": "Zeitpläne"
     },
     "header": {
       "quota": "Noch {{left}} von {{limit}} Aufrufen in dieser Stunde",
@@ -4324,7 +4322,8 @@
       "stepCount_one": "{{count}} Schritt",
       "stepCount_other": "{{count}} Schritte",
       "filterLabel": "Profile nach Status zeigen",
-      "rowsLabel": "Profile in diesem Lauf"
+      "rowsLabel": "Profile in diesem Lauf",
+      "allProfilesBack": "Zurück zu allen Profilen"
     },
     "routines": {
       "updated": "Routine gespeichert",
@@ -4362,8 +4361,6 @@
       "justNow": "Jetzt",
       "delete": "Chat löschen",
       "confirmDelete": "Zum Löschen erneut klicken",
-      "emptyTitle": "Was soll der Agent tun?",
-      "emptyBody": "Er arbeitet im Browser des gewählten Profils. Sie sehen jeden Schritt und können jederzeit eingreifen.",
       "noProfiles": "Erstellen Sie zuerst ein Wayfern-Profil. Der Agent arbeitet in dessen Browser.",
       "placeholderStart": "Bitten Sie den Agenten um etwas",
       "placeholderFollowUp": "Rückfrage schreiben",
@@ -4381,7 +4378,6 @@
       "worked_other": "{{count}} Schritte erledigt",
       "groups": "Gruppen",
       "profiles": "Profile",
-      "runs": "Läufe",
       "routines": "Routinen",
       "placeholderRun": "Bitten Sie den Agenten um etwas in jedem Profil",
       "placeholderRoutine": "Was soll die Routine tun?",
@@ -4420,6 +4416,55 @@
         "eraseBody": "Sie werden von allen Geräten entfernt. Chats auf diesem Computer bleiben.",
         "eraseConfirm": "Löschen"
       }
+    },
+    "shell": {
+      "sidebar": "Chats, Läufe und Routinen",
+      "showSidebar": "Seitenleiste anzeigen"
+    },
+    "sidebar": {
+      "live": "Läuft gerade",
+      "noMatch": "Keine Treffer.",
+      "nextRun": "Nächster Lauf {{when}}"
+    },
+    "console": {
+      "title": "Verbundene Agenten",
+      "back": "Zurück zu den Chats"
+    },
+    "home": {
+      "title": "Was sollen Ihre Profile tun?",
+      "startersLabel": "Ideen für den Anfang",
+      "starters": {
+        "warmUp": {
+          "title": "Profile aufwärmen",
+          "hint": "Wie ein echter Besucher surfen",
+          "prompt": "Wärmen Sie dieses Profil auf: Besuchen Sie etwa 10 Minuten lang einige bekannte Nachrichten- und Shopping-Websites, akzeptieren Sie Cookie-Banner, scrollen Sie und öffnen Sie einige Seiten wie ein normaler Besucher. Melden Sie sich nicht an und kaufen Sie nichts."
+        },
+        "accounts": {
+          "title": "Konten prüfen",
+          "hint": "Angemeldet, eingeschränkt oder gesperrt",
+          "prompt": "Öffnen Sie mein Konto auf [Website] und sagen Sie mir, ob es angemeldet oder eingeschränkt ist oder eine Bestätigung verlangt. Wenn es abgemeldet ist und der Browser das Passwort gespeichert hat, melden Sie sich wieder an."
+        },
+        "orders": {
+          "title": "Bestellungen prüfen",
+          "hint": "Neue Bestellungen seit gestern",
+          "prompt": "Öffnen Sie mein Verkäufer-Dashboard auf [Website] und listen Sie die neuen Bestellungen seit gestern auf: Bestellnummer, Käufer, Summe und Status."
+        },
+        "collect": {
+          "title": "Daten sammeln",
+          "hint": "Von Seiten in eine Tabelle",
+          "prompt": "Gehen Sie zu [Seite] und sammeln Sie Name, Preis und Bestand jedes Produkts in einer Tabelle."
+        }
+      }
+    },
+    "engine": {
+      "title": "Der Agent kommt mit dem nächsten Wayfern-Update",
+      "body": "Donut installiert es automatisch. Ihre Nachricht bleibt hier, damit Sie sie dann senden können.",
+      "updateReady": "Eine neuere Wayfern-Version ist bereit zur Installation.",
+      "updating": "Wayfern wird aktualisiert, {{percent}} %",
+      "updateAction": "Wayfern aktualisieren"
+    },
+    "live": {
+      "label": "Live-Ansicht von {{name}}"
     }
   },
   "proxyDistribution": {

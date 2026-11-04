@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   LuEye,
@@ -212,10 +212,16 @@ export function StepStream({
   batch,
   task,
   profileName,
+  lead,
+  media,
 }: {
   batch: AgentBatch;
   task: AgentTask;
   profileName: string;
+  /** A control before the name, such as the way back to the run. */
+  lead?: ReactNode;
+  /** Shown under the header, such as the profile's live window. */
+  media?: ReactNode;
 }) {
   const { t } = useTranslation();
   const format = useNumber();
@@ -259,6 +265,7 @@ export function StepStream({
       className="flex min-h-0 flex-1 flex-col gap-3"
     >
       <header className="flex shrink-0 items-start gap-3">
+        {lead}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-sm font-medium">{profileName}</span>
           <span className="flex flex-wrap items-center gap-x-2 text-xs tabular-nums text-muted-foreground">
@@ -320,6 +327,7 @@ export function StepStream({
           </div>
         )}
       </header>
+      {media}
 
       <FadingScrollArea className="-mx-1 min-h-0 flex-1 px-1">
         <ol className="flex flex-col" aria-live="polite">

@@ -97,6 +97,7 @@ export function RepeatPicker({
   allowOnce,
   canSchedule,
   onUpgrade,
+  labelled = false,
   className,
 }: {
   value: Repeat;
@@ -105,6 +106,8 @@ export function RepeatPicker({
   allowOnce: boolean;
   canSchedule: boolean;
   onUpgrade: () => void;
+  /** Name the control even while the task runs once. */
+  labelled?: boolean;
   className?: string;
 }) {
   const { t, i18n } = useTranslation();
@@ -144,6 +147,7 @@ export function RepeatPicker({
     });
   };
 
+  const iconOnly = value.kind === "once" && allowOnce && !labelled;
   const label =
     value.kind === "once"
       ? t("agent.chat.repeat.label")
@@ -166,14 +170,12 @@ export function RepeatPicker({
           title={label}
           className={cn(
             "h-8 max-w-56 gap-1.5 rounded-xl text-xs",
-            value.kind === "once" && allowOnce && "w-8 p-0",
+            iconOnly && "w-8 p-0",
             className,
           )}
         >
           <LuRepeat className="size-3.5" aria-hidden="true" />
-          {!(value.kind === "once" && allowOnce) && (
-            <span className="truncate">{label}</span>
-          )}
+          {!iconOnly && <span className="truncate">{label}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="flex w-64 flex-col gap-1 p-1.5">

@@ -3972,14 +3972,12 @@
     "deletedMany_other": "Đã xóa {{count}} mục"
   },
   "agent": {
-    "description": "Xem tác nhân AI của bạn làm gì trong Donut, trả lời câu hỏi của nó và can thiệp khi một trang cần đến bạn.",
     "tabs": {
       "conversation": "Hội thoại",
       "profiles": "Hồ sơ",
       "activity": "Hoạt động",
       "recipes": "Công thức",
-      "schedules": "Lịch chạy",
-      "chat": "Trò chuyện"
+      "schedules": "Lịch chạy"
     },
     "header": {
       "quota": "Còn {{left}}/{{limit}} lượt gọi trong giờ này",
@@ -4324,7 +4322,8 @@
       "stepCount_one": "{{count}} bước",
       "stepCount_other": "{{count}} bước",
       "filterLabel": "Hiện hồ sơ theo trạng thái",
-      "rowsLabel": "Các hồ sơ trong lần chạy này"
+      "rowsLabel": "Các hồ sơ trong lần chạy này",
+      "allProfilesBack": "Quay lại tất cả hồ sơ"
     },
     "routines": {
       "updated": "Đã lưu quy trình",
@@ -4362,8 +4361,6 @@
       "justNow": "Bây giờ",
       "delete": "Xóa cuộc trò chuyện",
       "confirmDelete": "Nhấn lần nữa để xóa",
-      "emptyTitle": "Tác tử nên làm gì?",
-      "emptyBody": "Tác tử làm việc trong trình duyệt của hồ sơ bạn chọn. Bạn thấy từng bước và có thể can thiệp bất cứ lúc nào.",
       "noProfiles": "Hãy tạo hồ sơ Wayfern trước. Tác tử làm việc trong trình duyệt của hồ sơ đó.",
       "placeholderStart": "Nhờ tác tử làm một việc",
       "placeholderFollowUp": "Viết tin nhắn tiếp theo",
@@ -4381,7 +4378,6 @@
       "worked_other": "Đã làm {{count}} bước",
       "groups": "Nhóm",
       "profiles": "Hồ sơ",
-      "runs": "Lần chạy",
       "routines": "Quy trình",
       "placeholderRun": "Nhờ tác tử làm một việc trong mỗi hồ sơ",
       "placeholderRoutine": "Quy trình nên làm gì?",
@@ -4420,6 +4416,55 @@
         "eraseBody": "Chúng sẽ bị xóa khỏi mọi thiết bị. Các cuộc trò chuyện trên máy tính này vẫn giữ nguyên.",
         "eraseConfirm": "Xóa"
       }
+    },
+    "shell": {
+      "sidebar": "Trò chuyện, lượt chạy và quy trình",
+      "showSidebar": "Hiện thanh bên"
+    },
+    "sidebar": {
+      "live": "Đang chạy",
+      "noMatch": "Không có kết quả phù hợp.",
+      "nextRun": "Lần tới {{when}}"
+    },
+    "console": {
+      "title": "Tác tử đã kết nối",
+      "back": "Quay lại trò chuyện"
+    },
+    "home": {
+      "title": "Các hồ sơ của bạn nên làm gì?",
+      "startersLabel": "Ý tưởng để bắt đầu",
+      "starters": {
+        "warmUp": {
+          "title": "Làm nóng hồ sơ",
+          "hint": "Duyệt web như khách thật",
+          "prompt": "Làm nóng hồ sơ này: truy cập vài trang tin tức và mua sắm phổ biến trong khoảng 10 phút, chấp nhận các thông báo cookie, cuộn và mở vài trang như một khách truy cập bình thường. Không đăng nhập và không mua gì."
+        },
+        "accounts": {
+          "title": "Kiểm tra tài khoản",
+          "hint": "Đã đăng nhập, bị giới hạn hay bị khóa",
+          "prompt": "Mở tài khoản của tôi trên [trang web] và cho tôi biết tài khoản có đang đăng nhập, bị giới hạn hay yêu cầu xác minh không. Nếu đã đăng xuất và trình duyệt có lưu mật khẩu, hãy đăng nhập lại."
+        },
+        "orders": {
+          "title": "Kiểm tra đơn hàng",
+          "hint": "Đơn hàng mới từ hôm qua",
+          "prompt": "Mở bảng điều khiển người bán của tôi trên [trang web] và liệt kê các đơn hàng mới từ hôm qua: mã đơn, người mua, tổng tiền và trạng thái."
+        },
+        "collect": {
+          "title": "Thu thập dữ liệu",
+          "hint": "Từ trang web vào bảng",
+          "prompt": "Truy cập [trang] và thu thập tên, giá và tồn kho của từng sản phẩm vào một bảng."
+        }
+      }
+    },
+    "engine": {
+      "title": "Tác tử sẽ có trong bản cập nhật Wayfern tiếp theo",
+      "body": "Donut tự cài đặt bản cập nhật. Tin nhắn của bạn vẫn ở đây để bạn gửi khi đó.",
+      "updateReady": "Đã có bản Wayfern mới hơn sẵn sàng để cài đặt.",
+      "updating": "Đang cập nhật Wayfern, {{percent}}%",
+      "updateAction": "Cập nhật Wayfern"
+    },
+    "live": {
+      "label": "Xem trực tiếp {{name}}"
     }
   },
   "proxyDistribution": {

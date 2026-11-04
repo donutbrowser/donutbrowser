@@ -3972,14 +3972,12 @@
     "deletedMany_other": "{{count}} öğe silindi"
   },
   "agent": {
-    "description": "Yapay zekâ ajanınızın Donut'ta ne yaptığını görün, sorularını yanıtlayın ve bir sayfa size ihtiyaç duyduğunda devreye girin.",
     "tabs": {
       "conversation": "Konuşma",
       "profiles": "Profiller",
       "activity": "Etkinlik",
       "recipes": "Tarifler",
-      "schedules": "Zamanlamalar",
-      "chat": "Sohbet"
+      "schedules": "Zamanlamalar"
     },
     "header": {
       "quota": "Bu saat için {{limit}} çağrıdan {{left}} kaldı",
@@ -4324,7 +4322,8 @@
       "stepCount_one": "{{count}} adım",
       "stepCount_other": "{{count}} adım",
       "filterLabel": "Profilleri duruma göre göster",
-      "rowsLabel": "Bu çalıştırmadaki profiller"
+      "rowsLabel": "Bu çalıştırmadaki profiller",
+      "allProfilesBack": "Tüm profillere dön"
     },
     "routines": {
       "updated": "Rutin kaydedildi",
@@ -4362,8 +4361,6 @@
       "justNow": "Şimdi",
       "delete": "Sohbeti sil",
       "confirmDelete": "Silmek için yeniden tıklayın",
-      "emptyTitle": "Ajan ne yapsın?",
-      "emptyBody": "Seçtiğiniz profilin tarayıcısında çalışır. Her adımı görürsünüz ve istediğiniz an müdahale edebilirsiniz.",
       "noProfiles": "Önce bir Wayfern profili oluşturun. Ajan onun tarayıcısında çalışır.",
       "placeholderStart": "Ajandan bir şey isteyin",
       "placeholderFollowUp": "Devam mesajı yazın",
@@ -4381,7 +4378,6 @@
       "worked_other": "{{count}} adım tamamlandı",
       "groups": "Gruplar",
       "profiles": "Profiller",
-      "runs": "Çalıştırmalar",
       "routines": "Rutinler",
       "placeholderRun": "Her profilde ajandan bir şey isteyin",
       "placeholderRoutine": "Rutin ne yapsın?",
@@ -4420,6 +4416,55 @@
         "eraseBody": "Tüm cihazlardan kaldırılırlar. Bu bilgisayardaki sohbetler kalır.",
         "eraseConfirm": "Sil"
       }
+    },
+    "shell": {
+      "sidebar": "Sohbetler, çalıştırmalar ve rutinler",
+      "showSidebar": "Kenar çubuğunu göster"
+    },
+    "sidebar": {
+      "live": "Şu anda çalışıyor",
+      "noMatch": "Eşleşen bir şey yok.",
+      "nextRun": "Sonraki {{when}}"
+    },
+    "console": {
+      "title": "Bağlı ajanlar",
+      "back": "Sohbetlere dön"
+    },
+    "home": {
+      "title": "Profilleriniz ne yapsın?",
+      "startersLabel": "Başlangıç için fikirler",
+      "starters": {
+        "warmUp": {
+          "title": "Profilleri ısıt",
+          "hint": "Gerçek bir ziyaretçi gibi gez",
+          "prompt": "Bu profili ısıtın: yaklaşık 10 dakika boyunca birkaç popüler haber ve alışveriş sitesini ziyaret edin, çerez bildirimlerini kabul edin, normal bir ziyaretçi gibi kaydırın ve birkaç sayfa açın. Giriş yapmayın ve bir şey satın almayın."
+        },
+        "accounts": {
+          "title": "Hesapları kontrol et",
+          "hint": "Oturum açık, kısıtlı veya kilitli",
+          "prompt": "[site] üzerindeki hesabımı açın ve oturumun açık olup olmadığını, kısıtlanıp kısıtlanmadığını veya doğrulama isteyip istemediğini söyleyin. Oturum kapalıysa ve tarayıcıda şifre kayıtlıysa yeniden giriş yapın."
+        },
+        "orders": {
+          "title": "Siparişleri kontrol et",
+          "hint": "Dünden beri yeni siparişler",
+          "prompt": "[site] üzerindeki satıcı panelimi açın ve dünden beri gelen yeni siparişleri listeleyin: sipariş numarası, alıcı, toplam ve durum."
+        },
+        "collect": {
+          "title": "Veri topla",
+          "hint": "Sayfalardan tabloya",
+          "prompt": "[sayfa] adresine gidin ve her ürünün adını, fiyatını ve stoğunu bir tabloda toplayın."
+        }
+      }
+    },
+    "engine": {
+      "title": "Ajan bir sonraki Wayfern güncellemesiyle geliyor",
+      "body": "Donut onu kendisi kurar. Mesajınız burada kalır, böylece o zaman gönderebilirsiniz.",
+      "updateReady": "Daha yeni bir Wayfern kurulmaya hazır.",
+      "updating": "Wayfern güncelleniyor, %{{percent}}",
+      "updateAction": "Wayfern'i güncelle"
+    },
+    "live": {
+      "label": "{{name}} canlı görünümü"
     }
   },
   "proxyDistribution": {

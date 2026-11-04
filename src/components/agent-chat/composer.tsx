@@ -2,6 +2,7 @@
 
 import {
   type KeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -30,6 +31,7 @@ import {
   isTurnActive,
 } from "@/lib/agent-chat";
 import { MAX_PROMPT_CHARS } from "@/lib/agent-tasks";
+import { cn } from "@/lib/utils";
 
 /**
  * What Send does with a new message: a chat in one profile, a run in
@@ -65,6 +67,10 @@ export function Composer({
   focusKey,
   onSend,
   onControl,
+  hero = false,
+  leading,
+  fill,
+  notice,
 }: {
   chat: AgentChat | null;
   /** Profiles chosen for a new chat. */
@@ -75,6 +81,14 @@ export function Composer({
   focusKey: string;
   onSend: (send: ComposerSend) => Promise<boolean>;
   onControl: (action: ChatControl) => void;
+  /** The large box of a new chat, with its controls under the words. */
+  hero?: boolean;
+  /** Controls before the others, such as the profile chips. */
+  leading?: ReactNode;
+  /** Words to put in the box, from a starter; a new nonce puts them again. */
+  fill?: { text: string; nonce: number } | null;
+  /** A line above the box, such as why a send waits. */
+  notice?: ReactNode;
 }) {
   const { t } = useTranslation();
   const inputId = useId();
@@ -97,10 +111,11 @@ export function Composer({
     const box = ref.current;
     if (!box) return;
     box.style.height = "auto";
-    box.style.height = `${Math.min(box.scrollHeight, 160)}px`;
-  }, []);
+    box.style.height = `${Math.min(box.scrollHeight, hero ? 240 : 160)}px`;
+  }, [hero]);
 
-  useLayoutEffect(fit, [fit]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the box follows its words
+  useLayoutEffect(fit, [fit, text]);
 
   // The page and a closing menu move the focus as they settle, after this
   // mounts; keep it here until they are done.
@@ -124,6 +139,23 @@ export function Composer({
       document.removeEventListener("pointerdown", release, true);
     };
   }, [focusKey]);
+
+  const [filled, setFilled] = useState<number | null>(null);
+  if (fill && fill.nonce !== filled) {
+    setFilled(fill.nonce);
+    setText(fill.text);
+  }
+  useEffect(() => {
+    if (filled === null) return;
+    const box = ref.current;
+    if (!box) return;
+    box.focus();
+    // A starter's "[site]" is for the person to fill: select it.
+    const start = box.value.indexOf("[");
+    const end = box.value.indexOf("]", start);
+    if (start >= 0 && end > start) box.setSelectionRange(start, end + 1);
+    else box.setSelectionRange(box.value.length, box.value.length);
+  }, [filled]);
 
   const send = async () => {
     const value = text.trim();
@@ -166,134 +198,167 @@ export function Composer({
         ? t("agent.chat.saveRoutine")
         : t("agent.chat.send");
 
+  const controls = (
+    <>
+      {!chat && (
+        <>
+          {target !== "chat" && (
+            <RunOptions
+              value={settings}
+              onChange={setSettings}
+              autonomy={target === "run"}
+              creditCapLabel={
+                target === "routine"
+                  ? t("agent.routines.creditCap")
+                  : t("agent.tasks.creditCap")
+              }
+            />
+          )}
+          <RepeatPicker
+            value={repeat}
+            onChange={setRepeat}
+            allowOnce
+            labelled={hero}
+            canSchedule={canSchedule}
+            onUpgrade={onUpgrade}
+          />
+        </>
+      )}
+      {running && turn?.taskId && (
+        <>
+          {turn.status === "paused" ? (
+            <Button
+              type="button"
+              variant="subtle"
+              size="sm"
+              data-slot="chat-resume"
+              aria-label={t("agent.tasks.resume")}
+              title={t("agent.tasks.resume")}
+              className="size-8 rounded-xl p-0"
+              onClick={() => {
+                onControl("resume");
+              }}
+            >
+              <LuPlay className="size-3.5" aria-hidden="true" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="subtle"
+              size="sm"
+              disabled={turn.status === "needs_approval"}
+              data-slot="chat-pause"
+              aria-label={t("agent.tasks.pause")}
+              title={t("agent.tasks.pause")}
+              className="size-8 rounded-xl p-0"
+              onClick={() => {
+                onControl("pause");
+              }}
+            >
+              <LuPause className="size-3.5" aria-hidden="true" />
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="soft"
+            size="sm"
+            data-slot="chat-stop"
+            aria-label={t("agent.tasks.stop")}
+            title={t("agent.tasks.stop")}
+            className="size-8 rounded-xl p-0 hover:bg-destructive/10 hover:text-destructive-text"
+            onClick={() => {
+              onControl("stop");
+            }}
+          >
+            <LuSquare className="size-3 fill-current" aria-hidden="true" />
+          </Button>
+        </>
+      )}
+      <Button
+        type="submit"
+        size="sm"
+        disabled={disabled || sending || blocked || !text.trim()}
+        aria-busy={sending}
+        data-slot="chat-send"
+        aria-label={sendLabel}
+        title={sendLabel}
+        className={
+          target === "chat"
+            ? "size-8 rounded-xl p-0"
+            : "h-8 gap-1.5 rounded-xl px-3 text-xs"
+        }
+      >
+        {target === "chat" ? (
+          <LuArrowUp className="size-4" aria-hidden="true" />
+        ) : (
+          sendLabel
+        )}
+      </Button>
+    </>
+  );
+
+  const input = (
+    <textarea
+      ref={ref}
+      id={inputId}
+      rows={hero ? 3 : 1}
+      value={text}
+      maxLength={MAX_PROMPT_CHARS}
+      placeholder={placeholder}
+      aria-describedby={hintId}
+      data-slot="chat-input"
+      disabled={disabled}
+      onKeyDown={onKeyDown}
+      onChange={(event) => {
+        setText(event.target.value);
+      }}
+      className={cn(
+        "min-w-0 flex-1 resize-none bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed",
+        hero
+          ? "max-h-60 min-h-[4.5rem] px-2.5 pt-1.5 text-[15px] leading-6"
+          : "max-h-40 min-h-8 px-2 py-1 text-sm leading-6",
+      )}
+    />
+  );
+
   return (
     <form
       data-slot="chat-composer"
       data-mode={mode}
       data-target={target}
-      className="flex shrink-0 flex-col gap-1"
+      data-variant={hero ? "hero" : "dock"}
+      className="flex shrink-0 flex-col gap-1.5"
       onSubmit={(event) => {
         event.preventDefault();
         void send();
       }}
     >
+      {notice}
       <label htmlFor={inputId} className="sr-only">
         {placeholder}
       </label>
-      <div className="flex items-end gap-1 rounded-2xl bg-foreground/5 p-1.5 transition-colors duration-150 focus-within:bg-foreground/7 motion-reduce:transition-none">
-        <textarea
-          ref={ref}
-          id={inputId}
-          rows={1}
-          value={text}
-          maxLength={MAX_PROMPT_CHARS}
-          placeholder={placeholder}
-          aria-describedby={hintId}
-          data-slot="chat-input"
-          disabled={disabled}
-          onKeyDown={onKeyDown}
-          onChange={(event) => {
-            setText(event.target.value);
-          }}
-          className="max-h-40 min-h-8 min-w-0 flex-1 resize-none bg-transparent px-2 py-1 text-sm leading-6 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
-        />
-        {!chat && (
-          <>
-            {target !== "chat" && (
-              <RunOptions
-                value={settings}
-                onChange={setSettings}
-                autonomy={target === "run"}
-                creditCapLabel={
-                  target === "routine"
-                    ? t("agent.routines.creditCap")
-                    : t("agent.tasks.creditCap")
-                }
-              />
-            )}
-            <RepeatPicker
-              value={repeat}
-              onChange={setRepeat}
-              allowOnce
-              canSchedule={canSchedule}
-              onUpgrade={onUpgrade}
-            />
-          </>
-        )}
-        {running && turn?.taskId && (
-          <>
-            {turn.status === "paused" ? (
-              <Button
-                type="button"
-                variant="subtle"
-                size="sm"
-                data-slot="chat-resume"
-                aria-label={t("agent.tasks.resume")}
-                title={t("agent.tasks.resume")}
-                className="size-8 rounded-xl p-0"
-                onClick={() => {
-                  onControl("resume");
-                }}
-              >
-                <LuPlay className="size-3.5" aria-hidden="true" />
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="subtle"
-                size="sm"
-                disabled={turn.status === "needs_approval"}
-                data-slot="chat-pause"
-                aria-label={t("agent.tasks.pause")}
-                title={t("agent.tasks.pause")}
-                className="size-8 rounded-xl p-0"
-                onClick={() => {
-                  onControl("pause");
-                }}
-              >
-                <LuPause className="size-3.5" aria-hidden="true" />
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="soft"
-              size="sm"
-              data-slot="chat-stop"
-              aria-label={t("agent.tasks.stop")}
-              title={t("agent.tasks.stop")}
-              className="size-8 rounded-xl p-0 hover:bg-destructive/10 hover:text-destructive-text"
-              onClick={() => {
-                onControl("stop");
-              }}
-            >
-              <LuSquare className="size-3 fill-current" aria-hidden="true" />
-            </Button>
-          </>
-        )}
-        <Button
-          type="submit"
-          size="sm"
-          disabled={disabled || sending || blocked || !text.trim()}
-          aria-busy={sending}
-          data-slot="chat-send"
-          aria-label={sendLabel}
-          title={sendLabel}
-          className={
-            target === "chat"
-              ? "size-8 rounded-xl p-0"
-              : "h-8 gap-1.5 rounded-xl px-3 text-xs"
-          }
-        >
-          {target === "chat" ? (
-            <LuArrowUp className="size-4" aria-hidden="true" />
-          ) : (
-            sendLabel
-          )}
-        </Button>
-      </div>
+      {hero ? (
+        <div className="flex flex-col gap-2 rounded-3xl bg-foreground/5 p-2 transition-colors duration-150 focus-within:bg-foreground/7 motion-reduce:transition-none">
+          {input}
+          <div className="flex min-w-0 items-center gap-1">
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+              {leading}
+            </div>
+            {controls}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-end gap-1 rounded-2xl bg-foreground/5 p-1.5 transition-colors duration-150 focus-within:bg-foreground/7 motion-reduce:transition-none">
+          {input}
+          {controls}
+        </div>
+      )}
       <span
         id={hintId}
-        className="hidden truncate px-3 text-[11px] text-muted-foreground [@media(min-height:640px)]:block"
+        className={cn(
+          "truncate px-3 text-[11px] text-muted-foreground",
+          hero ? "sr-only" : "hidden [@media(min-height:640px)]:block",
+        )}
       >
         {t("agent.chat.hint")}
       </span>

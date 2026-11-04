@@ -16,6 +16,7 @@ import {
   isWebUrl,
   MAX_CONCURRENCY,
   MAX_PROMPT_CHARS,
+  nextRunAt,
   promptTitle,
   REPEAT_PRESETS,
   repeatCron,
@@ -276,4 +277,25 @@ test("a run becomes a routine on its profiles, and shows its most urgent state",
     "needs_approval",
   );
   assert.equal(batchStatus({ ...batch, finished: false }), "running");
+});
+
+test("a schedule's next run is the first time after now that it fires", () => {
+  const zone = "Europe/Tirane";
+  const at = (text) => new Date(text);
+  // 2026-11-05 is a Thursday.
+  const thursday = at("2026-11-05T10:30:00");
+  const next = (cron) =>
+    nextRunAt({ cron, timezone: zone }, thursday, zone)?.toString();
+  assert.equal(next("0 9 * * 1-5"), at("2026-11-06T09:00:00").toString());
+  assert.equal(next("45 10 * * *"), at("2026-11-05T10:45:00").toString());
+  assert.equal(next("0 8 * * 0,6"), at("2026-11-07T08:00:00").toString());
+  assert.equal(next("0 9 * * 4"), at("2026-11-12T09:00:00").toString());
+  assert.equal(next("15 * * * *"), at("2026-11-05T11:15:00").toString());
+  assert.equal(next("*/20 * * * *"), at("2026-11-05T10:40:00").toString());
+  assert.equal(next("0 9 1 * *"), undefined);
+  assert.equal(
+    nextRunAt({ cron: "0 9 * * *", timezone: "Asia/Tokyo" }, thursday, zone),
+    null,
+  );
+  assert.equal(nextRunAt(null, thursday, zone), null);
 });

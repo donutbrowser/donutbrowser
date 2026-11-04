@@ -4032,14 +4032,20 @@ test("scheduled recipes stay behind the plan, and a schedule is built from the f
       // A plan without schedules never reaches the form.
       await signIn("free");
       await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
-      await app.clickSelector('[data-testid="agent-tab-schedules"]');
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-testid="agent-setup-plan"]'));`,
+          ),
+        { description: "the one plan state" },
+      );
       assert.equal(
         await app.execute(
-          `return !document.querySelector('[data-slot="agent-schedules"]');`,
+          `return !document.querySelector('[data-slot="agent-schedules"]') &&
+             !document.querySelector('[data-testid^="agent-tab-"]');`,
         ),
         true,
-        "the schedules list is not shown without the plan",
+        "no views and no schedules list without the plan",
       );
       await app.clickSelector(`[aria-label="${en.rail.profiles}"]`);
 
@@ -4599,7 +4605,7 @@ test("the agent page guides setup, then shows agents, requests, notes, take-over
         // The Conversation tab carries the open-request count after its label.
         assert.deepEqual(
           await app.execute(
-            `return [...document.querySelectorAll('[role="tab"]')].map((node) => node.textContent.trim().replace(/\\d+$/, ""));`,
+            `return [...document.querySelectorAll('[data-testid^="agent-tab-"]')].map((node) => node.textContent.trim().replace(/\\d+$/, ""));`,
           ),
           [
             en.agent.tabs.conversation,
@@ -7973,10 +7979,11 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
     );
     await dismissSurface(app);
     await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
+    // A free account has no remote control: one plan state.
     await app.waitFor(
       () =>
         app.execute(
-          `return Boolean(document.querySelector('[data-testid="agent-tab-conversation"]'));`,
+          `return Boolean(document.querySelector('[data-testid="agent-setup-plan"]'));`,
         ),
       { description: "the agent page" },
     );
@@ -7988,13 +7995,7 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
       chat: Boolean(document.querySelector('[data-slot="agent-chat"]')),
       text: document.body.innerText,
     };`);
-    assert.deepEqual(shown.tabs, [
-      "agent-tab-conversation",
-      "agent-tab-profiles",
-      "agent-tab-activity",
-      "agent-tab-recipes",
-      "agent-tab-schedules",
-    ]);
+    assert.deepEqual(shown.tabs, []);
     assert.equal(shown.credits, false);
     assert.equal(shown.tasks, false);
     assert.equal(shown.chat, false);
@@ -8014,6 +8015,83 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
     ]) {
       assert.equal(await agentCallCount(app, command), 0, `${command} called`);
     }
+  });
+});
+
+test("with the agent but no engine in Wayfern yet, the chat shows and a send waits for the update", async () => {
+  await withApp("ui-agent-no-engine", async (app) => {
+    await createUiProfile(app, "Atlas");
+    for (const [command, reply] of [
+      ["get_agent_engine_status", { supported: false, checked: true }],
+      ["list_agent_chats", []],
+      ["list_agent_batches", []],
+      ["list_agent_routines", []],
+      ["get_agent_credits", null],
+      ["get_agent_chat_sync", { locked: false }],
+      ["watch_agent_chats", null],
+      ["create_agent_chat", null],
+      ["get_browser_release_types", { stable: "999.0.0.0" }],
+    ]) {
+      await stubCommand(app, command, reply);
+    }
+    await signInWithAgent(app, agentUser(true));
+    await app.waitForText("Atlas");
+    await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return Boolean(document.querySelector('[data-slot="chat-empty"]')) &&
+             document.querySelectorAll('[data-slot="agent-starter"]').length === 4;`,
+        ),
+      { description: "the chat, without the engine" },
+    );
+
+    // A starter fills the box and selects the part to change.
+    await app.clickSelector(
+      '[data-slot="agent-starter"][data-starter="orders"]',
+    );
+    await app.waitFor(
+      () =>
+        app.execute(
+          `const box = document.querySelector('[data-slot="chat-input"]');
+           return box.value.slice(box.selectionStart, box.selectionEnd) === "[site]";`,
+        ),
+      { description: "the starter's [site] selected" },
+    );
+
+    await app.clickSelector('[data-slot="chat-send"]');
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return Boolean(document.querySelector('[data-slot="agent-engine-missing"]'));`,
+        ),
+      { description: "the update notice" },
+    );
+    const notice = await app.execute(
+      `return {
+         text: document.querySelector('[data-slot="agent-engine-missing"]').innerText,
+         kept: document.querySelector('[data-slot="chat-input"]').value.length > 0,
+         update: Boolean(document.querySelector('[data-slot="agent-engine-update"]')),
+       };`,
+    );
+    assert.ok(notice.text.includes(en.agent.engine.title), notice.text);
+    assert.ok(notice.text.includes(en.agent.engine.updateReady), notice.text);
+    assert.equal(notice.kept, true, "the words stay in the box");
+    assert.equal(notice.update, true, "a newer Wayfern can be installed now");
+    assert.equal(
+      await agentCallCount(app, "create_agent_chat"),
+      0,
+      "nothing goes to the engine",
+    );
+    await captureBothThemes(app, "agent-no-engine");
+    await app.clickSelector('[data-slot="agent-engine-dismiss"]');
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return !document.querySelector('[data-slot="agent-engine-missing"]');`,
+        ),
+      { description: "the notice closed" },
+    );
   });
 });
 
@@ -8042,16 +8120,6 @@ async function captureBothThemes(app, label) {
      root.classList.remove("light", "dark");
      root.classList.add(arguments[0]);`,
     [mode],
-  );
-}
-
-/** A key press on an element, the way the browser dispatches one. */
-async function pressKeyOn(app, selector, key) {
-  await app.execute(
-    `document.querySelector(arguments[0]).dispatchEvent(
-       new KeyboardEvent("keydown", { key: arguments[1], bubbles: true }),
-     );`,
-    [selector, key],
   );
 }
 
@@ -8109,14 +8177,15 @@ test("the chat runs a task in many profiles, saves it as a routine, schedules, r
           ),
         { description: "the composer set to run" },
       );
-      const tabs = await app.execute(
-        `return [...document.querySelectorAll('[data-testid^="agent-tab-"]')].map((n) => n.dataset.testid);`,
-      );
-      assert.equal(tabs[0], "agent-tab-chat");
-      assert.ok(
-        !tabs.includes("agent-tab-tasks") &&
-          !tabs.includes("agent-tab-routines"),
-        "tasks and routines live in the chat",
+      assert.deepEqual(
+        await app.execute(
+          `return {
+             tabs: document.querySelectorAll('[data-testid^="agent-tab-"]').length,
+             console: Boolean(document.querySelector('[data-slot="agent-console-open"]')),
+           };`,
+        ),
+        { tabs: 0, console: true },
+        "chats lead; connected agents wait behind the sidebar",
       );
       assert.match(
         await app.execute(
@@ -8151,19 +8220,28 @@ test("the chat runs a task in many profiles, saves it as a routine, schedules, r
         () =>
           app.execute(
             `return document.querySelectorAll('[data-slot="agent-batch-tile"]').length === 4 &&
-              document.querySelectorAll('[data-slot="agent-step"]').length >= 2 &&
               document.querySelectorAll('[data-slot="agent-run-item"]').length === 1;`,
           ),
         {
           timeoutMs: 30_000,
-          description: "four tiles, a live stream and the run listed",
+          description: "four tiles and the run listed",
         },
       );
-      // A script click: a WebDriver click scrolls the page to the tile first.
-      await app.execute(
-        `document.querySelector('[data-slot="agent-batch-tile"]:nth-child(2)').click();`,
-      );
       await captureBothThemes(app, "agent-batch-4-running");
+      // A tile opens that profile's live steps. A script click: a WebDriver
+      // click scrolls the page to the tile first.
+      await app.execute(
+        `document.querySelectorAll('[data-slot="agent-batch-tile"]')[1].click();`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-step"]').length >= 2;`,
+          ),
+        { timeoutMs: 30_000, description: "a live step stream" },
+      );
+      await captureBothThemes(app, "agent-batch-4-profile");
+      await app.clickSelector('[data-slot="agent-run-back"]');
       await app.waitFor(
         () =>
           app.execute(
@@ -8371,10 +8449,13 @@ test("a run that asks waits for an answer in the run, and a free plan sees the w
         "[approval] Book the 09:40 flight and stop before paying",
       );
       await app.clickSelector('[data-slot="chat-send"]');
+      // The tile that asks opens its profile and the question.
       await app.waitFor(
         () =>
           app.execute(
-            `return Boolean(document.querySelector('[data-slot="agent-approval"]'));`,
+            `const asks = document.querySelector('[data-slot="agent-batch-tile"][data-state="needs_you"]');
+             asks?.click();
+             return Boolean(document.querySelector('[data-slot="agent-approval"]'));`,
           ),
         { timeoutMs: 30_000, description: "the approval" },
       );
@@ -8388,23 +8469,33 @@ test("a run that asks waits for an answer in the run, and a free plan sees the w
               approve.click();
               return false;
             }
+            const back = document.querySelector('[data-slot="agent-run-back"]');
+            if (back) {
+              back.click();
+              return false;
+            }
             const first = document.querySelector('[data-slot="agent-batch-tile"]');
             if (first?.dataset.state === "needs_you") first.click();
             return false;
           `),
         { timeoutMs: 60_000, description: "both answered and the run done" },
       );
-      assert.ok(
-        await app.execute(
-          `return Boolean(document.querySelector('[data-slot="agent-result"]'));`,
-        ),
+      await app.execute(
+        `document.querySelector('[data-slot="agent-batch-tile"]').click();`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-result"]'));`,
+          ),
+        { description: "a profile's result" },
       );
     },
     { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
   );
 });
 
-test("an agent run on many profiles stays calm: strip, filters, keys and the one that asks", async () => {
+test("an agent run on many profiles stays calm: strip, filters, a tile per profile and the one that asks", async () => {
   await withApp(
     "ui-agent-many",
     async (app) => {
@@ -8419,16 +8510,15 @@ test("an agent run on many profiles stays calm: strip, filters, keys and the one
       await signInWithAgent(app, agentUser(true));
       await app.waitForText("Store 25");
       await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
-      // With the agent, Chat leads and is the default tab.
+      // With the agent, a new chat leads; connected agents sit in the sidebar.
       await app.waitFor(
         () =>
           app.execute(
-            `const tabs = [...document.querySelectorAll('[data-testid^="agent-tab-"]')];
-             return tabs[0]?.dataset.testid === "agent-tab-chat" &&
-               tabs[0].getAttribute("data-state") === "active" &&
-               tabs[1]?.dataset.testid === "agent-tab-conversation";`,
+            `return Boolean(document.querySelector('[data-slot="chat-empty"]')) &&
+               Boolean(document.querySelector('[data-slot="agent-console-open"]')) &&
+               !document.querySelector('[data-testid^="agent-tab-"]');`,
           ),
-        { description: "Chat first and chosen" },
+        { description: "a new chat first" },
       );
       const started = await app.invoke("start_agent_batch", {
         request: {
@@ -8458,10 +8548,7 @@ test("an agent run on many profiles stays calm: strip, filters, keys and the one
         rows: document.querySelectorAll('[data-slot="agent-batch-tile"]').length,
       };`);
       assert.equal(shape.segments, 25, "one segment per profile");
-      assert.ok(
-        shape.rows < 25,
-        `only the rows on screen render (${shape.rows})`,
-      );
+      assert.equal(shape.rows, 25, "one tile per profile");
       await captureBothThemes(app, "agent-batch-25-running");
 
       // A count filters the rows; a second click shows them all again.
@@ -8482,47 +8569,38 @@ test("an agent run on many profiles stays calm: strip, filters, keys and the one
         failedFilter,
       ]);
 
-      // Arrows move through the rows and Enter opens the one chosen.
-      const rows = '[data-slot="agent-batch-rows"]';
-      await app.execute(`document.querySelector(arguments[0]).focus();`, [
-        rows,
-      ]);
-      await pressKeyOn(app, rows, "Home");
-      await pressKeyOn(app, rows, "ArrowDown");
-      await pressKeyOn(app, rows, "ArrowDown");
-      await pressKeyOn(app, rows, "Enter");
-      await app.waitFor(
-        () =>
-          app.execute(
-            `const third = document.querySelectorAll('[data-slot="agent-batch-tile"]')[2];
-             return third?.getAttribute("aria-selected") === "true" &&
-               document.querySelector('[data-slot="agent-step-stream"]')?.dataset.profileId === third.dataset.profileId;`,
-          ),
-        { description: "the third row open" },
+      // A tile opens that profile's steps; the way back shows every tile.
+      const third = await app.execute(
+        `const tile = document.querySelectorAll('[data-slot="agent-batch-tile"]')[2];
+         tile.click();
+         return tile.dataset.profileId;`,
       );
-      await pressKeyOn(app, rows, "End");
-      await pressKeyOn(app, rows, "Enter");
       await app.waitFor(
         () =>
           app.execute(
-            `const open = document.querySelector('[data-slot="agent-batch-tile"][aria-selected="true"]');
-             return Boolean(open) && open.getBoundingClientRect().bottom <= document.querySelector(arguments[0]).getBoundingClientRect().bottom + 1;`,
-            [rows],
+            `return document.querySelector('[data-slot="agent-step-stream"]')?.dataset.profileId === arguments[0];`,
+            [third],
           ),
-        { description: "the last row scrolled into view and open" },
+        { description: "the third profile's steps" },
+      );
+      await app.clickSelector('[data-slot="agent-run-back"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-batch-tile"]').length === 25 &&
+               !document.querySelector('[data-slot="agent-step-stream"]');`,
+          ),
+        { description: "back to every tile" },
       );
 
       // The one that asks is answered from its own detail.
-      await app.execute(
-        `document.querySelector('[data-slot="agent-batch-rows"]').scrollTop = 0;`,
-      );
       await app.waitFor(
         () =>
           app.execute(
-            `const first = document.querySelector('[data-slot="agent-batch-tile"]');
-             if (first?.dataset.state !== "needs_you") return false;
-             first.click();
-             return Boolean(document.querySelector('[data-slot="agent-approval"]'));`,
+            `if (document.querySelector('[data-slot="agent-approval"]')) return true;
+             const first = document.querySelector('[data-slot="agent-batch-tile"]');
+             if (first?.dataset.state === "needs_you") first.click();
+             return false;`,
           ),
         { description: "the approval in the detail" },
       );
@@ -8535,6 +8613,11 @@ test("an agent run on many profiles stays calm: strip, filters, keys and the one
             const approve = document.querySelector('[data-slot="agent-approval-approve"]:not([disabled])');
             if (approve) {
               approve.click();
+              return false;
+            }
+            const back = document.querySelector('[data-slot="agent-run-back"]');
+            if (back) {
+              back.click();
               return false;
             }
             const first = document.querySelector('[data-slot="agent-batch-tile"]');
@@ -8622,13 +8705,11 @@ test("the agent chat streams steps, asks, answers in markdown, follows up, start
       await app.waitFor(
         () =>
           app.execute(
-            `const tabs = [...document.querySelectorAll('[data-testid^="agent-tab-"]')];
-             return tabs[0]?.dataset.testid === "agent-tab-chat" &&
-               tabs[0].getAttribute("data-state") === "active" &&
+            `return !document.querySelector('[data-testid^="agent-tab-"]') &&
                Boolean(document.querySelector('[data-slot="chat-empty"]')) &&
                document.activeElement?.dataset.slot === "chat-input";`,
           ),
-        { description: "Chat first, empty, with the composer focused" },
+        { description: "a new chat, with the composer focused" },
       );
       assert.equal(
         await app.execute(
@@ -9090,7 +9171,6 @@ test("a computer without the chat key keeps its chats, says so in one line, and 
       text: "Find a quiet hotel in Porto",
     });
     await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
-    await app.clickSelector('[data-testid="agent-tab-chat"]');
     await app.waitFor(
       () =>
         app.execute(
@@ -9120,7 +9200,7 @@ test("a computer without the chat key keeps its chats, says so in one line, and 
        return line.getBoundingClientRect().width > 0;`,
     );
     if (!inPanel) {
-      await app.clickSelector('[data-slot="chat-list-toggle"]');
+      await app.clickSelector('[data-slot="agent-sidebar-toggle"]');
     }
     await app.clickText(en.agent.chat.sync.erase);
     await app.waitForText(en.agent.chat.sync.eraseBody);

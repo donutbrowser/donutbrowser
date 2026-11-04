@@ -4020,14 +4020,12 @@
     "deletedMany_many": "{{count}} éléments supprimés"
   },
   "agent": {
-    "description": "Voyez ce que fait votre agent IA dans Donut, répondez à ses questions et intervenez quand une page a besoin de vous.",
     "tabs": {
       "conversation": "Conversation",
       "profiles": "Profils",
       "activity": "Activité",
       "recipes": "Recettes",
-      "schedules": "Planifications",
-      "chat": "Chat"
+      "schedules": "Planifications"
     },
     "header": {
       "quota": "Il reste {{left}} appels sur {{limit}} pour cette heure",
@@ -4375,7 +4373,8 @@
       "stepCount_many": "{{count}} étapes",
       "stepCount_other": "{{count}} étapes",
       "filterLabel": "Afficher les profils par état",
-      "rowsLabel": "Profils de cette exécution"
+      "rowsLabel": "Profils de cette exécution",
+      "allProfilesBack": "Retour à tous les profils"
     },
     "routines": {
       "updated": "Routine enregistrée",
@@ -4414,8 +4413,6 @@
       "justNow": "Maintenant",
       "delete": "Supprimer le chat",
       "confirmDelete": "Cliquez à nouveau pour supprimer",
-      "emptyTitle": "Que doit faire l’agent ?",
-      "emptyBody": "Il travaille dans le navigateur du profil choisi. Vous voyez chaque étape et pouvez intervenir à tout moment.",
       "noProfiles": "Créez d’abord un profil Wayfern. L’agent travaille dans son navigateur.",
       "placeholderStart": "Demandez quelque chose à l’agent",
       "placeholderFollowUp": "Écrire une suite",
@@ -4434,7 +4431,6 @@
       "worked_other": "{{count}} étapes effectuées",
       "groups": "Groupes",
       "profiles": "Profils",
-      "runs": "Exécutions",
       "routines": "Routines",
       "placeholderRun": "Demandez quelque chose à l’agent dans chaque profil",
       "placeholderRoutine": "Que doit faire la routine ?",
@@ -4473,6 +4469,55 @@
         "eraseBody": "Ils sont supprimés de tous les appareils. Les chats de cet ordinateur restent.",
         "eraseConfirm": "Effacer"
       }
+    },
+    "shell": {
+      "sidebar": "Chats, exécutions et routines",
+      "showSidebar": "Afficher la barre latérale"
+    },
+    "sidebar": {
+      "live": "En cours",
+      "noMatch": "Aucun résultat.",
+      "nextRun": "Prochaine {{when}}"
+    },
+    "console": {
+      "title": "Agents connectés",
+      "back": "Retour aux chats"
+    },
+    "home": {
+      "title": "Que doivent faire vos profils ?",
+      "startersLabel": "Idées pour commencer",
+      "starters": {
+        "warmUp": {
+          "title": "Préchauffer des profils",
+          "hint": "Naviguer comme un vrai visiteur",
+          "prompt": "Préchauffez ce profil : visitez pendant environ 10 minutes quelques sites d’actualité et d’achat connus, acceptez les bannières de cookies, faites défiler et ouvrez quelques pages comme un visiteur normal. Ne vous connectez pas et n’achetez rien."
+        },
+        "accounts": {
+          "title": "Vérifier les comptes",
+          "hint": "Connecté, limité ou bloqué",
+          "prompt": "Ouvrez mon compte sur [site] et dites-moi s’il est connecté, limité ou s’il demande une vérification. S’il est déconnecté et que le navigateur a enregistré le mot de passe, reconnectez-vous."
+        },
+        "orders": {
+          "title": "Vérifier les commandes",
+          "hint": "Nouvelles commandes depuis hier",
+          "prompt": "Ouvrez mon tableau de bord vendeur sur [site] et listez les nouvelles commandes depuis hier : numéro de commande, acheteur, total et statut."
+        },
+        "collect": {
+          "title": "Collecter des données",
+          "hint": "Des pages vers un tableau",
+          "prompt": "Allez sur [page] et rassemblez dans un tableau le nom, le prix et le stock de chaque produit."
+        }
+      }
+    },
+    "engine": {
+      "title": "L’agent arrive avec la prochaine mise à jour de Wayfern",
+      "body": "Donut l’installe tout seul. Votre message reste ici pour que vous puissiez l’envoyer à ce moment-là.",
+      "updateReady": "Une version plus récente de Wayfern est prête à être installée.",
+      "updating": "Mise à jour de Wayfern, {{percent}} %",
+      "updateAction": "Mettre à jour Wayfern"
+    },
+    "live": {
+      "label": "Vue en direct de {{name}}"
     }
   },
   "proxyDistribution": {

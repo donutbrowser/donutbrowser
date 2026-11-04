@@ -3972,14 +3972,12 @@
     "deletedMany_other": "{{count}} 件を削除しました"
   },
   "agent": {
-    "description": "AI エージェントが Donut で何をしているかを確認し、質問に答え、ページに人の操作が必要なときは代わりに対応できます。",
     "tabs": {
       "conversation": "会話",
       "profiles": "プロファイル",
       "activity": "アクティビティ",
       "recipes": "レシピ",
-      "schedules": "スケジュール",
-      "chat": "チャット"
+      "schedules": "スケジュール"
     },
     "header": {
       "quota": "この 1 時間の残り呼び出し: {{left}} / {{limit}}",
@@ -4324,7 +4322,8 @@
       "stepCount_one": "{{count}} ステップ",
       "stepCount_other": "{{count}} ステップ",
       "filterLabel": "状態でプロファイルを表示",
-      "rowsLabel": "この実行のプロファイル"
+      "rowsLabel": "この実行のプロファイル",
+      "allProfilesBack": "すべてのプロファイルに戻る"
     },
     "routines": {
       "updated": "ルーティンを保存しました",
@@ -4362,8 +4361,6 @@
       "justNow": "今",
       "delete": "チャットを削除",
       "confirmDelete": "もう一度クリックして削除",
-      "emptyTitle": "エージェントに何をさせますか？",
-      "emptyBody": "選んだプロファイルのブラウザで作業します。各ステップを確認でき、いつでも介入できます。",
       "noProfiles": "まず Wayfern プロファイルを作成してください。エージェントはそのブラウザで作業します。",
       "placeholderStart": "エージェントに依頼する",
       "placeholderFollowUp": "続けて質問する",
@@ -4381,7 +4378,6 @@
       "worked_other": "{{count}} ステップを実行",
       "groups": "グループ",
       "profiles": "プロファイル",
-      "runs": "実行",
       "routines": "ルーティン",
       "placeholderRun": "各プロファイルでエージェントに依頼する",
       "placeholderRoutine": "ルーティンで何をしますか？",
@@ -4420,6 +4416,55 @@
         "eraseBody": "すべてのデバイスから削除されます。このコンピューターのチャットは残ります。",
         "eraseConfirm": "消去"
       }
+    },
+    "shell": {
+      "sidebar": "チャット、実行、ルーティン",
+      "showSidebar": "サイドバーを表示"
+    },
+    "sidebar": {
+      "live": "実行中",
+      "noMatch": "一致するものはありません。",
+      "nextRun": "次回 {{when}}"
+    },
+    "console": {
+      "title": "接続中のエージェント",
+      "back": "チャットに戻る"
+    },
+    "home": {
+      "title": "プロファイルに何をさせますか？",
+      "startersLabel": "はじめのアイデア",
+      "starters": {
+        "warmUp": {
+          "title": "プロファイルを慣らす",
+          "hint": "本物の訪問者のように閲覧",
+          "prompt": "このプロファイルを慣らしてください：人気のニュースサイトやショッピングサイトを約 10 分間訪れ、Cookie バナーを承諾し、普通の訪問者のようにスクロールしていくつかのページを開いてください。ログインや購入はしないでください。"
+        },
+        "accounts": {
+          "title": "アカウントを確認",
+          "hint": "ログイン中、制限、ロック",
+          "prompt": "[サイト] の私のアカウントを開き、ログインしているか、制限されているか、確認を求められているかを教えてください。ログアウトしていてブラウザにパスワードが保存されている場合は、もう一度ログインしてください。"
+        },
+        "orders": {
+          "title": "注文を確認",
+          "hint": "昨日以降の新しい注文",
+          "prompt": "[サイト] の販売者ダッシュボードを開き、昨日以降の新しい注文を一覧にしてください：注文番号、購入者、合計、ステータス。"
+        },
+        "collect": {
+          "title": "データを集める",
+          "hint": "ページから表へ",
+          "prompt": "[ページ] に移動し、各商品の名前、価格、在庫を表にまとめてください。"
+        }
+      }
+    },
+    "engine": {
+      "title": "エージェントは次の Wayfern アップデートで使えるようになります",
+      "body": "Donut が自動でインストールします。メッセージはここに残るので、そのときに送信できます。",
+      "updateReady": "新しい Wayfern をインストールできます。",
+      "updating": "Wayfern を更新中、{{percent}}%",
+      "updateAction": "Wayfern を更新"
+    },
+    "live": {
+      "label": "{{name}} のライブビュー"
     }
   },
   "proxyDistribution": {

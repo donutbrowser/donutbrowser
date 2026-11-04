@@ -20,28 +20,37 @@ import type { CloudUser } from "@/types";
 const RECHECK_MS = 60_000;
 
 /**
- * Whether the agent may show at all: the account has the `agent` rollout flag
- * and the installed Wayfern has the engine. Nothing is asked of the backend
- * without the flag, so an account without it sees and sends nothing new.
+ * The agent on this device: whether the account has the `agent` rollout flag,
+ * and whether the installed Wayfern runs the engine. Nothing is asked of the
+ * backend without the flag, so an account without it sees and sends nothing
+ * new. `missing` means the chat shows and a send waits for a Wayfern update.
  */
-export function useAgentAvailability(cloudUser: CloudUser | null): boolean {
+export interface AgentAvailability {
+  entitled: boolean;
+  engine: "checking" | "ready" | "missing";
+}
+
+export function useAgentAvailability(
+  cloudUser: CloudUser | null,
+): AgentAvailability {
   const entitled = hasAgentAccess(cloudUser);
-  const _userId = cloudUser?.id ?? null;
-  const [supported, setSupported] = useState(false);
+  const [engine, setEngine] = useState<AgentAvailability["engine"]>("checking");
 
   useEffect(() => {
     if (!entitled) {
-      setSupported(false);
+      setEngine("checking");
       return;
     }
     let cancelled = false;
     let timer: number | undefined;
     const check = () => {
+      window.clearTimeout(timer);
       getAgentEngineStatus()
         .then((status) => {
           if (cancelled) return;
-          setSupported(status.supported);
-          if (!status.checked) {
+          if (status.checked || status.supported) {
+            setEngine(status.supported ? "ready" : "missing");
+          } else {
             timer = window.setTimeout(check, RECHECK_MS);
           }
         })
@@ -50,17 +59,31 @@ export function useAgentAvailability(cloudUser: CloudUser | null): boolean {
         });
     };
     check();
-    const unlisten = listen("agent-engine-changed", check);
+    const unlistenEngine = listen("agent-engine-changed", check);
+    // A new Wayfern may bring the engine.
+    const unlistenDownload = listen<{ browser: string; stage: string }>(
+      "download-progress",
+      (event) => {
+        if (
+          event.payload.browser === "wayfern" &&
+          event.payload.stage === "completed"
+        ) {
+          check();
+        }
+      },
+    );
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
-      void unlisten.then((off) => {
-        off();
-      });
+      for (const unlisten of [unlistenEngine, unlistenDownload]) {
+        void unlisten.then((off) => {
+          off();
+        });
+      }
     };
   }, [entitled]);
 
-  return entitled && supported;
+  return { entitled, engine: entitled ? engine : "checking" };
 }
 
 /** Every run this session, newest first, live. */

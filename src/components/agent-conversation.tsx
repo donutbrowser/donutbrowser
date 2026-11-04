@@ -262,7 +262,7 @@ export function NeedsYouList({
     >
       <h3
         id="agent-needs-you-title"
-        className="flex items-center gap-2 text-xs font-semibold tracking-wide text-warning-text uppercase"
+        className="flex items-center gap-2 text-xs font-medium text-warning-text"
       >
         {t("agent.request.needsYou")}
         <span className="tabular-nums">{requests.length}</span>
@@ -785,7 +785,7 @@ function Composer({
 
   return (
     <form
-      className="flex shrink-0 flex-col gap-2 border-t border-foreground/6 p-3"
+      className="flex shrink-0 flex-col gap-2 p-3 pt-1"
       onSubmit={(event) => {
         event.preventDefault();
         void submit();

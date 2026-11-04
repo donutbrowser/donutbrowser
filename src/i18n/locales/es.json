@@ -4020,14 +4020,12 @@
     "deletedMany_many": "{{count}} elementos eliminados"
   },
   "agent": {
-    "description": "Mira lo que hace tu agente de IA en Donut, responde a sus preguntas e intervén cuando una página te necesite.",
     "tabs": {
       "conversation": "Conversación",
       "profiles": "Perfiles",
       "activity": "Actividad",
       "recipes": "Recetas",
-      "schedules": "Programaciones",
-      "chat": "Chat"
+      "schedules": "Programaciones"
     },
     "header": {
       "quota": "Quedan {{left}} de {{limit}} llamadas esta hora",
@@ -4375,7 +4373,8 @@
       "stepCount_many": "{{count}} pasos",
       "stepCount_other": "{{count}} pasos",
       "filterLabel": "Mostrar perfiles por estado",
-      "rowsLabel": "Perfiles de esta ejecución"
+      "rowsLabel": "Perfiles de esta ejecución",
+      "allProfilesBack": "Volver a todos los perfiles"
     },
     "routines": {
       "updated": "Rutina guardada",
@@ -4414,8 +4413,6 @@
       "justNow": "Ahora",
       "delete": "Eliminar chat",
       "confirmDelete": "Haz clic de nuevo para eliminar",
-      "emptyTitle": "¿Qué debe hacer el agente?",
-      "emptyBody": "Trabaja en el navegador del perfil que elijas. Ves cada paso y puedes intervenir en cualquier momento.",
       "noProfiles": "Primero crea un perfil de Wayfern. El agente trabaja en su navegador.",
       "placeholderStart": "Pide algo al agente",
       "placeholderFollowUp": "Escribe un seguimiento",
@@ -4434,7 +4431,6 @@
       "worked_other": "Completó {{count}} pasos",
       "groups": "Grupos",
       "profiles": "Perfiles",
-      "runs": "Ejecuciones",
       "routines": "Rutinas",
       "placeholderRun": "Pide algo al agente en cada perfil",
       "placeholderRoutine": "¿Qué debe hacer la rutina?",
@@ -4473,6 +4469,55 @@
         "eraseBody": "Se eliminan de todos los dispositivos. Los chats de este ordenador se mantienen.",
         "eraseConfirm": "Borrar"
       }
+    },
+    "shell": {
+      "sidebar": "Chats, ejecuciones y rutinas",
+      "showSidebar": "Mostrar la barra lateral"
+    },
+    "sidebar": {
+      "live": "En curso",
+      "noMatch": "No hay coincidencias.",
+      "nextRun": "Próxima {{when}}"
+    },
+    "console": {
+      "title": "Agentes conectados",
+      "back": "Volver a los chats"
+    },
+    "home": {
+      "title": "¿Qué deben hacer tus perfiles?",
+      "startersLabel": "Ideas para empezar",
+      "starters": {
+        "warmUp": {
+          "title": "Calentar perfiles",
+          "hint": "Navegar como un visitante real",
+          "prompt": "Calienta este perfil: visita durante unos 10 minutos algunos sitios populares de noticias y compras, acepta los avisos de cookies, desplázate y abre algunas páginas como un visitante normal. No inicies sesión ni compres nada."
+        },
+        "accounts": {
+          "title": "Revisar cuentas",
+          "hint": "Con sesión, limitada o bloqueada",
+          "prompt": "Abre mi cuenta en [sitio] y dime si tiene la sesión iniciada, si está limitada o si pide una verificación. Si la sesión está cerrada y el navegador tiene la contraseña guardada, vuelve a iniciar sesión."
+        },
+        "orders": {
+          "title": "Revisar pedidos",
+          "hint": "Pedidos nuevos desde ayer",
+          "prompt": "Abre mi panel de vendedor en [sitio] y haz una lista de los pedidos nuevos desde ayer: número de pedido, comprador, total y estado."
+        },
+        "collect": {
+          "title": "Recopilar datos",
+          "hint": "De páginas a una tabla",
+          "prompt": "Ve a [página] y recopila en una tabla el nombre, el precio y el stock de cada producto."
+        }
+      }
+    },
+    "engine": {
+      "title": "El agente llega con la próxima actualización de Wayfern",
+      "body": "Donut la instala solo. Tu mensaje se queda aquí para que lo envíes entonces.",
+      "updateReady": "Hay una versión más nueva de Wayfern lista para instalar.",
+      "updating": "Actualizando Wayfern, {{percent}} %",
+      "updateAction": "Actualizar Wayfern"
+    },
+    "live": {
+      "label": "Vista en vivo de {{name}}"
     }
   },
   "proxyDistribution": {

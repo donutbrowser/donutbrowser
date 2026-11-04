@@ -449,6 +449,54 @@ export function cronWords(cron: string): CronWords {
   return { kind: "weekly", minute, hour, weekday: weekday % 7 };
 }
 
+/**
+ * When a schedule fires next after `now`, in this device's time zone; null
+ * for a cron the words do not cover or a schedule kept in another zone.
+ */
+export function nextRunAt(
+  schedule: AgentRoutineSchedule | null,
+  now: Date,
+  localZone = localTimezone(),
+): Date | null {
+  if (!schedule || (schedule.timezone && schedule.timezone !== localZone)) {
+    return null;
+  }
+  const words = cronWords(schedule.cron);
+  const next = new Date(now);
+  next.setSeconds(0, 0);
+  switch (words.kind) {
+    case "minutes": {
+      const minute = next.getMinutes();
+      next.setMinutes(minute - (minute % words.every) + words.every);
+      return next;
+    }
+    case "hourly":
+      next.setMinutes(words.minute);
+      if (next <= now) next.setHours(next.getHours() + 1);
+      return next;
+    case "custom":
+      return null;
+  }
+  const fires = (day: number) => {
+    switch (words.kind) {
+      case "weekdays":
+        return day >= 1 && day <= 5;
+      case "weekends":
+        return day === 0 || day === 6;
+      case "weekly":
+        return day === words.weekday;
+      default:
+        return true;
+    }
+  };
+  next.setHours(words.hour, words.minute);
+  for (let days = 0; days < 8; days += 1) {
+    if (next > now && fires(next.getDay())) return next;
+    next.setDate(next.getDate() + 1);
+  }
+  return null;
+}
+
 /** How a schedule is chosen: a few common shapes, or any cron. */
 export type RepeatPreset =
   | "hourly"

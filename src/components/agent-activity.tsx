@@ -93,7 +93,7 @@ export function AgentActivityFeed({
   return (
     <div
       data-testid="agent-activity"
-      className="flex min-h-0 flex-1 flex-col gap-3"
+      className="@container flex min-h-0 flex-1 flex-col gap-3"
     >
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         <Label htmlFor={agentId} className="sr-only">
@@ -229,13 +229,13 @@ export function AgentActivityFeed({
                   <span className="w-32 shrink-0 truncate font-mono text-foreground">
                     {entry.tool}
                   </span>
-                  <span className="w-36 shrink-0 truncate text-foreground">
+                  <span className="hidden w-36 shrink-0 truncate text-foreground @xl:inline">
                     {entry.profile_id
                       ? (profileNames.get(entry.profile_id) ??
                         t("common.labels.unknownProfile"))
                       : ""}
                   </span>
-                  <span className="hidden min-w-0 flex-1 truncate text-muted-foreground @xl:inline">
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
                     {detail ?? ""}
                   </span>
                   <span className="ml-auto w-14 shrink-0 text-right tabular-nums text-muted-foreground">

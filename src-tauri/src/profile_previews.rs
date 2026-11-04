@@ -1,6 +1,6 @@
 //! Live previews of running profiles: one small picture of each window, taken
 //! over the browser's own debugging connection. Part of browser automation
-//! (Pro and up).
+//! (Pro and up), and of the agent while it works in a profile.
 
 use serde_json::{json, Value};
 
@@ -59,9 +59,10 @@ async fn capture(profile: &crate::profile::BrowserProfile) -> Result<String, Str
 /// is not running on this device.
 #[tauri::command]
 pub async fn capture_profile_preview(profile_id: String) -> Result<Option<String>, String> {
-  if !crate::cloud_auth::CLOUD_AUTH
-    .can_use_browser_automation()
-    .await
+  if !crate::agent_tasks::working_in(&profile_id)
+    && !crate::cloud_auth::CLOUD_AUTH
+      .can_use_browser_automation()
+      .await
   {
     return Err(crate::backend_error("PREVIEWS_NOT_ENTITLED"));
   }

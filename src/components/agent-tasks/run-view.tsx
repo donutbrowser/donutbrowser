@@ -1,25 +1,25 @@
 "use client";
 
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnimatePresence, motion } from "motion/react";
-import {
-  type CSSProperties,
-  type KeyboardEvent,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LuRotateCcw, LuSquare, LuX } from "react-icons/lu";
+import {
+  LuCheck,
+  LuClock,
+  LuHand,
+  LuLoaderCircle,
+  LuRotateCcw,
+  LuSquare,
+  LuX,
+} from "react-icons/lu";
+import { LiveFrame, LiveLine } from "@/components/agent-chat/live-view";
 import {
   StateDot,
   statusLabelKey,
   useNumber,
 } from "@/components/agent-tasks/parts";
 import { Button } from "@/components/ui/button";
-import { useMotionAllowed } from "@/hooks/use-motion-allowed";
-import { useScrollFade } from "@/hooks/use-scroll-fade";
+import { FadingScrollArea } from "@/components/ui/fading-scroll-area";
+import { FOCUS_RING } from "@/components/ui/focus-ring";
 import {
   type AgentBatch,
   type AgentTask,
@@ -36,11 +36,9 @@ import {
   taskState,
 } from "@/lib/agent-tasks";
 import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
-import { MOTION_EASE_OUT } from "@/lib/motion";
 import { showErrorToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 
-const ROW_HEIGHT = 46;
 /** The status a filter count is labelled with. */
 const STATE_LABEL: Record<(typeof TASK_STATES)[number], string> = {
   working: "running",
@@ -62,31 +60,6 @@ function rowLine(t: T, task: AgentTask): string {
   }
   if (task.lastStep && task.status !== "queued") return task.lastStep.text;
   return t(statusLabelKey(task.status));
-}
-
-/** A line that crossfades when its text changes, in place. */
-function LiveLine({ text, className }: { text: string; className?: string }) {
-  const animate = useMotionAllowed();
-  return (
-    <span className={cn("relative block h-4 overflow-hidden", className)}>
-      <AnimatePresence initial={false}>
-        <motion.span
-          key={text}
-          initial={animate ? { opacity: 0 } : false}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={
-            animate
-              ? { duration: 0.24, ease: MOTION_EASE_OUT }
-              : { duration: 0 }
-          }
-          className="absolute inset-0 truncate leading-4"
-        >
-          {text}
-        </motion.span>
-      </AnimatePresence>
-    </span>
-  );
 }
 
 /** One segment per profile, in the run's own order. */
@@ -178,182 +151,102 @@ function StateFilters({
   );
 }
 
-function RunRow({
-  id,
+const MARK_TEXT: Record<TaskState, string> = {
+  working: "text-primary",
+  needs_you: "text-warning-text",
+  done: "text-success",
+  failed: "text-destructive",
+  idle: "text-muted-foreground",
+};
+
+/** What a tile shows over a profile with no picture to show. */
+function TileMark({ state }: { state: TaskState }) {
+  const icon =
+    state === "done" ? (
+      <LuCheck className="size-4" />
+    ) : state === "failed" ? (
+      <LuX className="size-4" />
+    ) : state === "needs_you" ? (
+      <LuHand className="size-4" />
+    ) : state === "working" ? (
+      <LuLoaderCircle className="size-4 animate-spin motion-reduce:animate-none" />
+    ) : (
+      <LuClock className="size-4" />
+    );
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "grid size-9 place-items-center rounded-full bg-background",
+        MARK_TEXT[state],
+      )}
+    >
+      {icon}
+    </span>
+  );
+}
+
+function RunTile({
   task,
   name,
-  open,
-  cursor,
-  top,
+  image,
   onOpen,
 }: {
-  id: string;
   task: AgentTask;
   name: string;
-  open: boolean;
-  cursor: boolean;
-  top: number;
+  image: string | undefined;
   onOpen: () => void;
 }) {
   const { t } = useTranslation();
   const format = useNumber();
   const state = taskState(task.status);
+  const moving = isTaskMoving(task.status);
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: the listbox holds the focus and answers the keys for its rows
-    <div
-      id={id}
-      role="option"
-      tabIndex={-1}
-      aria-selected={open}
-      data-slot="agent-batch-tile"
-      data-profile-id={task.profileId}
-      data-status={task.status}
-      data-state={state}
-      onClick={onOpen}
-      style={{ height: ROW_HEIGHT - 2, transform: `translateY(${top}px)` }}
-      className={cn(
-        "absolute inset-x-0 top-0 flex cursor-pointer flex-col justify-center gap-0.5 rounded-lg px-3 transition-colors duration-150",
-        open
-          ? "bg-primary/10"
-          : state === "needs_you"
+    <li>
+      <button
+        type="button"
+        data-slot="agent-batch-tile"
+        data-profile-id={task.profileId}
+        data-status={task.status}
+        data-state={state}
+        onClick={onOpen}
+        className={cn(
+          "group flex w-full cursor-pointer flex-col gap-2 rounded-2xl p-1.5 text-left transition-colors duration-150 motion-reduce:transition-none",
+          FOCUS_RING,
+          state === "needs_you"
             ? "bg-warning/10 hover:bg-warning/15"
-            : cursor
-              ? "bg-foreground/5"
-              : "hover:bg-foreground/4",
-      )}
-    >
-      <span className="flex min-w-0 items-center gap-2">
-        <StateDot status={task.status} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {name}
-        </span>
-        <span className="flex shrink-0 items-center gap-3 text-[11px] tabular-nums text-muted-foreground">
-          {task.stepCount > 0 && (
-            <span>{t("agent.tasks.stepCount", { count: task.stepCount })}</span>
-          )}
-          {task.creditsUsed > 0 && (
-            <span
-              title={t("agent.tasks.credits", { n: format(task.creditsUsed) })}
-            >
-              {format(task.creditsUsed)}
-            </span>
-          )}
-        </span>
-      </span>
-      <LiveLine
-        text={rowLine(t, task)}
-        className={cn("pl-4 text-xs", STATE_TEXT[state])}
-      />
-    </div>
-  );
-}
-
-/** The profiles of a run, virtualized; arrows move, Enter opens. */
-function RunRows({
-  tasks,
-  nameOf,
-  openProfileId,
-  onOpen,
-  label,
-}: {
-  tasks: AgentTask[];
-  nameOf: (profileId: string) => string;
-  openProfileId: string | null;
-  onOpen: (profileId: string) => void;
-  label: string;
-}) {
-  const baseId = useId();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  useScrollFade(scrollRef);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [focused, setFocused] = useState(false);
-  const virtualizer = useVirtualizer({
-    count: tasks.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 8,
-  });
-  const cursorIndex = Math.max(
-    0,
-    tasks.findIndex((task) => task.profileId === (cursor ?? openProfileId)),
-  );
-  const rowId = (index: number) => `${baseId}-row-${index}`;
-
-  const move = (index: number) => {
-    const next = Math.min(Math.max(index, 0), tasks.length - 1);
-    if (next < 0) return;
-    setCursor(tasks[next].profileId);
-    virtualizer.scrollToIndex(next, { align: "auto" });
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    switch (event.key) {
-      case "ArrowDown":
-        move(cursorIndex + 1);
-        break;
-      case "ArrowUp":
-        move(cursorIndex - 1);
-        break;
-      case "Home":
-        move(0);
-        break;
-      case "End":
-        move(tasks.length - 1);
-        break;
-      case "Enter":
-      case " ": {
-        const task = tasks[cursorIndex];
-        if (task) onOpen(task.profileId);
-        break;
-      }
-      default:
-        return;
-    }
-    event.preventDefault();
-  };
-
-  const total = virtualizer.getTotalSize();
-  return (
-    <div
-      ref={scrollRef}
-      role="listbox"
-      tabIndex={0}
-      aria-label={label}
-      aria-activedescendant={tasks.length > 0 ? rowId(cursorIndex) : undefined}
-      data-slot="agent-batch-rows"
-      onKeyDown={onKeyDown}
-      onFocus={() => {
-        setFocused(true);
-      }}
-      onBlur={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget)) return;
-        setFocused(false);
-        setCursor(null);
-      }}
-      style={{ "--rows-h": `${total}px` } as CSSProperties}
-      className="scroll-fade -mx-1 h-[min(var(--rows-h),26rem)] shrink-0 overflow-y-auto rounded-xl px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring @3xl:h-auto @3xl:min-h-0 @3xl:flex-1"
-    >
-      <div className="relative" style={{ height: total }}>
-        {virtualizer.getVirtualItems().map((item) => {
-          const task = tasks[item.index];
-          return (
-            <RunRow
-              key={task.profileId}
-              id={rowId(item.index)}
-              task={task}
-              name={nameOf(task.profileId)}
-              open={task.profileId === openProfileId}
-              cursor={focused && item.index === cursorIndex}
-              top={item.start}
-              onOpen={() => {
-                setCursor(task.profileId);
-                onOpen(task.profileId);
-              }}
+            : "hover:bg-foreground/4",
+        )}
+      >
+        <LiveFrame
+          image={moving || state === "needs_you" ? image : undefined}
+          mark={<TileMark state={state} />}
+          className="aspect-[16/10] w-full rounded-xl"
+        />
+        <span className="flex min-w-0 flex-col gap-1 px-1 pb-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <StateDot
+              status={task.status}
+              className={cn(
+                moving && "animate-pulse motion-reduce:animate-none",
+              )}
             />
-          );
-        })}
-      </div>
-    </div>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+              {name}
+            </span>
+            {task.creditsUsed > 0 && (
+              <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                {t("agent.tasks.credits", { n: format(task.creditsUsed) })}
+              </span>
+            )}
+          </span>
+          <LiveLine
+            text={rowLine(t, task)}
+            className={cn("text-xs", STATE_TEXT[state])}
+          />
+        </span>
+      </button>
+    </li>
   );
 }
 
@@ -361,13 +254,14 @@ function RunRows({
 export function RunView({
   batch,
   nameOf,
-  openProfileId,
+  images,
   onOpen,
   onDismissed,
 }: {
   batch: AgentBatch;
   nameOf: (profileId: string) => string;
-  openProfileId: string | null;
+  /** The live picture of each profile the run works in. */
+  images: Record<string, string>;
   onOpen: (profileId: string) => void;
   onDismissed: (batchId: string) => void;
 }) {
@@ -402,7 +296,7 @@ export function RunView({
       data-slot="agent-batch"
       data-batch-id={batch.id}
       data-finished={batch.finished ? "true" : "false"}
-      className="flex min-w-0 flex-col gap-3 @3xl:min-h-0 @3xl:flex-1"
+      className="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
     >
       <header className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -480,13 +374,25 @@ export function RunView({
           />
         </div>
       )}
-      <RunRows
-        tasks={rows}
-        nameOf={nameOf}
-        openProfileId={openProfileId}
-        onOpen={onOpen}
-        label={t("agent.tasks.rowsLabel")}
-      />
+      <FadingScrollArea className="-mx-1 min-h-0 flex-1 px-1">
+        <ul
+          aria-label={t("agent.tasks.rowsLabel")}
+          data-slot="agent-batch-grid"
+          className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5 pb-2"
+        >
+          {rows.map((task) => (
+            <RunTile
+              key={task.profileId}
+              task={task}
+              name={nameOf(task.profileId)}
+              image={images[task.profileId]}
+              onOpen={() => {
+                onOpen(task.profileId);
+              }}
+            />
+          ))}
+        </ul>
+      </FadingScrollArea>
     </article>
   );
 }
