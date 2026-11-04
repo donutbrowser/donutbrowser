@@ -8975,9 +8975,13 @@ test("a chat asks the app to save, change, run and delete routines and to run in
       assert.match((await lastAnswer()).answer, /DECLINED/);
       assert.equal((await app.invoke("list_agent_batches")).length, 0);
 
-      // A stop drops the open card.
+      // A stop drops the open card, and a late approval of it does nothing.
       await sendChat(app, "[host:delete] Delete it");
       card = await waitHostCard(app, "routines.delete");
+      const chatId = (await app.invoke("list_agent_chats"))[0].id;
+      const dropped = (
+        await app.invoke("get_agent_chat", { chatId })
+      ).turns[4].hostCalls.find((call) => call.state === "pending");
       await app.clickSelector('[data-slot="chat-stop"]');
       await waitChat(
         app,
@@ -8989,6 +8993,14 @@ test("a chat asks the app to save, change, run and delete routines and to run in
           `return document.querySelectorAll('[data-slot="chat-host-call"]').length;`,
         ),
         0,
+      );
+      assert.match(
+        await app.invokeError("answer_agent_chat_host_call", {
+          chatId,
+          callId: dropped.callId,
+          request: dropped.request,
+        }),
+        /AGENT_TASK_NOT_FOUND/,
       );
       assert.equal((await app.invoke("list_agent_routines")).length, 1);
 
@@ -9144,6 +9156,20 @@ test("a computer without the chat key keeps its chats, says so in one line, and 
       [server.keyId],
       "this computer holds the new key",
     );
+
+    // Erasing again starts over under another key and seals the chat again.
+    const firstKey = server.keyId;
+    await app.invoke("erase_synced_agent_chats");
+    server = await app.waitFor(
+      async () => {
+        const now = await readCloud();
+        return now.keyId && now.keyId !== firstKey && now.chats?.[chat.id]?.data
+          ? now
+          : null;
+      },
+      { description: "the chat sealed under a second key" },
+    );
+    assert.ok(server.chats[chat.id].data.startsWith(`v1.${server.keyId}.`));
     await app.invoke("watch_agent_chats", { open: false });
   } catch (error) {
     await app.capture("failure");
