@@ -69,8 +69,9 @@ function useSessionNamer(sessions: readonly AgentSession[]): SessionNamer {
 
 function ProfileChip({ name }: { name: string }) {
   return (
-    <span className="max-w-48 truncate rounded-md bg-foreground/6 px-1.5 py-0.5 text-[11px] text-foreground">
-      {name}
+    <span className="flex max-w-48 items-center gap-x-1.5 truncate">
+      <span aria-hidden="true">·</span>
+      <span className="truncate text-foreground/80">{name}</span>
     </span>
   );
 }

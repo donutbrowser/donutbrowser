@@ -243,7 +243,7 @@ function ChatView({
           <div className="mx-auto w-full max-w-2xl shrink-0">{composer}</div>
         </div>
         {liveProps && (
-          <div className="hidden w-[min(28rem,44%)] shrink-0 flex-col @[52rem]:flex">
+          <div className="hidden w-[min(40rem,52%)] shrink-0 flex-col @[52rem]:flex">
             <LiveView layout="panel" {...liveProps} />
           </div>
         )}
