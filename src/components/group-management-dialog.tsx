@@ -44,7 +44,6 @@ import {
 } from "@/components/managed-data-table";
 import { ProfileUsageButton } from "@/components/profile-usage-button";
 import { SortableColumnHeader } from "@/components/table-controls";
-import { GroupsScene } from "@/components/tips/scenes-essentials";
 import {
   AnimatedTabs,
   AnimatedTabsList,
@@ -607,7 +606,7 @@ export function GroupManagementDialog({
                 error ? undefined : (
                   <EntityEmptyState
                     entity="groups"
-                    scene={<GroupsScene />}
+                    clip="groups"
                     title={t("entities.empty.groups.title")}
                     description={t("entities.empty.groups.body")}
                   >

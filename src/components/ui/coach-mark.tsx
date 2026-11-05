@@ -1007,23 +1007,23 @@ export function CoachMark({
   );
 }
 
-/** The drawing at the top of a card. Decorative. */
-export function CoachMarkScene({
-  className,
+/**
+ * The recording at the top of a card. Decorative. It keeps the clip's
+ * aspect, and gives way first on a short window.
+ */
+export function CoachMarkClip({
+  aspect,
   children,
 }: {
-  className?: string;
+  aspect: number;
   children: ReactNode;
 }) {
   return (
     <div
       aria-hidden="true"
-      data-slot="coach-mark-scene"
-      className={cn(
-        "relative mx-2 mt-2 h-28 overflow-hidden rounded-lg bg-foreground/[0.03] ring-1 ring-foreground/6 ring-inset [@media(max-height:640px)]:h-24 [@media(max-height:460px)]:hidden",
-        "[background-image:radial-gradient(color-mix(in_oklab,var(--foreground)_10%,transparent)_1px,transparent_1.2px)] [background-size:14px_14px] [background-position:7px_7px]",
-        className,
-      )}
+      data-slot="coach-mark-clip"
+      style={{ aspectRatio: aspect }}
+      className="relative mx-2 mt-2 overflow-hidden rounded-lg bg-foreground/[0.03] [@media(max-height:640px)]:aspect-auto! [@media(max-height:640px)]:h-24 [@media(max-height:460px)]:hidden"
     >
       {children}
     </div>

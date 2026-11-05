@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { NewProfileScene } from "@/components/onboarding/scenes";
-import { DnsScene } from "@/components/tips/scenes-essentials";
+import {
+  type ClipId,
+  clipAspect,
+  RestingClip,
+} from "@/components/feature-clip";
 import { Button } from "@/components/ui/button";
 import {
   CoachMark,
   CoachMarkBody,
+  CoachMarkClip,
   CoachMarkFooter,
   CoachMarkHeader,
-  CoachMarkScene,
 } from "@/components/ui/coach-mark";
 import { StepDots } from "@/components/ui/step-dots";
 import { StepTransition } from "@/components/ui/step-transition";
@@ -21,9 +24,14 @@ export type TourStep = 0 | 1;
 const STEPS: readonly {
   key: "createProfile" | "dnsBlocking";
   anchors: readonly CoachAnchorId[];
+  clip: ClipId;
 }[] = [
-  { key: "createProfile", anchors: ["new-profile"] },
-  { key: "dnsBlocking", anchors: ["row-dns", "column-dns"] },
+  { key: "createProfile", anchors: ["new-profile"], clip: "newProfile" },
+  {
+    key: "dnsBlocking",
+    anchors: ["row-dns", "column-dns"],
+    clip: "dnsBlocklist",
+  },
 ];
 
 /**
@@ -74,11 +82,13 @@ export function OnboardingTour({
       data-slot="onboarding-tour"
       data-step={step}
     >
-      <CoachMarkScene>
-        <div key={step} className="absolute inset-0 p-2">
-          {step === 0 ? <NewProfileScene /> : <DnsScene />}
-        </div>
-      </CoachMarkScene>
+      <CoachMarkClip aspect={clipAspect(current.clip)}>
+        <RestingClip
+          key={step}
+          id={current.clip}
+          className="absolute inset-0 rounded-[inherit]"
+        />
+      </CoachMarkClip>
       <StepTransition transitionKey={step} direction={1}>
         <CoachMarkHeader
           eyebrow={t("onboarding.stepOf", {

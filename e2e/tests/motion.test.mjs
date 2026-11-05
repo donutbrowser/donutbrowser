@@ -223,16 +223,16 @@ test("first-run profile cutaway is interactive, isolated, and readable at both w
     async (app) => {
       await app.waitForText(en.welcome.title);
       await resize(app, 1080, 900);
-      // The intro lists what the app does under its drawing.
+      // The intro lists what the app does under its recording.
       assert.equal(
         await app.visibleTextIncludes(en.welcome.features.items.cookies),
         true,
       );
       assert.equal(
         await app.execute(
-          `return document.querySelector('[data-slot="welcome-scene-panel"] [data-slot="welcome-scene"]')?.dataset.scene;`,
+          `return document.querySelector('[data-slot="welcome-clip-panel"] [data-slot="feature-clip"]')?.dataset.clip;`,
         ),
-        "intro",
+        "welcome",
       );
       await app.capture("onboarding-intro-wide");
       await app.clickText(en.welcome.next, { roles: ["button"] });

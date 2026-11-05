@@ -9,8 +9,7 @@ import {
   LuCrosshair,
   LuX,
 } from "react-icons/lu";
-import { TipScene } from "@/components/tips/scene-for";
-import { SCENE_GRID_CLASS } from "@/components/tips/scene-primitives";
+import { FeatureClip } from "@/components/feature-clip";
 import { TipIcon } from "@/components/tips/tip-icon";
 import { AnimatedSwitch } from "@/components/ui/animated-switch";
 import { Button } from "@/components/ui/button";
@@ -65,9 +64,9 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 /**
  * The tips catalog: every tip this plan may see, grouped by section, with
- * the ones not read yet marked. Each tip is a drawing of the feature at
+ * the ones not read yet marked. Each tip is a recording of the feature at
  * work, a few lines on what it does, and a button into the place it lives.
- * The arrows page in either direction and the drawing travels the same way.
+ * The arrows page in either direction and the recording travels the same way.
  * "Show me" closes the catalog and points the tip's coach mark at the
  * feature on the Profiles page.
  */
@@ -315,16 +314,13 @@ export function TipsDialog({
           >
             <div className="px-5 pt-5 [@media(max-height:640px)]:pt-4">
               <div
-                data-slot="tip-scene-panel"
-                className={cn(
-                  "relative aspect-[2/1] max-h-64 w-full overflow-hidden rounded-xl bg-foreground/[0.025] ring-1 ring-foreground/6 ring-inset [@media(max-height:640px)]:max-h-40",
-                  SCENE_GRID_CLASS,
-                )}
+                data-slot="tip-clip-panel"
+                className="relative aspect-[2/1] max-h-64 w-full overflow-hidden rounded-xl bg-foreground/[0.025] [@media(max-height:640px)]:max-h-40"
               >
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
                     key={tip.id}
-                    className="absolute inset-0 p-4"
+                    className="absolute inset-0"
                     initial={
                       animate ? { x: direction * 36, scale: 0.98 } : false
                     }
@@ -348,7 +344,7 @@ export function TipsDialog({
                         : { duration: 0 }
                     }
                   >
-                    <TipScene id={tip.id} />
+                    <FeatureClip id={tip.id} className="size-full rounded-xl" />
                   </motion.div>
                 </AnimatePresence>
                 <DialogClose

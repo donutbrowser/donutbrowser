@@ -41,8 +41,8 @@ donutbrowser/
 │   │   ├── profile-search-input.tsx   # Profile search with ghost-text completion and suggestions
 │   │   ├── profile-table/            # Profile table parts: launch control, traffic cell and snapshots, row menu, column fit
 │   │   ├── settings/                 # Settings page parts: rows, choice cards, theme previews, sounds, save bar
-│   │   ├── onboarding/               # Welcome step scenes
-│   │   └── tips/                     # Feature tips: scenes, icons and the day's coach mark
+│   │   ├── feature-clip.tsx          # Recordings of the app (public/clips) for tips and onboarding
+│   │   └── tips/                     # Feature tips: icons and the day's coach mark
 │   ├── hooks/                        # Event-driven React hooks, table preferences, filtering, and keyboard controls
 │   ├── i18n/locales/                 # Translations (de, en, es, fr, ja, ko, pt, ru, tr, vi, zh)
 │   ├── generated/                    # Build-generated third-party license inventory
@@ -322,12 +322,14 @@ Reference implementations: `proxy-management-dialog.tsx`, `extension-management-
 
 ## Feature tips and the paid welcome
 
-Tips are short feature walkthroughs: a looping SVG scene, a title, two or
-three lines of copy, and a button into the feature. The catalog is
+Tips are short feature walkthroughs: a short recording of the app with the
+feature in use, a title, two or three lines of copy, and a button into the
+feature. The catalog is
 `src/lib/tips.ts` (ids, sections, deep-link actions, the anchors a tip points
-at, the plan capability a tip needs, the `inUse` relevance check); scenes live
-in `src/components/tips/scenes-*.tsx` and are mapped in `scene-for.tsx`, icons
-in `tip-icon.tsx`; the catalog dialog is `src/components/tips-dialog.tsx`; the
+at, the plan capability a tip needs, the `inUse` relevance check); the
+recordings are `public/clips/<id>-<light|dark>.webp` with a `-still.webp`
+frame, shown by `src/components/feature-clip.tsx`; icons are
+in `src/components/tips/tip-icon.tsx`; the catalog dialog is `src/components/tips-dialog.tsx`; the
 day's tip on the Profiles page is `src/components/tips/tip-coach-mark.tsx`; the
 flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
 `tips_seen`, `tips_used`, `tips_inline`, `tips_last_auto_shown_at`,
@@ -399,24 +401,33 @@ flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
   backend sees it turn paid (free -> paid, or a paid account first seen right
   after signing in); `paid_welcome_due` in `settings_manager.rs` is the rule.
 - Adding a tip: append to `TIPS` with a `section`, `anchors` and an `inUse`
-  check, write the scene, map an icon, add
-  `tips.items.<id>.{label,title,body,action}` to every locale, and run
-  `pnpm test:tips`, which checks every locale carries every tip and section
-  and every tip points somewhere.
-- Scenes are decorative and loop on their own clock (`useScene`); they show
-  their resting frame under reduced motion and never hide the copy. The
-  coach mark plays its scene for a few loops and then rests
-  (`ScenePlayback`), so the main page does not animate all day; a return to
-  the page shows the mark at rest (`settled`).
+  check, script its clip in `scripts/clips/clips.mjs` and record it, map an
+  icon, add `tips.items.<id>.{label,title,body,action}` to every locale, and
+  run `pnpm test:tips`, which checks every locale carries every tip and
+  section and every tip points somewhere.
+- `pnpm clips [ids] [--theme=dark|light]` records the clips again after a UI
+  change: a static build of the working tree (in the system temp folder, never
+  the checkout's `dist`) runs in Chrome with a mocked backend and invented
+  demo data (`scripts/clips/demo-data.js`), slowed down so every frame is
+  captured, then encoded as near-lossless animated WebP (`img2webp`). Each
+  clip holds one frame (no camera moves: a pan rewrites every pixel of every
+  frame) and loops cleanly: it ends where it started, or crossfades back.
+  Animated WebP plays in WKWebView, WebKitGTK without GStreamer codecs, and
+  WebView2. Keep a clip near 250 KB.
+- Clips are decorative and never hide the copy. Under reduced motion only the
+  still shows. The coach mark plays its clip for a few loops and then rests
+  on the still, so the main page does not animate all day; a return to the
+  page shows the mark at rest (`settled`).
 
 ## Onboarding
 
 A new install sees `src/components/welcome-dialog.tsx`: intro, the
 profile-isolation example, licensing, macOS permissions, and the browser
-setup, with `StepDots` (`ui/step-dots.tsx`) for progress and one drawing per
-step (`src/components/onboarding/scenes.tsx`; the setup drawing follows the
-real download). Steps move, they never fade in: text and controls are opaque
-from the first frame. A user with no profile then gets the tour,
+setup, with `StepDots` (`ui/step-dots.tsx`) for progress. The intro shows a
+recording of profiles launching and setup a recording of the first profile
+being made (`FeatureClip`); the download's own progress is in setup's text.
+Steps move, they never fade in: text and controls are opaque from the first
+frame. A user with no profile then gets the tour,
 `src/components/onboarding-tour.tsx`: the same coach mark with `spotlight`
 (the page dims around the anchor, and the anchor still takes clicks), first on
 the New button until a profile exists, then on that profile's DNS control.

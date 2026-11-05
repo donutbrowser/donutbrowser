@@ -19,15 +19,9 @@ import {
   LuTriangleAlert,
   LuUsers,
 } from "react-icons/lu";
-import {
-  IntroScene,
-  LicenseScene,
-  PermissionsScene,
-  SetupScene,
-} from "@/components/onboarding/scenes";
+import { RestingClip } from "@/components/feature-clip";
 import { ProfileIsolationDemo } from "@/components/profile-isolation-demo";
 import { AppProxyForm } from "@/components/settings/app-proxy-settings";
-import { SCENE_GRID_CLASS } from "@/components/tips/scene-primitives";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { StepDots } from "@/components/ui/step-dots";
@@ -256,23 +250,10 @@ export function WelcomeDialog({
     }
   };
 
-  const scene =
-    step === "intro" ? (
-      <IntroScene />
-    ) : step === "license" ? (
-      <LicenseScene />
-    ) : step === "permissions" ? (
-      <PermissionsScene />
-    ) : step === "setup" ? (
-      <SetupScene
-        phase={setup.phase}
-        progress={
-          setup.phase === "extracting"
-            ? setup.extractionPercent
-            : setup.downloadPercent
-        }
-      />
-    ) : null;
+  // The intro shows the app at work and setup shows the next step, making
+  // the first profile; the download's own progress is in the step's text.
+  const clip =
+    step === "intro" ? "welcome" : step === "setup" ? "newProfile" : null;
 
   const skipButton = (
     <Button
@@ -605,20 +586,17 @@ export function WelcomeDialog({
       >
         <DialogTitle className="sr-only">{t("welcome.title")}</DialogTitle>
 
-        {scene && (
+        {clip && (
           <div className="px-3 pt-3 sm:px-4 sm:pt-4 [@media(max-height:440px)]:hidden">
             <div
-              data-slot="welcome-scene-panel"
-              className={cn(
-                "relative aspect-[3/1] w-full overflow-hidden rounded-xl bg-foreground/[0.025] ring-1 ring-foreground/6 ring-inset [@media(min-height:541px)_and_(max-height:640px)]:aspect-[4/1] [@media(max-height:540px)]:aspect-[5/1]",
-                SCENE_GRID_CLASS,
-              )}
+              data-slot="welcome-clip-panel"
+              className="relative aspect-[3/1] w-full overflow-hidden rounded-xl bg-foreground/[0.025] [@media(min-height:541px)_and_(max-height:640px)]:aspect-[4/1] [@media(max-height:540px)]:aspect-[5/1]"
             >
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={step}
-                  className="absolute inset-0 p-3"
-                  // The new drawing is half visible on its first frame; the
+                  className="absolute inset-0"
+                  // The new clip is half visible on its first frame; the
                   // old one leaves quickly and never holds the new one back.
                   initial={
                     animateSteps
@@ -643,7 +621,7 @@ export function WelcomeDialog({
                     animateSteps ? MOTION_SPRING.gentle : { duration: 0 }
                   }
                 >
-                  {scene}
+                  <RestingClip id={clip} className="size-full rounded-xl" />
                 </motion.div>
               </AnimatePresence>
             </div>

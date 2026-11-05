@@ -56,7 +56,6 @@ import {
   TableRowCheckbox,
   TableSelectHeader,
 } from "@/components/table-controls";
-import { TrashScene } from "@/components/tips/scenes-essentials";
 import {
   AnimatedTabs,
   AnimatedTabsList,
@@ -825,7 +824,7 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
                     error ? undefined : (
                       <EntityEmptyState
                         entity="trash"
-                        scene={<TrashScene />}
+                        clip="trash"
                         title={t("trash.empty")}
                         description={t("trash.emptyHint")}
                       />

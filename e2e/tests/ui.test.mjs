@@ -6024,12 +6024,14 @@ test("tips open from the rail, walk the catalog, and deep-link into the feature"
       "Enter walks on from the first moment",
     );
 
-    // The drawing is live SVG in the scene panel, not a picture.
-    assert.equal(
-      await app.execute(
-        `return document.querySelectorAll('[data-slot="tip-scene-panel"] svg[data-slot="tip-scene"]').length;`,
-      ),
-      1,
+    // The panel shows a recording of the app, and every frame of it decodes
+    // in this webview: the still and, with motion allowed, the animation.
+    await app.waitFor(
+      () =>
+        app.execute(
+          `const images = [...document.querySelectorAll('[data-slot="tip-clip-panel"] [data-slot="feature-clip"][data-clip="commandPalette"] img')]; return images.length > 0 && images.every((image) => image.complete && image.naturalWidth === 800);`,
+        ),
+      { description: "the tip's recording decodes" },
     );
 
     await app.clickSelector('[data-slot="tip-next"]');

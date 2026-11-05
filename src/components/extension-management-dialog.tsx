@@ -44,10 +44,7 @@ import {
   DataTableActionBarAction,
   DataTableActionBarSelection,
 } from "@/components/data-table-action-bar";
-import {
-  EntityEmptyState,
-  ExtensionDropScene,
-} from "@/components/entity-empty-state";
+import { EntityEmptyState } from "@/components/entity-empty-state";
 import {
   PageAction,
   RowAction,
@@ -63,7 +60,6 @@ import {
 } from "@/components/managed-data-table";
 import { ProfileUsageButton } from "@/components/profile-usage-button";
 import { SortableColumnHeader } from "@/components/table-controls";
-import { ExtensionsScene } from "@/components/tips/scenes-essentials";
 import {
   AnimatedTabs,
   AnimatedTabsContent,
@@ -1758,7 +1754,7 @@ export function ExtensionManagementDialog({
                       ) : (
                         <EntityEmptyState
                           entity="extensions"
-                          scene={<ExtensionDropScene />}
+                          clip="extensionGroups"
                           title={t("entities.empty.extensions.title")}
                           description={t("entities.empty.extensions.body")}
                         >
@@ -1851,7 +1847,7 @@ export function ExtensionManagementDialog({
                       ) : (
                         <EntityEmptyState
                           entity="extensionGroups"
-                          scene={<ExtensionsScene />}
+                          clip="extensionGroups"
                           title={t("entities.empty.extensionGroups.title")}
                           description={t("entities.empty.extensionGroups.body")}
                         >

@@ -29,10 +29,7 @@ import {
   DataTableActionBarSelection,
 } from "@/components/data-table-action-bar";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
-import {
-  EntityEmptyState,
-  VpnTunnelScene,
-} from "@/components/entity-empty-state";
+import { EntityEmptyState } from "@/components/entity-empty-state";
 import {
   KindBadge,
   PageAction,
@@ -52,7 +49,6 @@ import { ProxyExportDialog } from "@/components/proxy-export-dialog";
 import { ProxyFormDialog } from "@/components/proxy-form-dialog";
 import { ProxyImportDialog } from "@/components/proxy-import-dialog";
 import { SortableColumnHeader } from "@/components/table-controls";
-import { ProxyRouteScene } from "@/components/tips/scenes-essentials";
 import {
   AnimatedTabs,
   AnimatedTabsContent,
@@ -1130,7 +1126,7 @@ export function ProxyManagementDialog({
                   empty={
                     <EntityEmptyState
                       entity="proxies"
-                      scene={<ProxyRouteScene />}
+                      clip="proxyCheck"
                       title={t("entities.empty.proxies.title")}
                       description={t("entities.empty.proxies.body")}
                     >
@@ -1169,7 +1165,7 @@ export function ProxyManagementDialog({
                   empty={
                     <EntityEmptyState
                       entity="vpns"
-                      scene={<VpnTunnelScene />}
+                      clip="vpn"
                       title={t("entities.empty.vpns.title")}
                       description={t("entities.empty.vpns.body")}
                     >
