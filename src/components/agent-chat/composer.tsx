@@ -31,6 +31,7 @@ import {
   isTurnActive,
 } from "@/lib/agent-chat";
 import { MAX_PROMPT_CHARS } from "@/lib/agent-tasks";
+import { firstBlank } from "@/lib/agent-templates";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,6 +45,13 @@ export interface ComposerSend {
   target: ComposerTarget;
   repeat: Repeat;
   settings: RunSettings;
+}
+
+/** Words and a repeat for the box, from a template. */
+export interface ComposerFill {
+  text: string;
+  repeat: Repeat;
+  nonce: number;
 }
 
 export function composerTarget(
@@ -70,7 +78,6 @@ export function Composer({
   hero = false,
   leading,
   fill,
-  notice,
 }: {
   chat: AgentChat | null;
   /** Profiles chosen for a new chat. */
@@ -85,10 +92,8 @@ export function Composer({
   hero?: boolean;
   /** Controls before the others, such as the profile chips. */
   leading?: ReactNode;
-  /** Words to put in the box, from a starter; a new nonce puts them again. */
-  fill?: { text: string; nonce: number } | null;
-  /** A line above the box, such as why a send waits. */
-  notice?: ReactNode;
+  /** A template to put in the box; a new nonce puts it again. */
+  fill?: ComposerFill | null;
 }) {
   const { t } = useTranslation();
   const inputId = useId();
@@ -144,16 +149,16 @@ export function Composer({
   if (fill && fill.nonce !== filled) {
     setFilled(fill.nonce);
     setText(fill.text);
+    setRepeat(fill.repeat);
   }
   useEffect(() => {
     if (filled === null) return;
     const box = ref.current;
     if (!box) return;
     box.focus();
-    // A starter's "[site]" is for the person to fill: select it.
-    const start = box.value.indexOf("[");
-    const end = box.value.indexOf("]", start);
-    if (start >= 0 && end > start) box.setSelectionRange(start, end + 1);
+    // A template's first "[site]" is for the person to fill: select it.
+    const blank = firstBlank(box.value);
+    if (blank) box.setSelectionRange(blank.start, blank.end);
     else box.setSelectionRange(box.value.length, box.value.length);
   }, [filled]);
 
@@ -215,6 +220,7 @@ export function Composer({
             />
           )}
           <RepeatPicker
+            key={filled ?? "typed"}
             value={repeat}
             onChange={setRepeat}
             allowOnce
@@ -333,7 +339,6 @@ export function Composer({
         void send();
       }}
     >
-      {notice}
       <label htmlFor={inputId} className="sr-only">
         {placeholder}
       </label>

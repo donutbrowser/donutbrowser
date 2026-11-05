@@ -4431,40 +4431,204 @@
       "back": "Quay lại trò chuyện"
     },
     "home": {
-      "title": "Các hồ sơ của bạn nên làm gì?",
-      "startersLabel": "Ý tưởng để bắt đầu",
-      "starters": {
-        "warmUp": {
-          "title": "Làm nóng hồ sơ",
-          "hint": "Duyệt web như khách thật",
-          "prompt": "Làm nóng hồ sơ này: truy cập vài trang tin tức và mua sắm phổ biến trong khoảng 10 phút, chấp nhận các thông báo cookie, cuộn và mở vài trang như một khách truy cập bình thường. Không đăng nhập và không mua gì."
-        },
-        "accounts": {
-          "title": "Kiểm tra tài khoản",
-          "hint": "Đã đăng nhập, bị giới hạn hay bị khóa",
-          "prompt": "Mở tài khoản của tôi trên [trang web] và cho tôi biết tài khoản có đang đăng nhập, bị giới hạn hay yêu cầu xác minh không. Nếu đã đăng xuất và trình duyệt có lưu mật khẩu, hãy đăng nhập lại."
-        },
-        "orders": {
-          "title": "Kiểm tra đơn hàng",
-          "hint": "Đơn hàng mới từ hôm qua",
-          "prompt": "Mở bảng điều khiển người bán của tôi trên [trang web] và liệt kê các đơn hàng mới từ hôm qua: mã đơn, người mua, tổng tiền và trạng thái."
-        },
-        "collect": {
-          "title": "Thu thập dữ liệu",
-          "hint": "Từ trang web vào bảng",
-          "prompt": "Truy cập [trang] và thu thập tên, giá và tồn kho của từng sản phẩm vào một bảng."
-        }
-      }
-    },
-    "engine": {
-      "title": "Tác tử sẽ có trong bản cập nhật Wayfern tiếp theo",
-      "body": "Donut tự cài đặt bản cập nhật. Tin nhắn của bạn vẫn ở đây để bạn gửi khi đó.",
-      "updateReady": "Đã có bản Wayfern mới hơn sẵn sàng để cài đặt.",
-      "updating": "Đang cập nhật Wayfern, {{percent}}%",
-      "updateAction": "Cập nhật Wayfern"
+      "title": "Các hồ sơ của bạn nên làm gì?"
     },
     "live": {
       "label": "Xem trực tiếp {{name}}"
+    },
+    "templates": {
+      "title": "Mẫu",
+      "all": "Tất cả mẫu",
+      "search": "Tìm mẫu",
+      "categoriesLabel": "Danh mục",
+      "allCategories": "Tất cả",
+      "noMatch": "Không có mẫu nào khớp",
+      "asksFirst": "Tác tử hỏi bạn trước khi đăng, gửi, thanh toán hoặc đổi cài đặt",
+      "scope": {
+        "one": "Một hồ sơ",
+        "each": "Từng hồ sơ"
+      },
+      "categories": {
+        "accounts": "Tài khoản",
+        "social": "Mạng xã hội",
+        "sellers": "Người bán",
+        "ads": "Quảng cáo và affiliate",
+        "research": "Nghiên cứu",
+        "monitoring": "Theo dõi",
+        "health": "Tình trạng hồ sơ"
+      },
+      "items": {
+        "accountStatus": {
+          "title": "Kiểm tra trạng thái tài khoản",
+          "description": "Đã đăng nhập, bị giới hạn hay bị khóa",
+          "prompt": "Mở [trang web] và kiểm tra tài khoản trong hồ sơ này. Báo cáo một dòng: tên tài khoản, có đang đăng nhập không, và mọi cảnh báo trên trang, như giới hạn, khóa, yêu cầu xác minh hoặc hóa đơn chưa thanh toán. Nếu đã đăng xuất và trình duyệt có lưu mật khẩu, hãy đăng nhập lại. Nếu trang yêu cầu mã hoặc captcha, hãy dừng lại và báo cho tôi. Không thay đổi cài đặt nào."
+        },
+        "warmUp": {
+          "title": "Làm nóng hồ sơ",
+          "description": "Duyệt web như một khách truy cập thật",
+          "prompt": "Làm nóng hồ sơ này trong khoảng 15 phút. Truy cập các trang tin tức, thời tiết, video và mua sắm phổ biến của quốc gia proxy của hồ sơ này. Chấp nhận thông báo cookie, cuộn trang, mở vài bài viết và trang sản phẩm, và xem một phần của một video. Tìm kiếm [chủ đề] và mở hai kết quả. Không đăng nhập, không đăng ký và không mua gì. Cuối cùng, liệt kê các trang đã truy cập."
+        },
+        "sessionCheck": {
+          "title": "Kiểm tra phiên và 2FA",
+          "description": "Thiết bị đang đăng nhập và xác minh hai bước",
+          "prompt": "Mở trang bảo mật của tài khoản của tôi trên [trang web]. Liệt kê từng phiên hoặc thiết bị đang đăng nhập kèm vị trí, loại thiết bị và hoạt động gần nhất, và cho tôi biết xác minh hai bước có bật không. Đánh dấu mỗi phiên không đến từ quốc gia proxy của hồ sơ này. Hỏi tôi trước khi đăng xuất một phiên hoặc đổi một cài đặt bảo mật."
+        },
+        "passwordAge": {
+          "title": "Nhắc đổi mật khẩu",
+          "description": "Tìm mật khẩu cũ hơn 90 ngày",
+          "prompt": "Mở cài đặt bảo mật của tài khoản của tôi trên [trang web] và tìm lần đổi mật khẩu gần nhất. Nếu đã hơn 90 ngày, hoặc trang không cho biết, hãy báo cho tôi. Hỏi tôi trước khi đổi mật khẩu, và chỉ dùng mật khẩu mới do tôi đưa."
+        },
+        "platformNotices": {
+          "title": "Đọc thông báo của nền tảng",
+          "description": "Cảnh báo và yêu cầu từ trang web",
+          "prompt": "Mở [trang web] trong tài khoản của hồ sơ này và đọc thông báo và tin nhắn trong 7 ngày qua từ chính nền tảng, không phải từ người dùng khác. Liệt kê từng thông báo cần hành động: ngày, tiêu đề, yêu cầu gì và hạn chót. Không trả lời, chấp nhận hay khiếu nại gì."
+        },
+        "postAcross": {
+          "title": "Đăng trên từng tài khoản",
+          "description": "Một bài đăng, viết riêng cho từng tài khoản",
+          "prompt": "Mở [trang web] trong tài khoản của hồ sơ này và đọc 5 bài đăng gần nhất. Viết một bài mới về [chủ đề] với cùng giọng văn và ngôn ngữ, dưới 280 ký tự. Cho tôi xem nội dung và hỏi tôi trước khi đăng. Sau khi đăng, gửi tôi đường dẫn."
+        },
+        "dailyPost": {
+          "title": "Đăng từ danh sách",
+          "description": "Lấy bài tiếp theo từ một tài liệu",
+          "prompt": "Mở tài liệu tại [đường dẫn] và tìm bài đầu tiên chưa được đánh dấu là xong. Đăng bài đó lên [trang web] từ tài khoản của hồ sơ này, kèm hình ảnh nếu có. Hỏi tôi trước khi đăng. Sau đó đánh dấu bài là xong trong tài liệu và gửi tôi đường dẫn đến bài đăng."
+        },
+        "replyComments": {
+          "title": "Trả lời bình luận",
+          "description": "Bản nháp trả lời cho bình luận mới",
+          "prompt": "Mở 3 bài đăng gần nhất của tài khoản hồ sơ này trên [trang web] và đọc bình luận trong 24 giờ qua. Viết một câu trả lời ngắn, thân thiện cho từng câu hỏi hoặc phàn nàn. Bỏ qua spam và bình luận mà tài khoản đã trả lời. Cho tôi xem tất cả câu trả lời trong một danh sách và hỏi tôi trước khi đăng."
+        },
+        "inboxDigest": {
+          "title": "Tóm tắt hộp thư",
+          "description": "Tin nhắn chưa đọc, việc gấp trước",
+          "prompt": "Mở hộp thư của tài khoản hồ sơ này trên [trang web]. Với mỗi cuộc trò chuyện chưa đọc, cho biết người gửi, tóm tắt một dòng, và cần trả lời hôm nay, để sau hay không cần. Xếp những cuộc cần trả lời hôm nay lên đầu. Không trả lời ai."
+        },
+        "followerStats": {
+          "title": "Thống kê người theo dõi",
+          "description": "Người theo dõi và lượt tiếp cận trong một bảng",
+          "prompt": "Mở trang hồ sơ và trang thống kê của tài khoản hồ sơ này trên [trang web]. Lập bảng với các cột: tài khoản, người theo dõi, đang theo dõi, bài đăng, thay đổi người theo dõi trong 7 ngày, lượt thích trung bình của 10 bài gần nhất. Ghi \"không có\" cho giá trị mà trang không hiển thị. Không theo dõi, thích hay đăng gì."
+        },
+        "newOrders": {
+          "title": "Đơn hàng mới",
+          "description": "Đơn hàng trong 24 giờ qua",
+          "prompt": "Mở bảng điều khiển người bán trên [sàn] cho cửa hàng của hồ sơ này. Liệt kê đơn hàng trong 24 giờ qua trong bảng với các cột: mã đơn, ngày, sản phẩm, số lượng, tổng tiền, quốc gia người mua, trạng thái. Bên dưới bảng, cho biết số đơn và tổng doanh số. Không xác nhận, hủy hay giao đơn nào."
+        },
+        "listingHealth": {
+          "title": "Tình trạng tin đăng",
+          "description": "Tin đăng không hoạt động, bị ẩn hoặc bị gắn cờ",
+          "prompt": "Mở trang tin đăng hoặc kho hàng trên [sàn] cho cửa hàng của hồ sơ này. Tìm các tin đăng không hoạt động, bị ẩn, hết hàng hoặc có cảnh báo chính sách. Lập bảng với các cột: tiêu đề tin đăng, SKU, vấn đề, trang hướng dẫn sửa thế nào. Không sửa hay xóa tin đăng."
+        },
+        "reviewReplies": {
+          "title": "Đánh giá cần trả lời",
+          "description": "Đánh giá mới, kèm bản nháp trả lời",
+          "prompt": "Mở trang đánh giá hoặc phản hồi trên [sàn] cho cửa hàng của hồ sơ này. Liệt kê các đánh giá trong 7 ngày qua chưa được trả lời: ngày, số sao, sản phẩm, nội dung đánh giá. Với mỗi đánh giá từ 3 sao trở xuống, viết một câu trả lời lịch sự đề nghị hỗ trợ. Hỏi tôi trước khi đăng bất kỳ câu trả lời nào."
+        },
+        "buyerMessages": {
+          "title": "Tin nhắn người mua",
+          "description": "Câu hỏi chưa trả lời, kèm bản nháp",
+          "prompt": "Mở tin nhắn người mua trên [sàn] cho cửa hàng của hồ sơ này. Với mỗi tin nhắn chưa trả lời, cho biết mã đơn, câu hỏi trong một dòng, và một câu trả lời ngắn dựa trên thông tin đơn hàng. Hỏi tôi trước khi gửi bất kỳ câu trả lời nào. Không hoàn tiền hay giảm giá."
+        },
+        "listingPrice": {
+          "title": "Giá và tồn kho theo sàn",
+          "description": "Ưu đãi của bạn bên cạnh các bên khác",
+          "prompt": "Mở tin đăng [sản phẩm] của tôi trên [sàn] trong tài khoản của hồ sơ này. Cho một dòng với các cột: sàn, giá của tôi, phí vận chuyển, tồn kho, số người bán, giá thấp nhất của người bán khác, ưu đãi tốt nhất là của tôi (có hoặc không). Không đổi giá hay tồn kho."
+        },
+        "adsByCountry": {
+          "title": "Quảng cáo tìm kiếm theo quốc gia",
+          "description": "Ai quảng cáo ở quốc gia của từng hồ sơ",
+          "prompt": "Tìm [từ khóa] trên Google trong hồ sơ này; proxy của hồ sơ quyết định quốc gia. Liệt kê quảng cáo trên trang đầu tiên trong bảng với các cột: vị trí, nhà quảng cáo, tiêu đề, URL hiển thị. Bên dưới bảng, ghi quốc gia và ngôn ngữ mà Google hiển thị ở cuối trang. Không nhấp vào quảng cáo nào."
+        },
+        "landingByCountry": {
+          "title": "Trang đích theo quốc gia",
+          "description": "Chuyển hướng, ngôn ngữ và chặn theo khu vực",
+          "prompt": "Mở [đường dẫn] trong hồ sơ này và đi theo mọi chuyển hướng. Báo cáo URL cuối cùng, từng bước trong chuỗi chuyển hướng, ngôn ngữ trang, đơn vị tiền tệ hiển thị và thời gian tải tính bằng giây. Cho tôi biết nếu trang bị chặn, hiện captcha hoặc yêu cầu đồng ý. Không điền biểu mẫu hay nhấp nút trên trang."
+        },
+        "offerLinks": {
+          "title": "Kiểm tra liên kết ưu đãi",
+          "description": "Liên kết affiliate hỏng hoặc hết hạn",
+          "prompt": "Mở lần lượt từng liên kết trong danh sách này: [liên kết]. Lập bảng với các cột: liên kết, URL cuối cùng sau chuyển hướng, lỗi nếu có, ưu đãi còn hoạt động (có hoặc không), quốc gia trang nhắm đến. Ưu đãi còn hoạt động khi trang hiển thị giá hoặc biểu mẫu đăng ký. Không điền biểu mẫu hay mua gì."
+        },
+        "competitorAds": {
+          "title": "Quảng cáo của đối thủ",
+          "description": "Quảng cáo đang chạy của một thương hiệu trong thư viện quảng cáo",
+          "prompt": "Mở thư viện quảng cáo công khai của [nền tảng] và tìm [thương hiệu]. Với mỗi quảng cáo đang chạy, ghi ngày bắt đầu, định dạng, tiêu đề, nội dung chính trong một dòng, lời kêu gọi hành động và tên miền trang đích. Đưa vào bảng, mới nhất trước, tối đa 20 dòng. Không đăng nhập."
+        },
+        "adSpend": {
+          "title": "Chi tiêu tài khoản quảng cáo",
+          "description": "Chi tiêu và cảnh báo của hôm qua",
+          "prompt": "Mở trình quản lý quảng cáo của [nền tảng] trong tài khoản của hồ sơ này. Với hôm qua, lập bảng mỗi chiến dịch một dòng với các cột: chiến dịch, trạng thái, chi tiêu, lượt hiển thị, lượt nhấp, kết quả, chi phí mỗi kết quả. Bên dưới bảng, liệt kê mọi cảnh báo hoặc quảng cáo bị từ chối của tài khoản. Không đổi ngân sách, giá thầu hay quảng cáo."
+        },
+        "pageToTable": {
+          "title": "Từ trang thành bảng",
+          "description": "Danh sách trên một trang, thành từng dòng",
+          "prompt": "Mở [đường dẫn] và thu thập từng mục trong danh sách chính vào bảng với các cột: tên, giá, điểm đánh giá, số lượt đánh giá, đường dẫn. Đi theo liên kết trang tiếp theo cho đến khi có 50 dòng hoặc hết trang. Không đăng nhập hay thêm gì vào giỏ hàng."
+        },
+        "serpByCountry": {
+          "title": "Kết quả tìm kiếm theo quốc gia",
+          "description": "Top 10 ở quốc gia của từng hồ sơ",
+          "prompt": "Tìm [từ khóa] trên Google trong hồ sơ này; proxy của hồ sơ quyết định quốc gia. Lập bảng 10 kết quả tự nhiên đầu tiên với các cột: vị trí, tiêu đề, tên miền, URL. Bỏ qua quảng cáo, bản đồ và video, nhưng bên dưới bảng ghi những mục đã xuất hiện. Không mở các kết quả."
+        },
+        "pricesByCountry": {
+          "title": "So sánh giá giữa các quốc gia",
+          "description": "Một sản phẩm, nhìn từ quốc gia của từng hồ sơ",
+          "prompt": "Mở [đường dẫn sản phẩm] trong hồ sơ này. Giữ quốc gia và đơn vị tiền tệ mà trang chọn. Cho một dòng với các cột: quốc gia, giá, đơn vị tiền tệ, phí vận chuyển, giảm giá. Không thêm gì vào giỏ hàng."
+        },
+        "enrichList": {
+          "title": "Bổ sung danh sách",
+          "description": "Trang web và liên hệ cho một danh sách tên",
+          "prompt": "Với mỗi công ty trong danh sách này, tìm trang web, quốc gia đặt trụ sở chính, trang LinkedIn và email liên hệ trên chính trang web của họ: [công ty]. Lập bảng với các cột: công ty, trang web, quốc gia, LinkedIn, email, trang nguồn. Ghi \"không tìm thấy\" cho giá trị thiếu; không đoán."
+        },
+        "reviewSummary": {
+          "title": "Tóm tắt đánh giá",
+          "description": "Người mua thích và không thích điều gì",
+          "prompt": "Mở [đường dẫn sản phẩm] và đọc các đánh giá: ít nhất 50 nếu có đủ, cả tốt lẫn xấu. Nêu 5 lời khen phổ biến nhất và 5 lời phàn nàn phổ biến nhất, mỗi mục kèm mức độ thường gặp và một trích dẫn ngắn. Kết thúc bằng điểm trung bình và số lượt đánh giá."
+        },
+        "priceDrop": {
+          "title": "Giảm giá",
+          "description": "Báo cho bạn khi giá giảm",
+          "prompt": "Mở [đường dẫn sản phẩm] và đọc giá hiện tại. Nếu giá bằng hoặc thấp hơn [giá mục tiêu], hãy bắt đầu câu trả lời bằng \"Giảm giá\" và cho biết giá, người bán và đường dẫn. Nếu không, trả lời giá trong một dòng. Không mua gì."
+        },
+        "pageWatch": {
+          "title": "Theo dõi từ trên một trang",
+          "description": "Báo cho bạn khi trang nhắc đến chúng",
+          "prompt": "Mở [đường dẫn] và tìm [từ] trên trang. Nếu có, hãy bắt đầu câu trả lời bằng \"Đã tìm thấy\", trích từng câu chứa chúng và cho đường dẫn. Nếu không, trả lời \"Không tìm thấy\" trong một dòng. Không nhấp vào gì trên trang."
+        },
+        "backInStock": {
+          "title": "Có hàng trở lại",
+          "description": "Kiểm tra mỗi giờ cho đến khi bạn mua được",
+          "prompt": "Mở [đường dẫn sản phẩm] và kiểm tra xem [kích cỡ hoặc phiên bản] có mua được ngay không. Nếu được, hãy bắt đầu câu trả lời bằng \"Còn hàng\" và cho biết giá và đường dẫn. Nếu không, trả lời \"Hết hàng\" trong một dòng. Không thêm vào giỏ hàng hay mua."
+        },
+        "rankByCountry": {
+          "title": "Thứ hạng theo quốc gia",
+          "description": "Trang của bạn xếp hạng ở đâu tại từng khu vực",
+          "prompt": "Tìm [từ khóa] trên Google trong hồ sơ này; proxy của hồ sơ quyết định quốc gia. Tìm kết quả đầu tiên từ [tên miền của bạn] trong 5 trang đầu. Cho một dòng với các cột: quốc gia, từ khóa, vị trí, URL xếp hạng. Nếu không có trong 50 kết quả đầu, ghi \"ngoài top 50\". Không nhấp vào kết quả."
+        },
+        "accountLimits": {
+          "title": "Giới hạn tài khoản",
+          "description": "Hạn mức và hạn chế của từng tài khoản",
+          "prompt": "Mở trang tình trạng, giới hạn hoặc chất lượng của tài khoản hồ sơ này trên [trang web]. Liệt kê mọi giới hạn mà trang hiển thị kèm mức đã dùng, ví dụ tin nhắn, chi tiêu, bài đăng hoặc tin đăng mỗi ngày. Đánh dấu mọi giới hạn trên 80% và mọi hạn chế mới. Không đổi cài đặt hay gửi kháng nghị."
+        },
+        "proxyMatch": {
+          "title": "Khớp proxy và vân tay",
+          "description": "Quốc gia IP thoát so với múi giờ và ngôn ngữ",
+          "prompt": "Mở https://ipinfo.io/json trong hồ sơ này và ghi địa chỉ IP, quốc gia, thành phố, múi giờ và tổ chức. Sau đó mở một trang hiển thị múi giờ và ngôn ngữ của trình duyệt. Cho một dòng với các cột: IP, quốc gia, múi giờ IP, múi giờ trình duyệt, ngôn ngữ trình duyệt, khớp (có hoặc không). Nếu không khớp, nói lý do."
+        },
+        "stillSignedIn": {
+          "title": "Vẫn đăng nhập",
+          "description": "Phiên trên các trang bạn dùng",
+          "prompt": "Mở từng trang sau trong hồ sơ này: [trang web]. Trên mỗi trang, kiểm tra xem có tài khoản đang đăng nhập không, mà không đăng nhập lại. Lập bảng với các cột: trang, đã đăng nhập (có hoặc không), tên tài khoản hiển thị, ghi chú như yêu cầu xác minh. Không đăng nhập, đăng xuất hay chấp nhận điều khoản mới."
+        },
+        "blockedPages": {
+          "title": "Chặn và captcha",
+          "description": "Các trang chặn hồ sơ này",
+          "prompt": "Mở từng trang sau trong hồ sơ này: [trang web]. Với mỗi trang, cho biết trang tải bình thường hay hiện captcha, trang từ chối truy cập hoặc lưu lượng bất thường, hay tường cookie. Lập bảng với các cột: trang, kết quả, tiêu đề trang, trang yêu cầu gì. Không giải captcha."
+        },
+        "leakCheck": {
+          "title": "Rò rỉ DNS và WebRTC",
+          "description": "Kiểm tra không có gì đi vòng qua proxy",
+          "prompt": "Mở một trang kiểm tra rò rỉ DNS trong hồ sơ này và chạy bài kiểm tra tiêu chuẩn. Ghi từng máy chủ DNS kèm quốc gia và chủ sở hữu. Sau đó mở một trang kiểm tra rò rỉ WebRTC và ghi mọi địa chỉ IP nó tìm thấy. Cho một dòng với các cột: IP proxy, quốc gia DNS, IP WebRTC, rò rỉ (có hoặc không). Rò rỉ là máy chủ DNS hoặc địa chỉ IP nằm ngoài quốc gia của proxy."
+        }
+      }
     }
   },
   "proxyDistribution": {

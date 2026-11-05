@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   createContext,
   type ReactNode,
+  type Ref,
   useCallback,
   useContext,
   useEffect,
@@ -13,7 +14,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { LuPanelLeft } from "react-icons/lu";
+import { LuPanelLeft, LuSearch } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
 import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";
@@ -211,6 +212,52 @@ export function SidebarSection({
         {children}
       </ul>
     </div>
+  );
+}
+
+/** The agent page's search box. Escape clears it before it closes anything. */
+export function SearchField({
+  ref,
+  value,
+  onChange,
+  placeholder,
+  slot,
+  className,
+}: {
+  ref?: Ref<HTMLInputElement>;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  slot: string;
+  className?: string;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex h-8 items-center gap-2 rounded-xl bg-foreground/4 px-2.5 text-muted-foreground transition-colors duration-150 focus-within:bg-foreground/6 focus-within:text-foreground motion-reduce:transition-none",
+        className,
+      )}
+    >
+      <LuSearch className="size-3.5 shrink-0" aria-hidden="true" />
+      <span className="sr-only">{placeholder}</span>
+      <input
+        ref={ref}
+        type="search"
+        value={value}
+        data-slot={slot}
+        placeholder={placeholder}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && value) {
+            event.stopPropagation();
+            onChange("");
+          }
+        }}
+        className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+      />
+    </label>
   );
 }
 

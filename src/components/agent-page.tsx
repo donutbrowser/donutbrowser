@@ -115,7 +115,6 @@ export function AgentPage({
       return (
         <AgentWorkspace
           enabled={isOpen}
-          availability={agent}
           view={shownView}
           onViewChange={changeView}
           profiles={profiles}

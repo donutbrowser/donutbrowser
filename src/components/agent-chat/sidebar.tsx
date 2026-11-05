@@ -4,15 +4,16 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   LuLayoutGrid,
+  LuLayoutTemplate,
   LuMessageSquare,
   LuPlug,
   LuPlus,
   LuRepeat,
-  LuSearch,
   LuTrash2,
 } from "react-icons/lu";
 import { ChatSyncLock } from "@/components/agent-chat/sync-lock";
 import {
+  SearchField,
   SidebarSection,
   sidebarRow,
   useAgentShell,
@@ -45,6 +46,7 @@ import { cn } from "@/lib/utils";
 /** What the main pane of the agent page shows. */
 export type PaneSelection =
   | { kind: "new" }
+  | { kind: "templates" }
   | { kind: "chat"; id: string }
   | { kind: "run"; id: string }
   | { kind: "routine"; id: string }
@@ -410,26 +412,27 @@ export function AgentSidebar({
           <LuPlus className="size-4 shrink-0" aria-hidden="true" />
           {t("agent.chat.newChat")}
         </button>
-        <label className="flex h-8 items-center gap-2 rounded-xl bg-foreground/4 px-2.5 text-muted-foreground transition-colors duration-150 focus-within:bg-foreground/6 focus-within:text-foreground motion-reduce:transition-none">
-          <LuSearch className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="sr-only">{t("common.buttons.search")}</span>
-          <input
-            type="search"
-            value={query}
-            data-slot="agent-sidebar-search"
-            placeholder={t("common.buttons.search")}
-            onChange={(event) => {
-              setQuery(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && query) {
-                event.stopPropagation();
-                setQuery("");
-              }
-            }}
-            className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+        <button
+          type="button"
+          data-slot="agent-templates-open"
+          aria-current={selected.kind === "templates" ? "true" : undefined}
+          onClick={() => {
+            choose({ kind: "templates" });
+          }}
+          className={sidebarRow(selected.kind === "templates", "h-9")}
+        >
+          <LuLayoutTemplate
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
           />
-        </label>
+          {t("agent.templates.title")}
+        </button>
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder={t("common.buttons.search")}
+          slot="agent-sidebar-search"
+        />
       </div>
       <ChatSyncLock />
       <FadingScrollArea className="-mx-1 min-h-0 flex-1 px-1">

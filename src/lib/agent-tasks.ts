@@ -124,11 +124,6 @@ export interface AgentRoutineRun {
   finishedAt: string | null;
 }
 
-export interface AgentEngineStatus {
-  supported: boolean;
-  checked: boolean;
-}
-
 export interface AgentTaskRequest {
   profileIds: string[];
   prompt: string;
@@ -141,8 +136,6 @@ export interface AgentTaskRequest {
 export const MAX_PROMPT_CHARS = 8000;
 export const MAX_CONCURRENCY = 20;
 
-export const getAgentEngineStatus = () =>
-  invoke<AgentEngineStatus>("get_agent_engine_status");
 export const getAgentCredits = () => invoke<AgentCredits>("get_agent_credits");
 export const startAgentBatch = (request: AgentTaskRequest) =>
   invoke<AgentBatch>("start_agent_batch", { request });

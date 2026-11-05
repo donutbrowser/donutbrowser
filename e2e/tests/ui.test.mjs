@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import Color from "color";
 import en from "../../src/i18n/locales/en.json" with { type: "json" };
+import { AGENT_TEMPLATES } from "../../src/lib/agent-templates.ts";
 import {
   curlSnippet,
   javascriptSnippet,
@@ -8020,19 +8021,20 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
   });
 });
 
-test("with the agent but no engine in Wayfern yet, the chat shows and a send waits for the update", async () => {
+test("with the agent and a Wayfern without the engine, a send says so in a toast and keeps the words", async () => {
   await withApp("ui-agent-no-engine", async (app) => {
     await createUiProfile(app, "Atlas");
     for (const [command, reply] of [
-      ["get_agent_engine_status", { supported: false, checked: true }],
       ["list_agent_chats", []],
       ["list_agent_batches", []],
       ["list_agent_routines", []],
       ["get_agent_credits", null],
       ["get_agent_chat_sync", { locked: false }],
       ["watch_agent_chats", null],
-      ["create_agent_chat", null],
-      ["get_browser_release_types", { stable: "999.0.0.0" }],
+      [
+        "create_agent_chat",
+        { __error: JSON.stringify({ code: "AGENT_UNSUPPORTED" }) },
+      ],
     ]) {
       await stubCommand(app, command, reply);
     }
@@ -8043,58 +8045,233 @@ test("with the agent but no engine in Wayfern yet, the chat shows and a send wai
       () =>
         app.execute(
           `return Boolean(document.querySelector('[data-slot="chat-empty"]')) &&
-             document.querySelectorAll('[data-slot="agent-starter"]').length === 4;`,
+             document.querySelectorAll('[data-slot="agent-template"]').length === 4;`,
         ),
-      { description: "the chat, without the engine" },
+      { description: "the chat" },
     );
 
-    // A starter fills the box and selects the part to change.
+    // A template fills the box and selects the part to change. Without a
+    // plan for schedules, its suggested schedule stays off.
     await app.clickSelector(
-      '[data-slot="agent-starter"][data-starter="orders"]',
+      '[data-slot="agent-template"][data-template="newOrders"]',
     );
     await app.waitFor(
       () =>
         app.execute(
           `const box = document.querySelector('[data-slot="chat-input"]');
-           return box.value.slice(box.selectionStart, box.selectionEnd) === "[site]";`,
+           return box.value.slice(box.selectionStart, box.selectionEnd) === "[marketplace]";`,
         ),
-      { description: "the starter's [site] selected" },
+      { description: "the template's [marketplace] selected" },
+    );
+    assert.equal(
+      await app.execute(
+        `return document.querySelector('[data-slot="agent-repeat"]').dataset.repeat;`,
+      ),
+      "once",
+      "no schedule without the plan",
     );
 
+    // The send reaches the backend; an old Wayfern answers with a toast.
     await app.clickSelector('[data-slot="chat-send"]');
     await app.waitFor(
-      () =>
-        app.execute(
-          `return Boolean(document.querySelector('[data-slot="agent-engine-missing"]'));`,
+      async () =>
+        (await toastTexts(app)).some((text) =>
+          text.includes(en.backendErrors.agentUnsupported),
         ),
-      { description: "the update notice" },
+      { description: "the agentUnsupported toast" },
     );
-    const notice = await app.execute(
-      `return {
-         text: document.querySelector('[data-slot="agent-engine-missing"]').innerText,
-         kept: document.querySelector('[data-slot="chat-input"]').value.length > 0,
-         update: Boolean(document.querySelector('[data-slot="agent-engine-update"]')),
-       };`,
-    );
-    assert.ok(notice.text.includes(en.agent.engine.title), notice.text);
-    assert.ok(notice.text.includes(en.agent.engine.updateReady), notice.text);
-    assert.equal(notice.kept, true, "the words stay in the box");
-    assert.equal(notice.update, true, "a newer Wayfern can be installed now");
     assert.equal(
-      await agentCallCount(app, "create_agent_chat"),
-      0,
-      "nothing goes to the engine",
+      await app.execute(
+        `return document.querySelector('[data-slot="chat-input"]').value;`,
+      ),
+      en.agent.templates.items.newOrders.prompt,
+      "the words stay in the box",
     );
-    await captureBothThemes(app, "agent-no-engine");
-    await app.clickSelector('[data-slot="agent-engine-dismiss"]');
-    await app.waitFor(
-      () =>
-        app.execute(
-          `return !document.querySelector('[data-slot="agent-engine-missing"]');`,
-        ),
-      { description: "the notice closed" },
+    assert.equal(await agentCallCount(app, "create_agent_chat"), 1);
+    assert.equal(
+      await app.execute(
+        `return document.querySelector('[data-slot="chat-conversation"]').dataset.chatId ?? null;`,
+      ),
+      null,
+      "no chat opens",
     );
   });
+});
+
+test("the template gallery searches, filters by category, and a pick fills the box with its schedule", async () => {
+  await withApp(
+    "ui-agent-templates",
+    async (app) => {
+      await createUiProfile(app, "Atlas");
+      for (const [command, reply] of [
+        ["list_agent_chats", []],
+        ["list_agent_batches", []],
+        ["list_agent_routines", []],
+        ["get_agent_credits", null],
+        ["get_agent_chat_sync", { locked: false }],
+        ["watch_agent_chats", null],
+      ]) {
+        await stubCommand(app, command, reply);
+      }
+      await signInWithAgent(app, scheduledAgentUser());
+      await app.waitForText("Atlas");
+      await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-template"]').length === 4 &&
+             Boolean(document.querySelector('[data-slot="agent-templates-all"]'));`,
+          ),
+        { description: "four templates on the new-chat page" },
+      );
+      await captureBothThemes(app, "agent-templates-home");
+
+      const cards = () =>
+        app.execute(
+          `return [...document.querySelectorAll('[data-slot="agent-templates"] [data-slot="agent-template"]')]
+           .map((card) => ({ id: card.dataset.template, category: card.dataset.category }));`,
+        );
+
+      await app.clickSelector('[data-slot="agent-templates-all"]');
+      await app.waitFor(
+        async () => (await cards()).length === AGENT_TEMPLATES.length,
+        { description: "every template in the gallery" },
+      );
+      const gallery = await app.execute(
+        `return {
+         sections: document.querySelectorAll('[data-slot="agent-templates-section"]').length,
+         focused: document.activeElement?.dataset.slot ?? null,
+         asks: [...document.querySelectorAll('[data-slot="agent-template-asks"]')]
+           .map((icon) => icon.closest('[data-slot="agent-template"]').dataset.template),
+         schedule: document.querySelector('[data-template="stillSignedIn"] [data-slot="agent-template-schedule"]')?.innerText ?? null,
+         current: document.querySelector('[data-slot="agent-templates-open"]').getAttribute("aria-current"),
+       };`,
+      );
+      assert.equal(gallery.sections, 7, "one section per category");
+      assert.equal(gallery.focused, "agent-templates-search");
+      assert.deepEqual(
+        gallery.asks.sort(),
+        AGENT_TEMPLATES.filter((template) => template.asksFirst)
+          .map((template) => template.id)
+          .sort(),
+        "the hand marks each template that asks first",
+      );
+      assert.ok(gallery.schedule, "a suggested schedule shows on its card");
+      assert.equal(gallery.current, "true", "the sidebar marks Templates");
+      await captureBothThemes(app, "agent-templates-gallery");
+
+      // A category shows its templates only, in one grid.
+      await app.clickSelector(
+        '[data-slot="agent-templates-category"][data-category="health"]',
+      );
+      await app.waitFor(
+        async () => {
+          const shown = await cards();
+          return (
+            shown.length ===
+              AGENT_TEMPLATES.filter(
+                (template) => template.category === "health",
+              ).length && shown.every((card) => card.category === "health")
+          );
+        },
+        { description: "the health templates only" },
+      );
+
+      // Words search the titles, descriptions and prompts of that category.
+      await app.fillSelector('[data-slot="agent-templates-search"]', "captcha");
+      await app.waitFor(
+        async () =>
+          (await cards()).map((card) => card.id).join() === "blockedPages",
+        { description: "one health template about captchas" },
+      );
+      await app.clickSelector(
+        '[data-slot="agent-templates-category"][data-category="all"]',
+      );
+      await app.waitFor(
+        async () => {
+          const ids = (await cards()).map((card) => card.id);
+          return ids.length > 1 && ids[0] === "blockedPages";
+        },
+        { description: "every template about captchas, the title match first" },
+      );
+      const matched = (await cards()).map((card) => card.id);
+      for (const id of matched) {
+        const copy = en.agent.templates.items[id];
+        assert.match(
+          `${copy.title} ${copy.description} ${copy.prompt}`,
+          /captcha/i,
+          id,
+        );
+      }
+      assert.equal(
+        await app.execute(
+          `return document.querySelectorAll('[data-slot="agent-templates-section"]').length;`,
+        ),
+        0,
+        "results are one list",
+      );
+
+      await app.fillSelector('[data-slot="agent-templates-search"]', "zzqx");
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-templates-empty"]'));`,
+          ),
+        { description: "no template matches" },
+      );
+
+      // A pick fills the box, selects the first blank and presets its schedule.
+      await app.fillSelector(
+        '[data-slot="agent-templates-search"]',
+        en.agent.templates.items.stillSignedIn.title,
+      );
+      await app.clickSelector(
+        '[data-slot="agent-template"][data-template="stillSignedIn"]',
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const box = document.querySelector('[data-slot="chat-input"]');
+           return Boolean(box) && box.value.slice(box.selectionStart, box.selectionEnd) === "[sites]";`,
+          ),
+        { description: "the template's [sites] selected" },
+      );
+      assert.deepEqual(
+        await app.execute(
+          `return {
+           text: document.querySelector('[data-slot="chat-input"]').value,
+           repeat: document.querySelector('[data-slot="agent-repeat"]').dataset.repeat,
+           target: document.querySelector('[data-slot="chat-composer"]').dataset.target,
+         };`,
+        ),
+        {
+          text: en.agent.templates.items.stillSignedIn.prompt,
+          repeat: "daily",
+          target: "routine",
+        },
+      );
+      await captureBothThemes(app, "agent-templates-picked");
+
+      // From the sidebar, a template without a schedule sets the repeat back.
+      await app.clickSelector('[data-slot="agent-templates-open"]');
+      await app.clickSelector(
+        '[data-slot="agent-template"][data-template="postAcross"]',
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const box = document.querySelector('[data-slot="chat-input"]');
+           return Boolean(box) && box.value === arguments[0] &&
+             box.value.slice(box.selectionStart, box.selectionEnd) === "[site]" &&
+             document.querySelector('[data-slot="agent-repeat"]').dataset.repeat === "once" &&
+             document.querySelector('[data-slot="chat-composer"]').dataset.target === "chat";`,
+            [en.agent.templates.items.postAcross.prompt],
+          ),
+        { description: "the post template, once, as a chat" },
+      );
+    },
+    { settings: { paid_welcome_seen_for: ["ui-agent"] } },
+  );
 });
 
 /** A screenshot once page and list motion has come to rest. */

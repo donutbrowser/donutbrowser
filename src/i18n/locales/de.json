@@ -4431,40 +4431,204 @@
       "back": "Zurück zu den Chats"
     },
     "home": {
-      "title": "Was sollen Ihre Profile tun?",
-      "startersLabel": "Ideen für den Anfang",
-      "starters": {
-        "warmUp": {
-          "title": "Profile aufwärmen",
-          "hint": "Wie ein echter Besucher surfen",
-          "prompt": "Wärmen Sie dieses Profil auf: Besuchen Sie etwa 10 Minuten lang einige bekannte Nachrichten- und Shopping-Websites, akzeptieren Sie Cookie-Banner, scrollen Sie und öffnen Sie einige Seiten wie ein normaler Besucher. Melden Sie sich nicht an und kaufen Sie nichts."
-        },
-        "accounts": {
-          "title": "Konten prüfen",
-          "hint": "Angemeldet, eingeschränkt oder gesperrt",
-          "prompt": "Öffnen Sie mein Konto auf [Website] und sagen Sie mir, ob es angemeldet oder eingeschränkt ist oder eine Bestätigung verlangt. Wenn es abgemeldet ist und der Browser das Passwort gespeichert hat, melden Sie sich wieder an."
-        },
-        "orders": {
-          "title": "Bestellungen prüfen",
-          "hint": "Neue Bestellungen seit gestern",
-          "prompt": "Öffnen Sie mein Verkäufer-Dashboard auf [Website] und listen Sie die neuen Bestellungen seit gestern auf: Bestellnummer, Käufer, Summe und Status."
-        },
-        "collect": {
-          "title": "Daten sammeln",
-          "hint": "Von Seiten in eine Tabelle",
-          "prompt": "Gehen Sie zu [Seite] und sammeln Sie Name, Preis und Bestand jedes Produkts in einer Tabelle."
-        }
-      }
-    },
-    "engine": {
-      "title": "Der Agent kommt mit dem nächsten Wayfern-Update",
-      "body": "Donut installiert es automatisch. Ihre Nachricht bleibt hier, damit Sie sie dann senden können.",
-      "updateReady": "Eine neuere Wayfern-Version ist bereit zur Installation.",
-      "updating": "Wayfern wird aktualisiert, {{percent}} %",
-      "updateAction": "Wayfern aktualisieren"
+      "title": "Was sollen Ihre Profile tun?"
     },
     "live": {
       "label": "Live-Ansicht von {{name}}"
+    },
+    "templates": {
+      "title": "Vorlagen",
+      "all": "Alle Vorlagen",
+      "search": "Vorlagen suchen",
+      "categoriesLabel": "Kategorien",
+      "allCategories": "Alle",
+      "noMatch": "Keine Vorlage passt",
+      "asksFirst": "Der Agent fragt Sie, bevor er postet, sendet, bezahlt oder Einstellungen ändert",
+      "scope": {
+        "one": "Ein Profil",
+        "each": "Jedes Profil"
+      },
+      "categories": {
+        "accounts": "Konten",
+        "social": "Soziale Medien",
+        "sellers": "Verkäufer",
+        "ads": "Werbung und Affiliate",
+        "research": "Recherche",
+        "monitoring": "Überwachung",
+        "health": "Profilzustand"
+      },
+      "items": {
+        "accountStatus": {
+          "title": "Kontostatus prüfen",
+          "description": "Angemeldet, eingeschränkt oder gesperrt",
+          "prompt": "Öffnen Sie [Website] und prüfen Sie das Konto in diesem Profil. Melden Sie eine Zeile: den Kontonamen, ob es angemeldet ist, und jede Warnung auf der Seite, etwa ein Limit, eine Sperre, eine Bestätigungsanfrage oder eine offene Rechnung. Wenn es abgemeldet ist und der Browser das Passwort gespeichert hat, melden Sie sich wieder an. Wenn ein Code oder ein Captcha verlangt wird, hören Sie auf und sagen Sie es mir. Ändern Sie keine Einstellungen."
+        },
+        "warmUp": {
+          "title": "Profil aufwärmen",
+          "description": "Surfen wie ein echter Besucher",
+          "prompt": "Wärmen Sie dieses Profil etwa 15 Minuten lang auf. Besuchen Sie beliebte Nachrichten-, Wetter-, Video- und Shopping-Websites aus dem Land des Proxys dieses Profils. Akzeptieren Sie Cookie-Banner, scrollen Sie, öffnen Sie einige Artikel und Produktseiten und sehen Sie einen Teil eines Videos an. Suchen Sie nach [Thema] und öffnen Sie zwei Ergebnisse. Melden Sie sich nicht an, registrieren Sie sich nicht und kaufen Sie nichts. Listen Sie am Ende die besuchten Websites auf."
+        },
+        "sessionCheck": {
+          "title": "Sitzungen und 2FA prüfen",
+          "description": "Angemeldete Geräte und Zwei-Schritt-Anmeldung",
+          "prompt": "Öffnen Sie die Sicherheitsseite meines Kontos auf [Website]. Listen Sie jede angemeldete Sitzung und jedes Gerät mit Standort, Gerätetyp und letzter Aktivität auf und sagen Sie mir, ob die Zwei-Schritt-Anmeldung aktiv ist. Markieren Sie jede Sitzung, die nicht aus dem Land des Proxys dieses Profils kommt. Fragen Sie mich, bevor Sie eine Sitzung abmelden oder eine Sicherheitseinstellung ändern."
+        },
+        "passwordAge": {
+          "title": "Erinnerung an Passwortwechsel",
+          "description": "Findet Passwörter, die älter als 90 Tage sind",
+          "prompt": "Öffnen Sie die Sicherheitseinstellungen meines Kontos auf [Website] und finden Sie heraus, wann das Passwort zuletzt geändert wurde. Wenn das mehr als 90 Tage her ist oder die Seite es nicht angibt, sagen Sie es mir. Fragen Sie mich, bevor Sie das Passwort ändern, und verwenden Sie nur ein neues Passwort, das ich Ihnen gebe."
+        },
+        "platformNotices": {
+          "title": "Plattform-Hinweise lesen",
+          "description": "Warnungen und Anfragen der Website",
+          "prompt": "Öffnen Sie [Website] im Konto dieses Profils und lesen Sie die Benachrichtigungen und Nachrichten der letzten 7 Tage, die von der Plattform selbst kommen, nicht von anderen Nutzern. Listen Sie jeden Hinweis auf, der eine Aktion verlangt: Datum, Betreff, was verlangt wird und die Frist. Antworten, akzeptieren oder widersprechen Sie nichts."
+        },
+        "postAcross": {
+          "title": "In jedem Konto posten",
+          "description": "Ein Beitrag, für jedes Konto geschrieben",
+          "prompt": "Öffnen Sie [Website] im Konto dieses Profils und lesen Sie die letzten 5 Beiträge. Schreiben Sie einen neuen Beitrag über [Thema] im selben Ton und in derselben Sprache, mit weniger als 280 Zeichen. Zeigen Sie mir den Text und fragen Sie mich, bevor Sie ihn posten. Geben Sie mir nach dem Posten den Link."
+        },
+        "dailyPost": {
+          "title": "Aus einer Liste posten",
+          "description": "Nimmt den nächsten Beitrag aus einem Dokument",
+          "prompt": "Öffnen Sie das Dokument unter [Link] und finden Sie den ersten Beitrag darin, der nicht als erledigt markiert ist. Posten Sie ihn auf [Website] aus dem Konto dieses Profils, mit seinem Bild, falls er eines hat. Fragen Sie mich vor dem Posten. Markieren Sie den Beitrag danach im Dokument als erledigt und geben Sie mir den Link zum Beitrag."
+        },
+        "replyComments": {
+          "title": "Auf Kommentare antworten",
+          "description": "Antwortentwürfe für neue Kommentare",
+          "prompt": "Öffnen Sie die letzten 3 Beiträge des Kontos dieses Profils auf [Website] und lesen Sie die Kommentare der letzten 24 Stunden. Schreiben Sie eine kurze, freundliche Antwort auf jede Frage oder Beschwerde. Überspringen Sie Spam und Kommentare, auf die das Konto schon geantwortet hat. Zeigen Sie mir alle Antworten in einer Liste und fragen Sie mich, bevor Sie sie posten."
+        },
+        "inboxDigest": {
+          "title": "Posteingang zusammenfassen",
+          "description": "Ungelesene Nachrichten, dringende zuerst",
+          "prompt": "Öffnen Sie den Posteingang des Kontos dieses Profils auf [Website]. Geben Sie für jede ungelesene Unterhaltung den Absender, eine Zusammenfassung in einer Zeile und an, ob sie heute, später oder nie eine Antwort braucht. Setzen Sie die, die heute eine Antwort brauchen, an den Anfang. Antworten Sie niemandem."
+        },
+        "followerStats": {
+          "title": "Follower-Statistik",
+          "description": "Follower und Reichweite in einer Tabelle",
+          "prompt": "Öffnen Sie die Profilseite und die Statistik des Kontos dieses Profils auf [Website]. Erstellen Sie eine Tabelle mit diesen Spalten: Konto, Follower, folgt, Beiträge, Follower-Änderung in 7 Tagen, durchschnittliche Likes der letzten 10 Beiträge. Schreiben Sie „k. A.“ für einen Wert, den die Website nicht zeigt. Folgen, liken oder posten Sie nichts."
+        },
+        "newOrders": {
+          "title": "Neue Bestellungen",
+          "description": "Bestellungen der letzten 24 Stunden",
+          "prompt": "Öffnen Sie das Verkäufer-Dashboard auf [Marktplatz] für den Shop dieses Profils. Listen Sie die Bestellungen der letzten 24 Stunden in einer Tabelle mit diesen Spalten auf: Bestellnummer, Datum, Artikel, Menge, Summe, Land des Käufers, Status. Geben Sie unter der Tabelle die Anzahl der Bestellungen und den Gesamtumsatz an. Nehmen Sie keine Bestellung an und stornieren oder versenden Sie keine."
+        },
+        "listingHealth": {
+          "title": "Zustand der Angebote",
+          "description": "Inaktive, unterdrückte oder markierte Angebote",
+          "prompt": "Öffnen Sie die Angebots- oder Bestandsseite auf [Marktplatz] für den Shop dieses Profils. Finden Sie die Angebote, die inaktiv, unterdrückt oder nicht vorrätig sind oder eine Richtlinienwarnung haben. Erstellen Sie eine Tabelle mit diesen Spalten: Angebotstitel, SKU, Problem, was die Seite zur Behebung sagt. Bearbeiten oder löschen Sie keine Angebote."
+        },
+        "reviewReplies": {
+          "title": "Zu beantwortende Bewertungen",
+          "description": "Neue Bewertungen mit Antwortentwürfen",
+          "prompt": "Öffnen Sie die Bewertungs- oder Feedbackseite auf [Marktplatz] für den Shop dieses Profils. Listen Sie die Bewertungen der letzten 7 Tage ohne Antwort auf: Datum, Sterne, Produkt, Bewertungstext. Schreiben Sie für jede Bewertung mit 3 Sternen oder weniger eine höfliche Antwort, die Hilfe anbietet. Fragen Sie mich, bevor Sie eine Antwort posten."
+        },
+        "buyerMessages": {
+          "title": "Käufernachrichten",
+          "description": "Offene Fragen mit Antwortentwürfen",
+          "prompt": "Öffnen Sie die Käufernachrichten auf [Marktplatz] für den Shop dieses Profils. Geben Sie für jede unbeantwortete Nachricht die Bestellnummer, die Frage in einer Zeile und eine kurze Antwort auf Basis der Bestelldaten an. Fragen Sie mich, bevor Sie eine Antwort senden. Gewähren Sie keine Erstattungen oder Rabatte."
+        },
+        "listingPrice": {
+          "title": "Preis und Bestand pro Marktplatz",
+          "description": "Ihr Angebot neben den anderen",
+          "prompt": "Öffnen Sie mein Angebot für [Produkt] auf [Marktplatz] im Konto dieses Profils. Geben Sie eine Zeile mit diesen Spalten an: Marktplatz, mein Preis, Versand, Bestand, Anzahl der Verkäufer, niedrigster anderer Preis, bestes Angebot ist meins (ja oder nein). Ändern Sie weder Preis noch Bestand."
+        },
+        "adsByCountry": {
+          "title": "Suchanzeigen nach Land",
+          "description": "Wer im Land jedes Profils wirbt",
+          "prompt": "Suchen Sie in diesem Profil auf Google nach [Suchbegriffe]; sein Proxy bestimmt das Land. Listen Sie die Anzeigen auf der ersten Seite in einer Tabelle mit diesen Spalten auf: Position, Werbetreibender, Überschrift, angezeigte URL. Geben Sie unter der Tabelle das Land und die Sprache an, die Google unten auf der Seite zeigt. Klicken Sie auf keine Anzeige."
+        },
+        "landingByCountry": {
+          "title": "Landingpage nach Land",
+          "description": "Weiterleitungen, Sprache und Sperren pro Land",
+          "prompt": "Öffnen Sie [Link] in diesem Profil und folgen Sie allen Weiterleitungen. Melden Sie die endgültige URL, jeden Schritt der Weiterleitungskette, die Sprache der Seite, die angezeigte Währung und die Ladezeit in Sekunden. Sagen Sie mir, ob die Seite gesperrt ist, ein Captcha zeigt oder eine Einwilligung verlangt. Füllen Sie keine Formulare aus und klicken Sie auf keine Schaltflächen der Seite."
+        },
+        "offerLinks": {
+          "title": "Angebotslinks prüfen",
+          "description": "Defekte oder abgelaufene Affiliate-Links",
+          "prompt": "Öffnen Sie jeden Link dieser Liste nacheinander: [Links]. Erstellen Sie eine Tabelle mit diesen Spalten: Link, endgültige URL nach Weiterleitungen, Fehler falls vorhanden, Angebot aktiv (ja oder nein), Zielland der Seite. Ein Angebot ist aktiv, wenn die Seite einen Preis oder ein Anmeldeformular zeigt. Füllen Sie keine Formulare aus und kaufen Sie nichts."
+        },
+        "competitorAds": {
+          "title": "Anzeigen der Konkurrenz",
+          "description": "Aktive Anzeigen einer Marke in der Anzeigenbibliothek",
+          "prompt": "Öffnen Sie die öffentliche Anzeigenbibliothek von [Plattform] und suchen Sie nach [Marke]. Notieren Sie für jede aktive Anzeige Startdatum, Format, Überschrift, Haupttext in einer Zeile, Handlungsaufforderung und Domain der Landingpage. Stellen Sie sie in eine Tabelle, neueste zuerst, höchstens 20 Zeilen. Melden Sie sich nicht an."
+        },
+        "adSpend": {
+          "title": "Ausgaben im Werbekonto",
+          "description": "Ausgaben und Warnungen von gestern",
+          "prompt": "Öffnen Sie den Werbeanzeigenmanager von [Plattform] im Konto dieses Profils. Erstellen Sie für gestern eine Tabelle mit einer Zeile pro Kampagne und diesen Spalten: Kampagne, Status, Ausgaben, Impressionen, Klicks, Ergebnisse, Kosten pro Ergebnis. Listen Sie unter der Tabelle jede Warnung und jede abgelehnte Anzeige des Kontos auf. Ändern Sie keine Budgets, Gebote oder Anzeigen."
+        },
+        "pageToTable": {
+          "title": "Seite in Tabelle",
+          "description": "Eine Liste auf einer Seite, in Zeilen",
+          "prompt": "Öffnen Sie [Link] und erfassen Sie jeden Eintrag der Hauptliste in einer Tabelle mit diesen Spalten: Name, Preis, Bewertung, Anzahl der Rezensionen, Link. Folgen Sie den Links zur nächsten Seite, bis Sie 50 Zeilen haben oder es keine weiteren Seiten gibt. Melden Sie sich nicht an und legen Sie nichts in einen Warenkorb."
+        },
+        "serpByCountry": {
+          "title": "Suchergebnisse nach Land",
+          "description": "Die Top 10 im Land jedes Profils",
+          "prompt": "Suchen Sie in diesem Profil auf Google nach [Suchbegriffe]; sein Proxy bestimmt das Land. Erstellen Sie eine Tabelle der ersten 10 organischen Ergebnisse mit diesen Spalten: Position, Titel, Domain, URL. Überspringen Sie Anzeigen, Karten und Videos, nennen Sie aber unter der Tabelle die, die erschienen sind. Öffnen Sie die Ergebnisse nicht."
+        },
+        "pricesByCountry": {
+          "title": "Preise in Ländern vergleichen",
+          "description": "Ein Produkt, aus dem Land jedes Profils gesehen",
+          "prompt": "Öffnen Sie [Produktlink] in diesem Profil. Behalten Sie das Land und die Währung, die die Website wählt. Geben Sie eine Zeile mit diesen Spalten an: Land, Preis, Währung, Versand, Rabatt. Legen Sie nichts in einen Warenkorb."
+        },
+        "enrichList": {
+          "title": "Liste ergänzen",
+          "description": "Websites und Kontakte zu einer Namensliste",
+          "prompt": "Finden Sie für jedes Unternehmen dieser Liste die Website, das Land des Hauptsitzes, die LinkedIn-Seite und eine Kontakt-E-Mail von der eigenen Website: [Unternehmen]. Erstellen Sie eine Tabelle mit diesen Spalten: Unternehmen, Website, Land, LinkedIn, E-Mail, Quellseite. Schreiben Sie „nicht gefunden“ für einen fehlenden Wert; raten Sie nicht."
+        },
+        "reviewSummary": {
+          "title": "Rezensionen zusammenfassen",
+          "description": "Was Käufer mögen und was nicht",
+          "prompt": "Öffnen Sie [Produktlink] und lesen Sie die Rezensionen: mindestens 50, falls es so viele gibt, gute und schlechte. Nennen Sie die 5 häufigsten Lobpunkte und die 5 häufigsten Beschwerden, jeweils mit ihrer Häufigkeit und einem kurzen Zitat. Schließen Sie mit der Durchschnittsbewertung und der Anzahl der Rezensionen."
+        },
+        "priceDrop": {
+          "title": "Preissenkung",
+          "description": "Meldet, wenn ein Preis fällt",
+          "prompt": "Öffnen Sie [Produktlink] und lesen Sie den aktuellen Preis. Wenn er bei oder unter [Zielpreis] liegt, beginnen Sie Ihre Antwort mit „Preissenkung“ und nennen Sie Preis, Verkäufer und Link. Wenn nicht, antworten Sie mit dem Preis in einer Zeile. Kaufen Sie nichts."
+        },
+        "pageWatch": {
+          "title": "Seite auf Wörter überwachen",
+          "description": "Meldet, wenn eine Seite sie erwähnt",
+          "prompt": "Öffnen Sie [Link] und suchen Sie auf der Seite nach [Wörter]. Wenn sie vorkommen, beginnen Sie Ihre Antwort mit „Gefunden“, zitieren Sie jeden Satz, der sie enthält, und nennen Sie den Link. Wenn nicht, antworten Sie mit „Nicht gefunden“ in einer Zeile. Klicken Sie auf nichts auf der Seite."
+        },
+        "backInStock": {
+          "title": "Wieder vorrätig",
+          "description": "Prüft stündlich, bis Sie es kaufen können",
+          "prompt": "Öffnen Sie [Produktlink] und prüfen Sie, ob [Größe oder Variante] jetzt gekauft werden kann. Wenn ja, beginnen Sie Ihre Antwort mit „Vorrätig“ und nennen Sie Preis und Link. Wenn nicht, antworten Sie mit „Nicht vorrätig“ in einer Zeile. Legen Sie es nicht in den Warenkorb und kaufen Sie es nicht."
+        },
+        "rankByCountry": {
+          "title": "Ranking nach Land",
+          "description": "Wo Ihre Website in jedem Land rankt",
+          "prompt": "Suchen Sie in diesem Profil auf Google nach [Suchbegriffe]; sein Proxy bestimmt das Land. Finden Sie das erste Ergebnis von [Ihre Domain] auf den ersten 5 Seiten. Geben Sie eine Zeile mit diesen Spalten an: Land, Suchbegriff, Position, rankende URL. Wenn es nicht unter den ersten 50 Ergebnissen ist, schreiben Sie „nicht in den Top 50“. Klicken Sie auf keine Ergebnisse."
+        },
+        "accountLimits": {
+          "title": "Kontolimits",
+          "description": "Kontingente und Einschränkungen pro Konto",
+          "prompt": "Öffnen Sie die Seite zu Kontozustand, Limits oder Qualität des Kontos dieses Profils auf [Website]. Listen Sie jedes Limit, das die Seite zeigt, mit der aktuellen Nutzung auf, zum Beispiel Nachrichten, Ausgaben, Beiträge oder Angebote pro Tag. Markieren Sie jedes Limit über 80 % und jede neue Einschränkung. Ändern Sie keine Einstellungen und legen Sie keinen Einspruch ein."
+        },
+        "proxyMatch": {
+          "title": "Proxy und Fingerprint abgleichen",
+          "description": "Land der Exit-IP gegen Zeitzone und Sprache",
+          "prompt": "Öffnen Sie https://ipinfo.io/json in diesem Profil und notieren Sie IP-Adresse, Land, Stadt, Zeitzone und Organisation. Öffnen Sie dann eine Seite, die die Zeitzone und die Sprachen des Browsers zeigt. Geben Sie eine Zeile mit diesen Spalten an: IP, Land, Zeitzone der IP, Zeitzone des Browsers, Sprache des Browsers, passt (ja oder nein). Wenn sie nicht passen, sagen Sie warum."
+        },
+        "stillSignedIn": {
+          "title": "Noch angemeldet",
+          "description": "Sitzungen auf den Websites, die Sie nutzen",
+          "prompt": "Öffnen Sie jede dieser Websites in diesem Profil: [Websites]. Prüfen Sie auf jeder, ob ein Konto angemeldet ist, ohne sich neu anzumelden. Erstellen Sie eine Tabelle mit diesen Spalten: Website, angemeldet (ja oder nein), angezeigter Kontoname, Hinweise wie eine Bestätigungsanfrage. Melden Sie sich weder an noch ab und akzeptieren Sie keine neuen Bedingungen."
+        },
+        "blockedPages": {
+          "title": "Sperren und Captchas",
+          "description": "Websites, die dieses Profil blockieren",
+          "prompt": "Öffnen Sie jede dieser Websites in diesem Profil: [Websites]. Sagen Sie für jede, ob die Seite normal lädt oder ein Captcha, eine Seite „Zugriff verweigert“ oder „ungewöhnlicher Traffic“ oder eine Cookie-Wand zeigt. Erstellen Sie eine Tabelle mit diesen Spalten: Website, Ergebnis, Seitentitel, was die Seite verlangt. Lösen Sie keine Captchas."
+        },
+        "leakCheck": {
+          "title": "DNS- und WebRTC-Lecks",
+          "description": "Prüft, dass nichts am Proxy vorbeigeht",
+          "prompt": "Öffnen Sie in diesem Profil eine Seite für DNS-Leak-Tests und starten Sie den Standardtest. Notieren Sie jeden DNS-Server mit Land und Betreiber. Öffnen Sie dann eine Seite für WebRTC-Leak-Tests und notieren Sie jede gefundene IP-Adresse. Geben Sie eine Zeile mit diesen Spalten an: Proxy-IP, DNS-Länder, WebRTC-IPs, Leck (ja oder nein). Ein Leck ist ein DNS-Server oder eine IP-Adresse außerhalb des Landes des Proxys."
+        }
+      }
     }
   },
   "proxyDistribution": {

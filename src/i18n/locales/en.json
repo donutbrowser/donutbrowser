@@ -4431,40 +4431,204 @@
       "back": "Back to chats"
     },
     "home": {
-      "title": "What should your profiles do?",
-      "startersLabel": "Ideas to start from",
-      "starters": {
-        "warmUp": {
-          "title": "Warm up profiles",
-          "hint": "Browse like a real visitor",
-          "prompt": "Warm up this profile: visit a few popular news and shopping sites for about 10 minutes, accept cookie banners, scroll and open some pages like a normal visitor. Do not sign in or buy anything."
-        },
-        "accounts": {
-          "title": "Check accounts",
-          "hint": "Signed in, limited or locked",
-          "prompt": "Open my account on [site] and tell me if it is signed in, limited or asks for a verification. If it is signed out and the browser has the password saved, sign in again."
-        },
-        "orders": {
-          "title": "Check orders",
-          "hint": "New orders since yesterday",
-          "prompt": "Open my seller dashboard on [site] and list the new orders since yesterday: order number, buyer, total and status."
-        },
-        "collect": {
-          "title": "Collect data",
-          "hint": "From pages into a table",
-          "prompt": "Go to [page] and collect the name, price and stock of each product into a table."
-        }
-      }
-    },
-    "engine": {
-      "title": "The agent comes with the next Wayfern update",
-      "body": "Donut installs it on its own. Your message stays here, so you can send it then.",
-      "updateReady": "A newer Wayfern is ready to install.",
-      "updating": "Updating Wayfern, {{percent}}%",
-      "updateAction": "Update Wayfern"
+      "title": "What should your profiles do?"
     },
     "live": {
       "label": "Live view of {{name}}"
+    },
+    "templates": {
+      "title": "Templates",
+      "all": "All templates",
+      "search": "Search templates",
+      "categoriesLabel": "Categories",
+      "allCategories": "All",
+      "noMatch": "No template matches",
+      "asksFirst": "Asks you before it posts, sends, pays or changes settings",
+      "scope": {
+        "one": "One profile",
+        "each": "Each profile"
+      },
+      "categories": {
+        "accounts": "Accounts",
+        "social": "Social media",
+        "sellers": "Sellers",
+        "ads": "Ads and affiliate",
+        "research": "Research",
+        "monitoring": "Monitoring",
+        "health": "Profile health"
+      },
+      "items": {
+        "accountStatus": {
+          "title": "Check account status",
+          "description": "Signed in, limited or locked",
+          "prompt": "Open [site] and check the account in this profile. Report one line: the account name, whether it is signed in, and any warning on the page, such as a limit, a lock, a verification request or an unpaid bill. If it is signed out and the browser has the password saved, sign in again. If it asks for a code or a captcha, stop and tell me. Do not change any settings."
+        },
+        "warmUp": {
+          "title": "Warm up a profile",
+          "description": "Browse like a real visitor",
+          "prompt": "Warm up this profile for about 15 minutes. Visit popular news, weather, video and shopping sites of the country of this profile's proxy. Accept cookie banners, scroll, open a few articles and product pages, and watch part of one video. Search for [topic] and open two results. Do not sign in, register or buy anything. At the end, list the sites you visited."
+        },
+        "sessionCheck": {
+          "title": "Check sessions and 2FA",
+          "description": "Signed-in devices and two-step sign-in",
+          "prompt": "Open the security page of my [site] account. List each signed-in session or device with its location, device type and last activity, and tell me whether two-step sign-in is on. Mark each session that is not from the country of this profile's proxy. Ask me before you sign out a session or change a security setting."
+        },
+        "passwordAge": {
+          "title": "Password change reminder",
+          "description": "Finds passwords older than 90 days",
+          "prompt": "Open the security settings of my [site] account and find when the password was last changed. If it was more than 90 days ago, or the page does not say, tell me. Ask me before you change the password, and use only a new password that I give you."
+        },
+        "platformNotices": {
+          "title": "Read platform notices",
+          "description": "Warnings and requests from the site",
+          "prompt": "Open [site] in this profile's account and read the notifications and messages of the last 7 days from the platform itself, not from other users. List each notice that asks for an action: date, subject, what it asks and the deadline. Do not reply, accept or appeal anything."
+        },
+        "postAcross": {
+          "title": "Post on each account",
+          "description": "One post, written for each account",
+          "prompt": "Open [site] in this profile's account and read its last 5 posts. Write a new post about [topic] in the same tone and language, under 280 characters. Show me the text and ask me before you post it. After you post it, give me the link."
+        },
+        "dailyPost": {
+          "title": "Post from a list",
+          "description": "Takes the next post from a document",
+          "prompt": "Open the document at [link] and find the first post in it that is not marked as done. Post it on [site] from this profile's account, with its image if it has one. Ask me before you post. Then mark the post as done in the document and give me the link to the post."
+        },
+        "replyComments": {
+          "title": "Reply to comments",
+          "description": "Drafts replies to new comments",
+          "prompt": "Open the last 3 posts of this profile's account on [site] and read the comments of the last 24 hours. Write a short, friendly reply to each question or complaint. Skip spam and comments that already have a reply from the account. Show me all replies in a list and ask me before you post them."
+        },
+        "inboxDigest": {
+          "title": "Inbox digest",
+          "description": "Unread messages, most urgent first",
+          "prompt": "Open the inbox of this profile's account on [site]. For each unread conversation, give the sender, a one-line summary, and whether it needs a reply today, later or never. Put the ones that need a reply today first. Do not reply to anyone."
+        },
+        "followerStats": {
+          "title": "Follower stats",
+          "description": "Followers and reach in a table",
+          "prompt": "Open the profile page and the statistics of this profile's account on [site]. Make a table with these columns: account, followers, following, posts, follower change in 7 days, average likes of the last 10 posts. Write \"n/a\" for a value the site does not show. Do not follow, like or post anything."
+        },
+        "newOrders": {
+          "title": "New orders",
+          "description": "Orders of the last 24 hours",
+          "prompt": "Open the seller dashboard on [marketplace] for this profile's shop. List the orders of the last 24 hours in a table with these columns: order number, date, item, quantity, total, buyer country, status. Under the table, give the number of orders and the total sales. Do not accept, cancel or ship any order."
+        },
+        "listingHealth": {
+          "title": "Listing health",
+          "description": "Inactive, suppressed or flagged listings",
+          "prompt": "Open the listings or inventory page on [marketplace] for this profile's shop. Find the listings that are inactive, suppressed, out of stock or have a policy warning. Make a table with these columns: listing title, SKU, problem, what the page says to fix it. Do not edit or delete listings."
+        },
+        "reviewReplies": {
+          "title": "Reviews to answer",
+          "description": "New reviews, with draft replies",
+          "prompt": "Open the reviews or feedback page on [marketplace] for this profile's shop. List the reviews of the last 7 days that have no reply: date, rating, product, review text. For each review of 3 stars or less, write a polite reply that offers help. Ask me before you post any reply."
+        },
+        "buyerMessages": {
+          "title": "Buyer messages",
+          "description": "Open questions, with draft answers",
+          "prompt": "Open the buyer messages on [marketplace] for this profile's shop. For each message without an answer, give the order number, the question in one line, and a short answer based on the order details. Ask me before you send any answer. Do not give refunds or discounts."
+        },
+        "listingPrice": {
+          "title": "Price and stock per marketplace",
+          "description": "Your offer next to the others",
+          "prompt": "Open my listing of [product] on [marketplace] in this profile's account. Give one row with these columns: marketplace, my price, shipping, stock, number of sellers, lowest other price, top offer is mine (yes or no). Do not change the price or the stock."
+        },
+        "adsByCountry": {
+          "title": "Search ads by country",
+          "description": "Who advertises in each profile's country",
+          "prompt": "Search for [keywords] on Google in this profile; its proxy sets the country. List the ads on the first page in a table with these columns: position, advertiser, headline, display URL. Under the table, give the country and language that Google shows at the bottom of the page. Do not click any ad."
+        },
+        "landingByCountry": {
+          "title": "Landing page by country",
+          "description": "Redirects, language and blocks per geo",
+          "prompt": "Open [link] in this profile and follow all redirects. Report the final URL, each step of the redirect chain, the page language, the currency shown and the load time in seconds. Tell me if the page is blocked, shows a captcha or asks for consent. Do not fill in forms or click buttons on the page."
+        },
+        "offerLinks": {
+          "title": "Check offer links",
+          "description": "Broken or expired affiliate links",
+          "prompt": "Open each link in this list, one at a time: [links]. Make a table with these columns: link, final URL after redirects, error if any, offer live (yes or no), country the page targets. An offer is live when the page shows a price or a sign-up form. Do not fill in forms or buy anything."
+        },
+        "competitorAds": {
+          "title": "Competitor ads",
+          "description": "A brand's active ads in the ad library",
+          "prompt": "Open the public ad library of [platform] and search for [brand]. For each active ad, note the start date, format, headline, main text in one line, call to action and landing page domain. Put them in a table, newest first, at most 20 rows. Do not sign in."
+        },
+        "adSpend": {
+          "title": "Ad account spend",
+          "description": "Yesterday's spend and warnings",
+          "prompt": "Open the ads manager of [platform] in this profile's account. For yesterday, make a table with one row per campaign and these columns: campaign, status, spend, impressions, clicks, results, cost per result. Under the table, list each warning or rejected ad on the account. Do not change budgets, bids or ads."
+        },
+        "pageToTable": {
+          "title": "Page to table",
+          "description": "A list on a page, in rows",
+          "prompt": "Open [link] and collect each item of its main list into a table with these columns: name, price, rating, number of reviews, link. Follow the next-page links until you have 50 rows or there are no more pages. Do not sign in or add anything to a cart."
+        },
+        "serpByCountry": {
+          "title": "Search results by country",
+          "description": "The top 10 in each profile's country",
+          "prompt": "Search for [keywords] on Google in this profile; its proxy sets the country. Make a table of the first 10 organic results with these columns: position, title, domain, URL. Skip ads, maps and videos, but under the table name the ones that showed. Do not open the results."
+        },
+        "pricesByCountry": {
+          "title": "Compare prices across countries",
+          "description": "One product, seen from each profile's geo",
+          "prompt": "Open [product link] in this profile. Keep the country and currency that the site chooses. Give one row with these columns: country, price, currency, shipping, discount. Do not add anything to a cart."
+        },
+        "enrichList": {
+          "title": "Enrich a list",
+          "description": "Websites and contacts for a list of names",
+          "prompt": "For each company in this list, find its website, the country of its head office, its LinkedIn page and a contact email from its own site: [companies]. Make a table with these columns: company, website, country, LinkedIn, email, source page. Write \"not found\" for a missing value; do not guess."
+        },
+        "reviewSummary": {
+          "title": "Summarize reviews",
+          "description": "What buyers like and dislike",
+          "prompt": "Open [product link] and read its reviews: at least 50 if there are that many, both good and bad. Give the 5 most common points of praise and the 5 most common complaints, each with how often it comes up and one short quote. End with the average rating and the number of reviews."
+        },
+        "priceDrop": {
+          "title": "Price drop",
+          "description": "Tells you when a price falls",
+          "prompt": "Open [product link] and read the current price. If it is at or below [target price], start your answer with \"Price drop\" and give the price, the seller and the link. If not, answer with the price in one line. Do not buy anything."
+        },
+        "pageWatch": {
+          "title": "Watch a page for words",
+          "description": "Tells you when a page mentions them",
+          "prompt": "Open [link] and search the page for [words]. If they appear, start your answer with \"Found\", quote each sentence that has them and give the link. If not, answer \"Not found\" in one line. Do not click anything on the page."
+        },
+        "backInStock": {
+          "title": "Back in stock",
+          "description": "Checks every hour until you can buy it",
+          "prompt": "Open [product link] and check whether [size or variant] can be bought now. If it can, start your answer with \"In stock\" and give the price and the link. If not, answer \"Out of stock\" in one line. Do not add it to a cart or buy it."
+        },
+        "rankByCountry": {
+          "title": "Rank by country",
+          "description": "Where your site ranks in each geo",
+          "prompt": "Search for [keywords] on Google in this profile; its proxy sets the country. Find the first result from [your domain] in the first 5 pages. Give one row with these columns: country, keyword, position, ranking URL. If it is not in the first 50 results, write \"not in top 50\". Do not click the results."
+        },
+        "accountLimits": {
+          "title": "Account limits",
+          "description": "Quotas and restrictions per account",
+          "prompt": "Open the account health, limits or quality page of this profile's account on [site]. List each limit the page shows with its current use, for example messages, spend, posts or listings per day. Mark each limit above 80% and each new restriction. Do not change settings or file an appeal."
+        },
+        "proxyMatch": {
+          "title": "Proxy and fingerprint match",
+          "description": "Exit IP country against time zone and language",
+          "prompt": "Open https://ipinfo.io/json in this profile and note the IP address, country, city, time zone and organization. Then open a page that shows the browser's time zone and languages. Give one row with these columns: IP, country, IP time zone, browser time zone, browser language, match (yes or no). When they do not match, say why."
+        },
+        "stillSignedIn": {
+          "title": "Still signed in",
+          "description": "Sessions on the sites you use",
+          "prompt": "Open each of these sites in this profile: [sites]. On each, check whether an account is signed in, without signing in again. Make a table with these columns: site, signed in (yes or no), account name shown, notes such as a verification request. Do not sign in, sign out or accept new terms."
+        },
+        "blockedPages": {
+          "title": "Blocks and captchas",
+          "description": "Sites that block this profile",
+          "prompt": "Open each of these sites in this profile: [sites]. For each, tell whether the page loads normally, shows a captcha, an access-denied or unusual-traffic page, or a cookie wall. Make a table with these columns: site, result, page title, what the page asks for. Do not solve captchas."
+        },
+        "leakCheck": {
+          "title": "DNS and WebRTC leaks",
+          "description": "Checks that nothing goes around the proxy",
+          "prompt": "Open a DNS leak test page in this profile and run its standard test. Note each DNS server with its country and owner. Then open a WebRTC leak test page and note each IP address it finds. Give one row with these columns: proxy IP, DNS countries, WebRTC IPs, leak (yes or no). A leak is a DNS server or IP address outside the proxy's country."
+        }
+      }
     }
   },
   "proxyDistribution": {

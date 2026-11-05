@@ -2,22 +2,24 @@
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  LuChartColumn,
-  LuFlame,
-  LuPackageSearch,
-  LuShieldCheck,
-  LuUsers,
-} from "react-icons/lu";
+import { LuUsers } from "react-icons/lu";
 import { ChatTurnView } from "@/components/agent-chat/chat-turn";
-import { Composer, type ComposerSend } from "@/components/agent-chat/composer";
-import { EngineNotice } from "@/components/agent-chat/engine-notice";
+import {
+  Composer,
+  type ComposerFill,
+  type ComposerSend,
+} from "@/components/agent-chat/composer";
 import type { HostContext } from "@/components/agent-chat/host-call";
 import { LiveView } from "@/components/agent-chat/live-view";
 import {
   AgentSidebar,
   type PaneSelection,
 } from "@/components/agent-chat/sidebar";
+import {
+  FeaturedTemplates,
+  TemplateGallery,
+  templateRepeat,
+} from "@/components/agent-chat/templates";
 import { AgentShell, SidebarToggle } from "@/components/agent-shell";
 import {
   PaneHeader,
@@ -37,11 +39,9 @@ import {
   type ConsoleTab,
 } from "@/components/connected-agents";
 import { FadingScrollArea } from "@/components/ui/fading-scroll-area";
-import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { useAgentChat, useAgentChats } from "@/hooks/use-agent-chat";
 import type { AgentConsole } from "@/hooks/use-agent-console";
 import {
-  type AgentAvailability,
   useAgentBatches,
   useAgentCredits,
   useAgentRoutines,
@@ -67,9 +67,9 @@ import {
   routineFromTurn,
   startAgentBatch,
 } from "@/lib/agent-tasks";
-import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
+import type { AgentTemplate } from "@/lib/agent-templates";
+import { translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
-import { cn } from "@/lib/utils";
 import type { BrowserProfile } from "@/types";
 
 /** What the agent page shows: the chats, or a view of connected agents. */
@@ -81,57 +81,10 @@ export interface ChatSeed {
   nonce: number;
 }
 
-const STARTERS = [
-  { id: "warmUp", icon: LuFlame },
-  { id: "accounts", icon: LuShieldCheck },
-  { id: "orders", icon: LuPackageSearch },
-  { id: "collect", icon: LuChartColumn },
-] as const;
-
 function upsertRoutine(list: AgentRoutine[], routine: AgentRoutine) {
   return list.some((item) => item.id === routine.id)
     ? list.map((item) => (item.id === routine.id ? routine : item))
     : [routine, ...list];
-}
-
-/** Ready-made tasks for work across profiles; a click puts one in the box. */
-function Starters({ onPick }: { onPick: (prompt: string) => void }) {
-  const { t } = useTranslation();
-  return (
-    <ul
-      aria-label={t("agent.home.startersLabel")}
-      className="grid grid-cols-1 gap-1 @[34rem]:grid-cols-2"
-    >
-      {STARTERS.map(({ id, icon: Icon }) => (
-        <li key={id}>
-          <button
-            type="button"
-            data-slot="agent-starter"
-            data-starter={id}
-            onClick={() => {
-              onPick(t(`agent.home.starters.${id}.prompt`));
-            }}
-            className={cn(
-              "flex w-full cursor-pointer items-center gap-3 rounded-2xl p-2 text-left transition-colors duration-150 hover:bg-foreground/4 motion-reduce:transition-none",
-              FOCUS_RING,
-            )}
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-foreground/5 text-muted-foreground">
-              <Icon className="size-4" aria-hidden="true" />
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm">
-                {t(`agent.home.starters.${id}.title`)}
-              </span>
-              <span className="truncate text-xs text-muted-foreground">
-                {t(`agent.home.starters.${id}.hint`)}
-              </span>
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 /** The thread of one chat, beside its profile's window while it works. */
@@ -184,7 +137,7 @@ function ChatView({
             ? t("agent.tasks.needsYou")
             : (live.steps.at(-1)?.text ?? t(statusLabelKey(live.status))),
         url: [...live.steps].reverse().find((step) => step.url)?.url ?? null,
-        image: images[chat.profileId],
+        image: images[chat.profileId]?.image,
       }
     : null;
 
@@ -258,7 +211,6 @@ function ChatView({
  */
 export function AgentWorkspace({
   enabled,
-  availability,
   view,
   onViewChange,
   profiles,
@@ -271,7 +223,6 @@ export function AgentWorkspace({
 }: {
   /** The page is open: lists load and stay live. */
   enabled: boolean;
-  availability: AgentAvailability;
   view: AgentView;
   onViewChange: (view: AgentView) => void;
   profiles: BrowserProfile[];
@@ -299,10 +250,7 @@ export function AgentWorkspace({
   // Null until the person or a seed chooses; then their choice stays.
   const [draftProfiles, setDraftProfiles] = useState<string[] | null>(null);
   const [focusKey, setFocusKey] = useState("");
-  const [fill, setFill] = useState<{ text: string; nonce: number } | null>(
-    null,
-  );
-  const [engineWait, setEngineWait] = useState(false);
+  const [fill, setFill] = useState<ComposerFill | null>(null);
   const chatId = selection.kind === "chat" ? selection.id : null;
   const { chat, adopt } = useAgentChat(chatId);
 
@@ -326,10 +274,20 @@ export function AgentWorkspace({
 
   const select = (next: PaneSelection) => {
     setSelection(next);
+    setFill(null);
     onViewChange("chat");
     if (next.kind === "new" || next.kind === "chat") {
       setFocusKey(`${next.kind}:${Date.now()}`);
     }
+  };
+
+  const pickTemplate = (template: AgentTemplate) => {
+    select({ kind: "new" });
+    setFill({
+      text: t(`agent.templates.items.${template.id}.prompt`),
+      repeat: templateRepeat(template, canSchedule),
+      nonce: Date.now(),
+    });
   };
 
   const [seenSeed, setSeenSeed] = useState<number | null>(null);
@@ -359,20 +317,12 @@ export function AgentWorkspace({
         : []
       : draftProfiles.filter((id) => usableIds.has(id));
 
-  const engineMissing = availability.engine === "missing";
-  const waiting = engineWait && availability.engine !== "ready";
-
   const send = async ({
     text,
     target,
     repeat,
     settings,
   }: ComposerSend): Promise<boolean> => {
-    // A routine only saves; it runs once the engine is in.
-    if (engineMissing && target !== "routine") {
-      setEngineWait(true);
-      return false;
-    }
     const startUrl = settings.startUrl.trim() || null;
     const maxCredits = positiveInt(settings.maxCredits);
     const concurrency = positiveInt(settings.concurrency, MAX_CONCURRENCY);
@@ -418,14 +368,10 @@ export function AgentWorkspace({
         setSelection({ kind: "chat", id: created.id });
         adopt(created);
       }
-      setEngineWait(false);
+      setFill(null);
       return true;
     } catch (error) {
-      if (parseBackendError(error)?.code === "AGENT_UNSUPPORTED") {
-        setEngineWait(true);
-      } else {
-        showErrorToast(translateBackendError(t, error));
-      }
+      showErrorToast(translateBackendError(t, error));
       return false;
     }
   };
@@ -446,14 +392,6 @@ export function AgentWorkspace({
     onOpen: select,
   };
 
-  const notice = waiting ? (
-    <EngineNotice
-      onDismiss={() => {
-        setEngineWait(false);
-      }}
-    />
-  ) : null;
-
   const composer = (hero: boolean) => (
     <Composer
       chat={shown}
@@ -466,7 +404,6 @@ export function AgentWorkspace({
       onControl={control}
       hero={hero}
       fill={hero ? fill : null}
-      notice={notice}
       leading={
         hero ? (
           <ProfilePicker
@@ -594,6 +531,9 @@ export function AgentWorkspace({
         </section>
       );
     }
+    if (selection.kind === "templates") {
+      return <TemplateGallery onPick={pickTemplate} />;
+    }
     if (shown) {
       return (
         <ChatView
@@ -639,9 +579,10 @@ export function AgentWorkspace({
                 )}
               </div>
               {composer(true)}
-              <Starters
-                onPick={(text) => {
-                  setFill({ text, nonce: Date.now() });
+              <FeaturedTemplates
+                onPick={pickTemplate}
+                onShowAll={() => {
+                  select({ kind: "templates" });
                 }}
               />
             </div>

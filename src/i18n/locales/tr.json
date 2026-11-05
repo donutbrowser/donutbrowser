@@ -4431,40 +4431,204 @@
       "back": "Sohbetlere dön"
     },
     "home": {
-      "title": "Profilleriniz ne yapsın?",
-      "startersLabel": "Başlangıç için fikirler",
-      "starters": {
-        "warmUp": {
-          "title": "Profilleri ısıt",
-          "hint": "Gerçek bir ziyaretçi gibi gez",
-          "prompt": "Bu profili ısıtın: yaklaşık 10 dakika boyunca birkaç popüler haber ve alışveriş sitesini ziyaret edin, çerez bildirimlerini kabul edin, normal bir ziyaretçi gibi kaydırın ve birkaç sayfa açın. Giriş yapmayın ve bir şey satın almayın."
-        },
-        "accounts": {
-          "title": "Hesapları kontrol et",
-          "hint": "Oturum açık, kısıtlı veya kilitli",
-          "prompt": "[site] üzerindeki hesabımı açın ve oturumun açık olup olmadığını, kısıtlanıp kısıtlanmadığını veya doğrulama isteyip istemediğini söyleyin. Oturum kapalıysa ve tarayıcıda şifre kayıtlıysa yeniden giriş yapın."
-        },
-        "orders": {
-          "title": "Siparişleri kontrol et",
-          "hint": "Dünden beri yeni siparişler",
-          "prompt": "[site] üzerindeki satıcı panelimi açın ve dünden beri gelen yeni siparişleri listeleyin: sipariş numarası, alıcı, toplam ve durum."
-        },
-        "collect": {
-          "title": "Veri topla",
-          "hint": "Sayfalardan tabloya",
-          "prompt": "[sayfa] adresine gidin ve her ürünün adını, fiyatını ve stoğunu bir tabloda toplayın."
-        }
-      }
-    },
-    "engine": {
-      "title": "Ajan bir sonraki Wayfern güncellemesiyle geliyor",
-      "body": "Donut onu kendisi kurar. Mesajınız burada kalır, böylece o zaman gönderebilirsiniz.",
-      "updateReady": "Daha yeni bir Wayfern kurulmaya hazır.",
-      "updating": "Wayfern güncelleniyor, %{{percent}}",
-      "updateAction": "Wayfern'i güncelle"
+      "title": "Profilleriniz ne yapsın?"
     },
     "live": {
       "label": "{{name}} canlı görünümü"
+    },
+    "templates": {
+      "title": "Şablonlar",
+      "all": "Tüm şablonlar",
+      "search": "Şablonlarda ara",
+      "categoriesLabel": "Kategoriler",
+      "allCategories": "Tümü",
+      "noMatch": "Eşleşen şablon yok",
+      "asksFirst": "Ajan paylaşmadan, göndermeden, ödeme yapmadan veya ayar değiştirmeden önce size sorar",
+      "scope": {
+        "one": "Tek profil",
+        "each": "Her profil"
+      },
+      "categories": {
+        "accounts": "Hesaplar",
+        "social": "Sosyal medya",
+        "sellers": "Satıcılar",
+        "ads": "Reklam ve affiliate",
+        "research": "Araştırma",
+        "monitoring": "İzleme",
+        "health": "Profil sağlığı"
+      },
+      "items": {
+        "accountStatus": {
+          "title": "Hesap durumunu kontrol et",
+          "description": "Oturum açık, kısıtlı veya kilitli",
+          "prompt": "[site] adresini açın ve bu profildeki hesabı kontrol edin. Tek satırda bildirin: hesap adı, oturumun açık olup olmadığı ve sayfadaki her uyarı; örneğin bir limit, kilit, doğrulama isteği veya ödenmemiş fatura. Oturum kapalıysa ve tarayıcıda şifre kayıtlıysa yeniden giriş yapın. Kod veya captcha isterse durun ve bana söyleyin. Hiçbir ayarı değiştirmeyin."
+        },
+        "warmUp": {
+          "title": "Profili ısıt",
+          "description": "Gerçek bir ziyaretçi gibi gezinme",
+          "prompt": "Bu profili yaklaşık 15 dakika ısıtın. Bu profilin proxy ülkesindeki popüler haber, hava durumu, video ve alışveriş sitelerini ziyaret edin. Çerez bildirimlerini kabul edin, sayfaları kaydırın, birkaç makale ve ürün sayfası açın ve bir videonun bir kısmını izleyin. [konu] araması yapın ve iki sonucu açın. Giriş yapmayın, kayıt olmayın ve hiçbir şey satın almayın. Sonunda ziyaret ettiğiniz siteleri listeleyin."
+        },
+        "sessionCheck": {
+          "title": "Oturumları ve 2FA'yı kontrol et",
+          "description": "Oturum açık cihazlar ve iki adımlı doğrulama",
+          "prompt": "[site] üzerindeki hesabımın güvenlik sayfasını açın. Oturum açık her oturumu veya cihazı konumu, cihaz türü ve son etkinliğiyle listeleyin ve iki adımlı doğrulamanın açık olup olmadığını söyleyin. Bu profilin proxy ülkesinden olmayan her oturumu işaretleyin. Bir oturumu kapatmadan veya bir güvenlik ayarını değiştirmeden önce bana sorun."
+        },
+        "passwordAge": {
+          "title": "Şifre değiştirme hatırlatıcısı",
+          "description": "90 günden eski şifreleri bulur",
+          "prompt": "[site] üzerindeki hesabımın güvenlik ayarlarını açın ve şifrenin en son ne zaman değiştirildiğini bulun. 90 günden uzun süre önceyse veya sayfa bunu göstermiyorsa bana söyleyin. Şifreyi değiştirmeden önce bana sorun ve yalnızca benim verdiğim yeni şifreyi kullanın."
+        },
+        "platformNotices": {
+          "title": "Platform bildirimlerini oku",
+          "description": "Siteden gelen uyarılar ve istekler",
+          "prompt": "[site] adresini bu profilin hesabında açın ve son 7 günde diğer kullanıcılardan değil, platformun kendisinden gelen bildirimleri ve mesajları okuyun. İşlem isteyen her bildirimi listeleyin: tarih, konu, ne istediği ve son tarih. Hiçbir şeye yanıt vermeyin, onay vermeyin veya itiraz etmeyin."
+        },
+        "postAcross": {
+          "title": "Her hesapta paylaş",
+          "description": "Her hesap için yazılmış bir gönderi",
+          "prompt": "[site] adresini bu profilin hesabında açın ve son 5 gönderisini okuyun. [konu] hakkında aynı ton ve dilde, 280 karakterden kısa yeni bir gönderi yazın. Metni bana gösterin ve paylaşmadan önce bana sorun. Paylaştıktan sonra bana bağlantıyı verin."
+        },
+        "dailyPost": {
+          "title": "Listeden paylaş",
+          "description": "Sıradaki gönderiyi bir belgeden alır",
+          "prompt": "[bağlantı] adresindeki belgeyi açın ve tamamlandı olarak işaretlenmemiş ilk gönderiyi bulun. Bu gönderiyi, görseli varsa onunla birlikte, bu profilin hesabından [site] üzerinde paylaşın. Paylaşmadan önce bana sorun. Sonra gönderiyi belgede tamamlandı olarak işaretleyin ve bana gönderinin bağlantısını verin."
+        },
+        "replyComments": {
+          "title": "Yorumları yanıtla",
+          "description": "Yeni yorumlar için yanıt taslakları",
+          "prompt": "Bu profilin [site] üzerindeki hesabının son 3 gönderisini açın ve son 24 saatin yorumlarını okuyun. Her soruya veya şikâyete kısa ve nazik bir yanıt yazın. Spam'i ve hesabın zaten yanıtladığı yorumları atlayın. Tüm yanıtları bana liste olarak gösterin ve paylaşmadan önce bana sorun."
+        },
+        "inboxDigest": {
+          "title": "Gelen kutusu özeti",
+          "description": "Okunmamış mesajlar, acil olanlar önce",
+          "prompt": "Bu profilin [site] üzerindeki hesabının gelen kutusunu açın. Okunmamış her konuşma için göndereni, tek satırlık bir özeti ve bugün, daha sonra veya hiç yanıt gerekip gerekmediğini yazın. Bugün yanıt gerekenleri en başa koyun. Kimseye yanıt vermeyin."
+        },
+        "followerStats": {
+          "title": "Takipçi istatistikleri",
+          "description": "Takipçiler ve erişim bir tabloda",
+          "prompt": "Bu profilin [site] üzerindeki hesabının profil sayfasını ve istatistiklerini açın. Şu sütunlarla bir tablo yapın: hesap, takipçi, takip edilen, gönderi, 7 günlük takipçi değişimi, son 10 gönderinin ortalama beğenisi. Sitenin göstermediği bir değer için \"yok\" yazın. Kimseyi takip etmeyin, hiçbir şeyi beğenmeyin veya paylaşmayın."
+        },
+        "newOrders": {
+          "title": "Yeni siparişler",
+          "description": "Son 24 saatin siparişleri",
+          "prompt": "Bu profilin mağazası için [pazaryeri] satıcı panelini açın. Son 24 saatin siparişlerini şu sütunlarla bir tabloda listeleyin: sipariş numarası, tarih, ürün, adet, toplam, alıcı ülkesi, durum. Tablonun altına sipariş sayısını ve toplam satışı yazın. Hiçbir siparişi onaylamayın, iptal etmeyin veya kargoya vermeyin."
+        },
+        "listingHealth": {
+          "title": "İlan sağlığı",
+          "description": "Pasif, gizlenmiş veya işaretlenmiş ilanlar",
+          "prompt": "Bu profilin mağazası için [pazaryeri] üzerindeki ilanlar veya stok sayfasını açın. Pasif, gizlenmiş, stokta olmayan veya politika uyarısı olan ilanları bulun. Şu sütunlarla bir tablo yapın: ilan başlığı, SKU, sorun, sayfanın düzeltmek için söyledikleri. İlanları düzenlemeyin veya silmeyin."
+        },
+        "reviewReplies": {
+          "title": "Yanıtlanacak yorumlar",
+          "description": "Yanıt taslaklarıyla yeni değerlendirmeler",
+          "prompt": "Bu profilin mağazası için [pazaryeri] üzerindeki değerlendirmeler sayfasını açın. Son 7 günün yanıtsız değerlendirmelerini listeleyin: tarih, puan, ürün, değerlendirme metni. 3 yıldız veya altındaki her değerlendirme için yardım öneren kibar bir yanıt yazın. Herhangi bir yanıtı paylaşmadan önce bana sorun."
+        },
+        "buyerMessages": {
+          "title": "Alıcı mesajları",
+          "description": "Yanıt taslaklarıyla açık sorular",
+          "prompt": "Bu profilin mağazası için [pazaryeri] üzerindeki alıcı mesajlarını açın. Yanıtsız her mesaj için sipariş numarasını, tek satırda soruyu ve sipariş bilgilerine dayanan kısa bir yanıtı yazın. Herhangi bir yanıtı göndermeden önce bana sorun. İade veya indirim yapmayın."
+        },
+        "listingPrice": {
+          "title": "Pazaryerine göre fiyat ve stok",
+          "description": "Teklifiniz, diğerlerinin yanında",
+          "prompt": "Bu profilin hesabında [pazaryeri] üzerindeki [ürün] ilanımı açın. Şu sütunlarla tek bir satır verin: pazaryeri, fiyatım, kargo, stok, satıcı sayısı, diğer satıcıların en düşük fiyatı, en iyi teklif benim (evet veya hayır). Fiyatı veya stoku değiştirmeyin."
+        },
+        "adsByCountry": {
+          "title": "Ülkeye göre arama reklamları",
+          "description": "Her profilin ülkesinde kim reklam veriyor",
+          "prompt": "Bu profilde Google'da [anahtar kelimeler] araması yapın; ülkeyi profilin proxy'si belirler. İlk sayfadaki reklamları şu sütunlarla bir tabloda listeleyin: sıra, reklamveren, başlık, görünen URL. Tablonun altına Google'ın sayfanın en altında gösterdiği ülkeyi ve dili yazın. Hiçbir reklama tıklamayın."
+        },
+        "landingByCountry": {
+          "title": "Ülkeye göre açılış sayfası",
+          "description": "Ülke başına yönlendirmeler, dil ve engeller",
+          "prompt": "[bağlantı] adresini bu profilde açın ve tüm yönlendirmeleri izleyin. Son URL'yi, yönlendirme zincirinin her adımını, sayfanın dilini, gösterilen para birimini ve saniye cinsinden yüklenme süresini bildirin. Sayfa engelliyse, captcha gösteriyorsa veya onay istiyorsa bana söyleyin. Sayfada form doldurmayın ve düğmelere tıklamayın."
+        },
+        "offerLinks": {
+          "title": "Teklif bağlantılarını kontrol et",
+          "description": "Kırık veya süresi dolmuş affiliate bağlantıları",
+          "prompt": "Bu listedeki her bağlantıyı sırayla açın: [bağlantılar]. Şu sütunlarla bir tablo yapın: bağlantı, yönlendirmelerden sonraki son URL, varsa hata, teklif aktif (evet veya hayır), sayfanın hedeflediği ülke. Sayfa bir fiyat veya kayıt formu gösteriyorsa teklif aktiftir. Form doldurmayın ve hiçbir şey satın almayın."
+        },
+        "competitorAds": {
+          "title": "Rakip reklamları",
+          "description": "Bir markanın reklam kitaplığındaki aktif reklamları",
+          "prompt": "[platform] genel reklam kitaplığını açın ve [marka] araması yapın. Her aktif reklam için başlangıç tarihini, biçimi, başlığı, tek satırda ana metni, harekete geçirici mesajı ve açılış sayfası alan adını not edin. Bunları en yeniler önce, en fazla 20 satırlık bir tabloya koyun. Giriş yapmayın."
+        },
+        "adSpend": {
+          "title": "Reklam hesabı harcaması",
+          "description": "Dünün harcaması ve uyarıları",
+          "prompt": "Bu profilin hesabında [platform] reklam yöneticisini açın. Dün için kampanya başına bir satır ve şu sütunlarla bir tablo yapın: kampanya, durum, harcama, gösterim, tıklama, sonuç, sonuç başına maliyet. Tablonun altına hesaptaki her uyarıyı veya reddedilen reklamı listeleyin. Bütçeleri, teklifleri veya reklamları değiştirmeyin."
+        },
+        "pageToTable": {
+          "title": "Sayfadan tabloya",
+          "description": "Bir sayfadaki liste, satırlar hâlinde",
+          "prompt": "[bağlantı] adresini açın ve ana listesindeki her öğeyi şu sütunlarla bir tabloya toplayın: ad, fiyat, puan, değerlendirme sayısı, bağlantı. 50 satıra ulaşana veya başka sayfa kalmayana kadar sonraki sayfa bağlantılarını izleyin. Giriş yapmayın ve sepete hiçbir şey eklemeyin."
+        },
+        "serpByCountry": {
+          "title": "Ülkeye göre arama sonuçları",
+          "description": "Her profilin ülkesinde ilk 10",
+          "prompt": "Bu profilde Google'da [anahtar kelimeler] araması yapın; ülkeyi profilin proxy'si belirler. İlk 10 organik sonucu şu sütunlarla bir tabloya koyun: sıra, başlık, alan adı, URL. Reklamları, haritaları ve videoları atlayın ama tablonun altında hangilerinin çıktığını yazın. Sonuçları açmayın."
+        },
+        "pricesByCountry": {
+          "title": "Ülkeler arasında fiyat karşılaştır",
+          "description": "Tek ürün, her profilin ülkesinden",
+          "prompt": "[ürün bağlantısı] adresini bu profilde açın. Sitenin seçtiği ülkeyi ve para birimini koruyun. Şu sütunlarla tek bir satır verin: ülke, fiyat, para birimi, kargo, indirim. Sepete hiçbir şey eklemeyin."
+        },
+        "enrichList": {
+          "title": "Listeyi zenginleştir",
+          "description": "Bir ad listesi için siteler ve iletişim bilgileri",
+          "prompt": "Bu listedeki her şirket için web sitesini, merkezinin bulunduğu ülkeyi, LinkedIn sayfasını ve kendi sitesindeki bir iletişim e-postasını bulun: [şirketler]. Şu sütunlarla bir tablo yapın: şirket, web sitesi, ülke, LinkedIn, e-posta, kaynak sayfa. Eksik bir değer için \"bulunamadı\" yazın; tahmin etmeyin."
+        },
+        "reviewSummary": {
+          "title": "Değerlendirmeleri özetle",
+          "description": "Alıcıların sevdiği ve sevmediği şeyler",
+          "prompt": "[ürün bağlantısı] adresini açın ve değerlendirmelerini okuyun: o kadar varsa en az 50, iyi ve kötü. En sık geçen 5 övgüyü ve en sık geçen 5 şikâyeti, her biri ne sıklıkla geçtiği ve kısa bir alıntıyla verin. Ortalama puan ve değerlendirme sayısıyla bitirin."
+        },
+        "priceDrop": {
+          "title": "Fiyat düşüşü",
+          "description": "Bir fiyat düştüğünde haber verir",
+          "prompt": "[ürün bağlantısı] adresini açın ve güncel fiyatı okuyun. Fiyat [hedef fiyat] veya altındaysa yanıtınıza \"Fiyat düştü\" ile başlayın ve fiyatı, satıcıyı ve bağlantıyı verin. Değilse tek satırda fiyatı yazın. Hiçbir şey satın almayın."
+        },
+        "pageWatch": {
+          "title": "Sayfada kelime izle",
+          "description": "Bir sayfa onlardan bahsettiğinde haber verir",
+          "prompt": "[bağlantı] adresini açın ve sayfada [kelimeler] arayın. Geçiyorsa yanıtınıza \"Bulundu\" ile başlayın, onları içeren her cümleyi alıntılayın ve bağlantıyı verin. Geçmiyorsa tek satırda \"Bulunamadı\" yazın. Sayfada hiçbir şeye tıklamayın."
+        },
+        "backInStock": {
+          "title": "Yeniden stokta",
+          "description": "Satın alabilene kadar her saat kontrol eder",
+          "prompt": "[ürün bağlantısı] adresini açın ve [beden veya seçenek] şu anda satın alınabiliyor mu kontrol edin. Alınabiliyorsa yanıtınıza \"Stokta\" ile başlayın ve fiyatı ve bağlantıyı verin. Alınamıyorsa tek satırda \"Stokta yok\" yazın. Sepete eklemeyin ve satın almayın."
+        },
+        "rankByCountry": {
+          "title": "Ülkeye göre sıralama",
+          "description": "Sitenizin her ülkedeki sırası",
+          "prompt": "Bu profilde Google'da [anahtar kelimeler] araması yapın; ülkeyi profilin proxy'si belirler. İlk 5 sayfada [alan adınız] adresinden gelen ilk sonucu bulun. Şu sütunlarla tek bir satır verin: ülke, anahtar kelime, sıra, sıralanan URL. İlk 50 sonuçta yoksa \"ilk 50'de değil\" yazın. Sonuçlara tıklamayın."
+        },
+        "accountLimits": {
+          "title": "Hesap limitleri",
+          "description": "Hesap başına kotalar ve kısıtlamalar",
+          "prompt": "Bu profilin [site] üzerindeki hesabının hesap sağlığı, limitler veya kalite sayfasını açın. Sayfanın gösterdiği her limiti güncel kullanımıyla listeleyin; örneğin günlük mesaj, harcama, gönderi veya ilan. Yüzde 80'in üzerindeki her limiti ve her yeni kısıtlamayı işaretleyin. Ayarları değiştirmeyin ve itiraz etmeyin."
+        },
+        "proxyMatch": {
+          "title": "Proxy ve parmak izi uyumu",
+          "description": "Çıkış IP ülkesi ile saat dilimi ve dil",
+          "prompt": "Bu profilde https://ipinfo.io/json adresini açın ve IP adresini, ülkeyi, şehri, saat dilimini ve kuruluşu not edin. Sonra tarayıcının saat dilimini ve dillerini gösteren bir sayfa açın. Şu sütunlarla tek bir satır verin: IP, ülke, IP saat dilimi, tarayıcı saat dilimi, tarayıcı dili, uyumlu (evet veya hayır). Uyumlu değilse nedenini söyleyin."
+        },
+        "stillSignedIn": {
+          "title": "Oturum hâlâ açık",
+          "description": "Kullandığınız sitelerdeki oturumlar",
+          "prompt": "Bu sitelerin her birini bu profilde açın: [siteler]. Her birinde, yeniden giriş yapmadan bir hesabın oturumunun açık olup olmadığını kontrol edin. Şu sütunlarla bir tablo yapın: site, oturum açık (evet veya hayır), görünen hesap adı, doğrulama isteği gibi notlar. Giriş veya çıkış yapmayın ve yeni koşulları kabul etmeyin."
+        },
+        "blockedPages": {
+          "title": "Engeller ve captcha'lar",
+          "description": "Bu profili engelleyen siteler",
+          "prompt": "Bu sitelerin her birini bu profilde açın: [siteler]. Her biri için sayfanın normal yüklenip yüklenmediğini ya da captcha, erişim reddedildi veya olağan dışı trafik sayfası ya da çerez duvarı gösterip göstermediğini söyleyin. Şu sütunlarla bir tablo yapın: site, sonuç, sayfa başlığı, sayfanın istediği. Captcha çözmeyin."
+        },
+        "leakCheck": {
+          "title": "DNS ve WebRTC sızıntıları",
+          "description": "Hiçbir şeyin proxy'yi atlamadığını kontrol eder",
+          "prompt": "Bu profilde bir DNS sızıntı testi sayfası açın ve standart testini çalıştırın. Her DNS sunucusunu ülkesi ve sahibiyle not edin. Sonra bir WebRTC sızıntı testi sayfası açın ve bulduğu her IP adresini not edin. Şu sütunlarla tek bir satır verin: proxy IP, DNS ülkeleri, WebRTC IP'leri, sızıntı (evet veya hayır). Sızıntı, proxy ülkesi dışındaki bir DNS sunucusu veya IP adresidir."
+        }
+      }
     }
   },
   "proxyDistribution": {

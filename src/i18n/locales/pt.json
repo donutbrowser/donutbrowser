@@ -4484,40 +4484,204 @@
       "back": "Voltar aos chats"
     },
     "home": {
-      "title": "O que seus perfis devem fazer?",
-      "startersLabel": "Ideias para começar",
-      "starters": {
-        "warmUp": {
-          "title": "Aquecer perfis",
-          "hint": "Navegar como um visitante real",
-          "prompt": "Aqueça este perfil: visite por cerca de 10 minutos alguns sites populares de notícias e compras, aceite os avisos de cookies, role e abra algumas páginas como um visitante normal. Não faça login nem compre nada."
-        },
-        "accounts": {
-          "title": "Verificar contas",
-          "hint": "Conectada, limitada ou bloqueada",
-          "prompt": "Abra minha conta em [site] e diga se ela está conectada, limitada ou se pede uma verificação. Se estiver desconectada e o navegador tiver a senha salva, faça login de novo."
-        },
-        "orders": {
-          "title": "Verificar pedidos",
-          "hint": "Pedidos novos desde ontem",
-          "prompt": "Abra meu painel de vendedor em [site] e liste os pedidos novos desde ontem: número do pedido, comprador, total e status."
-        },
-        "collect": {
-          "title": "Coletar dados",
-          "hint": "De páginas para uma tabela",
-          "prompt": "Vá para [página] e reúna numa tabela o nome, o preço e o estoque de cada produto."
-        }
-      }
-    },
-    "engine": {
-      "title": "O agente chega com a próxima atualização do Wayfern",
-      "body": "O Donut a instala sozinho. Sua mensagem fica aqui para você enviar depois.",
-      "updateReady": "Uma versão mais nova do Wayfern está pronta para instalar.",
-      "updating": "Atualizando o Wayfern, {{percent}}%",
-      "updateAction": "Atualizar o Wayfern"
+      "title": "O que seus perfis devem fazer?"
     },
     "live": {
       "label": "Visualização ao vivo de {{name}}"
+    },
+    "templates": {
+      "title": "Modelos",
+      "all": "Todos os modelos",
+      "search": "Pesquisar modelos",
+      "categoriesLabel": "Categorias",
+      "allCategories": "Todos",
+      "noMatch": "Nenhum modelo corresponde",
+      "asksFirst": "O agente pergunta antes de publicar, enviar, pagar ou mudar configurações",
+      "scope": {
+        "one": "Um perfil",
+        "each": "Cada perfil"
+      },
+      "categories": {
+        "accounts": "Contas",
+        "social": "Redes sociais",
+        "sellers": "Vendedores",
+        "ads": "Anúncios e afiliados",
+        "research": "Pesquisa",
+        "monitoring": "Monitoramento",
+        "health": "Saúde do perfil"
+      },
+      "items": {
+        "accountStatus": {
+          "title": "Verificar status da conta",
+          "description": "Conectada, limitada ou bloqueada",
+          "prompt": "Abra [site] e verifique a conta deste perfil. Informe em uma linha: o nome da conta, se ela está conectada e qualquer aviso na página, como um limite, um bloqueio, um pedido de verificação ou uma fatura em aberto. Se estiver desconectada e o navegador tiver a senha salva, faça login de novo. Se pedir um código ou um captcha, pare e me avise. Não mude nenhuma configuração."
+        },
+        "warmUp": {
+          "title": "Aquecer um perfil",
+          "description": "Navegar como um visitante real",
+          "prompt": "Aqueça este perfil por cerca de 15 minutos. Visite sites populares de notícias, clima, vídeo e compras do país do proxy deste perfil. Aceite os avisos de cookies, role a página, abra alguns artigos e páginas de produtos e assista a parte de um vídeo. Pesquise [tema] e abra dois resultados. Não faça login, não se cadastre e não compre nada. No fim, liste os sites que você visitou."
+        },
+        "sessionCheck": {
+          "title": "Verificar sessões e 2FA",
+          "description": "Dispositivos conectados e verificação em duas etapas",
+          "prompt": "Abra a página de segurança da minha conta em [site]. Liste cada sessão ou dispositivo conectado com local, tipo de dispositivo e última atividade, e diga se a verificação em duas etapas está ativa. Marque cada sessão que não seja do país do proxy deste perfil. Pergunte antes de encerrar uma sessão ou mudar uma configuração de segurança."
+        },
+        "passwordAge": {
+          "title": "Lembrete de troca de senha",
+          "description": "Encontra senhas com mais de 90 dias",
+          "prompt": "Abra as configurações de segurança da minha conta em [site] e descubra quando a senha foi trocada pela última vez. Se foi há mais de 90 dias, ou se a página não disser, me avise. Pergunte antes de trocar a senha e use apenas uma nova senha que eu lhe der."
+        },
+        "platformNotices": {
+          "title": "Ler avisos da plataforma",
+          "description": "Alertas e pedidos do site",
+          "prompt": "Abra [site] na conta deste perfil e leia as notificações e mensagens dos últimos 7 dias que vêm da própria plataforma, não de outros usuários. Liste cada aviso que pede uma ação: data, assunto, o que pede e o prazo. Não responda, aceite nem conteste nada."
+        },
+        "postAcross": {
+          "title": "Publicar em cada conta",
+          "description": "Uma publicação, escrita para cada conta",
+          "prompt": "Abra [site] na conta deste perfil e leia as últimas 5 publicações. Escreva uma nova publicação sobre [tema] no mesmo tom e idioma, com menos de 280 caracteres. Mostre o texto e pergunte antes de publicar. Depois de publicar, me dê o link."
+        },
+        "dailyPost": {
+          "title": "Publicar a partir de uma lista",
+          "description": "Pega a próxima publicação de um documento",
+          "prompt": "Abra o documento em [link] e encontre a primeira publicação que não está marcada como feita. Publique-a em [site] pela conta deste perfil, com a imagem dela, se houver. Pergunte antes de publicar. Depois, marque a publicação como feita no documento e me dê o link da publicação."
+        },
+        "replyComments": {
+          "title": "Responder comentários",
+          "description": "Rascunhos de resposta para comentários novos",
+          "prompt": "Abra as últimas 3 publicações da conta deste perfil em [site] e leia os comentários das últimas 24 horas. Escreva uma resposta curta e gentil para cada pergunta ou reclamação. Ignore spam e comentários que já têm resposta da conta. Mostre todas as respostas em uma lista e pergunte antes de publicá-las."
+        },
+        "inboxDigest": {
+          "title": "Resumo da caixa de entrada",
+          "description": "Mensagens não lidas, as urgentes primeiro",
+          "prompt": "Abra a caixa de entrada da conta deste perfil em [site]. Para cada conversa não lida, informe o remetente, um resumo de uma linha e se precisa de resposta hoje, depois ou nunca. Coloque primeiro as que precisam de resposta hoje. Não responda a ninguém."
+        },
+        "followerStats": {
+          "title": "Estatísticas de seguidores",
+          "description": "Seguidores e alcance em uma tabela",
+          "prompt": "Abra a página de perfil e as estatísticas da conta deste perfil em [site]. Faça uma tabela com estas colunas: conta, seguidores, seguindo, publicações, variação de seguidores em 7 dias, média de curtidas das últimas 10 publicações. Escreva \"n/d\" para um valor que o site não mostra. Não siga, curta nem publique nada."
+        },
+        "newOrders": {
+          "title": "Novos pedidos",
+          "description": "Pedidos das últimas 24 horas",
+          "prompt": "Abra o painel do vendedor em [marketplace] para a loja deste perfil. Liste os pedidos das últimas 24 horas em uma tabela com estas colunas: número do pedido, data, item, quantidade, total, país do comprador, status. Abaixo da tabela, informe o número de pedidos e o total de vendas. Não aceite, cancele nem envie nenhum pedido."
+        },
+        "listingHealth": {
+          "title": "Saúde dos anúncios",
+          "description": "Anúncios inativos, suprimidos ou sinalizados",
+          "prompt": "Abra a página de anúncios ou estoque em [marketplace] para a loja deste perfil. Encontre os anúncios inativos, suprimidos, sem estoque ou com um aviso de política. Faça uma tabela com estas colunas: título do anúncio, SKU, problema, o que a página diz para corrigir. Não edite nem exclua anúncios."
+        },
+        "reviewReplies": {
+          "title": "Avaliações para responder",
+          "description": "Avaliações novas, com rascunhos de resposta",
+          "prompt": "Abra a página de avaliações ou feedback em [marketplace] para a loja deste perfil. Liste as avaliações dos últimos 7 dias sem resposta: data, nota, produto, texto da avaliação. Para cada avaliação de 3 estrelas ou menos, escreva uma resposta educada que ofereça ajuda. Pergunte antes de publicar qualquer resposta."
+        },
+        "buyerMessages": {
+          "title": "Mensagens de compradores",
+          "description": "Perguntas em aberto, com rascunhos de resposta",
+          "prompt": "Abra as mensagens de compradores em [marketplace] para a loja deste perfil. Para cada mensagem sem resposta, informe o número do pedido, a pergunta em uma linha e uma resposta curta com base nos dados do pedido. Pergunte antes de enviar qualquer resposta. Não dê reembolsos nem descontos."
+        },
+        "listingPrice": {
+          "title": "Preço e estoque por marketplace",
+          "description": "Sua oferta ao lado das outras",
+          "prompt": "Abra meu anúncio de [produto] em [marketplace] na conta deste perfil. Dê uma linha com estas colunas: marketplace, meu preço, frete, estoque, número de vendedores, menor preço de outro vendedor, a melhor oferta é a minha (sim ou não). Não mude o preço nem o estoque."
+        },
+        "adsByCountry": {
+          "title": "Anúncios de pesquisa por país",
+          "description": "Quem anuncia no país de cada perfil",
+          "prompt": "Pesquise [palavras-chave] no Google neste perfil; o proxy dele define o país. Liste os anúncios da primeira página em uma tabela com estas colunas: posição, anunciante, título, URL exibido. Abaixo da tabela, informe o país e o idioma que o Google mostra no rodapé da página. Não clique em nenhum anúncio."
+        },
+        "landingByCountry": {
+          "title": "Página de destino por país",
+          "description": "Redirecionamentos, idioma e bloqueios por país",
+          "prompt": "Abra [link] neste perfil e siga todos os redirecionamentos. Informe o URL final, cada passo da cadeia de redirecionamentos, o idioma da página, a moeda exibida e o tempo de carregamento em segundos. Diga se a página está bloqueada, mostra um captcha ou pede consentimento. Não preencha formulários nem clique em botões da página."
+        },
+        "offerLinks": {
+          "title": "Verificar links de ofertas",
+          "description": "Links de afiliado quebrados ou expirados",
+          "prompt": "Abra cada link desta lista, um por vez: [links]. Faça uma tabela com estas colunas: link, URL final após os redirecionamentos, erro se houver, oferta ativa (sim ou não), país que a página atende. Uma oferta está ativa quando a página mostra um preço ou um formulário de cadastro. Não preencha formulários nem compre nada."
+        },
+        "competitorAds": {
+          "title": "Anúncios da concorrência",
+          "description": "Anúncios ativos de uma marca na biblioteca de anúncios",
+          "prompt": "Abra a biblioteca pública de anúncios de [plataforma] e pesquise [marca]. Para cada anúncio ativo, anote a data de início, o formato, o título, o texto principal em uma linha, a chamada para ação e o domínio da página de destino. Coloque-os em uma tabela, os mais novos primeiro, no máximo 20 linhas. Não faça login."
+        },
+        "adSpend": {
+          "title": "Gastos da conta de anúncios",
+          "description": "Gastos e avisos de ontem",
+          "prompt": "Abra o gerenciador de anúncios de [plataforma] na conta deste perfil. Para ontem, faça uma tabela com uma linha por campanha e estas colunas: campanha, status, gasto, impressões, cliques, resultados, custo por resultado. Abaixo da tabela, liste cada aviso ou anúncio rejeitado da conta. Não mude orçamentos, lances nem anúncios."
+        },
+        "pageToTable": {
+          "title": "Página para tabela",
+          "description": "Uma lista de uma página, em linhas",
+          "prompt": "Abra [link] e reúna cada item da lista principal em uma tabela com estas colunas: nome, preço, nota, número de avaliações, link. Siga os links para a próxima página até ter 50 linhas ou até não haver mais páginas. Não faça login nem adicione nada a um carrinho."
+        },
+        "serpByCountry": {
+          "title": "Resultados de pesquisa por país",
+          "description": "O top 10 no país de cada perfil",
+          "prompt": "Pesquise [palavras-chave] no Google neste perfil; o proxy dele define o país. Faça uma tabela dos 10 primeiros resultados orgânicos com estas colunas: posição, título, domínio, URL. Ignore anúncios, mapas e vídeos, mas abaixo da tabela diga quais apareceram. Não abra os resultados."
+        },
+        "pricesByCountry": {
+          "title": "Comparar preços entre países",
+          "description": "Um produto, visto do país de cada perfil",
+          "prompt": "Abra [link do produto] neste perfil. Mantenha o país e a moeda que o site escolher. Dê uma linha com estas colunas: país, preço, moeda, frete, desconto. Não adicione nada a um carrinho."
+        },
+        "enrichList": {
+          "title": "Completar uma lista",
+          "description": "Sites e contatos para uma lista de nomes",
+          "prompt": "Para cada empresa desta lista, encontre o site, o país da sede, a página no LinkedIn e um e-mail de contato do próprio site: [empresas]. Faça uma tabela com estas colunas: empresa, site, país, LinkedIn, e-mail, página de origem. Escreva \"não encontrado\" para um valor que falta; não chute."
+        },
+        "reviewSummary": {
+          "title": "Resumir avaliações",
+          "description": "O que os compradores gostam e não gostam",
+          "prompt": "Abra [link do produto] e leia as avaliações: pelo menos 50, se houver tantas, boas e ruins. Dê os 5 elogios mais comuns e as 5 reclamações mais comuns, cada um com a frequência e uma citação curta. Termine com a nota média e o número de avaliações."
+        },
+        "priceDrop": {
+          "title": "Queda de preço",
+          "description": "Avisa quando um preço cai",
+          "prompt": "Abra [link do produto] e leia o preço atual. Se for igual ou menor que [preço-alvo], comece a resposta com \"Queda de preço\" e informe o preço, o vendedor e o link. Se não, responda com o preço em uma linha. Não compre nada."
+        },
+        "pageWatch": {
+          "title": "Vigiar palavras em uma página",
+          "description": "Avisa quando uma página as menciona",
+          "prompt": "Abra [link] e procure [palavras] na página. Se aparecerem, comece a resposta com \"Encontrado\", cite cada frase que as contém e dê o link. Se não, responda \"Não encontrado\" em uma linha. Não clique em nada na página."
+        },
+        "backInStock": {
+          "title": "De volta ao estoque",
+          "description": "Verifica a cada hora até você poder comprar",
+          "prompt": "Abra [link do produto] e verifique se [tamanho ou variante] pode ser comprado agora. Se puder, comece a resposta com \"Em estoque\" e informe o preço e o link. Se não, responda \"Sem estoque\" em uma linha. Não adicione ao carrinho nem compre."
+        },
+        "rankByCountry": {
+          "title": "Posição por país",
+          "description": "Onde seu site aparece em cada país",
+          "prompt": "Pesquise [palavras-chave] no Google neste perfil; o proxy dele define o país. Encontre o primeiro resultado de [seu domínio] nas primeiras 5 páginas. Dê uma linha com estas colunas: país, palavra-chave, posição, URL ranqueado. Se não estiver nos primeiros 50 resultados, escreva \"fora do top 50\". Não clique nos resultados."
+        },
+        "accountLimits": {
+          "title": "Limites da conta",
+          "description": "Cotas e restrições por conta",
+          "prompt": "Abra a página de saúde, limites ou qualidade da conta deste perfil em [site]. Liste cada limite que a página mostra com o uso atual, por exemplo mensagens, gastos, publicações ou anúncios por dia. Marque cada limite acima de 80% e cada nova restrição. Não mude configurações nem abra recursos."
+        },
+        "proxyMatch": {
+          "title": "Proxy e impressão digital coerentes",
+          "description": "País do IP de saída contra fuso horário e idioma",
+          "prompt": "Abra https://ipinfo.io/json neste perfil e anote o endereço IP, o país, a cidade, o fuso horário e a organização. Depois abra uma página que mostre o fuso horário e os idiomas do navegador. Dê uma linha com estas colunas: IP, país, fuso do IP, fuso do navegador, idioma do navegador, coerente (sim ou não). Se não forem coerentes, diga por quê."
+        },
+        "stillSignedIn": {
+          "title": "Ainda conectado",
+          "description": "Sessões nos sites que você usa",
+          "prompt": "Abra cada um destes sites neste perfil: [sites]. Em cada um, verifique se há uma conta conectada, sem fazer login de novo. Faça uma tabela com estas colunas: site, conectado (sim ou não), nome da conta exibido, observações como um pedido de verificação. Não faça login nem logout e não aceite novos termos."
+        },
+        "blockedPages": {
+          "title": "Bloqueios e captchas",
+          "description": "Sites que bloqueiam este perfil",
+          "prompt": "Abra cada um destes sites neste perfil: [sites]. Para cada um, diga se a página carrega normalmente ou mostra um captcha, uma página de acesso negado ou de tráfego incomum, ou um bloqueio de cookies. Faça uma tabela com estas colunas: site, resultado, título da página, o que a página pede. Não resolva captchas."
+        },
+        "leakCheck": {
+          "title": "Vazamentos de DNS e WebRTC",
+          "description": "Verifica que nada passa por fora do proxy",
+          "prompt": "Abra neste perfil uma página de teste de vazamento de DNS e rode o teste padrão. Anote cada servidor DNS com o país e o dono. Depois abra uma página de teste de vazamento de WebRTC e anote cada endereço IP que ela encontrar. Dê uma linha com estas colunas: IP do proxy, países do DNS, IPs do WebRTC, vazamento (sim ou não). Um vazamento é um servidor DNS ou endereço IP fora do país do proxy."
+        }
+      }
     }
   },
   "proxyDistribution": {

@@ -42,11 +42,12 @@ donutbrowser/
 │   │   ├── profile-table/            # Profile table parts: launch control, traffic cell and snapshots, row menu, column fit
 │   │   ├── settings/                 # Settings page parts: rows, choice cards, theme previews, sounds, save bar
 │   │   ├── feature-clip.tsx          # Recordings of the app (public/clips) for tips and onboarding
+│   │   ├── agent-chat/               # Agent page: chats, composer, sidebar, templates gallery (catalog in lib/agent-templates.ts)
 │   │   └── tips/                     # Feature tips: icons and the day's coach mark
 │   ├── hooks/                        # Event-driven React hooks, table preferences, filtering, and keyboard controls
 │   ├── i18n/locales/                 # Translations (de, en, es, fr, ja, ko, pt, ru, tr, vi, zh)
 │   ├── generated/                    # Build-generated third-party license inventory
-│   ├── lib/                          # Utilities (themes, toast, browser-utils, ui-sounds, schedules, team-activity, coach-mark placement, profile-list-store)
+│   ├── lib/                          # Utilities (themes, toast, browser-utils, ui-sounds, schedules, team-activity, coach-mark placement, profile-list-store, agent-templates)
 │   └── types.ts                      # Shared TypeScript interfaces
 ├── src-tauri/                        # Rust backend (Tauri)
 │   ├── src/
