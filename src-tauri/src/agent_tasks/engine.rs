@@ -2,14 +2,13 @@
 //!
 //! One browser-level socket per profile. Commands go out through a channel,
 //! replies come back to their caller, and `Wayfern.agent*` events go to
-//! `super::on_engine_event`. Whether the engine exists is learnt from
-//! `Wayfern.agentConfigure`: "method not found" means this Wayfern has none.
+//! `super::on_engine_event`. A Wayfern without the engine answers "method not
+//! found", which reaches the person as `AGENT_UNSUPPORTED`.
 
 use crate::profile::BrowserProfile;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::tungstenite::Message;
@@ -206,86 +205,6 @@ async fn pump(profile_id: String, socket: Socket, mut rx: mpsc::Receiver<Request
   super::on_link_closed(&profile_id);
 }
 
-/// Whether a Wayfern version has the engine, as last learnt.
-static SUPPORT: Mutex<Option<HashMap<String, bool>>> = Mutex::new(None);
-static PROBE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-pub fn known_support(version: &str) -> Option<bool> {
-  SUPPORT.lock().ok()?.as_ref()?.get(version).copied()
-}
-
-pub fn remember_support(version: &str, supported: bool) {
-  if let Ok(mut map) = SUPPORT.lock() {
-    let previous = map
-      .get_or_insert_with(HashMap::new)
-      .insert(version.to_string(), supported);
-    if previous != Some(supported) {
-      log::info!(
-        "Agent engine support learnt version={} supported={supported}",
-        crate::log_redaction::Plain(version)
-      );
-    }
-  }
-}
-
-/// What a bare `Wayfern.agentConfigure` says about the engine. Any refusal
-/// other than "method not found" means the method exists.
-pub fn support_from_probe(outcome: &Result<Value, EngineError>) -> Option<bool> {
-  match outcome {
-    Ok(_) | Err(EngineError::Coded(_)) => Some(true),
-    Err(EngineError::Unsupported) => Some(false),
-    Err(EngineError::Gone(_)) => None,
-  }
-}
-
-/// Learn whether `version` has the engine, on a short-lived headless browser.
-pub async fn probe(version: &str) -> Option<bool> {
-  let _one_at_a_time = PROBE.lock().await;
-  if let Some(known) = known_support(version) {
-    return Some(known);
-  }
-  let manager = crate::wayfern_manager::WayfernManager::instance();
-  let profile = BrowserProfile {
-    browser: "wayfern".to_string(),
-    version: version.to_string(),
-    ..Default::default()
-  };
-  let token = crate::cloud_auth::CLOUD_AUTH.get_wayfern_token().await;
-  let session = match crate::wayfern_manager::HeadlessWayfern::start(
-    manager,
-    &profile,
-    token.as_deref(),
-    "purpose=agent_probe",
-  )
-  .await
-  {
-    Ok(session) => session,
-    Err(e) => {
-      log::warn!("Agent engine probe could not start a browser err=\"{e}\"");
-      return None;
-    }
-  };
-  let outcome = session
-    .call(manager, "Wayfern.agentConfigure", json!({}))
-    .await
-    .map_err(|e| {
-      let detail = e.to_string();
-      let error = detail
-        .strip_prefix("CDP error: ")
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
-        .unwrap_or_else(|| json!({ "message": detail }));
-      if error.get("code").is_some() || detail.starts_with("CDP error") {
-        classify_cdp_error(&error)
-      } else {
-        EngineError::Gone(detail)
-      }
-    });
-  session.stop().await;
-  let supported = support_from_probe(&outcome)?;
-  remember_support(version, supported);
-  Some(supported)
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -320,32 +239,6 @@ mod tests {
       classify_cdp_error(&json!({"code": -32602, "message": "Invalid parameters"})),
       EngineError::Coded("AGENT_ENGINE_FAILED".into())
     );
-  }
-
-  #[test]
-  fn a_probe_reads_any_refusal_but_not_found_as_support() {
-    assert_eq!(support_from_probe(&Ok(json!({}))), Some(true));
-    assert_eq!(
-      support_from_probe(&Err(EngineError::Coded("AGENT_TOKEN_REQUIRED".into()))),
-      Some(true)
-    );
-    assert_eq!(
-      support_from_probe(&Err(EngineError::Unsupported)),
-      Some(false)
-    );
-    assert_eq!(
-      support_from_probe(&Err(EngineError::Gone("x".into()))),
-      None
-    );
-  }
-
-  #[test]
-  fn support_is_remembered_per_version() {
-    remember_support("test-1.0", false);
-    remember_support("test-2.0", true);
-    assert_eq!(known_support("test-1.0"), Some(false));
-    assert_eq!(known_support("test-2.0"), Some(true));
-    assert_eq!(known_support("test-3.0"), None);
   }
 
   #[tokio::test]

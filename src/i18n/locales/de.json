@@ -1750,7 +1750,8 @@
       "waiting": "Wartet",
       "syncing": "Wird synchronisiert",
       "synced": "Synchronisiert",
-      "error": "Fehler"
+      "error": "Fehler",
+      "disabled": "Deaktiviert"
     },
     "ephemeral": {
       "cookiesUnavailable": "Flüchtige Profile werden beim Schließen des Browsers verworfen, daher gibt es hier keine Cookies zu verwalten.",
@@ -3026,7 +3027,8 @@
     "shortcuts": "Tastenkürzel",
     "cookieBot": "Cookie Bot",
     "trash": "Papierkorb",
-    "agent": "Agent"
+    "agent": "Agent",
+    "previews": "Live-Vorschau"
   },
   "encryption": {
     "required": {
@@ -4610,7 +4612,7 @@
         },
         "proxyMatch": {
           "title": "Proxy und Fingerprint abgleichen",
-          "description": "Land der Exit-IP gegen Zeitzone und Sprache",
+          "description": "IP-Land, Zeitzone und Sprache",
           "prompt": "Öffnen Sie https://ipinfo.io/json in diesem Profil und notieren Sie IP-Adresse, Land, Stadt, Zeitzone und Organisation. Öffnen Sie dann eine Seite, die die Zeitzone und die Sprachen des Browsers zeigt. Geben Sie eine Zeile mit diesen Spalten an: IP, Land, Zeitzone der IP, Zeitzone des Browsers, Sprache des Browsers, passt (ja oder nein). Wenn sie nicht passen, sagen Sie warum."
         },
         "stillSignedIn": {
@@ -5277,7 +5279,7 @@
   },
   "previews": {
     "title": "Live-Vorschau",
-    "description": "Was jedes laufende Profil gerade zeigt. Klicken Sie auf eines, um sein Fenster nach vorn zu holen.",
+    "description": "Klicken Sie auf eine Vorschau, um ihr Fenster nach vorn zu holen.",
     "locked": "Die Live-Vorschau laufender Profile gehört zu Pro und höheren Tarifen.",
     "seePlans": "Tarife ansehen",
     "empty": "Kein Profil läuft."

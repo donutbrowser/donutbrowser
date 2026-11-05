@@ -460,7 +460,6 @@ export const commandCoverage = {
     suite: "integrations",
     level: "integration",
     commands: [
-      "agent_tasks::get_agent_engine_status",
       "agent_tasks::get_agent_credits",
       "agent_tasks::start_agent_batch",
       "agent_tasks::list_agent_batches",

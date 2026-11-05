@@ -46,14 +46,14 @@ export function useNumber() {
   );
 }
 
-/** A routine's schedule in words: "Weekdays at 09:00". */
+/** A routine's schedule in words: "Weekdays at 9:00 AM". */
 export function useScheduleWords() {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   return useMemo(() => {
     const time = (hour: number, minute: number) =>
       new Date(2026, 0, 5, hour, minute).toLocaleTimeString(language, {
-        hour: "2-digit",
+        hour: "numeric",
         minute: "2-digit",
       });
     // 2026-01-04 is a Sunday, so day 0 + n is weekday n.
@@ -170,7 +170,7 @@ export function useNextRunWords() {
   const language = i18n.language;
   return useMemo(() => {
     const time = (at: Date) =>
-      at.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" });
+      at.toLocaleTimeString(language, { hour: "numeric", minute: "2-digit" });
     return (routine: AgentRoutine, now: number): string => {
       if (!routine.enabled) return t("agent.chat.routineOff");
       if (!routine.schedule) return t("agent.routines.manual");

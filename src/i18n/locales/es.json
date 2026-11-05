@@ -1761,7 +1761,8 @@
       "waiting": "Esperando",
       "syncing": "Sincronizando",
       "synced": "Sincronizado",
-      "error": "Error"
+      "error": "Error",
+      "disabled": "Deshabilitado"
     },
     "ephemeral": {
       "cookiesUnavailable": "Los perfiles efímeros se descartan al cerrar el navegador, así que aquí no hay cookies que gestionar.",
@@ -3046,7 +3047,8 @@
     "shortcuts": "Atajos de teclado",
     "cookieBot": "Cookie Bot",
     "trash": "Papelera",
-    "agent": "Agente"
+    "agent": "Agente",
+    "previews": "Vistas previas en vivo"
   },
   "encryption": {
     "required": {
@@ -4663,7 +4665,7 @@
         },
         "proxyMatch": {
           "title": "Coincidencia de proxy y huella",
-          "description": "País de la IP de salida frente a zona horaria e idioma",
+          "description": "País de la IP, zona horaria e idioma",
           "prompt": "Abre https://ipinfo.io/json en este perfil y anota la dirección IP, el país, la ciudad, la zona horaria y la organización. Luego abre una página que muestre la zona horaria y los idiomas del navegador. Da una fila con estas columnas: IP, país, zona horaria de la IP, zona horaria del navegador, idioma del navegador, coincide (sí o no). Si no coinciden, explica por qué."
         },
         "stillSignedIn": {
@@ -5332,7 +5334,7 @@
   },
   "previews": {
     "title": "Vistas previas en vivo",
-    "description": "Lo que muestra ahora cada perfil en ejecución. Haga clic en uno para traer su ventana al frente.",
+    "description": "Haga clic en una vista previa para traer su ventana al frente.",
     "locked": "Las vistas previas en vivo de los perfiles en ejecución forman parte de Pro y planes superiores.",
     "seePlans": "Ver planes",
     "empty": "Ningún perfil está en ejecución."

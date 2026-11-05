@@ -3818,7 +3818,6 @@ pub fn run_with_builder(
       agent_schedules::run_agent_schedule_now,
       agent_schedules::list_agent_schedule_runs,
       agent_schedules::test_agent_schedule_notice,
-      agent_tasks::get_agent_engine_status,
       agent_tasks::get_agent_credits,
       agent_tasks::start_agent_batch,
       agent_tasks::list_agent_batches,

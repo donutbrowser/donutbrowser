@@ -232,3 +232,51 @@ test("every backend error code the frontend knows has a sentence in every locale
     );
   }
 });
+
+/** Every `.ts`/`.tsx` file of the frontend, without tests and generated code. */
+function sourceFiles(dir = path.join(HERE, "..")) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      return ["generated", "i18n"].includes(entry.name)
+        ? []
+        : sourceFiles(full);
+    }
+    return /\.tsx?$/.test(entry.name) ? [full] : [];
+  });
+}
+
+test("every key the code names is in en.json", () => {
+  // A key written out in full anywhere in the code ("pageTitle.previews", in a
+  // t() call or a map of keys) must exist; a missing one shows as the raw key.
+  const namespaces = new Set(
+    [...english.keys()].map((key) => key.split(".")[0]),
+  );
+  const prefixes = new Set(
+    [...english.keys()].flatMap((key) => {
+      const parts = key.split(".");
+      return parts.slice(1).map((_, i) => parts.slice(0, i + 1).join("."));
+    }),
+  );
+  const exists = (key) =>
+    english.has(key) ||
+    prefixes.has(key) ||
+    english.has(`${key}_one`) ||
+    english.has(`${key}_other`);
+  const missing = [];
+  for (const file of sourceFiles()) {
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(
+      /(["'`])([A-Za-z][\w-]*(?:\.[\w-]+)+)\1/g,
+    )) {
+      const key = match[2];
+      if (!namespaces.has(key.split(".")[0]) || exists(key)) continue;
+      missing.push(`${path.relative(path.join(HERE, ".."), file)}: ${key}`);
+    }
+  }
+  assert.deepEqual(
+    missing,
+    [],
+    `keys missing from en.json:\n${missing.join("\n")}`,
+  );
+});

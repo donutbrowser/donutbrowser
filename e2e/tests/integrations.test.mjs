@@ -1032,12 +1032,8 @@ const AGENT_ROUTINE_ID = "00000000-0000-4000-8000-0000000a9e02";
 
 test("the agent stays off without the entitlement", async () => {
   await withApp("integrations-agent-off", async (app) => {
-    // Signed out there is no agent: no probe, no cloud call, every command
-    // refuses by code.
-    assert.deepEqual(await app.invoke("get_agent_engine_status"), {
-      supported: false,
-      checked: true,
-    });
+    // Signed out there is no agent: no cloud call, every command refuses by
+    // code.
     const refused = "AGENT_NOT_ENTITLED";
     await assertCommandErrorCode(app, "get_agent_credits", refused);
     await assertCommandErrorCode(app, "list_agent_batches", refused);
@@ -1098,10 +1094,6 @@ test("agent tasks and routines follow the engine contract", async () => {
     "integrations-agent-tasks",
     async (app) => {
       await seedTerms(app);
-      assert.deepEqual(await app.invoke("get_agent_engine_status"), {
-        supported: true,
-        checked: true,
-      });
       const credits = await app.invoke("get_agent_credits");
       assert.equal(credits.allowance, 10000);
       assert.equal(credits.balance, credits.allowance - credits.used);

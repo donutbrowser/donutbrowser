@@ -321,6 +321,9 @@ export async function prepareWayfern(app, projectRoot) {
     console.log(
       `[donut-e2e] Cached Wayfern fixture ${cachedVersion} is not the published ${version}; replacing it`,
     );
+    // The session's version list was to name the stale fixture; it names the
+    // version the app downloads now. Seeded when the app starts.
+    if (!app.session && app.seedVersionCache) app.seedVersionCache = version;
   }
 
   if (!app.session) await app.start();

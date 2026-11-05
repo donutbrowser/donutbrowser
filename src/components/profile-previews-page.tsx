@@ -3,7 +3,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { LuAppWindow, LuLayoutGrid } from "react-icons/lu";
+import { LuLayoutGrid } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
 import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { ProBadge } from "@/components/ui/pro-badge";
@@ -34,7 +34,7 @@ export function ProfilePreviewsPage({
         .sort((a, b) => a.name.localeCompare(b.name)),
     [profiles, runningProfileIds],
   );
-  const images = useProfilePreviews(
+  const previews = useProfilePreviews(
     running.map((profile) => profile.id),
     unlocked,
   );
@@ -82,40 +82,50 @@ export function ProfilePreviewsPage({
             {t("previews.empty")}
           </p>
         ) : (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4">
-            {running.map((profile) => (
-              <li key={profile.id}>
-                <button
-                  type="button"
-                  data-slot="profile-preview"
-                  data-profile-id={profile.id}
-                  onClick={() => show(profile)}
-                  aria-label={t("commandPalette.actions.showWindow", {
-                    name: profile.name,
-                  })}
-                  className={cn(
-                    "group flex w-full cursor-pointer flex-col gap-2 rounded-lg p-1.5 text-left transition-colors hover:bg-foreground/5",
-                    FOCUS_RING,
-                  )}
-                >
-                  <span className="grid aspect-video w-full place-items-center overflow-hidden rounded-md bg-foreground/5">
-                    {images[profile.id] ? (
-                      // biome-ignore lint/performance/noImgElement: base64 data URI previews cannot use next/image
-                      <img
-                        src={images[profile.id]}
-                        alt=""
-                        className="size-full object-cover object-top"
-                      />
-                    ) : (
-                      <LuAppWindow className="size-5 text-muted-foreground" />
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-x-4 gap-y-5">
+            {running.map((profile) => {
+              const preview = previews[profile.id];
+              return (
+                <li key={profile.id}>
+                  <button
+                    type="button"
+                    data-slot="profile-preview"
+                    data-profile-id={profile.id}
+                    onClick={() => show(profile)}
+                    aria-label={t("commandPalette.actions.showWindow", {
+                      name: profile.name,
+                    })}
+                    className={cn(
+                      "group flex w-full cursor-pointer flex-col gap-2 rounded-xl text-left",
+                      FOCUS_RING,
                     )}
-                  </span>
-                  <span className="truncate px-1 text-sm font-medium">
-                    {profile.name}
-                  </span>
-                </button>
-              </li>
-            ))}
+                  >
+                    <span className="relative block aspect-[16/10] w-full overflow-hidden rounded-xl bg-foreground/5">
+                      {preview ? (
+                        // biome-ignore lint/performance/noImgElement: base64 data URI previews cannot use next/image
+                        <img
+                          src={preview.image}
+                          alt=""
+                          className="size-full object-cover object-top transition-transform duration-300 ease-out group-hover:scale-[1.02] motion-reduce:transition-none"
+                        />
+                      ) : (
+                        <span className="block size-full animate-pulse bg-foreground/5 motion-reduce:animate-none" />
+                      )}
+                    </span>
+                    <span className="flex min-w-0 items-baseline gap-2 px-0.5">
+                      <span className="truncate text-sm font-medium">
+                        {profile.name}
+                      </span>
+                      {preview?.host && (
+                        <span className="truncate text-xs text-muted-foreground">
+                          {preview.host}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

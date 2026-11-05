@@ -1015,7 +1015,7 @@ export function TableSelectHeader<T extends RowData>({
   const selected = selectable.filter((row) => row.getIsSelected()).length;
   return (
     <TableCheckboxSlot>
-      <span data-slot="table-selection" className="flex items-center gap-1.5">
+      <span data-slot="table-selection" className="flex items-center gap-2.5">
         <Checkbox
           aria-label={t("common.aria.selectAll")}
           className="relative after:absolute after:-inset-2 after:content-['']"
@@ -1060,7 +1060,7 @@ export function TableRowCheckbox<T extends RowData>({
   const name = (row.original as { name?: unknown }).name;
   return (
     <TableCheckboxSlot>
-      <span data-slot="table-selection" className="flex items-center gap-1.5">
+      <span data-slot="table-selection" className="flex items-center gap-2.5">
         <Checkbox
           aria-label={
             typeof name === "string" && name
@@ -1090,10 +1090,7 @@ export function TableRowCheckbox<T extends RowData>({
           }}
         />
         {icon && selectColumnHoldsIcons(table) && (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none flex size-4 shrink-0 items-center justify-center"
-          >
+          <span className="flex size-4 shrink-0 items-center justify-center">
             {icon}
           </span>
         )}

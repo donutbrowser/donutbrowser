@@ -1761,7 +1761,8 @@
       "waiting": "Aguardando",
       "syncing": "Sincronizando",
       "synced": "Sincronizado",
-      "error": "Erro"
+      "error": "Erro",
+      "disabled": "Desabilitado"
     },
     "ephemeral": {
       "cookiesUnavailable": "Perfis efêmeros são descartados quando o navegador fecha, portanto não há cookies para gerenciar aqui.",
@@ -3046,7 +3047,8 @@
     "shortcuts": "Atalhos de teclado",
     "cookieBot": "Cookie Bot",
     "trash": "Lixeira",
-    "agent": "Agente"
+    "agent": "Agente",
+    "previews": "Pré-visualizações ao vivo"
   },
   "encryption": {
     "required": {
@@ -4663,7 +4665,7 @@
         },
         "proxyMatch": {
           "title": "Proxy e impressão digital coerentes",
-          "description": "País do IP de saída contra fuso horário e idioma",
+          "description": "País do IP, fuso horário e idioma",
           "prompt": "Abra https://ipinfo.io/json neste perfil e anote o endereço IP, o país, a cidade, o fuso horário e a organização. Depois abra uma página que mostre o fuso horário e os idiomas do navegador. Dê uma linha com estas colunas: IP, país, fuso do IP, fuso do navegador, idioma do navegador, coerente (sim ou não). Se não forem coerentes, diga por quê."
         },
         "stillSignedIn": {
@@ -5332,7 +5334,7 @@
   },
   "previews": {
     "title": "Pré-visualizações ao vivo",
-    "description": "O que cada perfil em execução mostra agora. Clique em um para trazer a janela para a frente.",
+    "description": "Clique em uma pré-visualização para trazer a janela para a frente.",
     "locked": "As pré-visualizações ao vivo de perfis em execução fazem parte do Pro e de planos superiores.",
     "seePlans": "Ver planos",
     "empty": "Nenhum perfil está em execução."

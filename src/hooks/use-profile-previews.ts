@@ -1,6 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 
+/** What one profile's window shows: a JPEG data URL and the page's host. */
+export interface ProfilePreview {
+  image: string;
+  host: string;
+}
+
 /** Time between two pictures of one window. */
 const REFRESH_MS = 3000;
 
@@ -9,7 +15,7 @@ const REFRESH_MS = 3000;
  * profile that stops keeps its last picture until it leaves the list.
  */
 export function useProfilePreviews(profileIds: string[], enabled: boolean) {
-  const [images, setImages] = useState<Record<string, string>>({});
+  const [previews, setPreviews] = useState<Record<string, ProfilePreview>>({});
   const key = profileIds.join(",");
 
   useEffect(() => {
@@ -21,14 +27,14 @@ export function useProfilePreviews(profileIds: string[], enabled: boolean) {
       if (document.visibilityState === "visible" && ids.length > 0) {
         const shots = await Promise.all(
           ids.map((id) =>
-            invoke<string | null>("capture_profile_preview", {
+            invoke<ProfilePreview | null>("capture_profile_preview", {
               profileId: id,
             }).catch(() => null),
           ),
         );
         if (!active) return;
-        setImages((previous) => {
-          const next: Record<string, string> = {};
+        setPreviews((previous) => {
+          const next: Record<string, ProfilePreview> = {};
           ids.forEach((id, index) => {
             const shot = shots[index] ?? previous[id];
             if (shot) next[id] = shot;
@@ -45,5 +51,5 @@ export function useProfilePreviews(profileIds: string[], enabled: boolean) {
     };
   }, [key, enabled]);
 
-  return images;
+  return previews;
 }

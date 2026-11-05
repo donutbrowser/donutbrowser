@@ -888,7 +888,6 @@
       });
       return hold;
     },
-    get_agent_engine_status: null,
     get_agent_chat_sync: { locked: false },
     list_agent_batches: [],
     list_agent_chats: [],

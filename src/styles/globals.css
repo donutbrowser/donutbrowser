@@ -405,6 +405,53 @@
   }
 }
 
+/* A running profile's eye in the profile table (`WindowEye`): it opens with
+   the window, blinks every few seconds and glances aside now and then. */
+@keyframes eye-open {
+  from {
+    scale: 1 0;
+    opacity: 0;
+  }
+}
+@keyframes eye-blink {
+  0%,
+  94%,
+  100% {
+    scale: 1 1;
+  }
+  97% {
+    scale: 1 0.1;
+  }
+}
+@keyframes eye-look {
+  0%,
+  45%,
+  75%,
+  100% {
+    translate: 0 0;
+  }
+  52%,
+  68% {
+    translate: 2px 0;
+  }
+}
+@layer components {
+  .eye-open {
+    animation: eye-open 280ms var(--ease-out);
+  }
+  .eye-blink,
+  .eye-look {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .eye-blink {
+    animation: eye-blink 5s ease-in-out infinite;
+  }
+  .eye-look {
+    animation: eye-look 10s ease-in-out infinite;
+  }
+}
+
 /* Popups (popovers, menus, selects, tooltips) grow out of their trigger.
    `data-motion="on"` is set only for pointer users without reduced motion.
    Menus, selects and popovers only scale: they are fully opaque from the first

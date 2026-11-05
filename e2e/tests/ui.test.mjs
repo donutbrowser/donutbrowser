@@ -64,11 +64,11 @@ async function tableRows(app, tableId) {
   );
 }
 
-/** Selection checkboxes, and the browser icons that stand in for them, that sit
- * more than half a pixel off the center of their cell. */
+/** Selection checkboxes, and the browser icon or window eye beside them, that
+ * sit more than half a pixel off the center of their cell. */
 async function offCenterSelectionControls(app, tableSelector) {
   return app.execute(
-    `return [...document.querySelectorAll(arguments[0] + ' :is(th, td) :is([data-slot="table-selection"], [role="checkbox"], [role="checkbox"] + [aria-hidden="true"] > svg)')]
+    `return [...document.querySelectorAll(arguments[0] + ' :is(th, td) :is([data-slot="table-selection"], [role="checkbox"], [role="checkbox"] + span svg)')]
        .map((node) => {
          const cell = node.closest("th, td").getBoundingClientRect();
          const rect = node.getBoundingClientRect();
@@ -7955,7 +7955,6 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
     }
     // Tripwires: any agent call while the flag is off is a failure.
     for (const command of [
-      "get_agent_engine_status",
       "get_agent_credits",
       "list_agent_batches",
       "list_agent_routines",
@@ -8010,7 +8009,6 @@ test("without the agent entitlement nothing new renders and nothing is asked", a
       assert.ok(!shown.text.includes(text), `"${text}" must not render`);
     }
     for (const command of [
-      "get_agent_engine_status",
       "get_agent_credits",
       "list_agent_batches",
       "list_agent_routines",
@@ -9436,4 +9434,119 @@ test("a computer without the chat key keeps its chats, says so in one line, and 
   } finally {
     await app.close();
   }
+});
+
+/** A 16:10 picture of a page, as `capture_profile_preview` sends one. */
+const PREVIEW_IMAGE = `data:image/svg+xml;base64,${Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="450">
+     <rect width="720" height="450" fill="#f4f4f5"/>
+     <rect width="720" height="56" fill="#18181b"/>
+     <rect x="40" y="96" width="300" height="28" rx="6" fill="#a1a1aa"/>
+     <rect x="40" y="148" width="640" height="220" rx="12" fill="#d4d4d8"/>
+   </svg>`,
+).toString("base64")}`;
+
+test("a running row's eye brings its window forward, and live previews fill their tiles", async () => {
+  await withApp(
+    "ui-live-previews",
+    async (app) => {
+      const profile = await createUiProfile(app, "Preview Alpha");
+      const calls = (command) =>
+        app.execute(
+          `return (window.__donutStubbedCalls ?? []).filter((call) => call.command === arguments[0]);`,
+          [command],
+        );
+      try {
+        await signInAs(app, "ui-previews", "pro", "active", {
+          entitlements: {
+            active: true,
+            browserAutomation: true,
+            crossOsFingerprints: true,
+            cloudBackup: true,
+            teamCollaboration: false,
+            profileLimit: 20,
+            requestsPerHour: 1000,
+          },
+        });
+        await stubCommand(app, "capture_profile_preview", {
+          image: PREVIEW_IMAGE,
+          host: "shop.example",
+        });
+        await stubCommand(app, "show_profile_window", null);
+        await app.invoke("plugin:event|emit", {
+          event: "profile-running-changed",
+          payload: { id: profile.id, is_running: true },
+        });
+
+        const eye = `tr[data-table-row="${profile.id}"] [data-slot="row-window-eye"]`;
+        await app.waitFor(
+          () =>
+            app.execute(
+              `return Boolean(document.querySelector(arguments[0]));`,
+              [eye],
+            ),
+          { description: "the running row's window eye" },
+        );
+        assert.deepEqual(
+          await offCenterSelectionControls(app, '[data-table-id="profiles"]'),
+          [],
+          "the checkbox and the eye sit centered in their cell",
+        );
+        await captureBothThemes(app, "row-window-eye");
+        await app.clickSelector(eye);
+        await app.waitFor(
+          async () => (await calls("show_profile_window")).length === 1,
+          { description: "a click on the eye shows the window" },
+        );
+
+        await app.clickSelector(`[aria-label="${en.rail.more.label}"]`);
+        await app.clickText(en.rail.more.previews, {
+          exact: false,
+          roles: ["menuitem"],
+        });
+        await app.waitForText(en.pageTitle.previews);
+        const tile = `[data-slot="profile-preview"][data-profile-id="${profile.id}"]`;
+        await app.waitFor(
+          () =>
+            app.execute(
+              `const img = document.querySelector(arguments[0] + " img");
+               return Boolean(img?.complete && img.naturalWidth > 0);`,
+              [tile],
+            ),
+          { description: "the live preview of the running profile" },
+        );
+        const fit = await app.execute(
+          `const tile = document.querySelector(arguments[0]);
+           const img = tile.querySelector("img").getBoundingClientRect();
+           const frame = tile.querySelector("img").parentElement.getBoundingClientRect();
+           return {
+             width: img.width / frame.width,
+             height: img.height / frame.height,
+             text: tile.innerText,
+           };`,
+          [tile],
+        );
+        assert.ok(Math.abs(fit.width - 1) < 0.01, "the picture fills its tile");
+        assert.ok(
+          Math.abs(fit.height - 1) < 0.01,
+          "the picture fills its tile",
+        );
+        assert.match(fit.text, /Preview Alpha/);
+        assert.match(
+          fit.text,
+          /shop\.example/,
+          "the tile names the page's host",
+        );
+        await captureBothThemes(app, "live-previews");
+        await app.clickSelector(tile);
+        await app.waitFor(
+          async () => (await calls("show_profile_window")).length === 2,
+          { description: "a click on a preview shows its window" },
+        );
+      } finally {
+        await restoreStubs(app);
+      }
+    },
+    { settings: { paid_welcome_seen_for: ["ui-previews"] } },
+  );
 });

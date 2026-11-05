@@ -2,63 +2,103 @@
 //! over the browser's own debugging connection. Part of browser automation
 //! (Pro and up), and of the agent while it works in a profile.
 
+use base64::Engine;
+use serde::Serialize;
 use serde_json::{json, Value};
 
-/// Widest preview, in CSS pixels; the page is scaled down to fit.
-const PREVIEW_WIDTH: f64 = 360.0;
-const PREVIEW_QUALITY: u8 = 55;
+/// Width of a preview in pixels: sharp on a 2x screen at the largest tile.
+const PREVIEW_WIDTH: u32 = 720;
+const PREVIEW_QUALITY: u8 = 70;
 
 static PREVIEW_FAILURES: crate::log_streak::KeyedStreak =
   crate::log_streak::KeyedStreak::new(module_path!(), "Profile preview capture");
 
-/// The part of the page in view and the scale that fits it into a preview.
-fn preview_clip(metrics: &Value) -> Option<Value> {
-  let viewport = metrics
-    .get("cssVisualViewport")
-    .or_else(|| metrics.get("visualViewport"))?;
-  let width = viewport.get("clientWidth")?.as_f64()?;
-  let height = viewport.get("clientHeight")?.as_f64()?;
-  if width <= 0.0 || height <= 0.0 {
-    return None;
-  }
-  Some(json!({
-    "x": viewport.get("pageX").and_then(Value::as_f64).unwrap_or(0.0),
-    "y": viewport.get("pageY").and_then(Value::as_f64).unwrap_or(0.0),
-    "width": width,
-    "height": height,
-    "scale": (PREVIEW_WIDTH / width).min(1.0),
-  }))
+#[derive(Debug, Serialize)]
+pub struct ProfilePreview {
+  /// JPEG data URL of what the window shows.
+  image: String,
+  /// Host of the page in view, empty for a blank or internal page.
+  host: String,
 }
 
-async fn capture(profile: &crate::profile::BrowserProfile) -> Result<String, String> {
+/// Chromium draws a scaled `clip` into a full-size image on a visible
+/// window, so the page is taken at full size and scaled down here.
+fn shrink(jpeg: &[u8]) -> Result<Vec<u8>, String> {
+  let picture = image::load_from_memory_with_format(jpeg, image::ImageFormat::Jpeg)
+    .map_err(|e| e.to_string())?;
+  let picture = if picture.width() > PREVIEW_WIDTH {
+    let height = (u64::from(picture.height()) * u64::from(PREVIEW_WIDTH)
+      / u64::from(picture.width()))
+    .max(1) as u32;
+    picture.thumbnail_exact(PREVIEW_WIDTH, height)
+  } else {
+    picture
+  };
+  let mut out = Vec::new();
+  image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, PREVIEW_QUALITY)
+    .encode_image(&picture.to_rgb8())
+    .map_err(|e| e.to_string())?;
+  Ok(out)
+}
+
+fn current_host(history: &Value) -> String {
+  let index = history
+    .get("currentIndex")
+    .and_then(Value::as_u64)
+    .unwrap_or(0) as usize;
+  history
+    .get("entries")
+    .and_then(Value::as_array)
+    .and_then(|entries| entries.get(index))
+    .and_then(|entry| entry.get("url"))
+    .and_then(Value::as_str)
+    .and_then(|url| url::Url::parse(url).ok())
+    .filter(|url| matches!(url.scheme(), "http" | "https"))
+    .and_then(|url| {
+      url
+        .host_str()
+        .map(|host| host.trim_start_matches("www.").to_string())
+    })
+    .unwrap_or_default()
+}
+
+async fn capture(profile: &crate::profile::BrowserProfile) -> Result<ProfilePreview, String> {
   let target = crate::cdp_target::resolve(profile)
     .await
     .map_err(|e| e.to_string())?;
-  let metrics = crate::cdp_target::run_command(&target, "Page.getLayoutMetrics", json!({}))
+  let shot = crate::cdp_target::run_command(
+    &target,
+    "Page.captureScreenshot",
+    json!({ "format": "jpeg", "quality": 80, "optimizeForSpeed": true }),
+  )
+  .await
+  .map_err(|e| e.to_string())?;
+  let history = crate::cdp_target::run_command(&target, "Page.getNavigationHistory", json!({}))
     .await
-    .map_err(|e| e.to_string())?;
-  let mut params = json!({
-    "format": "jpeg",
-    "quality": PREVIEW_QUALITY,
-    "optimizeForSpeed": true,
-  });
-  if let Some(clip) = preview_clip(&metrics) {
-    params["clip"] = clip;
-  }
-  let shot = crate::cdp_target::run_command(&target, "Page.captureScreenshot", params)
-    .await
-    .map_err(|e| e.to_string())?;
+    .unwrap_or(Value::Null);
   let data = shot
     .get("data")
     .and_then(Value::as_str)
     .ok_or("no image data")?;
-  Ok(format!("data:image/jpeg;base64,{data}"))
+  let jpeg = base64::engine::general_purpose::STANDARD
+    .decode(data)
+    .map_err(|e| e.to_string())?;
+  let small = tokio::task::spawn_blocking(move || shrink(&jpeg))
+    .await
+    .map_err(|e| e.to_string())??;
+  Ok(ProfilePreview {
+    image: format!(
+      "data:image/jpeg;base64,{}",
+      base64::engine::general_purpose::STANDARD.encode(small)
+    ),
+    host: current_host(&history),
+  })
 }
 
-/// A JPEG data URL of what the profile's window shows now, or `None` when it
-/// is not running on this device.
+/// What the profile's window shows now, or `None` when it is not running on
+/// this device.
 #[tauri::command]
-pub async fn capture_profile_preview(profile_id: String) -> Result<Option<String>, String> {
+pub async fn capture_profile_preview(profile_id: String) -> Result<Option<ProfilePreview>, String> {
   if !crate::agent_tasks::working_in(&profile_id)
     && !crate::cloud_auth::CLOUD_AUTH
       .can_use_browser_automation()
@@ -95,23 +135,35 @@ pub async fn capture_profile_preview(profile_id: String) -> Result<Option<String
 mod tests {
   use super::*;
 
-  #[test]
-  fn the_clip_covers_the_view_and_scales_it_down() {
-    let metrics = json!({
-      "cssVisualViewport": {
-        "pageX": 0.0, "pageY": 240.0, "clientWidth": 1440.0, "clientHeight": 900.0
-      }
-    });
-    let clip = preview_clip(&metrics).unwrap();
-    assert_eq!(clip["y"], 240.0);
-    assert_eq!(clip["width"], 1440.0);
-    assert_eq!(clip["scale"], 0.25);
+  fn jpeg(width: u32, height: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 80)
+      .encode_image(&image::RgbImage::new(width, height))
+      .unwrap();
+    out
   }
 
   #[test]
-  fn a_small_view_is_never_scaled_up() {
-    let metrics = json!({ "cssVisualViewport": { "clientWidth": 300.0, "clientHeight": 200.0 } });
-    assert_eq!(preview_clip(&metrics).unwrap()["scale"], 1.0);
-    assert!(preview_clip(&json!({})).is_none());
+  fn a_large_window_is_scaled_to_the_preview_width() {
+    let small = image::load_from_memory(&shrink(&jpeg(2880, 1800)).unwrap()).unwrap();
+    assert_eq!((small.width(), small.height()), (720, 450));
+  }
+
+  #[test]
+  fn a_small_window_is_never_scaled_up() {
+    let same = image::load_from_memory(&shrink(&jpeg(300, 200)).unwrap()).unwrap();
+    assert_eq!((same.width(), same.height()), (300, 200));
+  }
+
+  #[test]
+  fn the_host_is_that_of_the_page_in_view() {
+    let history = json!({
+      "currentIndex": 1,
+      "entries": [{ "url": "https://example.com/" }, { "url": "https://www.shop.test/cart" }]
+    });
+    assert_eq!(current_host(&history), "shop.test");
+    let blank = json!({ "currentIndex": 0, "entries": [{ "url": "chrome://newtab/" }] });
+    assert_eq!(current_host(&blank), "");
+    assert_eq!(current_host(&Value::Null), "");
   }
 }

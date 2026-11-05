@@ -699,12 +699,29 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       url: `${fixtureUrl}/direct-open`,
     });
     await app.invoke("show_profile_window", { profileId: profile.id });
-    assert.match(
-      (await app.invoke("capture_profile_preview", {
-        profileId: profile.id,
-      })) ?? "",
-      /^data:image\/jpeg;base64,/,
+    const preview = await app.invoke("capture_profile_preview", {
+      profileId: profile.id,
+    });
+    assert.match(preview?.image ?? "", /^data:image\/jpeg;base64,/);
+    const previewSize = jpegSize(preview.image.split(",")[1]);
+    assert.ok(
+      previewSize.width > 0 && previewSize.width <= 720 && previewSize.height > 0,
+      `the whole window, scaled down to the preview width: ${JSON.stringify(previewSize)}`,
     );
+    assert.equal(
+      preview.host,
+      new URL(fixtureUrl).hostname.replace(/^www\./, ""),
+      "the preview names the page's host",
+    );
+    const eye = `tr[data-table-row="${profile.id}"] [data-slot="row-window-eye"]`;
+    await app.waitFor(
+      () =>
+        app.execute(`return Boolean(document.querySelector(arguments[0]));`, [
+          eye,
+        ]),
+      { description: "the running row's window eye" },
+    );
+    await app.clickSelector(eye);
     assert.equal(
       await app.invoke("cancel_profile_launch", { profileId: profile.id }),
       false,
@@ -3317,3 +3334,25 @@ test("a password-protected profile keeps what each session saved", async () => {
     await app.close();
   }
 });
+
+/** Width and height from a JPEG's frame header. */
+function jpegSize(base64) {
+  const bytes = Buffer.from(base64, "base64");
+  let at = 2;
+  while (at + 9 < bytes.length) {
+    const marker = bytes[at + 1];
+    const length = bytes.readUInt16BE(at + 2);
+    if (
+      marker >= 0xc0 &&
+      marker <= 0xcf &&
+      ![0xc4, 0xc8, 0xcc].includes(marker)
+    ) {
+      return {
+        height: bytes.readUInt16BE(at + 5),
+        width: bytes.readUInt16BE(at + 7),
+      };
+    }
+    at += 2 + length;
+  }
+  return { width: 0, height: 0 };
+}

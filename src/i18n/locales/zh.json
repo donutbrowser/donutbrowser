@@ -1750,7 +1750,8 @@
       "waiting": "等待中",
       "syncing": "同步中",
       "synced": "已同步",
-      "error": "错误"
+      "error": "错误",
+      "disabled": "已禁用"
     },
     "ephemeral": {
       "cookiesUnavailable": "临时配置在浏览器关闭时会被丢弃，因此这里没有可管理的 Cookie。",
@@ -3026,7 +3027,8 @@
     "shortcuts": "键盘快捷键",
     "cookieBot": "Cookie Bot",
     "trash": "回收站",
-    "agent": "智能体"
+    "agent": "智能体",
+    "previews": "实时预览"
   },
   "encryption": {
     "required": {
@@ -4610,7 +4612,7 @@
         },
         "proxyMatch": {
           "title": "代理与指纹是否一致",
-          "description": "出口 IP 国家与时区和语言对比",
+          "description": "IP 国家、时区和语言",
           "prompt": "在此配置文件中打开 https://ipinfo.io/json ，记下 IP 地址、国家、城市、时区和组织。然后打开一个显示浏览器时区和语言的页面。给出一行，包含以下列：IP、国家、IP 时区、浏览器时区、浏览器语言、是否一致（是或否）。如果不一致，说明原因。"
         },
         "stillSignedIn": {
@@ -5277,7 +5279,7 @@
   },
   "previews": {
     "title": "实时预览",
-    "description": "每个运行中配置文件当前显示的内容。点击一个即可将其窗口置于前台。",
+    "description": "点击预览即可将其窗口置于前台。",
     "locked": "运行中配置文件的实时预览包含在 Pro 及更高套餐中。",
     "seePlans": "查看套餐",
     "empty": "没有正在运行的配置文件。"

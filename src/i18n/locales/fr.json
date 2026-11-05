@@ -1761,7 +1761,8 @@
       "waiting": "En attente",
       "syncing": "Synchronisation",
       "synced": "Synchronisé",
-      "error": "Erreur"
+      "error": "Erreur",
+      "disabled": "Désactivé"
     },
     "ephemeral": {
       "cookiesUnavailable": "Les profils éphémères sont supprimés à la fermeture du navigateur : il n'y a donc aucun cookie à gérer ici.",
@@ -3046,7 +3047,8 @@
     "shortcuts": "Raccourcis clavier",
     "cookieBot": "Cookie Bot",
     "trash": "Corbeille",
-    "agent": "Agent"
+    "agent": "Agent",
+    "previews": "Aperçus en direct"
   },
   "encryption": {
     "required": {
@@ -4663,7 +4665,7 @@
         },
         "proxyMatch": {
           "title": "Cohérence proxy et empreinte",
-          "description": "Pays de l’IP de sortie face au fuseau horaire et à la langue",
+          "description": "Pays de l’IP, fuseau horaire et langue",
           "prompt": "Ouvrez https://ipinfo.io/json dans ce profil et notez l’adresse IP, le pays, la ville, le fuseau horaire et l’organisation. Ouvrez ensuite une page qui affiche le fuseau horaire et les langues du navigateur. Donnez une ligne avec ces colonnes : IP, pays, fuseau de l’IP, fuseau du navigateur, langue du navigateur, cohérent (oui ou non). S’ils ne correspondent pas, dites pourquoi."
         },
         "stillSignedIn": {
@@ -5332,7 +5334,7 @@
   },
   "previews": {
     "title": "Aperçus en direct",
-    "description": "Ce que chaque profil lancé affiche maintenant. Cliquez sur l'un d'eux pour mettre sa fenêtre au premier plan.",
+    "description": "Cliquez sur un aperçu pour mettre sa fenêtre au premier plan.",
     "locked": "Les aperçus en direct des profils lancés font partie de Pro et des forfaits supérieurs.",
     "seePlans": "Voir les forfaits",
     "empty": "Aucun profil n'est lancé."

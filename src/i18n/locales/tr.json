@@ -1750,7 +1750,8 @@
       "waiting": "Bekliyor",
       "syncing": "Eşitleniyor",
       "synced": "Eşitlendi",
-      "error": "Hata"
+      "error": "Hata",
+      "disabled": "Devre Dışı"
     },
     "ephemeral": {
       "cookiesUnavailable": "Geçici profiller tarayıcı kapandığında silinir, bu yüzden burada yönetilecek çerez yoktur.",
@@ -3026,7 +3027,8 @@
     "shortcuts": "Klavye kısayolları",
     "cookieBot": "Cookie Bot",
     "trash": "Çöp Kutusu",
-    "agent": "Ajan"
+    "agent": "Ajan",
+    "previews": "Canlı önizlemeler"
   },
   "encryption": {
     "required": {
@@ -4610,7 +4612,7 @@
         },
         "proxyMatch": {
           "title": "Proxy ve parmak izi uyumu",
-          "description": "Çıkış IP ülkesi ile saat dilimi ve dil",
+          "description": "IP ülkesi, saat dilimi ve dil",
           "prompt": "Bu profilde https://ipinfo.io/json adresini açın ve IP adresini, ülkeyi, şehri, saat dilimini ve kuruluşu not edin. Sonra tarayıcının saat dilimini ve dillerini gösteren bir sayfa açın. Şu sütunlarla tek bir satır verin: IP, ülke, IP saat dilimi, tarayıcı saat dilimi, tarayıcı dili, uyumlu (evet veya hayır). Uyumlu değilse nedenini söyleyin."
         },
         "stillSignedIn": {
@@ -5277,7 +5279,7 @@
   },
   "previews": {
     "title": "Canlı önizlemeler",
-    "description": "Çalışan her profilin şu anda gösterdiği. Penceresini öne getirmek için birine tıklayın.",
+    "description": "Penceresini öne getirmek için bir önizlemeye tıklayın.",
     "locked": "Çalışan profillerin canlı önizlemeleri Pro ve üstü planlara dahildir.",
     "seePlans": "Planları gör",
     "empty": "Çalışan profil yok."

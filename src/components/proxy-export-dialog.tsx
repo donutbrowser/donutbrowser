@@ -67,7 +67,7 @@ export function ProxyExportDialog({ isOpen, onClose }: ProxyExportDialogProps) {
   }, [exportContent, t]);
 
   const handleDownload = useCallback(() => {
-    const filename = format === "json" ? "proxies.json" : "proxies.txt";
+    const filename = `proxies.${format}`;
     const mimeType = format === "json" ? "application/json" : "text/plain";
 
     const blob = new Blob([exportContent], { type: mimeType });

@@ -215,14 +215,6 @@ async fn can_schedule() -> bool {
     .is_some_and(|e| e.scheduled_automation)
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EngineStatus {
-  supported: bool,
-  /// False when support could not be learnt yet; ask again later.
-  checked: bool,
-}
-
 fn locale() -> String {
   crate::settings_manager::SettingsManager::instance()
     .load_settings()
@@ -231,8 +223,8 @@ fn locale() -> String {
     .unwrap_or_else(|| "en".to_string())
 }
 
-/// Hand the current agent token to the engine. Teaches the support cache too.
-async fn configure(link: &EngineLink, version: &str) -> Result<(), String> {
+/// Hand the current agent token to the engine.
+async fn configure(link: &EngineLink) -> Result<(), String> {
   let (token, _) = token::current().await?;
   let outcome = link
     .call(
@@ -244,12 +236,6 @@ async fn configure(link: &EngineLink, version: &str) -> Result<(), String> {
       }),
     )
     .await;
-  if let Some(supported) = engine::support_from_probe(&outcome) {
-    engine::remember_support(version, supported);
-    if !supported {
-      let _ = crate::events::emit_empty("agent-engine-changed");
-    }
-  }
   outcome.map(|_| ()).map_err(|e| e.code())
 }
 
@@ -495,7 +481,7 @@ async fn attach(
       return Err(e.code());
     }
   };
-  if let Err(code) = configure(&link, &fresh.version).await {
+  if let Err(code) = configure(&link).await {
     if !running && headless {
       stop_browser(&profile_id).await;
     }
@@ -817,47 +803,6 @@ pub(crate) async fn run_routine_from_cloud(params: &Value) -> Result<Value, Stri
 }
 
 // ---- Commands ----
-
-#[tauri::command]
-pub async fn get_agent_engine_status() -> EngineStatus {
-  if ensure_entitled().await.is_err() {
-    return EngineStatus {
-      supported: false,
-      checked: true,
-    };
-  }
-  #[cfg(feature = "e2e")]
-  if mock::active() {
-    return EngineStatus {
-      supported: true,
-      checked: true,
-    };
-  }
-  let Some(version) =
-    crate::auto_updater::AutoUpdater::instance().get_latest_installed_version("wayfern")
-  else {
-    return EngineStatus {
-      supported: false,
-      checked: true,
-    };
-  };
-  if let Some(supported) = engine::known_support(&version) {
-    return EngineStatus {
-      supported,
-      checked: true,
-    };
-  }
-  match engine::probe(&version).await {
-    Some(supported) => EngineStatus {
-      supported,
-      checked: true,
-    },
-    None => EngineStatus {
-      supported: false,
-      checked: false,
-    },
-  }
-}
 
 #[tauri::command]
 pub async fn get_agent_credits() -> Result<Credits, String> {

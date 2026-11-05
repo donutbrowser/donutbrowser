@@ -1750,7 +1750,8 @@
       "waiting": "Đang chờ",
       "syncing": "Đang đồng bộ",
       "synced": "Đã đồng bộ",
-      "error": "Lỗi"
+      "error": "Lỗi",
+      "disabled": "Tắt"
     },
     "ephemeral": {
       "cookiesUnavailable": "Hồ sơ tạm thời bị xoá khi đóng trình duyệt, nên ở đây không có cookie nào để quản lý.",
@@ -3026,7 +3027,8 @@
     "shortcuts": "Phím tắt",
     "cookieBot": "Cookie Bot",
     "trash": "Thùng rác",
-    "agent": "Tác nhân"
+    "agent": "Tác nhân",
+    "previews": "Xem trước trực tiếp"
   },
   "encryption": {
     "required": {
@@ -4610,7 +4612,7 @@
         },
         "proxyMatch": {
           "title": "Khớp proxy và vân tay",
-          "description": "Quốc gia IP thoát so với múi giờ và ngôn ngữ",
+          "description": "Quốc gia IP, múi giờ và ngôn ngữ",
           "prompt": "Mở https://ipinfo.io/json trong hồ sơ này và ghi địa chỉ IP, quốc gia, thành phố, múi giờ và tổ chức. Sau đó mở một trang hiển thị múi giờ và ngôn ngữ của trình duyệt. Cho một dòng với các cột: IP, quốc gia, múi giờ IP, múi giờ trình duyệt, ngôn ngữ trình duyệt, khớp (có hoặc không). Nếu không khớp, nói lý do."
         },
         "stillSignedIn": {
@@ -5277,7 +5279,7 @@
   },
   "previews": {
     "title": "Xem trước trực tiếp",
-    "description": "Nội dung mỗi profile đang chạy hiển thị lúc này. Nhấp vào một profile để đưa cửa sổ lên trước.",
+    "description": "Nhấp vào một bản xem trước để đưa cửa sổ lên trước.",
     "locked": "Xem trước trực tiếp các profile đang chạy có trong gói Pro trở lên.",
     "seePlans": "Xem các gói",
     "empty": "Không có profile nào đang chạy."

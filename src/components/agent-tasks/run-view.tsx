@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { FadingScrollArea } from "@/components/ui/fading-scroll-area";
 import { FOCUS_RING } from "@/components/ui/focus-ring";
+import type { ProfilePreview } from "@/hooks/use-profile-previews";
 import {
   type AgentBatch,
   type AgentTask,
@@ -254,14 +255,14 @@ function RunTile({
 export function RunView({
   batch,
   nameOf,
-  images,
+  previews,
   onOpen,
   onDismissed,
 }: {
   batch: AgentBatch;
   nameOf: (profileId: string) => string;
   /** The live picture of each profile the run works in. */
-  images: Record<string, string>;
+  previews: Record<string, ProfilePreview>;
   onOpen: (profileId: string) => void;
   onDismissed: (batchId: string) => void;
 }) {
@@ -385,7 +386,7 @@ export function RunView({
               key={task.profileId}
               task={task}
               name={nameOf(task.profileId)}
-              image={images[task.profileId]}
+              image={previews[task.profileId]?.image}
               onOpen={() => {
                 onOpen(task.profileId);
               }}

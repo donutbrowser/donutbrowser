@@ -43,7 +43,7 @@ export function RunPane({
       ? working.filter((id) => id === openId)
       : working.slice(0, MAX_LIVE_TILES);
   }, [batch.tasks, openId]);
-  const images = useProfilePreviews(watched, watched.length > 0);
+  const previews = useProfilePreviews(watched, watched.length > 0);
   const live =
     task && isTaskActive(task.status)
       ? {
@@ -55,7 +55,7 @@ export function RunPane({
               ? t("agent.tasks.needsYou")
               : (task.lastStep?.text ?? t(statusLabelKey(task.status))),
           url: task.lastStep?.url ?? null,
-          image: images[task.profileId],
+          image: previews[task.profileId]?.image,
         }
       : null;
 
@@ -123,7 +123,7 @@ export function RunPane({
         <RunView
           batch={batch}
           nameOf={nameOf}
-          images={images}
+          previews={previews}
           onOpen={setOpenId}
           onDismissed={onDismissed}
         />

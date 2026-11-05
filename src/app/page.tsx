@@ -178,6 +178,23 @@ interface PendingUrl {
   url: string;
 }
 
+/** The title of each page above its content; the profiles page has none. */
+const PAGE_TITLE_KEYS = {
+  proxies: "pageTitle.proxies",
+  extensions: "pageTitle.extensions",
+  groups: "pageTitle.groups",
+  cookieBot: "pageTitle.cookieBot",
+  agent: "pageTitle.agent",
+  vpns: "pageTitle.vpns",
+  settings: "pageTitle.settings",
+  integrations: "pageTitle.integrations",
+  account: "pageTitle.account",
+  import: "pageTitle.import",
+  shortcuts: "pageTitle.shortcuts",
+  previews: "pageTitle.previews",
+  trash: "pageTitle.trash",
+} as const satisfies Record<Exclude<AppPage, "profiles">, string>;
+
 export default function Home() {
   const { t } = useTranslation();
   const { zoom: interfaceZoom, setZoom: setInterfaceZoom } = useInterfaceZoom();
@@ -3089,11 +3106,7 @@ export default function Home() {
   const isLoading = profilesLoading || groupsLoading || proxiesLoading;
 
   const subPageTitle =
-    currentPage === "profiles"
-      ? undefined
-      : currentPage === "import"
-        ? t("pageTitle.import")
-        : t(`pageTitle.${currentPage}`);
+    currentPage === "profiles" ? undefined : t(PAGE_TITLE_KEYS[currentPage]);
   // Proxies and VPNs are one page with two tabs: switching tabs is no move.
   const transitionKey = currentPage === "vpns" ? "proxies" : currentPage;
 

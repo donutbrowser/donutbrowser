@@ -1750,7 +1750,8 @@
       "waiting": "Waiting",
       "syncing": "Syncing",
       "synced": "Synced",
-      "error": "Error"
+      "error": "Error",
+      "disabled": "Disabled"
     },
     "ephemeral": {
       "cookiesUnavailable": "Ephemeral profiles are discarded when the browser closes, so there are no cookies to manage here.",
@@ -3026,7 +3027,8 @@
     "shortcuts": "Keyboard shortcuts",
     "cookieBot": "Cookie Bot",
     "trash": "Trash",
-    "agent": "Agent"
+    "agent": "Agent",
+    "previews": "Live previews"
   },
   "encryption": {
     "required": {
@@ -4610,7 +4612,7 @@
         },
         "proxyMatch": {
           "title": "Proxy and fingerprint match",
-          "description": "Exit IP country against time zone and language",
+          "description": "IP country, time zone and language",
           "prompt": "Open https://ipinfo.io/json in this profile and note the IP address, country, city, time zone and organization. Then open a page that shows the browser's time zone and languages. Give one row with these columns: IP, country, IP time zone, browser time zone, browser language, match (yes or no). When they do not match, say why."
         },
         "stillSignedIn": {
@@ -5277,7 +5279,7 @@
   },
   "previews": {
     "title": "Live previews",
-    "description": "What each running profile shows now. Click one to bring its window to the front.",
+    "description": "Click a preview to bring its window to the front.",
     "locked": "Live previews of running profiles are part of Pro and higher plans.",
     "seePlans": "See plans",
     "empty": "No profile is running."

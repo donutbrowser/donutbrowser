@@ -99,6 +99,7 @@ import {
   useTrafficPolling,
 } from "@/components/profile-table/traffic-cell";
 import { TrafficSnapshotStore } from "@/components/profile-table/traffic-snapshots";
+import { WindowEye } from "@/components/profile-table/window-eye";
 import { SaveTemplateDialog } from "@/components/save-template-dialog";
 import {
   DATA_TABLE_CLASSES,
@@ -499,7 +500,7 @@ const NAME_MIN_WIDTH = 220;
  * The columns that always show: select (wide enough to show the browser or
  * OS icon beside the checkbox), launch, sync and details.
  */
-const SELECT_COLUMN_WIDTH = 56;
+const SELECT_COLUMN_WIDTH = 60;
 const FIXED_COLUMNS_WIDTH = SELECT_COLUMN_WIDTH + 44 + 28 + 32;
 
 /**
@@ -3252,7 +3253,31 @@ export function ProfilesDataTable({
         id: "select",
         header: ({ table }) => <TableSelectHeader table={table} />,
         cell: ({ row, table }) => {
+          const meta = table.options.meta as TableMeta;
           const profile = row.original;
+          if (hasLocalWindow(profile, meta)) {
+            return (
+              <TableRowCheckbox
+                table={table}
+                row={row}
+                icon={
+                  <NonHoverableTooltip
+                    content={<p>{t("profileTable.menu.showWindow")}</p>}
+                  >
+                    <WindowEye
+                      label={t("commandPalette.actions.showWindow", {
+                        name: profile.name,
+                      })}
+                      seed={profile.id}
+                      onShow={() => {
+                        showRowWindow(profile, meta);
+                      }}
+                    />
+                  </NonHoverableTooltip>
+                }
+              />
+            );
+          }
           const crossOs = isCrossOsProfile(profile);
           const os = profile.host_os || profile.wayfern_config?.os || "";
           const Icon = crossOs ? getOSIcon(os) : getProfileIcon(profile);
@@ -3260,19 +3285,19 @@ export function ProfilesDataTable({
             ? t("crossOs.viewOnly", { os: getOSDisplayName(os) })
             : getBrowserDisplayName(profile.browser);
           return (
-            <NonHoverableTooltip
-              content={<p>{message}</p>}
-              sideOffset={4}
-              horizontalOffset={8}
-            >
-              <span className="block">
-                <TableRowCheckbox
-                  table={table}
-                  row={row}
-                  icon={Icon ? <Icon className="size-4" /> : undefined}
-                />
-              </span>
-            </NonHoverableTooltip>
+            <TableRowCheckbox
+              table={table}
+              row={row}
+              icon={
+                Icon ? (
+                  <NonHoverableTooltip content={<p>{message}</p>}>
+                    <span className="flex">
+                      <Icon className="size-4" aria-hidden="true" />
+                    </span>
+                  </NonHoverableTooltip>
+                ) : undefined
+              }
+            />
           );
         },
         enableSorting: false,
