@@ -2787,6 +2787,11 @@ impl SyncEngine {
           self.download_extension(ext_id, app_handle).await?;
         } else if local_updated_at > remote_updated {
           self.upload_extension(&ext).await?;
+        } else if !self.read_only {
+          // Same edit on both sides. An earlier upload could still have
+          // written the metadata without the file it describes, so restore
+          // the file when the store does not have it.
+          self.repair_extension_file(&ext).await?;
         }
       }
       (Some(ext), false) => {
@@ -2815,45 +2820,16 @@ impl SyncEngine {
     let json = serde_json::to_string_pretty(&updated_ext)
       .map_err(|e| SyncError::SerializationError(format!("Failed to serialize extension: {e}")))?;
 
+    // The file goes up before the metadata that names it. Metadata in the store
+    // is how every later pass decides there is nothing left to upload, so it
+    // must never exist without its file: a failed file upload leaves no
+    // metadata, and the next pass uploads both again.
+    self.upload_extension_file(ext).await?;
+
     let remote_key = format!("extensions/{}.json", ext.id);
     self
       .upload_config_json(&remote_key, &json, updated_ext.updated_at)
       .await?;
-
-    // Also upload the extension file data — encrypted as a sealed envelope
-    // when E2E is on (the binary is the secret here, not just the metadata).
-    let file_path = {
-      let manager = crate::extension_manager::EXTENSION_MANAGER.lock().unwrap();
-      let file_dir = manager.get_file_dir_public(&ext.id);
-      file_dir.join(&ext.file_name)
-    };
-
-    if file_path.exists() {
-      let file_data = fs::read(&file_path).map_err(|e| {
-        SyncError::IoError(format!(
-          "Failed to read extension file {}: {e}",
-          file_path.display()
-        ))
-      })?;
-
-      let (file_payload, file_content_type) = encryption::maybe_seal_for_upload(&file_data)
-        .map_err(|e| SyncError::InvalidData(format!("Failed to seal extension file: {e}")))?;
-
-      let file_remote_key = format!("extensions/{}/file/{}", ext.id, ext.file_name);
-      let file_presign = self
-        .client
-        .presign_upload(&file_remote_key, Some(file_content_type))
-        .await?;
-      self
-        .client
-        .upload_bytes(
-          &file_presign.url,
-          file_presign.transfer.as_ref(),
-          &file_payload,
-          Some(file_content_type),
-        )
-        .await?;
-    }
 
     // Update local extension with new last_sync
     {
@@ -2867,6 +2843,68 @@ impl SyncEngine {
     }
 
     log::info!("Extension uploaded extension={}", ext.id);
+    Ok(())
+  }
+
+  /// Upload the extension's file when this machine has it, encrypted as a
+  /// sealed envelope when E2E is on (the binary is the secret here, not just
+  /// the metadata). A read-only engine uploads nothing. Returns whether a file
+  /// went up.
+  async fn upload_extension_file(
+    &self,
+    ext: &crate::extension_manager::Extension,
+  ) -> SyncResult<bool> {
+    if self.read_only {
+      return Ok(false);
+    }
+    let file_path = {
+      let manager = crate::extension_manager::EXTENSION_MANAGER.lock().unwrap();
+      let file_dir = manager.get_file_dir_public(&ext.id);
+      file_dir.join(&ext.file_name)
+    };
+    if !file_path.exists() {
+      return Ok(false);
+    }
+
+    let file_data = fs::read(&file_path).map_err(|e| {
+      SyncError::IoError(format!(
+        "Failed to read extension file {}: {e}",
+        file_path.display()
+      ))
+    })?;
+
+    let (file_payload, file_content_type) = encryption::maybe_seal_for_upload(&file_data)
+      .map_err(|e| SyncError::InvalidData(format!("Failed to seal extension file: {e}")))?;
+
+    let file_remote_key = extension_file_key(ext);
+    let file_presign = self
+      .client
+      .presign_upload(&file_remote_key, Some(file_content_type))
+      .await?;
+    self
+      .client
+      .upload_bytes(
+        &file_presign.url,
+        file_presign.transfer.as_ref(),
+        &file_payload,
+        Some(file_content_type),
+      )
+      .await?;
+    Ok(true)
+  }
+
+  /// Restore the file of an extension whose metadata the store already has,
+  /// when the store is missing that file.
+  async fn repair_extension_file(
+    &self,
+    ext: &crate::extension_manager::Extension,
+  ) -> SyncResult<()> {
+    if self.client.stat(&extension_file_key(ext)).await?.exists {
+      return Ok(());
+    }
+    if self.upload_extension_file(ext).await? {
+      log::info!("Extension file restored extension={}", ext.id);
+    }
     Ok(())
   }
 
@@ -2897,7 +2935,7 @@ impl SyncEngine {
     }
 
     // Download the extension file
-    let file_remote_key = format!("extensions/{}/file/{}", ext.id, ext.file_name);
+    let file_remote_key = extension_file_key(&ext);
     let file_stat = self.client.stat(&file_remote_key).await?;
     if file_stat.exists {
       let file_presign = self.client.presign_download(&file_remote_key).await?;
@@ -5018,6 +5056,11 @@ pub async fn rollover_encryption_for_all_entities(
 
   let _ = events::emit("e2e-rollover-completed", ());
   Ok(())
+}
+
+/// The store key of an extension's file.
+fn extension_file_key(ext: &crate::extension_manager::Extension) -> String {
+  format!("extensions/{}/file/{}", ext.id, ext.file_name)
 }
 
 #[cfg(test)]
