@@ -705,7 +705,9 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
     assert.match(preview?.image ?? "", /^data:image\/jpeg;base64,/);
     const previewSize = jpegSize(preview.image.split(",")[1]);
     assert.ok(
-      previewSize.width > 0 && previewSize.width <= 720 && previewSize.height > 0,
+      previewSize.width > 0 &&
+        previewSize.width <= 720 &&
+        previewSize.height > 0,
       `the whole window, scaled down to the preview width: ${JSON.stringify(previewSize)}`,
     );
     assert.equal(
