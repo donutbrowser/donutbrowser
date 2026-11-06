@@ -414,7 +414,12 @@ async fn migration_seals_everything_in_place_and_a_rerun_does_nothing() {
     &env,
   );
   assert_eq!(code, 0, "{out}");
-  assert!(out.contains("conditional_put=false"), "{out}");
+  // Whether the server honors If-Match varies by S3 server version; both
+  // paths must seal everything.
+  assert!(
+    out.contains("conditional_put=true") || out.contains("conditional_put=false"),
+    "{out}"
+  );
   assert!(out.contains("sealed=25"), "{out}");
   for (key, _) in &objects {
     let head = raw.head_object(key).await.unwrap();
