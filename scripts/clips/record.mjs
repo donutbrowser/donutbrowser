@@ -35,9 +35,21 @@ const flag = (name) => {
   return hit.includes("=") ? hit.split("=").slice(1).join("=") : true;
 };
 const wanted = args.filter((arg) => !arg.startsWith("--"));
-const work = path.resolve(
-  flag("work") || path.join(os.tmpdir(), "donut-clips"),
-);
+
+/** The default scratch folder in the shared temp dir, closed to other users. */
+function privateTempDir(name) {
+  const dir = path.join(os.tmpdir(), name);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (process.platform === "win32") return dir;
+  const stat = fs.lstatSync(dir);
+  if (!stat.isDirectory() || stat.uid !== process.getuid()) {
+    throw new Error(`${dir} is not your own folder; pass --work=DIR`);
+  }
+  fs.chmodSync(dir, 0o700);
+  return dir;
+}
+
+const work = path.resolve(flag("work") || privateTempDir("donut-clips"));
 const themes = flag("theme") ? [flag("theme")] : THEMES;
 for (const id of wanted) {
   if (!CLIPS[id]) throw new Error(`Unknown clip: ${id}`);
@@ -311,6 +323,7 @@ async function record(clip, name, theme) {
   fs.writeFileSync(
     path.join(framesDir, "frames.json"),
     JSON.stringify(take.frames),
+    { mode: 0o600 },
   );
   return take.frames;
 }

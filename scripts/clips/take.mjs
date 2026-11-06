@@ -353,7 +353,7 @@ export class Take {
         this.framesDir,
         `${String(this.frames.length).padStart(5, "0")}.png`,
       );
-      fs.writeFileSync(file, Buffer.from(data, "base64"));
+      fs.writeFileSync(file, Buffer.from(data, "base64"), { mode: 0o600 });
       this.frames.push({ t, file });
     }
   }

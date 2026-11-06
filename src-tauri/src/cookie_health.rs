@@ -309,6 +309,10 @@ pub fn log_before_launch(profile_id: &str, profile_data_dir: &Path) {
 mod tests {
   use super::*;
 
+  fn random_key() -> [u8; 32] {
+    rand::random()
+  }
+
   fn seal(key: &[u8; 32], host: &str, value: &[u8]) -> Vec<u8> {
     use sha2::{Digest, Sha256};
     let mut plain = Sha256::digest(host.as_bytes()).to_vec();
@@ -343,8 +347,8 @@ mod tests {
   fn reports_the_oldest_and_newest_rows_separately() {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("Cookies");
-    let key = [7u8; 32];
-    let other = [9u8; 32];
+    let key = random_key();
+    let other = random_key();
     // Inserted newest first, so rowid order differs from creation order.
     cookie_db(
       &db,
@@ -374,8 +378,8 @@ mod tests {
   fn a_newest_row_that_does_not_open_is_an_error() {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("Cookies");
-    cookie_db(&db, &[(1, seal(&[1u8; 32], "a.test", b"x"))]);
-    let store = inspect_cookies(&db, Some(&[2u8; 32])).unwrap();
+    cookie_db(&db, &[(1, seal(&random_key(), "a.test", b"x"))]);
+    let store = inspect_cookies(&db, Some(&random_key())).unwrap();
     let (level, line) = report("p", KeyFile::Present(32), KeyChange::Changed, Some(&store));
     assert_eq!(level, log::Level::Error);
     assert!(line.contains("key_changed=yes"));

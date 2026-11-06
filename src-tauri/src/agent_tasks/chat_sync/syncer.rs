@@ -85,7 +85,7 @@ pub struct Files {
 }
 
 impl Files {
-  fn secrets(&self) -> PathBuf {
+  fn key_file(&self) -> PathBuf {
     self.dir.join("key.dat")
   }
 
@@ -98,7 +98,7 @@ impl Files {
   }
 
   fn load_secrets(&self) -> Option<Secrets> {
-    match crate::vault::open(&self.secrets(), SECRETS_MAGIC) {
+    match crate::vault::open(&self.key_file(), SECRETS_MAGIC) {
       Ok(Some(text)) => serde_json::from_str(&text).ok(),
       Ok(None) => None,
       Err(e) => {
@@ -112,7 +112,7 @@ impl Files {
     let Ok(text) = serde_json::to_string(secrets) else {
       return;
     };
-    if let Err(e) = crate::vault::seal(&self.secrets(), SECRETS_MAGIC, &text) {
+    if let Err(e) = crate::vault::seal(&self.key_file(), SECRETS_MAGIC, &text) {
       log::warn!("Agent chat sync key save failed err=\"{e}\"");
     }
   }
