@@ -42,6 +42,7 @@ const SERVER_OUTCOME_CODES = [
   "browsing_incomplete",
   "budget_exceeded",
   "cancelled_by_user",
+  "cloud_browser_updating",
   "encrypted_sync",
   "manager_error",
   "no_capacity",

@@ -13228,10 +13228,30 @@ impl McpServer {
   /// to do next; a stable code and its parameters are something it can branch
   /// on, and it is the same envelope the desktop and the REST API answer with.
   fn cloud_error(err: crate::cookie_bot::CookieBotError) -> McpError {
-    McpError {
-      code: -32000,
-      message: err.to_error_json(),
-      data: None,
+    Self::cloud_failure(err.to_error_json())
+  }
+
+  /// A cloud failure for an agent. A code with a sentence of its own gets that
+  /// sentence as the message and the envelope as data; any other code keeps
+  /// the envelope as the message.
+  fn cloud_failure(envelope: String) -> McpError {
+    let parsed = serde_json::from_str::<serde_json::Value>(&envelope).ok();
+    let sentence = parsed
+      .as_ref()
+      .and_then(|value| value.get("code"))
+      .and_then(|code| code.as_str())
+      .and_then(cloud_failure_sentence);
+    match sentence {
+      Some(text) => McpError {
+        code: -32000,
+        message: text.to_string(),
+        data: parsed,
+      },
+      None => McpError {
+        code: -32000,
+        message: envelope,
+        data: None,
+      },
     }
   }
 
@@ -13310,11 +13330,7 @@ impl McpServer {
 
     let outcome = crate::remote_session::start_remote_session(app, &profile, url)
       .await
-      .map_err(|e| McpError {
-        code: -32000,
-        message: e.to_error_json(),
-        data: None,
-      })?;
+      .map_err(|e| Self::cloud_failure(e.to_error_json()))?;
     Self::json_content(&outcome)
   }
 
@@ -13325,22 +13341,14 @@ impl McpServer {
     let session_id = Self::require_str(arguments, "session_id")?;
     let outcome = crate::remote_session::end_remote_session(session_id)
       .await
-      .map_err(|e| McpError {
-        code: -32000,
-        message: e.to_error_json(),
-        data: None,
-      })?;
+      .map_err(|e| Self::cloud_failure(e.to_error_json()))?;
     Self::json_content(&outcome)
   }
 
   async fn handle_list_remote_sessions() -> Result<serde_json::Value, McpError> {
     let sessions = crate::remote_session::list_remote_sessions()
       .await
-      .map_err(|e| McpError {
-        code: -32000,
-        message: e.to_error_json(),
-        data: None,
-      })?;
+      .map_err(|e| Self::cloud_failure(e.to_error_json()))?;
     Self::json_content(&sessions)
   }
 
@@ -13350,11 +13358,7 @@ impl McpServer {
     let session_id = Self::require_str(arguments, "session_id")?;
     let state = crate::remote_session::get_remote_session(session_id)
       .await
-      .map_err(|e| McpError {
-        code: -32000,
-        message: e.to_error_json(),
-        data: None,
-      })?;
+      .map_err(|e| Self::cloud_failure(e.to_error_json()))?;
     Self::json_content(&state)
   }
 
@@ -13562,6 +13566,16 @@ impl McpServer {
 
 static MCP_SERVER: std::sync::LazyLock<McpServer> = std::sync::LazyLock::new(McpServer::new);
 
+/// What an agent reads for a cloud code it should relay to the person.
+fn cloud_failure_sentence(code: &str) -> Option<&'static str> {
+  match code {
+    "CLOUD_BROWSER_UPDATING" => Some(
+      "The cloud browser is updating to this profile's Wayfern version. Try again in a few minutes.",
+    ),
+    _ => None,
+  }
+}
+
 #[cfg(test)]
 #[path = "mcp_server_browser_tests.rs"]
 mod browser_tests;
@@ -13569,6 +13583,21 @@ mod browser_tests;
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn a_cloud_update_refusal_reads_as_a_sentence_with_its_envelope() {
+    let envelope = r#"{"code":"CLOUD_BROWSER_UPDATING","params":{"cloudVersion":"1.0.0.1","profileVersion":"1.0.0.2"}}"#;
+    let error = McpServer::cloud_failure(envelope.to_string());
+    assert!(error.message.starts_with("The cloud browser is updating"));
+    let data = error.data.expect("envelope as data");
+    assert_eq!(data["code"], "CLOUD_BROWSER_UPDATING");
+    assert_eq!(data["params"]["profileVersion"], "1.0.0.2");
+
+    let other = r#"{"code":"REMOTE_NO_CAPACITY"}"#;
+    let error = McpServer::cloud_failure(other.to_string());
+    assert_eq!(error.message, other);
+    assert!(error.data.is_none());
+  }
 
   #[test]
   fn an_engine_plan_refusal_is_explained_by_a_device_refusal() {

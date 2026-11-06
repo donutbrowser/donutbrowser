@@ -190,6 +190,7 @@ export type BackendErrorCode =
   | "CLOUD_NOT_SIGNED_IN"
   | "CLOUD_UNREACHABLE"
   | "CLOUD_REQUEST_FAILED"
+  | "CLOUD_BROWSER_UPDATING"
   | "REMOTE_RATE_LIMITED"
   | "REMOTE_NO_CAPACITY"
   // The deployment has no fleet credential at all, which is not the same as a
@@ -949,6 +950,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.cloudUnreachable");
     case "CLOUD_REQUEST_FAILED":
       return t("backendErrors.cloudRequestFailed");
+    case "CLOUD_BROWSER_UPDATING":
+      return t("backendErrors.cloudBrowserUpdating");
     case "REMOTE_RATE_LIMITED":
       return t("backendErrors.remoteRateLimited");
     case "REMOTE_NO_CAPACITY": {

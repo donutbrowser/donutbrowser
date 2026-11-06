@@ -659,6 +659,7 @@ export const OUTCOME_KEYS: Record<string, string> = {
   quota_exhausted: "cookieBot.outcome.quotaExhausted",
   profile_locked: "cookieBot.outcome.profileLocked",
   no_capacity: "cookieBot.outcome.noCapacity",
+  cloud_browser_updating: "cookieBot.outcome.cloudBrowserUpdating",
   manager_error: "cookieBot.outcome.managerError",
   budget_exceeded: "cookieBot.outcome.budgetExceeded",
   // The commonest real outcome of the five missing ones, and it was showing
