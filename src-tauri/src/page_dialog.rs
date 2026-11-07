@@ -590,6 +590,30 @@ pub async fn watch(target: &CdpTarget) -> Result<PageState, CdpError> {
   Ok(now)
 }
 
+/// The browser's answer when the session it was asked on cannot answer a
+/// dialog.
+const NO_DIALOG: &str = "No dialog is showing";
+/// How long a dialog the browser announces again may take to arrive.
+const RECLAIM_WAIT: Duration = Duration::from_secs(1);
+
+/// Ask the browser for the dialog `dialog` again. A browser that announces an
+/// open dialog to a session that turns the Page domain on gives that session
+/// the answer back; the `Page.enable` itself is answered only when the dialog
+/// closes, so it is not awaited. `None` when no dialog is announced.
+async fn reclaim(watch: &Arc<PageWatch>, dialog: &OpenDialog) -> Option<OpenDialog> {
+  let mut state = watch.state.subscribe();
+  let asking = watch.clone();
+  tokio::spawn(async move {
+    let _ = asking
+      .call("Page.enable", serde_json::json!({}), ENABLE_RETRY)
+      .await;
+  });
+  let held = PageState::Dialog(dialog.clone());
+  let _ = tokio::time::timeout(RECLAIM_WAIT, state.wait_for(|now| *now != held)).await;
+  let now = state.borrow().dialog().cloned();
+  now.filter(|again| again != dialog)
+}
+
 /// A dialog that was answered, and the one the page opened next, if any.
 #[derive(Debug)]
 pub struct Answered {
@@ -626,18 +650,33 @@ pub async fn answer(
     params["promptText"] = Value::from(text);
   }
   let mut state = watch.state.subscribe();
+  let mut current = dialog.clone();
   match watch
-    .call("Page.handleJavaScriptDialog", params, ANSWER_WAIT)
+    .call("Page.handleJavaScriptDialog", params.clone(), ANSWER_WAIT)
     .await
   {
     Ok(_) => {}
-    // The person answered it in the window first.
-    Err(CdpError::Protocol(message)) if message.contains("No dialog is showing") => {
-      return Err(AnswerError::NoDialog)
+    // The person answered it in the window first, or another client that
+    // turned the Page domain on after the dialog opened took the answer over.
+    Err(CdpError::Protocol(message)) if message.contains(NO_DIALOG) => {
+      let Some(again) = reclaim(&watch, &dialog).await else {
+        return Err(AnswerError::NoDialog);
+      };
+      current = again;
+      match watch
+        .call("Page.handleJavaScriptDialog", params, ANSWER_WAIT)
+        .await
+      {
+        Ok(_) => {}
+        Err(CdpError::Protocol(message)) if message.contains(NO_DIALOG) => {
+          return Err(AnswerError::NoDialog)
+        }
+        Err(error) => return Err(AnswerError::Cdp(error)),
+      }
     }
     Err(error) => return Err(AnswerError::Cdp(error)),
   }
-  let answered = PageState::Dialog(dialog.clone());
+  let answered = PageState::Dialog(current);
   let _ = tokio::time::timeout(CLOSE_WAIT, state.wait_for(|now| *now != answered)).await;
   if state.borrow().dialog().is_none() {
     tokio::time::sleep(NEXT_DIALOG_WAIT).await;
@@ -1006,6 +1045,9 @@ mod tests {
     alerts: HashMap<String, String>,
     sockets: Vec<FakeSocket>,
     reannounce: bool,
+    /// Pages whose dialog another client took over: no session answers it
+    /// until one turns the Page domain on again.
+    stolen: Vec<String>,
     /// Every request, with the socket it came on.
     requests: Vec<(usize, Value)>,
     next_page: u32,
@@ -1212,6 +1254,7 @@ mod tests {
           match self.alerts.get(&page).cloned() {
             Some(message) => {
               if self.reannounce {
+                self.stolen.retain(|stolen| *stolen != page);
                 self.send(
                   socket,
                   frame(
@@ -1227,7 +1270,7 @@ mod tests {
         }
         "Page.handleJavaScriptDialog" => {
           let page = page.unwrap_or_default();
-          if self.alerts.contains_key(&page) {
+          if self.alerts.contains_key(&page) && !self.stolen.contains(&page) {
             self.send(socket, reply(serde_json::json!({})));
             self.close_alert(&page);
           } else {
@@ -1452,6 +1495,50 @@ mod tests {
         serde_json::json!({ "expression": "where" }),
       )
       .await
+  }
+
+  #[tokio::test]
+  async fn a_dialog_another_client_took_over_is_asked_for_again_and_answered() {
+    let (port, browser) = serve_browser(&["A"], true).await;
+    let target = CdpTarget::Local {
+      ws_url: format!("ws://127.0.0.1:{port}/devtools/page/A"),
+    };
+    assert_eq!(watch(&target).await.unwrap(), PageState::Ready);
+    {
+      let mut browser = lock(&browser);
+      browser.open_alert("A", "Taken");
+      browser.stolen.push("A".to_string());
+    }
+    let opened = tokio::time::timeout(Duration::from_secs(2), async {
+      while open_dialog(&target).is_none() {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+      }
+    })
+    .await;
+    assert!(opened.is_ok());
+    let answered = answer(&target, true, None).await.unwrap();
+    assert_eq!(answered.dialog.message, "Taken");
+    assert!(answered.next.is_none(), "{:?}", answered.next);
+    assert!(lock(&browser).alerts.is_empty());
+    forget(&target);
+
+    // A browser that does not announce it again leaves nothing to answer.
+    let (port, browser) = serve_browser(&["A"], false).await;
+    let target = CdpTarget::Local {
+      ws_url: format!("ws://127.0.0.1:{port}/devtools/page/A"),
+    };
+    assert_eq!(watch(&target).await.unwrap(), PageState::Ready);
+    {
+      let mut browser = lock(&browser);
+      browser.open_alert("A", "Taken");
+      browser.stolen.push("A".to_string());
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(matches!(
+      answer(&target, true, None).await,
+      Err(AnswerError::NoDialog)
+    ));
+    forget(&target);
   }
 
   #[tokio::test]
