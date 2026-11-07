@@ -65,6 +65,7 @@ donutbrowser/
 │   │   ├── mcp_toolsets.rs          # Optional MCP toolsets: which tools a client lists (core + opt-in sets)
 │   │   ├── mcp_views.rs             # Compact MCP views: profile summaries, filters, paging, size caps
 │   │   ├── navigation_watch.rs      # Whether a CDP action navigated, so a click waits only for a load that comes
+│   │   ├── page_dialog.rs           # Native dialogs on agent-driven pages: one Page-enabled socket per page, DIALOG_OPEN fail fast, answers
 │   │   ├── network_capture.rs       # MCP network capture: one browser-level socket per profile, in memory, credentials redacted
 │   │   ├── agent_uploads.rs         # Files an agent sends to file_upload, kept until the browser stops
 │   │   ├── mcp_remote.rs            # Remote MCP bridge: outbound websocket to Donut cloud (Enterprise remote control)
