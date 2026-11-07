@@ -29,9 +29,9 @@ use crate::proxy_manager::PROXY_MANAGER;
 /// on every launch is wasteful.
 const EXIT_CACHE_TTL_SECS: u64 = 30 * 60;
 
-/// Ceiling on a single exit probe. `fetch_public_ip` races six endpoints with
-/// a 10s timeout each, which is fine for a background check but far longer
-/// than a user will wait staring at a launch that has not started yet.
+/// Ceiling on a single exit probe. `fetch_public_ip` can take up to 30s, which
+/// is fine for a background check but far longer than a user will wait
+/// staring at a launch that has not started yet.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
 
 #[derive(Clone)]
@@ -401,9 +401,8 @@ pub async fn probe_and_check_consistency(
   // countries, which would flag correctly-generated fingerprints and would
   // leave the "match to proxy" fix unable to satisfy the check.
   //
-  // Bounded independently of fetch_public_ip's own per-request timeout: that
-  // one races six endpoints and can add up to far longer than a user will wait
-  // in front of a launch.
+  // Bounded independently of fetch_public_ip's own deadline: that one can be
+  // far longer than a user will wait in front of a launch.
   let fetched = tokio::time::timeout(PROBE_TIMEOUT, crate::ip_utils::fetch_public_ip(Some(&url)))
     .await
     .map_err(|_| crate::backend_error("EXIT_PROBE_FAILED"))?;
