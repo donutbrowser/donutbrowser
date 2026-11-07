@@ -349,6 +349,30 @@ const CASES: Case[] = [
     body: { timeout_ms: 15000 },
     operation: "POST /v1/profiles/{id}/agent/pick",
   },
+  {
+    method: "agentHold",
+    args: ["p1", { selector: "#press", duration_ms: 4000 }],
+    verb: "POST",
+    path: "/v1/profiles/p1/agent/hold",
+    body: { selector: "#press", duration_ms: 4000 },
+    operation: "POST /v1/profiles/{id}/agent/hold",
+  },
+  {
+    method: "agentDialog",
+    args: ["p1"],
+    verb: "GET",
+    path: "/v1/profiles/p1/agent/dialog",
+    body: null,
+    operation: "GET /v1/profiles/{id}/agent/dialog",
+  },
+  {
+    method: "agentHandleDialog",
+    args: ["p1", { accept: true, prompt_text: "Bob" }],
+    verb: "POST",
+    path: "/v1/profiles/p1/agent/handle-dialog",
+    body: { accept: true, prompt_text: "Bob" },
+    operation: "POST /v1/profiles/{id}/agent/handle-dialog",
+  },
   // -- remote sessions -----------------------------------------------------
   {
     method: "listRemoteSessions",

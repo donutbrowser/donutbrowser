@@ -2,7 +2,7 @@
   "source": "src-tauri/src/api_server.rs",
   "regenerate_with": "python3 sdk/tools/extract-api-paths.py",
   "description": "Every operation the desktop app publishes in its /openapi.json. The SDK test suites assert this list and their own coverage tables match exactly, so an endpoint added to the app fails the SDK tests until it is either wrapped or deliberately listed as omitted.",
-  "operation_count": 85,
+  "operation_count": 88,
   "operations": [
     {
       "operation_id": "download_browser_api",
@@ -215,9 +215,24 @@
       "path": "/v1/profiles/{id}/agent/click"
     },
     {
+      "operation_id": "agent_dialog_api",
+      "method": "GET",
+      "path": "/v1/profiles/{id}/agent/dialog"
+    },
+    {
       "operation_id": "agent_extract_api",
       "method": "POST",
       "path": "/v1/profiles/{id}/agent/extract"
+    },
+    {
+      "operation_id": "agent_handle_dialog_api",
+      "method": "POST",
+      "path": "/v1/profiles/{id}/agent/handle-dialog"
+    },
+    {
+      "operation_id": "agent_hold_api",
+      "method": "POST",
+      "path": "/v1/profiles/{id}/agent/hold"
     },
     {
       "operation_id": "agent_perceive_api",

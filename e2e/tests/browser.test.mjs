@@ -1957,6 +1957,55 @@ test("MCP answers native dialogs and types into a background tab", async (t) => 
     await tool("handle_dialog", { accept: true, prompt_text: "Bob" });
     assert.equal(await cdp.evaluate("document.body.dataset.renamed"), "Bob");
 
+    // The same over REST: reading is never refused, every other agent call is
+    // refused at once, and the answer reports what it answered.
+    const agentUrl = (action) =>
+      `${base}/v1/profiles/${profile.id}/agent/${action}`;
+    await tool("click_locator", {
+      locator: { role: "button", name: "Delete" },
+    });
+    const restRead = await request(agentUrl("dialog"), {
+      token: saved.api_token,
+    });
+    assert.equal(restRead.response.status, 200, JSON.stringify(restRead.value));
+    assert.equal(restRead.value.open, true);
+    assert.equal(restRead.value.dialog.type, "confirm");
+    const restRefused = await timed(() =>
+      request(agentUrl("type"), {
+        method: "POST",
+        token: saved.api_token,
+        body: { locator: { role: "textbox", name: "Later" }, text: "x" },
+      }),
+    );
+    assert.equal(
+      restRefused.value.response.status,
+      409,
+      JSON.stringify(restRefused.value.value),
+    );
+    assert.equal(restRefused.value.value.code, "DIALOG_OPEN");
+    assert.equal(restRefused.value.value.dialog.message, "Delete it?");
+    assert.ok(restRefused.ms < 5_000, `REST type waited ${restRefused.ms} ms`);
+    const restAnswered = await request(agentUrl("handle-dialog"), {
+      method: "POST",
+      token: saved.api_token,
+      body: { accept: true },
+    });
+    assert.equal(
+      restAnswered.response.status,
+      200,
+      JSON.stringify(restAnswered.value),
+    );
+    assert.equal(restAnswered.value.accepted, true);
+    assert.equal(restAnswered.value.dialog.message, "Delete it?");
+    assert.equal(await cdp.evaluate("document.body.dataset.deleted"), "true");
+    const restNone = await request(agentUrl("handle-dialog"), {
+      method: "POST",
+      token: saved.api_token,
+      body: { accept: true },
+    });
+    assert.equal(restNone.response.status, 409);
+    assert.equal(restNone.value.code, "NO_DIALOG_OPEN");
+
     // The person brings another tab to the front, and the agent's tab loads
     // again behind it. The text still reaches the field, and the answer says
     // how.

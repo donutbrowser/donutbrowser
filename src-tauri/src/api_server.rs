@@ -885,6 +885,8 @@ struct ImportProxiesResponse {
     agent_type_api,
     agent_extract_api,
     agent_pick_api,
+    agent_dialog_api,
+    agent_handle_dialog_api,
   ),
   components(schemas(
     ApiProfile,
@@ -1005,6 +1007,10 @@ struct ImportProxiesResponse {
     crate::mcp_server::AgentTyping,
     crate::mcp_server::TypedWith,
     crate::mcp_server::AgentPickRequest,
+    crate::mcp_server::PageDialog,
+    crate::mcp_server::AgentDialogRequest,
+    crate::mcp_server::AgentDialogAnswer,
+    crate::page_dialog::OpenDialog,
   )),
   tags(
     (name = "profiles", description = "Profile management endpoints"),
@@ -1265,6 +1271,8 @@ fn build_v1_router() -> Router<ApiServerState> {
     .routes(routes!(agent_type_api))
     .routes(routes!(agent_extract_api))
     .routes(routes!(agent_pick_api))
+    .routes(routes!(agent_dialog_api))
+    .routes(routes!(agent_handle_dialog_api))
     .split_for_parts();
 
   // The two paths that carry an extension payload, kept apart so the raised
@@ -1455,7 +1463,16 @@ fn is_automation_request(method: &Method, path: &str) -> bool {
       // exactly as a script one is.
       Some(_),
       Some("agent"),
-      Some("perceive" | "resolve-locator" | "click" | "hold" | "type" | "extract" | "pick"),
+      Some(
+        "perceive"
+          | "resolve-locator"
+          | "click"
+          | "hold"
+          | "type"
+          | "extract"
+          | "pick"
+          | "handle-dialog"
+      ),
       None
     )
   )
@@ -5464,8 +5481,20 @@ async fn check_browser_downloaded(
 // resolved the way every automation endpoint is: 402 without the plan, 404 for
 // an unknown profile, 409 when it is not running, 429 from the shared limiter.
 
-/// The running browser behind `id`, and the engine its version entitles it to.
+/// The running browser behind `id`, and the engine its version entitles it to,
+/// refused while a dialog holds its page.
 async fn agent_context_for(
+  id: &str,
+) -> Result<crate::mcp_server::AgentContext, (StatusCode, String)> {
+  let ctx = agent_target_for(id).await?;
+  crate::mcp_server::page_ready(&ctx.target, false)
+    .await
+    .map_err(agent_error_response)?;
+  Ok(ctx)
+}
+
+/// [`agent_context_for`], whatever the page is doing.
+async fn agent_target_for(
   id: &str,
 ) -> Result<crate::mcp_server::AgentContext, (StatusCode, String)> {
   if !crate::cloud_auth::CLOUD_AUTH
@@ -5585,7 +5614,7 @@ fn agent_error_response(error: crate::mcp_server::AgentError) -> (StatusCode, St
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
-    (status = 409, description = "The profile is not running"),
+    (status = 409, description = "The profile is not running, or a native dialog holds the page (`code` DIALOG_OPEN; read it with GET agent/dialog, answer it with agent/handle-dialog) or the page answers nothing (`code` PAGE_NOT_RESPONDING)"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 502, description = "The browser did not answer as documented"),
     (status = 500, description = "Internal server error")
@@ -5616,7 +5645,7 @@ async fn agent_perceive_api(
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
-    (status = 409, description = "The profile is not running"),
+    (status = 409, description = "The profile is not running, or a native dialog holds the page (`code` DIALOG_OPEN; read it with GET agent/dialog, answer it with agent/handle-dialog) or the page answers nothing (`code` PAGE_NOT_RESPONDING)"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 502, description = "The browser did not answer as documented"),
     (status = 500, description = "Internal server error")
@@ -5651,7 +5680,7 @@ async fn agent_resolve_locator_api(
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
-    (status = 409, description = "The profile is not running"),
+    (status = 409, description = "The profile is not running, or a native dialog holds the page (`code` DIALOG_OPEN; read it with GET agent/dialog, answer it with agent/handle-dialog) or the page answers nothing (`code` PAGE_NOT_RESPONDING)"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 502, description = "The browser did not answer as documented"),
     (status = 500, description = "Internal server error")
@@ -5686,7 +5715,7 @@ async fn agent_click_api(
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
-    (status = 409, description = "The profile is not running"),
+    (status = 409, description = "The profile is not running, or a native dialog holds the page (`code` DIALOG_OPEN; read it with GET agent/dialog, answer it with agent/handle-dialog) or the page answers nothing (`code` PAGE_NOT_RESPONDING)"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 502, description = "The browser did not answer as documented"),
     (status = 500, description = "Internal server error")
@@ -5717,7 +5746,7 @@ async fn agent_hold_api(
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
-    (status = 409, description = "The profile is not running, the field did not take the focus or the text (`code` TYPE_NOT_APPLIED, `reason` not_focused, focus_moved or value), or a dialog is open on the page (`code` DIALOG_OPEN)"),
+    (status = 409, description = "The profile is not running, the field did not take the focus or the text (`code` TYPE_NOT_APPLIED, `reason` not_focused, focus_moved or value), a native dialog holds the page (`code` DIALOG_OPEN), or the page answers nothing (`code` PAGE_NOT_RESPONDING)"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 502, description = "The browser did not answer as documented"),
     (status = 500, description = "Internal server error")
@@ -5753,7 +5782,7 @@ async fn agent_type_api(
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
-    (status = 409, description = "The profile is not running"),
+    (status = 409, description = "The profile is not running, or a native dialog holds the page (`code` DIALOG_OPEN; read it with GET agent/dialog, answer it with agent/handle-dialog) or the page answers nothing (`code` PAGE_NOT_RESPONDING)"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 502, description = "The browser did not answer as documented"),
     (status = 500, description = "Internal server error")
@@ -5785,7 +5814,7 @@ async fn agent_extract_api(
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
     (status = 408, description = "Nothing was picked within timeout_ms; the picker has been disarmed"),
-    (status = 409, description = "The profile is not running, or the picker was cancelled (Escape, or a navigation)"),
+    (status = 409, description = "The profile is not running, the picker was cancelled (Escape, or a navigation), a native dialog holds the page (`code` DIALOG_OPEN), or the page answers nothing (`code` PAGE_NOT_RESPONDING)"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 502, description = "The browser did not answer as documented"),
     (status = 500, description = "Internal server error")
@@ -5807,6 +5836,76 @@ async fn agent_pick_api(
   agent_reply(
     &id,
     crate::mcp_server::agent_pick_element(&ctx, timeout_ms).await,
+  )
+  .await
+}
+
+#[utoipa::path(
+  get,
+  path = "/v1/profiles/{id}/agent/dialog",
+  params(
+    ("id" = String, Path, description = "Profile ID")
+  ),
+  responses(
+    (status = 200, description = "Whether a native dialog (alert, confirm, prompt, \"leave this page?\") holds the page, and which. `open` is null when the page answers nothing and no dialog was seen opening; a navigation ends that", body = crate::mcp_server::PageDialog),
+    (status = 401, description = "Unauthorized"),
+    (status = 402, description = "Active paid plan with browser automation required"),
+    (status = 404, description = "Profile not found"),
+    (status = 409, description = "The profile is not running"),
+    (status = 502, description = "The browser did not answer as documented"),
+    (status = 500, description = "Internal server error")
+  ),
+  security(
+    ("bearer_auth" = [])
+  ),
+  tag = "agent"
+)]
+async fn agent_dialog_api(
+  Path(id): Path<String>,
+) -> Result<Json<crate::mcp_server::PageDialog>, (StatusCode, String)> {
+  let ctx = agent_target_for(&id).await?;
+  agent_reply(&id, crate::mcp_server::agent_dialog(&ctx.target).await).await
+}
+
+#[utoipa::path(
+  post,
+  path = "/v1/profiles/{id}/agent/handle-dialog",
+  params(
+    ("id" = String, Path, description = "Profile ID")
+  ),
+  request_body = crate::mcp_server::AgentDialogRequest,
+  responses(
+    (status = 200, description = "The dialog was accepted or dismissed. `next` is a dialog the page opened in answer, which holds the page now", body = crate::mcp_server::AgentDialogAnswer),
+    (status = 400, description = "Malformed request"),
+    (status = 401, description = "Unauthorized"),
+    (status = 402, description = "Active paid plan with browser automation required"),
+    (status = 404, description = "Profile not found"),
+    (status = 409, description = "The profile is not running, no dialog is open (`code` NO_DIALOG_OPEN), the page answers nothing (`code` PAGE_NOT_RESPONDING), or the person at this computer paused the agents (`code` AGENT_PAUSED) or took over the profile (`code` PROFILE_HELD_BY_HUMAN)"),
+    (status = 429, description = "Automation request rate limit exceeded"),
+    (status = 502, description = "The browser did not answer as documented"),
+    (status = 500, description = "Internal server error")
+  ),
+  security(
+    ("bearer_auth" = [])
+  ),
+  tag = "agent"
+)]
+async fn agent_handle_dialog_api(
+  Path(id): Path<String>,
+  Json(request): Json<crate::mcp_server::AgentDialogRequest>,
+) -> Result<Json<crate::mcp_server::AgentDialogAnswer>, (StatusCode, String)> {
+  if let Err(refusal) =
+    crate::agent_console::check_call(false, &serde_json::json!({ "profile_id": id }))
+  {
+    return Err((
+      StatusCode::CONFLICT,
+      crate::mcp_server::McpServer::console_refusal(refusal).rest_body(),
+    ));
+  }
+  let ctx = agent_target_for(&id).await?;
+  agent_reply(
+    &id,
+    crate::mcp_server::agent_handle_dialog(&ctx.target, &request).await,
   )
   .await
 }
@@ -6207,6 +6306,8 @@ mod tests {
       "/v1/profiles/profile-id/agent/type",
       "/v1/profiles/profile-id/agent/extract",
       "/v1/profiles/profile-id/agent/pick",
+      // Answering a dialog acts on the page; reading one does not.
+      "/v1/profiles/profile-id/agent/handle-dialog",
     ] {
       assert!(
         is_automation_request(&Method::POST, path),
@@ -6236,6 +6337,7 @@ mod tests {
       (Method::POST, "/v1/profiles/profile-id/agent/unknown"),
       (Method::POST, "/v1/profiles/profile-id/agent/click/twice"),
       (Method::GET, "/v1/profiles/profile-id/agent/perceive"),
+      (Method::GET, "/v1/profiles/profile-id/agent/dialog"),
       (Method::POST, "/v1/profiles"),
       (Method::POST, "/v1/profiles/import"),
       (Method::GET, "/v1/profiles"),
@@ -7085,6 +7187,25 @@ mod tests {
     });
     assert_eq!(status, StatusCode::CONFLICT);
 
+    // A dialog holds the page: a conflict with its state, with the dialog in
+    // the body, the same envelope MCP answers.
+    let dialog = crate::page_dialog::test_support::dialog("confirm", "Delete it?");
+    let (status, body) = agent_error_response(AgentError::Cdp(CdpError::DialogOpen(dialog)));
+    assert_eq!(status, StatusCode::CONFLICT);
+    let body: serde_json::Value = serde_json::from_str(&body).expect("a JSON body");
+    assert_eq!(body["code"], "DIALOG_OPEN");
+    assert_eq!(body["dialog"]["type"], "confirm");
+    assert_eq!(body["dialog"]["message"], "Delete it?");
+    assert!(body["message"].as_str().unwrap().contains("Delete it?"));
+    for (error, code) in [
+      (AgentError::NoDialog, "NO_DIALOG_OPEN"),
+      (AgentError::PageNotResponding, "PAGE_NOT_RESPONDING"),
+    ] {
+      let (status, body) = agent_error_response(error);
+      assert_eq!(status, StatusCode::CONFLICT);
+      assert!(body.contains(code), "{body}");
+    }
+
     // A browser that is not there is "start it", not "we broke".
     let (status, _) = agent_error_response(AgentError::Cdp(CdpError::Unreachable("x".into())));
     assert_eq!(status, StatusCode::CONFLICT);
@@ -7692,6 +7813,7 @@ mod tests {
       "/v1/profiles/{id}/agent/type",
       "/v1/profiles/{id}/agent/extract",
       "/v1/profiles/{id}/agent/pick",
+      "/v1/profiles/{id}/agent/handle-dialog",
     ] {
       assert!(
         paths[path]["post"]["responses"].get("429").is_some(),
@@ -7719,6 +7841,7 @@ mod tests {
       ("/v1/profiles/{id}/agent/type", "AgentTyping"),
       ("/v1/profiles/{id}/agent/extract", "Extraction"),
       ("/v1/profiles/{id}/agent/pick", "PickedElement"),
+      ("/v1/profiles/{id}/agent/handle-dialog", "AgentDialogAnswer"),
     ] {
       let reference =
         &paths[path]["post"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"];
@@ -7756,6 +7879,10 @@ mod tests {
       "AgentTypeRequest",
       "AgentTyping",
       "AgentPickRequest",
+      "PageDialog",
+      "AgentDialogRequest",
+      "AgentDialogAnswer",
+      "OpenDialog",
     ] {
       let component = &spec["components"]["schemas"][schema];
       assert!(
@@ -7785,6 +7912,30 @@ mod tests {
     assert_eq!(
       spec["components"]["schemas"]["Engine"]["enum"],
       serde_json::json!(["wayfern", "fallback"])
+    );
+
+    // Reading a dialog is a GET that is never refused for the dialog; it is
+    // gated and resolved like every agent route, and is not metered.
+    let read = &paths["/v1/profiles/{id}/agent/dialog"]["get"];
+    assert_eq!(
+      read["responses"]["200"]["content"]["application/json"]["schema"]["$ref"],
+      "#/components/schemas/PageDialog"
+    );
+    for status in ["402", "404", "409"] {
+      assert!(
+        read["responses"].get(status).is_some(),
+        "GET agent/dialog is missing its {status} response"
+      );
+    }
+    assert!(read["responses"].get("429").is_none());
+    assert_eq!(schema_required(&spec, "AgentDialogRequest"), vec!["accept"]);
+    assert!(schema_required(&spec, "PageDialog").is_empty());
+    let answer = schema_required(&spec, "AgentDialogAnswer");
+    assert!(answer.contains(&"accepted".to_string()) && answer.contains(&"dialog".to_string()));
+    assert!(!answer.contains(&"next".to_string()), "next is optional");
+    assert_eq!(
+      schema_required(&spec, "OpenDialog"),
+      vec!["type", "message", "default_prompt", "url"]
     );
 
     assert!(

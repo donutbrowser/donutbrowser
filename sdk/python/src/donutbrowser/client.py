@@ -21,6 +21,8 @@ from urllib.parse import quote, urlencode, urlsplit
 from .errors import DonutConnectionError, DonutError, error_for_status
 from .models import (
     AgentClick,
+    AgentDialogAnswer,
+    AgentHold,
     AgentTyping,
     ApiBulkCreateResponse,
     ApiGroupResponse,
@@ -57,6 +59,7 @@ from .models import (
     ImportProxiesResponse,
     LocatorDescription,
     LocatorResolution,
+    PageDialog,
     PerceptionPage,
     PickedElement,
     ProfileImportBatchResult,
@@ -666,6 +669,32 @@ class DonutClient:
             body=_body(locator=dict(locator), button=button, click_count=click_count),
         )
 
+    def agent_hold(
+        self,
+        profile_id: str,
+        *,
+        locator: Optional[LocatorDescription] = None,
+        selector: Optional[str] = None,
+        duration_ms: Optional[float] = None,
+        button: Optional[str] = None,
+    ) -> AgentHold:
+        """POST /v1/profiles/{id}/agent/hold
+
+        Name the element with ``locator`` or ``selector``. ``duration_ms`` is
+        100 to 30000, default 3000; ``button`` is ``"left"`` (the default),
+        ``"middle"`` or ``"right"``.
+        """
+        return self._request(
+            "POST",
+            f"/v1/profiles/{_segment(profile_id)}/agent/hold",
+            body=_body(
+                locator=dict(locator) if locator is not None else None,
+                selector=selector,
+                duration_ms=duration_ms,
+                button=button,
+            ),
+        )
+
     def agent_type(
         self,
         profile_id: str,
@@ -737,6 +766,34 @@ class DonutClient:
             "POST",
             f"/v1/profiles/{_segment(profile_id)}/agent/pick",
             body=_body(timeout_ms=timeout_ms),
+        )
+
+    def agent_dialog(self, profile_id: str) -> PageDialog:
+        """GET /v1/profiles/{id}/agent/dialog
+
+        Whether a native dialog holds the page, and which. Never refused for
+        the dialog: while one is open, every other agent call raises
+        ``DIALOG_OPEN``.
+        """
+        return self._request("GET", f"/v1/profiles/{_segment(profile_id)}/agent/dialog")
+
+    def agent_handle_dialog(
+        self,
+        profile_id: str,
+        *,
+        accept: bool,
+        prompt_text: Optional[str] = None,
+    ) -> AgentDialogAnswer:
+        """POST /v1/profiles/{id}/agent/handle-dialog
+
+        ``accept`` true is OK, false is Cancel. An accepted prompt takes
+        ``prompt_text``, or keeps its default text. Raises ``NO_DIALOG_OPEN``
+        when nothing is open.
+        """
+        return self._request(
+            "POST",
+            f"/v1/profiles/{_segment(profile_id)}/agent/handle-dialog",
+            body=_body(accept=accept, prompt_text=prompt_text),
         )
 
     # ------------------------------------------------------------------

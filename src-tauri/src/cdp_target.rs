@@ -401,6 +401,8 @@ pub struct CdpConnection {
   /// page-level commands reach the page rather than the browser.
   cdp_session: Option<String>,
   closed: Option<CloseInfo>,
+  /// The page a relayed connection attached to.
+  page: Option<String>,
   /// The page's dialog state, when [`crate::page_dialog`] watches the page.
   dialog: Option<tokio::sync::watch::Receiver<crate::page_dialog::PageState>>,
 }
@@ -427,6 +429,7 @@ impl CdpConnection {
       stream,
       cdp_session: None,
       closed: None,
+      page: None,
       dialog: None,
     }
   }
@@ -656,14 +659,23 @@ impl CdpConnection {
     let _ = self.stream.close(None).await;
   }
 
-  /// Move a browser-level socket onto a page.
+  /// Move a browser-level socket onto a page: `pinned`, the page the session's
+  /// tools drive, when it is known and still open, else the first page the
+  /// browser lists.
   ///
   /// The remote endpoint exposes `/devtools/browser/<id>`. Every tool here
   /// speaks `Page.*`, `Runtime.*` and `Input.*`, which a browser socket answers
   /// with `'Page.navigate' wasn't found`. Attaching flat, and stamping the
   /// resulting session id onto everything after it, is what makes the tools
   /// this app already has work remotely without a single per-tool change.
-  async fn attach_to_page(&mut self) -> Result<(), CdpError> {
+  async fn attach_to_page(&mut self, pinned: Option<String>) -> Result<(), CdpError> {
+    if let Some(page) = pinned {
+      match self.attach(&page).await {
+        // The page closed since it was pinned.
+        Err(CdpError::Protocol(_)) => {}
+        attached => return attached,
+      }
+    }
     let targets = self
       .call(
         HANDSHAKE_GET_TARGETS_ID,
@@ -673,7 +685,10 @@ impl CdpConnection {
       .await?;
     let target_id = pick_remote_page_target(&targets)
       .ok_or_else(|| CdpError::NotDrivable("the remote browser has no page open".to_string()))?;
+    self.attach(&target_id).await
+  }
 
+  async fn attach(&mut self, target_id: &str) -> Result<(), CdpError> {
     let attached = self
       .call(
         HANDSHAKE_ATTACH_ID,
@@ -689,6 +704,7 @@ impl CdpConnection {
         CdpError::Protocol("Target.attachToTarget returned no sessionId".to_string())
       })?;
     self.cdp_session = Some(session.to_string());
+    self.page = Some(target_id.to_string());
     Ok(())
   }
 }
@@ -743,8 +759,8 @@ static POOL: std::sync::LazyLock<
 > = std::sync::LazyLock::new(Default::default);
 
 impl CdpTarget {
-  /// The page socket this target names: the key of its pooled connection and
-  /// of its dialog watch.
+  /// The page socket this target names, or the cloud session: the key of its
+  /// pooled connection.
   pub(crate) fn pool_key(&self) -> String {
     match self {
       Self::Local { ws_url } => ws_url.clone(),
@@ -753,23 +769,40 @@ impl CdpTarget {
       } => format!("{ws_url}#{session_id}"),
     }
   }
+
+  /// The key of the dialog watch of a page: the page socket here, or `page`
+  /// of a cloud session.
+  pub(crate) fn page_key(&self, page: Option<&str>) -> String {
+    match (self, page) {
+      (Self::Remote { .. }, Some(page)) => format!("{}#{page}", self.pool_key()),
+      _ => self.pool_key(),
+    }
+  }
 }
 
 /// Whether a failure on a pooled socket means the command never reached the
-/// browser, so a fresh socket may send it again.
+/// browser, so a fresh socket may send it again. A relayed socket whose page
+/// closed answers that its page session is gone.
 fn not_delivered(error: &CdpError) -> bool {
-  matches!(error, CdpError::Transport(message)
-    if message.starts_with("failed to send CDP command")
-      || message.contains("connection closed"))
+  match error {
+    CdpError::Transport(message) => {
+      message.starts_with("failed to send CDP command") || message.contains("connection closed")
+    }
+    CdpError::Protocol(message) => message.contains(SESSION_GONE),
+    _ => false,
+  }
 }
+
+/// How a browser refuses a command to a page session that has ended.
+const SESSION_GONE: &str = "Session with given id not found";
 
 /// Whether the socket is still fit for the next command after `result`. A
 /// late reply to a command cut short by a dialog is skipped by its id.
 fn reusable(result: &Result<Value, CdpError>) -> bool {
-  matches!(
-    result,
-    Ok(_) | Err(CdpError::Protocol(_)) | Err(CdpError::DialogOpen(_))
-  )
+  match result {
+    Err(CdpError::Protocol(message)) => !message.contains(SESSION_GONE),
+    other => matches!(other, Ok(_) | Err(CdpError::DialogOpen(_))),
+  }
 }
 
 async fn give_back(key: String, pooled: PooledConnection) {
@@ -995,11 +1028,22 @@ impl CdpTarget {
   /// Retries a connection that failed for a reason a retry could fix, and never
   /// one that failed because the answer was no.
   pub async fn connect(&self) -> Result<CdpConnection, CdpError> {
+    self.connect_with(true).await
+  }
+
+  /// A socket to the browser of a cloud session, on no page. On this computer,
+  /// the page socket.
+  pub(crate) async fn connect_browser(&self) -> Result<CdpConnection, CdpError> {
+    self.connect_with(false).await
+  }
+
+  async fn connect_with(&self, attach: bool) -> Result<CdpConnection, CdpError> {
     let mut attempt = 0u32;
     loop {
-      let error = match self.connect_once().await {
+      let error = match self.connect_once(attach).await {
         Ok(mut connection) => {
-          connection.dialog = crate::page_dialog::state_of(&self.pool_key());
+          connection.dialog =
+            crate::page_dialog::state_of(&self.page_key(connection.page.as_deref()));
           return Ok(connection);
         }
         Err(e) => e,
@@ -1018,7 +1062,7 @@ impl CdpTarget {
     }
   }
 
-  async fn connect_once(&self) -> Result<CdpConnection, CdpError> {
+  async fn connect_once(&self, attach: bool) -> Result<CdpConnection, CdpError> {
     match self {
       Self::Local { ws_url } => {
         let request = ws_url
@@ -1033,7 +1077,11 @@ impl CdpTarget {
         session_id,
       } => {
         let mut connection = dial_relay(ws_url, bearer).await?;
-        if let Err(e) = connection.attach_to_page().await {
+        if !attach {
+          return Ok(connection);
+        }
+        let pinned = crate::page_dialog::remote_page(self);
+        if let Err(e) = connection.attach_to_page(pinned).await {
           log::warn!(
             "Remote session page attach failed session={} err=\"{e}\"",
             ShortId(session_id)
@@ -1207,6 +1255,19 @@ pub fn classify_handshake_status(status: u16) -> CdpError {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn a_kept_socket_whose_page_closed_sends_again_on_a_new_one() {
+    let gone = CdpError::Protocol(
+      r#"{"code":-32001,"message":"Session with given id not found."}"#.to_string(),
+    );
+    assert!(not_delivered(&gone));
+    assert!(!reusable(&Err(gone)));
+    let refused =
+      CdpError::Protocol(r#"{"code":-32000,"message":"Cannot find context"}"#.to_string());
+    assert!(!not_delivered(&refused));
+    assert!(reusable(&Err(refused)));
+  }
 
   #[test]
   fn a_page_target_is_preferred_over_the_devtools_frontend() {

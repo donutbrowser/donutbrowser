@@ -9,8 +9,8 @@ Two spellings live side by side because the app sends both. Most bodies are
 snake_case; the browser-facing agent types (``LocatorDescription``,
 ``LocatorCandidate``, ``PerceptionPage`` and friends) carry the browser's own
 camelCase, because they are handed through from the browser rather than
-restated. ``AgentClick`` and ``AgentTyping`` are the exceptions inside the
-agent surface: they are snake_case with a single ``match`` key. The types below
+restated. ``AgentClick``, ``AgentHold`` and ``AgentTyping`` are the exceptions
+inside the agent surface: they are snake_case with a single ``match`` key. The types below
 follow the wire rather than tidying it, so a value read from one call can be
 passed straight into the next.
 """
@@ -94,7 +94,11 @@ __all__ = [
     "Extraction",
     "PickedElement",
     "AgentClick",
+    "AgentHold",
     "AgentTyping",
+    "OpenDialog",
+    "PageDialog",
+    "AgentDialogAnswer",
 ]
 
 # The app's own JSON for a proxy's settings. Declared `Object` in the OpenAPI
@@ -931,3 +935,64 @@ class AgentTyping(_AgentTypingRequired, total=False):
     """
 
     corrections: int
+
+
+class _AgentHoldRequired(TypedDict):
+    held: bool
+    engine: str
+    navigated: bool
+    button: str
+    held_ms: int
+
+
+class AgentHold(_AgentHoldRequired, total=False):
+    """What a press and hold did. Note the snake_case body and the ``match`` key.
+
+    ``match`` is the element a locator settled on, absent when a selector named
+    it. ``held_ms`` is how long the button was down.
+    """
+
+    match: LocatorCandidate
+
+
+class OpenDialog(TypedDict):
+    """A native dialog (alert, confirm, prompt, "leave this page?") on a page.
+
+    ``type`` is ``alert``, ``confirm``, ``prompt`` or ``beforeunload``;
+    ``default_prompt`` is the text a prompt puts in its field; ``url`` is the
+    page that opened it.
+    """
+
+    type: str
+    message: str
+    default_prompt: str
+    url: str
+
+
+class _PageDialogRequired(TypedDict):
+    open: Optional[bool]
+
+
+class PageDialog(_PageDialogRequired, total=False):
+    """Whether a native dialog holds the page.
+
+    ``open`` is true while a dialog holds the page, false when none does, and
+    ``None`` when the page answers nothing and no dialog was seen opening on
+    it; ``page_responding`` is then false. A navigation ends that.
+    """
+
+    dialog: OpenDialog
+    page_responding: bool
+    note: str
+
+
+class _AgentDialogAnswerRequired(TypedDict):
+    accepted: bool
+    dialog: OpenDialog
+
+
+class AgentDialogAnswer(_AgentDialogAnswerRequired, total=False):
+    """What answering a dialog did. ``next`` is a dialog the page opened in
+    answer, which holds the page now."""
+
+    next: OpenDialog

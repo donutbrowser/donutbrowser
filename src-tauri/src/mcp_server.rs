@@ -400,6 +400,16 @@ pub struct McpError {
   data: Option<serde_json::Value>,
 }
 
+impl McpError {
+  /// The body a REST endpoint answers with for the same refusal: the
+  /// structured detail, plus `message`.
+  pub(crate) fn rest_body(&self) -> String {
+    let mut body = self.data.clone().unwrap_or_else(|| serde_json::json!({}));
+    body["message"] = serde_json::Value::from(self.message.as_str());
+    body.to_string()
+  }
+}
+
 /// Surface a CDP failure to the agent with the reason intact.
 ///
 /// The distinction matters to whoever is on the other end: "the session is
@@ -4162,6 +4172,10 @@ async fn resolve_target(profile: &BrowserProfile) -> Result<CdpTarget, McpError>
 
 /// Where a profile's browser is, whatever its page is doing.
 async fn locate_target(profile: &BrowserProfile) -> Result<CdpTarget, McpError> {
+  #[cfg(test)]
+  if let Some((_, target)) = pinned_profiles::get(&profile.id.to_string()) {
+    return Ok(target);
+  }
   crate::cdp_target::resolve(profile)
     .await
     .map_err(|e| McpError {
@@ -4173,20 +4187,114 @@ async fn locate_target(profile: &BrowserProfile) -> Result<CdpTarget, McpError> 
 
 /// Watch the page for dialogs, and refuse it while one holds it: a dialog that
 /// is open, or a page that answers nothing. `unanswered_ok` lets a navigation
-/// through, which ends a dialog the watch never saw.
-async fn watch_page(target: &CdpTarget, unanswered_ok: bool) -> Result<(), McpError> {
+/// through, which ends a dialog the watch never saw. Every page tool and agent
+/// endpoint checks this first.
+pub(crate) async fn page_ready(target: &CdpTarget, unanswered_ok: bool) -> Result<(), AgentError> {
   use crate::page_dialog::PageState as Page;
   match crate::page_dialog::watch(target).await {
     Ok(Page::Ready) => Ok(()),
-    Ok(Page::Dialog(dialog)) => Err(AgentError::Cdp(CdpError::DialogOpen(dialog)).into_mcp()),
+    Ok(Page::Dialog(dialog)) => Err(AgentError::Cdp(CdpError::DialogOpen(dialog))),
     Ok(Page::Unanswered) if unanswered_ok => Ok(()),
-    Ok(Page::Unanswered) => Err(AgentError::PageNotResponding.into_mcp()),
+    Ok(Page::Unanswered) => Err(AgentError::PageNotResponding),
     // The tool reaches the page itself and reports what it finds there.
     Err(error) => {
       log::debug!("Page watch not opened err=\"{error}\"");
       Ok(())
     }
   }
+}
+
+async fn watch_page(target: &CdpTarget, unanswered_ok: bool) -> Result<(), McpError> {
+  page_ready(target, unanswered_ok)
+    .await
+    .map_err(AgentError::into_mcp)
+}
+
+/// What `get_dialog` answers.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub(crate) struct PageDialog {
+  /// True while a dialog holds the page, false when none does, null when the
+  /// page answers nothing and no dialog was seen opening on it.
+  pub open: Option<bool>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub dialog: Option<crate::page_dialog::OpenDialog>,
+  /// False when the page answers nothing.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub page_responding: Option<bool>,
+  /// What to do about a page that answers nothing.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub note: Option<String>,
+}
+
+/// The body of `handle_dialog`.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub(crate) struct AgentDialogRequest {
+  /// True to accept the dialog (OK), false to dismiss it (Cancel).
+  pub accept: bool,
+  /// The text an accepted prompt dialog takes. Without it, the prompt keeps
+  /// its default text.
+  #[serde(default)]
+  pub prompt_text: Option<String>,
+}
+
+/// What `handle_dialog` did.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct AgentDialogAnswer {
+  pub accepted: bool,
+  /// The dialog that was answered.
+  pub dialog: crate::page_dialog::OpenDialog,
+  /// A dialog the page opened in answer. It holds the page now.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub next: Option<crate::page_dialog::OpenDialog>,
+}
+
+/// Whether a dialog holds the page `target` names, and which. Never refused:
+/// it is how an agent learns why the page tools are.
+pub(crate) async fn agent_dialog(target: &CdpTarget) -> Result<PageDialog, AgentError> {
+  use crate::page_dialog::PageState as Page;
+  let state = crate::page_dialog::watch(target)
+    .await
+    .map_err(AgentError::Cdp)?;
+  let closed = PageDialog {
+    open: Some(false),
+    dialog: None,
+    page_responding: None,
+    note: None,
+  };
+  Ok(match state {
+    Page::Dialog(dialog) => PageDialog {
+      open: Some(true),
+      dialog: Some(dialog),
+      ..closed
+    },
+    Page::Ready => closed,
+    Page::Unanswered => PageDialog {
+      open: None,
+      page_responding: Some(false),
+      note: Some(AgentError::PageNotResponding.message()),
+      ..closed
+    },
+  })
+}
+
+/// Accept or dismiss the dialog that holds the page `target` names.
+pub(crate) async fn agent_handle_dialog(
+  target: &CdpTarget,
+  request: &AgentDialogRequest,
+) -> Result<AgentDialogAnswer, AgentError> {
+  use crate::page_dialog::AnswerError;
+  let answered = crate::page_dialog::answer(target, request.accept, request.prompt_text.as_deref())
+    .await
+    .map_err(|error| match error {
+      AnswerError::NoDialog => AgentError::NoDialog,
+      AnswerError::Unanswered => AgentError::PageNotResponding,
+      AnswerError::Cdp(error) => AgentError::Cdp(error),
+    })?;
+  Ok(AgentDialogAnswer {
+    accepted: request.accept,
+    dialog: answered.dialog,
+    next: answered.next,
+  })
 }
 
 /// The tail of a page script that answers where `el` is, in viewport pixels.
@@ -11183,6 +11291,10 @@ impl McpServer {
   /// the session. Whether a browser exists at all is [`resolve_cdp_target`]'s
   /// answer to give, because only it can see both places one could be.
   fn get_wayfern_profile(&self, profile_id: &str) -> Result<BrowserProfile, McpError> {
+    #[cfg(test)]
+    if let Some((profile, _)) = pinned_profiles::get(profile_id) {
+      return Ok(profile);
+    }
     let profiles = ProfileManager::instance()
       .list_profiles()
       .map_err(|e| McpError {
@@ -12178,21 +12290,11 @@ impl McpServer {
   ) -> Result<serde_json::Value, McpError> {
     let profile_id = Self::require_str(arguments, "profile_id")?;
     let target = self.locate_cdp_target(profile_id).await?;
-    let state = crate::page_dialog::watch(&target)
-      .await
-      .map_err(cdp_error)?;
-    let answer = match state {
-      crate::page_dialog::PageState::Dialog(dialog) => {
-        serde_json::json!({ "open": true, "dialog": dialog })
-      }
-      crate::page_dialog::PageState::Ready => serde_json::json!({ "open": false }),
-      crate::page_dialog::PageState::Unanswered => serde_json::json!({
-        "open": serde_json::Value::Null,
-        "page_responding": false,
-        "note": AgentError::PageNotResponding.message(),
-      }),
-    };
-    Self::json_content(&answer)
+    let dialog = agent_dialog(&target).await.map_err(|error| match error {
+      AgentError::Cdp(error) => cdp_error(error),
+      other => other.into_mcp(),
+    })?;
+    Self::json_content(&dialog)
   }
 
   async fn handle_handle_dialog(
@@ -12200,27 +12302,27 @@ impl McpServer {
     arguments: &serde_json::Value,
   ) -> Result<serde_json::Value, McpError> {
     let profile_id = Self::require_str(arguments, "profile_id")?;
-    let accept = arguments
+    if arguments
       .get("accept")
       .and_then(serde_json::Value::as_bool)
-      .ok_or_else(|| McpError {
+      .is_none()
+    {
+      return Err(McpError {
         code: -32602,
         message: "Missing accept: true to accept the dialog (OK), false to dismiss it (Cancel)"
           .to_string(),
         data: None,
-      })?;
-    let prompt_text = arguments
-      .get("prompt_text")
-      .and_then(serde_json::Value::as_str);
+      });
+    }
+    let request: AgentDialogRequest = Self::agent_arguments(arguments)?;
     let target = self.locate_cdp_target(profile_id).await?;
-    let answered = crate::page_dialog::answer(&target, accept, prompt_text)
+    let answered = agent_handle_dialog(&target, &request)
       .await
       .map_err(|error| match error {
-        crate::page_dialog::AnswerError::NoDialog => AgentError::NoDialog.into_mcp(),
-        crate::page_dialog::AnswerError::Unanswered => AgentError::PageNotResponding.into_mcp(),
-        crate::page_dialog::AnswerError::Cdp(error) => cdp_error(error),
+        AgentError::Cdp(error) => cdp_error(error),
+        other => other.into_mcp(),
       })?;
-    let report = answer_report(&answered.dialog, accept);
+    let report = answer_report(&answered.dialog, request.accept);
     Ok(match &answered.next {
       Some(next) => serde_json::json!({
         "content": [{ "type": "text", "text": format!("{report}\nThe page opened another dialog. {}", dialog_refusal(next)) }]
@@ -12865,7 +12967,7 @@ impl McpServer {
     }
   }
 
-  fn console_refusal(refusal: crate::agent_console::Refusal) -> McpError {
+  pub(crate) fn console_refusal(refusal: crate::agent_console::Refusal) -> McpError {
     match refusal {
       crate::agent_console::Refusal::Paused { note } => McpError {
         code: -32000,
@@ -13875,6 +13977,38 @@ fn cloud_failure_sentence(code: &str) -> Option<&'static str> {
 #[cfg(test)]
 #[path = "mcp_server_browser_tests.rs"]
 mod browser_tests;
+
+#[cfg(test)]
+#[path = "mcp_server_fleet_tests.rs"]
+mod fleet_tests;
+
+/// Profiles a test drives without a profile on disk: the tools find the
+/// profile and its browser here first.
+#[cfg(test)]
+pub(crate) mod pinned_profiles {
+  use super::{BrowserProfile, CdpTarget};
+  use std::collections::HashMap;
+  use std::sync::Mutex;
+
+  static PINNED: Mutex<Option<HashMap<String, (BrowserProfile, CdpTarget)>>> = Mutex::new(None);
+
+  pub(crate) fn pin(profile: BrowserProfile, target: CdpTarget) {
+    let mut pinned = PINNED.lock().unwrap();
+    pinned
+      .get_or_insert_with(HashMap::new)
+      .insert(profile.id.to_string(), (profile, target));
+  }
+
+  pub(crate) fn unpin(profile_id: &str) {
+    if let Some(pinned) = PINNED.lock().unwrap().as_mut() {
+      pinned.remove(profile_id);
+    }
+  }
+
+  pub(crate) fn get(profile_id: &str) -> Option<(BrowserProfile, CdpTarget)> {
+    PINNED.lock().unwrap().as_ref()?.get(profile_id).cloned()
+  }
+}
 
 #[cfg(test)]
 mod tests {
@@ -16522,6 +16656,51 @@ mod tests {
       typed.is_ok(),
       "the page works again once the dialog is gone"
     );
+  }
+
+  #[tokio::test]
+  async fn a_dialog_is_read_the_same_way_by_every_front_door() {
+    use crate::page_dialog::{test_support, PageState as Page};
+    use crate::wayfern_cdp::test_support::{fake_browser, Fake};
+
+    let (target, _) = fake_browser(Fake::Cooperative).await;
+    let read = |state: Page| {
+      let target = target.clone();
+      async move {
+        test_support::hold(&target, state);
+        let read = serde_json::to_value(agent_dialog(&target).await.unwrap()).unwrap();
+        let ready = page_ready(&target, false).await.err().map(|e| e.code());
+        let navigable = page_ready(&target, true).await.err().map(|e| e.code());
+        test_support::release(&target);
+        (read, ready, navigable)
+      }
+    };
+    assert_eq!(
+      read(Page::Ready).await,
+      (serde_json::json!({ "open": false }), None, None)
+    );
+    let (open, ready, navigable) =
+      read(Page::Dialog(test_support::dialog("prompt", "Your name?"))).await;
+    assert_eq!(open["open"], true);
+    assert_eq!(open["dialog"]["type"], "prompt");
+    assert_eq!(open["dialog"]["message"], "Your name?");
+    assert_eq!(
+      (ready, navigable),
+      (Some("DIALOG_OPEN"), Some("DIALOG_OPEN"))
+    );
+    let (silent, ready, navigable) = read(Page::Unanswered).await;
+    assert_eq!(silent["open"], serde_json::Value::Null);
+    assert_eq!(silent["page_responding"], false);
+    assert!(silent["note"].is_string());
+    assert_eq!((ready, navigable), (Some("PAGE_NOT_RESPONDING"), None));
+
+    let refused = McpServer::console_refusal(crate::agent_console::Refusal::Paused {
+      note: Some("lunch".into()),
+    })
+    .rest_body();
+    let refused: serde_json::Value = serde_json::from_str(&refused).unwrap();
+    assert_eq!(refused["code"], "AGENT_PAUSED");
+    assert!(refused["message"].as_str().unwrap().contains("lunch"));
   }
 
   #[test]

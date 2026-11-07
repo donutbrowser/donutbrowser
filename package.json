@@ -43,6 +43,7 @@
     "test:rust": "cd src-tauri && cargo test",
     "test:donut-sync": "cd donut-sync && cargo test --lib --locked",
     "test:rust:unit": "cd src-tauri && cargo test --lib && cargo test --test donut_proxy_integration && cargo test --test vpn_integration",
+    "test:fleet": "cd src-tauri && cargo test --lib fleet_ -- --ignored --nocapture",
     "test:sync-e2e": "node scripts/sync-test-harness.mjs",
     "e2e": "node e2e/run.mjs --suite=full",
     "e2e:smoke": "node e2e/run.mjs --suite=smoke",

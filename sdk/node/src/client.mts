@@ -11,6 +11,8 @@
 import { DonutConnectionError, DonutError, errorForStatus } from "./errors.mts";
 import type {
   AgentClick,
+  AgentDialogAnswer,
+  AgentHold,
   AgentTyping,
   ApiBulkCreateResponse,
   ApiGroupResponse,
@@ -47,6 +49,7 @@ import type {
   ImportProxiesResponse,
   LocatorDescription,
   LocatorResolution,
+  PageDialog,
   PerceptionPage,
   PickedElement,
   ProfileImportBatchResult,
@@ -608,6 +611,29 @@ export class DonutClient {
   }
 
   /**
+   * POST /v1/profiles/{id}/agent/hold
+   *
+   * Name the element with `locator` or `selector`. `duration_ms` is 100 to
+   * 30000, default 3000; `button` is `"left"` (the default), `"middle"` or
+   * `"right"`.
+   */
+  agentHold(
+    profileId: string,
+    request: {
+      locator?: LocatorDescription;
+      selector?: string;
+      duration_ms?: number;
+      button?: string;
+    },
+  ): Promise<AgentHold> {
+    return this.#request(
+      "POST",
+      `/v1/profiles/${segment(profileId)}/agent/hold`,
+      body({ ...request }),
+    );
+  }
+
+  /**
    * POST /v1/profiles/{id}/agent/type
    *
    * `wpm` is honoured by the fallback engine only; a recent Wayfern types at
@@ -668,6 +694,34 @@ export class DonutClient {
     return this.#request(
       "POST",
       `/v1/profiles/${segment(profileId)}/agent/pick`,
+      body({ ...request }),
+    );
+  }
+
+  /**
+   * GET /v1/profiles/{id}/agent/dialog
+   *
+   * Whether a native dialog holds the page, and which. Never refused for the
+   * dialog: while one is open, every other agent call throws `DIALOG_OPEN`.
+   */
+  agentDialog(profileId: string): Promise<PageDialog> {
+    return this.#request("GET", `/v1/profiles/${segment(profileId)}/agent/dialog`);
+  }
+
+  /**
+   * POST /v1/profiles/{id}/agent/handle-dialog
+   *
+   * `accept` true is OK, false is Cancel. An accepted prompt takes
+   * `prompt_text`, or keeps its default text. Throws `NO_DIALOG_OPEN` when
+   * nothing is open.
+   */
+  agentHandleDialog(
+    profileId: string,
+    request: { accept: boolean; prompt_text?: string },
+  ): Promise<AgentDialogAnswer> {
+    return this.#request(
+      "POST",
+      `/v1/profiles/${segment(profileId)}/agent/handle-dialog`,
       body({ ...request }),
     );
   }

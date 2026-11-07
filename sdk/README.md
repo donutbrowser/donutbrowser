@@ -223,7 +223,7 @@ server-side failure.
 | 403 | `Forbidden` | `Forbidden` | Wayfern terms not accepted, or not signed in |
 | 404 | `NotFound` | `NotFound` | No entity with that id |
 | 408 | `RequestTimeout` | `RequestTimeout` | `agent/pick` waited and nothing was picked |
-| 409 | `Conflict` | `Conflict` | A browser, a teammate or a remote session holds the profile |
+| 409 | `Conflict` | `Conflict` | A browser, a teammate or a remote session holds the profile; a native dialog holds the page (`DIALOG_OPEN`: read it with `agent_dialog` / `agentDialog`, answer it with `agent_handle_dialog` / `agentHandleDialog`) |
 | 429 | `RateLimited` | `RateLimited` | Automation quota spent; `retry_after` / `retryAfter` |
 | 500 | `ServerError` | `ServerError` | Internal failure |
 | 502 | `BadGateway` | `BadGateway` | The browser or the relay answered wrongly |

@@ -65,7 +65,7 @@ donutbrowser/
 │   │   ├── mcp_toolsets.rs          # Optional MCP toolsets: which tools a client lists (core + opt-in sets)
 │   │   ├── mcp_views.rs             # Compact MCP views: profile summaries, filters, paging, size caps
 │   │   ├── navigation_watch.rs      # Whether a CDP action navigated, so a click waits only for a load that comes
-│   │   ├── page_dialog.rs           # Native dialogs on agent-driven pages: one Page-enabled socket per page, DIALOG_OPEN fail fast, answers
+│   │   ├── page_dialog.rs           # Native dialogs on agent-driven pages: a Page-enabled socket per local page, one relay socket per cloud session that pins the page its tools drive, DIALOG_OPEN fail fast, answers
 │   │   ├── network_capture.rs       # MCP network capture: one browser-level socket per profile, in memory, credentials redacted
 │   │   ├── agent_uploads.rs         # Files an agent sends to file_upload, kept until the browser stops
 │   │   ├── mcp_remote.rs            # Remote MCP bridge: outbound websocket to Donut cloud (Enterprise remote control)
@@ -174,6 +174,7 @@ suite passes:
 | Sync client/server, manifests, timestamps, deletion, encryption, password rollover | `pnpm e2e:sync` |
 | Wayfern download/terms/fingerprint, browser runner, CDP, automation endpoints, process cleanup | `pnpm e2e:browser` |
 | `donut-sync/` server code (routes, auth, S3 client, presigning, subscriptions) | `cd donut-sync && cargo test` against the compose S3 server |
+| Cloud (remote) sessions: relay targets, the page a session's tools drive, dialogs and typing there | `pnpm test:fleet` with `DONUT_FLEET_TEST_KEY` (a `dsk_` key of a service account); it starts a real cloud session, so it is not in `pnpm e2e` |
 | E2E harness, WebDriver plugin/driver, app isolation hooks, or changes spanning multiple rows | Run every affected row; use `pnpm e2e` for cross-cutting changes |
 
 `e2e:browser` requires `WAYFERN_TEST_TOKEN` in the environment or local `.env`. `e2e:network`

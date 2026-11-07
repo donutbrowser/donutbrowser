@@ -8,8 +8,8 @@
  * snake_case; the browser-facing agent types (`LocatorDescription`,
  * `LocatorCandidate`, `PerceptionPage` and friends) carry the browser's own
  * camelCase, because they are handed through from the browser rather than
- * restated. `AgentClick` and `AgentTyping` are the exceptions inside the agent
- * surface: they are snake_case with a single `match` key. These types follow
+ * restated. `AgentClick`, `AgentHold` and `AgentTyping` are the exceptions
+ * inside the agent surface: they are snake_case with a single `match` key. These types follow
  * the wire rather than tidying it, so a value read from one call can be passed
  * straight into the next.
  */
@@ -799,4 +799,50 @@ export interface AgentTyping {
    * (after that keyboard did not reach a background tab), or all at once.
    */
   typed_with: "browser_keyboard" | "key_events" | "inserted";
+}
+
+/** What a press and hold did. Note the snake_case body and the `match` key. */
+export interface AgentHold {
+  held: boolean;
+  /** The element a locator settled on. Absent when a selector named it. */
+  match?: LocatorCandidate;
+  engine: Engine;
+  /** Whether a page load followed the release. */
+  navigated: boolean;
+  button: string;
+  /** How long the button was down, in milliseconds. */
+  held_ms: number;
+}
+
+/** A native dialog (alert, confirm, prompt, "leave this page?") open on a page. */
+export interface OpenDialog {
+  /** `alert`, `confirm`, `prompt` or `beforeunload`. */
+  type: string;
+  message: string;
+  /** The text a prompt puts in its field. */
+  default_prompt: string;
+  /** The page that opened it. */
+  url: string;
+}
+
+/** Whether a native dialog holds the page. */
+export interface PageDialog {
+  /**
+   * True while a dialog holds the page, false when none does, null when the
+   * page answers nothing and no dialog was seen opening on it.
+   */
+  open: boolean | null;
+  dialog?: OpenDialog;
+  /** False when the page answers nothing. A navigation ends that. */
+  page_responding?: boolean;
+  note?: string;
+}
+
+/** What answering a dialog did. */
+export interface AgentDialogAnswer {
+  accepted: boolean;
+  /** The dialog that was answered. */
+  dialog: OpenDialog;
+  /** A dialog the page opened in answer. It holds the page now. */
+  next?: OpenDialog;
 }
