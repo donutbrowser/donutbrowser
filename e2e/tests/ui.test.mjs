@@ -222,8 +222,12 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
       assert.equal(chrome.rowTops.length, 4, JSON.stringify(chrome));
       assert.equal(new Set(chrome.rowTops).size, 1, JSON.stringify(chrome));
       // The options fill the row, and the close button ends the header row at
-      // the same edge, centred on the title and the template picker.
-      assert.equal(new Set(chrome.edges).size, 1, JSON.stringify(chrome));
+      // the same edge, centred on the title and the template picker. The
+      // entry scale can still be running here, so edges round within 1px.
+      assert.ok(
+        Math.max(...chrome.edges) - Math.min(...chrome.edges) <= 1,
+        JSON.stringify(chrome),
+      );
       assert.ok(
         Math.max(...chrome.headerMiddles) - Math.min(...chrome.headerMiddles) <=
           1,
