@@ -705,7 +705,7 @@ impl WayfernSession {
       let message: Value = serde_json::from_str(&text).unwrap_or_default();
       if message.get("id") == Some(&Value::from(id)) {
         if let Some(error) = message.get("error") {
-          return Err(CdpError::Protocol(error.to_string()).into());
+          return Err(self.connection.reply_error(error).into());
         }
         reply = Some(
           message
@@ -1445,6 +1445,12 @@ pub(crate) mod test_support {
     CrowdedPerception,
     /// The page resets the field after typing: it reads back empty.
     TypingLost,
+    /// A background tab whose page loaded there: `Vellum.inscribe` reports
+    /// every key and none arrives; key events arrive.
+    BackgroundTab,
+    /// `Vellum.inscribe` answers that the keys did not reach the page, as a
+    /// browser does that checks; key events arrive.
+    KeysRefused,
     /// The field never takes the focus.
     FieldUnfocusable,
     /// The node has no box: the page aims at nothing and the DOM has no quads.
@@ -1564,9 +1570,14 @@ pub(crate) mod test_support {
                 }
                 ok(serde_json::json!({ "dwellMs": 71.0 }))
               }
+              "Vellum.inscribe" if behaviour == Fake::KeysRefused => {
+                error("Keys did not reach the page: the page has not painted yet")
+              }
               "Vellum.inscribe" => {
                 let text = params.get("text").and_then(Value::as_str).unwrap_or("");
-                typed.lock().unwrap().push_str(text);
+                if behaviour != Fake::BackgroundTab {
+                  typed.lock().unwrap().push_str(text);
+                }
                 ok(serde_json::json!({
                   "characters": text.chars().count(), "corrections": 1, "durationMs": 900.0
                 }))
@@ -1720,7 +1731,8 @@ pub(crate) mod test_support {
                       typed.lock().unwrap().clone()
                     };
                     serde_json::json!({
-                      "kind": "value", "type": "text", "value": value, "secret": false, "focusMoved": false
+                      "kind": "value", "type": "text", "value": value, "secret": false, "focusMoved": false,
+                      "hidden": behaviour == Fake::BackgroundTab
                     })
                   }
                   _ => Value::Bool(true),

@@ -28,7 +28,11 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { ensureRclone, serveS3Args } from "../scripts/rclone.mjs";
 import { createSafeDiagnostics } from "./lib/diagnostics.mjs";
-import { extensionCrx3, mcpFormsPage } from "./lib/fixtures.mjs";
+import {
+  extensionCrx3,
+  mcpDialogsPage,
+  mcpFormsPage,
+} from "./lib/fixtures.mjs";
 import { DRIVER_COMMAND_TIMEOUT_SECONDS } from "./lib/limits.mjs";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -461,6 +465,14 @@ function startFixtureServer(geoIpFixture, geoIpAsnFixture) {
         "cache-control": "no-store",
       });
       response.end(mcpFormsPage());
+      return;
+    }
+    if (url.pathname === "/mcp-dialogs") {
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end(mcpDialogsPage());
       return;
     }
     if (url.pathname === "/geoip.mmdb" && geoIpFixture) {

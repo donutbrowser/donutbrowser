@@ -265,6 +265,7 @@ fn tool_hints(name: &str) -> Option<ToolHints> {
     | "wait_for_human"
     | "list_tabs"
     | "pick_element" => READS,
+    "get_dialog" => READS_PAGE,
     "screenshot"
     | "get_page_content"
     | "get_page_info"
@@ -323,7 +324,8 @@ fn tool_hints(name: &str) -> Option<ToolHints> {
     | "press_and_hold"
     | "type_locator"
     | "select_option"
-    | "file_upload" => ACTS_ON_PAGE,
+    | "file_upload"
+    | "handle_dialog" => ACTS_ON_PAGE,
     "run_profile" | "batch_run_profiles" | "navigate" | "open_tab" | "scroll" | "go_back"
     | "run_profile_remote" | "run_cookie_bot_now" | "extract_structured" | "send_feedback" => {
       BROWSES
@@ -405,11 +407,34 @@ pub struct McpError {
 /// does not, and flattening both into `-32000: something went wrong` is how an
 /// automation client ends up retrying a refusal forever.
 fn cdp_error(error: CdpError) -> McpError {
+  if let CdpError::DialogOpen(_) = &error {
+    return AgentError::Cdp(error).into_mcp();
+  }
   McpError {
     code: -32000,
     message: error.to_string(),
     data: None,
   }
+}
+
+/// "Accepted a confirm dialog that says "Delete it?"."
+fn answer_report(dialog: &crate::page_dialog::OpenDialog, accept: bool) -> String {
+  let described = dialog.describe();
+  let mut chars = described.chars();
+  let described = chars
+    .next()
+    .map(|first| first.to_lowercase().chain(chars).collect::<String>())
+    .unwrap_or_default();
+  let verb = if accept { "Accepted" } else { "Dismissed" };
+  format!("{verb} {described}.")
+}
+
+/// What a tool refused by an open dialog tells the agent.
+fn dialog_refusal(dialog: &crate::page_dialog::OpenDialog) -> String {
+  format!(
+    "{} Read it with get_dialog, then answer it with handle_dialog (accept or dismiss).",
+    dialog.refusal()
+  )
 }
 
 /// Replace the engine's plan refusal with the server's device refusal.
@@ -934,7 +959,8 @@ pub(crate) enum AgentError {
     limit: f64,
   },
   /// The field does not hold the typed text: it never took the focus
-  /// (`reason` "not_focused"), or the page kept or reset another value
+  /// (`reason` "not_focused"), the page moved the focus elsewhere while it
+  /// was typed ("focus_moved"), or the page kept or reset another value
   /// ("value").
   TypeNotApplied {
     reason: &'static str,
@@ -942,6 +968,10 @@ pub(crate) enum AgentError {
     value: Option<String>,
     message: String,
   },
+  /// No dialog is open on the page to answer.
+  NoDialog,
+  /// The page answers nothing, and no dialog was seen opening on it.
+  PageNotResponding,
   /// The browser refused the request as malformed (`-32602`), or the page
   /// threw at it: what was asked for does not exist or cannot be done.
   BadRequest(String),
@@ -968,8 +998,11 @@ impl AgentError {
       Self::PickerCancelled { .. } => "PICKER_CANCELLED",
       Self::TypingTooLong { .. } => "TYPING_TOO_LONG",
       Self::TypeNotApplied { .. } => "TYPE_NOT_APPLIED",
+      Self::NoDialog => "NO_DIALOG_OPEN",
+      Self::PageNotResponding => "PAGE_NOT_RESPONDING",
       Self::BadRequest(_) => "BAD_REQUEST",
       Self::Browser(_) => "BROWSER_ERROR",
+      Self::Cdp(CdpError::DialogOpen(_)) => "DIALOG_OPEN",
       Self::Cdp(_) => "CDP_ERROR",
       Self::Malformed(_) => "MALFORMED_REPLY",
     }
@@ -998,6 +1031,8 @@ impl AgentError {
       Self::TypingTooLong { seconds, limit } => {
         format!("Typing this text would take about {seconds:.0}s, over the {limit:.0}s limit")
       }
+      Self::NoDialog => "No dialog is open on the page.".to_string(),
+      Self::PageNotResponding => "The page does not answer. A dialog that opened before Donut watched this page may hold it, or a script keeps it busy. Ask the person to close the dialog in the browser window, or navigate the tab away; wait and try again if the page is busy.".to_string(),
       Self::Cdp(e) => e.to_string(),
     }
   }
@@ -1037,6 +1072,9 @@ impl AgentError {
           detail["value"] = serde_json::Value::from(value.as_str());
         }
       }
+      Self::Cdp(CdpError::DialogOpen(dialog)) => {
+        detail["dialog"] = serde_json::to_value(dialog).unwrap_or_default();
+      }
       _ => {}
     }
     detail
@@ -1054,6 +1092,7 @@ impl AgentError {
       // The same envelope `plan_typing` answers with, so a client that already
       // understands one typing refusal understands both.
       Self::TypingTooLong { seconds, limit } => typing_too_long(*seconds, *limit).message,
+      Self::Cdp(CdpError::DialogOpen(dialog)) => dialog_refusal(dialog),
       _ => self.message(),
     };
     McpError {
@@ -1263,6 +1302,9 @@ pub(crate) struct AgentTyping {
   /// value is not the typed text (a date or colour picker): a field that does
   /// not hold the text is refused with `TYPE_NOT_APPLIED`.
   pub verified: bool,
+  /// How the text reached the field: `key_events` after the browser's own
+  /// keyboard did not reach the page.
+  pub typed_with: TypedWith,
 }
 
 /// The body of `pick_element`.
@@ -2375,8 +2417,9 @@ async fn vellum_click(
 /// - `prepare`: what the field holds; then, with `arg`, select all of it, so
 ///   the typed text replaces it with the input events a person's typing fires,
 ///   or else park the caret at its end.
-/// - `read`: what the field holds, and whether the focus moved on to another
-///   field while the text was typed.
+/// - `read`: what the field holds, whether the focus moved on to another field
+///   or into a frame while the text was typed (and where, with what that field
+///   holds), and whether the tab is in the background.
 const TYPING_FN: &str = r#"function (step, arg) {
   const el = this;
   const tagOf = (n) => String((n && n.tagName) || '').toLowerCase();
@@ -2442,7 +2485,14 @@ const TYPING_FN: &str = r#"function (step, arg) {
   if (step === 'read') {
     const now = valueOf(el);
     const a = deepActive();
-    now.focusMoved = !!a && a !== el && !containsDeep(el, a) && editable(a);
+    const frame = !!a && (tagOf(a) === 'iframe' || tagOf(a) === 'frame');
+    now.focusMoved = !!a && a !== el && !containsDeep(el, a) && (editable(a) || frame);
+    if (now.focusMoved) {
+      now.movedTo = frame ? 'a frame (' + nameOf(a) + ')' : nameOf(a);
+      const there = frame ? { kind: 'none' } : valueOf(a);
+      if (there.kind !== 'none' && !there.secret) now.movedValue = there.value.slice(0, 200);
+    }
+    now.hidden = document.visibilityState === 'hidden';
     return now;
   }
   return null;
@@ -2496,6 +2546,14 @@ struct FieldValue {
   secret: bool,
   #[serde(default)]
   focus_moved: bool,
+  /// Where the focus went when it moved, and what that field holds.
+  #[serde(default)]
+  moved_to: Option<String>,
+  #[serde(default)]
+  moved_value: Option<String>,
+  /// The tab is not the one shown in its window.
+  #[serde(default)]
+  hidden: bool,
 }
 
 /// Field types whose value is the text typed into them. A date, time or
@@ -2645,12 +2703,49 @@ impl<'a> TypingMethod<'a> {
 /// before the field is read back.
 const TYPING_SETTLE: Duration = Duration::from_millis(150);
 
+/// How the text reached the field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TypedWith {
+  /// The browser's own humanized keyboard (Wayfern 152 and newer).
+  BrowserKeyboard,
+  /// Key events paced by Donut's typing model.
+  KeyEvents,
+  /// The whole text at once (`instant`).
+  Inserted,
+}
+
+impl TypingMethod<'_> {
+  fn typed_with(self) -> TypedWith {
+    match self {
+      Self::Vellum { .. } => TypedWith::BrowserKeyboard,
+      Self::Keystrokes(_) => TypedWith::KeyEvents,
+      Self::Insert => TypedWith::Inserted,
+    }
+  }
+}
+
 /// What typing into a field did.
 struct FieldTyping {
   inscription: Option<vellum::Inscription>,
   /// The field was read back and holds the text. False when it is not a field
   /// whose value is the typed text (a date picker, a colour well).
   verified: bool,
+  typed_with: TypedWith,
+  /// How long the key events of a fallback took to send.
+  fallback_ms: Option<f64>,
+}
+
+/// The start of the browser's error when the keys of an inscription did not
+/// reach the page.
+const KEYS_LOST: &str = "Keys did not reach the page";
+
+/// Whether nothing of a text reached a field in a background tab: it holds
+/// what it held before, and the focus stayed. In a tab whose page loaded while
+/// it was in the background, the browser's own keyboard can report every key
+/// delivered while none reached the page.
+fn keys_lost_in_background(before: &FieldValue, after: &FieldValue) -> bool {
+  after.hidden && !after.focus_moved && after.kind == before.kind && after.value == before.value
 }
 
 /// Letters and digits, lower-cased: what survives an input mask.
@@ -2712,11 +2807,29 @@ fn typing_verdict(
   } else {
     format!("{shown:?}")
   };
+  if let (true, Some(moved_to)) = (after.focus_moved, after.moved_to.as_deref()) {
+    let there = match after.moved_value.as_deref() {
+      Some(value) if !value.is_empty() => format!(", which now holds {value:?}"),
+      _ => String::new(),
+    };
+    return Err(AgentError::TypeNotApplied {
+      reason: "focus_moved",
+      value: (!after.secret).then_some(shown),
+      message: format!(
+        "The page moved the focus to {moved_to} while the text was typed, so the keys went there{there}; the field holds {holds}. Type into the field that has the focus now, or click the field and type again."
+      ),
+    });
+  }
+  let background = if after.hidden {
+    " The tab is in the background: switch_tab to it, then type again."
+  } else {
+    ""
+  };
   Err(AgentError::TypeNotApplied {
     reason: "value",
     value: (!after.secret).then_some(shown),
     message: format!(
-      "The field did not take the text: after typing it holds {holds}. The page may have reset it, or the field takes another kind of input (a mask, a length limit, a picker). Read it with perceive_page, then click the field and type again, or use press_key."
+      "The field did not take the text: after typing it holds {holds}. The page may have reset it, or the field takes another kind of input (a mask, a length limit, a picker). Read it with perceive_page, then click the field and type again, or use press_key.{background}"
     ),
   })
 }
@@ -2803,8 +2916,14 @@ async fn type_into(
           vellum::strike(s, p, None, None).await?;
         }
         let before = focus_and_prepare(s, &field, clear).await?;
-        let inscription = vellum::inscribe(s, p, &text, typos, timeout).await?;
-        Ok::<_, AgentError>((before, Some(inscription)))
+        let inscription = match vellum::inscribe(s, p, &text, typos, timeout).await {
+          Ok(inscription) => Some(inscription),
+          // The browser says no key reached the page: typed below as key
+          // events, never counted as typed.
+          Err(error) if error.to_string().contains(KEYS_LOST) => None,
+          Err(error) => return Err(error.into()),
+        };
+        Ok::<_, AgentError>((before, inscription))
       })
     })
     .await?
@@ -2825,11 +2944,31 @@ async fn type_into(
     (before, None)
   };
   tokio::time::sleep(TYPING_SETTLE).await;
-  let after: FieldValue = typing_step(session, &field, "read", serde_json::Value::Null).await?;
+  let mut after: FieldValue = typing_step(session, &field, "read", serde_json::Value::Null).await?;
+  let mut typed_with = method.typed_with();
+  let mut fallback_ms = None;
+  if let TypingMethod::Vellum { timeout, .. } = method {
+    let lost = inscription.is_none() || keys_lost_in_background(&before, &after);
+    if !text.is_empty() && lost {
+      // Nothing reached the page, so the text is typed once more, as key
+      // events, and the answer says so.
+      if let Ok(plan) = plan_typing(text, None, timeout.as_secs_f64()) {
+        log::debug!("Typing fell back to key events in a background tab");
+        focus_and_prepare(session, &field, clear).await?;
+        dispatch_keystrokes(target, &plan).await?;
+        tokio::time::sleep(TYPING_SETTLE).await;
+        after = typing_step(session, &field, "read", serde_json::Value::Null).await?;
+        typed_with = TypedWith::KeyEvents;
+        fallback_ms = plan.last().map(|event| event.time * 1000.0);
+      }
+    }
+  }
   let verified = typing_verdict(text, &before, &after, clear)?;
   Ok(FieldTyping {
     inscription,
     verified,
+    typed_with,
+    fallback_ms,
   })
 }
 
@@ -3476,13 +3615,14 @@ pub(crate) async fn agent_type_locator(
   let matched = located
     .map(|l| l.matched)
     .ok_or_else(|| AgentError::Malformed("the locator settled on no element".into()))?;
-  let (characters, corrections, duration_ms) = match typed.inscription {
-    Some(inscription) => (
+  let (characters, corrections, duration_ms) = match (typed.inscription, typed.fallback_ms) {
+    (Some(inscription), None) => (
       inscription.characters,
       Some(inscription.corrections),
       inscription.duration_ms,
     ),
-    None => (
+    (_, Some(ms)) => (request.text.chars().count() as u64, None, ms),
+    (None, None) => (
       request.text.chars().count() as u64,
       None,
       plan
@@ -3499,6 +3639,7 @@ pub(crate) async fn agent_type_locator(
     engine: ctx.engine,
     matched,
     verified: typed.verified,
+    typed_with: typed.typed_with,
   })
 }
 
@@ -4011,8 +4152,16 @@ fn locator_schema(description: &str) -> serde_json::Value {
   })
 }
 
-/// Where a profile's browser is, as the browser tools report it.
+/// Where a profile's browser is, as the browser tools report it, with its
+/// page watched for dialogs.
 async fn resolve_target(profile: &BrowserProfile) -> Result<CdpTarget, McpError> {
+  let target = locate_target(profile).await?;
+  watch_page(&target, false).await?;
+  Ok(target)
+}
+
+/// Where a profile's browser is, whatever its page is doing.
+async fn locate_target(profile: &BrowserProfile) -> Result<CdpTarget, McpError> {
   crate::cdp_target::resolve(profile)
     .await
     .map_err(|e| McpError {
@@ -4020,6 +4169,24 @@ async fn resolve_target(profile: &BrowserProfile) -> Result<CdpTarget, McpError>
       message: e.to_string(),
       data: None,
     })
+}
+
+/// Watch the page for dialogs, and refuse it while one holds it: a dialog that
+/// is open, or a page that answers nothing. `unanswered_ok` lets a navigation
+/// through, which ends a dialog the watch never saw.
+async fn watch_page(target: &CdpTarget, unanswered_ok: bool) -> Result<(), McpError> {
+  use crate::page_dialog::PageState as Page;
+  match crate::page_dialog::watch(target).await {
+    Ok(Page::Ready) => Ok(()),
+    Ok(Page::Dialog(dialog)) => Err(AgentError::Cdp(CdpError::DialogOpen(dialog)).into_mcp()),
+    Ok(Page::Unanswered) if unanswered_ok => Ok(()),
+    Ok(Page::Unanswered) => Err(AgentError::PageNotResponding.into_mcp()),
+    // The tool reaches the page itself and reports what it finds there.
+    Err(error) => {
+      log::debug!("Page watch not opened err=\"{error}\"");
+      Ok(())
+    }
+  }
 }
 
 /// The tail of a page script that answers where `el` is, in viewport pixels.
@@ -4106,6 +4273,7 @@ const BATCH_TOOLS: &[&str] = &[
   "type_locator",
   "select_option",
   "get_page_info",
+  "handle_dialog",
 ];
 const MAX_BATCH_ACTIONS: usize = 20;
 /// How much of each step's answer a batch reports.
@@ -4374,11 +4542,14 @@ fn wait_for_script(text: Option<&str>, selector: Option<&str>) -> Option<String>
 
 fn typing_report(prefix: &str, typed: &FieldTyping) -> String {
   let mut report = prefix.to_string();
-  if let Some(inscription) = &typed.inscription {
-    report.push_str(&format!(
+  match (&typed.inscription, typed.fallback_ms) {
+    (_, Some(_)) => report
+      .push_str("; typed as key events, because the browser's own keyboard did not reach the page"),
+    (Some(inscription), None) => report.push_str(&format!(
       " ({} characters, {} corrected, {:.0} ms)",
       inscription.characters, inscription.corrections, inscription.duration_ms
-    ));
+    )),
+    (None, None) => {}
   }
   if typed.verified {
     report.push_str("; the field holds the text");
@@ -4509,7 +4680,7 @@ impl McpServer {
   async fn release_cached_pages(&self, cached_pages: HashSet<(String, String)>) {
     let registry = INTERACTIVE_SLOT_REGISTRY;
     for (profile_id, slot) in cached_pages {
-      let target = match self.resolve_cdp_target(&profile_id).await {
+      let target = match self.locate_cdp_target(&profile_id).await {
         Ok(target) => target,
         Err(e) => {
           log::debug!(
@@ -4738,6 +4909,9 @@ impl McpServer {
         | "pick_element"
         | "select_option"
         | "file_upload"
+        // Answering a dialog acts on the page. Reading one is passive, so an
+        // agent can still see what holds the page while the person has it.
+        | "handle_dialog"
         // A capture reads every request the browser makes, so starting one
         // and reading it are browser reads like get_page_content, and are
         // refused while the person has paused agents or holds the profile.
@@ -5941,7 +6115,7 @@ impl McpServer {
       },
       McpTool {
         name: "run_actions".to_string(),
-        description: "Run several browser actions in one call, in order, on one profile: navigate, go_back, scroll, press_key, wait_for, the click and type tools, select_option, get_page_info. Stops at the first failure and, unless stop_on_change is false, as soon as the page address changes, since later steps were planned for the old page. Returns each step's result.".to_string(),
+        description: "Run several browser actions in one call, in order, on one profile: navigate, go_back, scroll, press_key, wait_for, the click and type tools, select_option, get_page_info, handle_dialog. Stops at the first failure and, unless stop_on_change is false, as soon as the page address changes, since later steps were planned for the old page. Returns each step's result.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -6225,6 +6399,42 @@ impl McpServer {
             }
           },
           "required": ["profile_id"]
+        }),
+      },
+      McpTool {
+        name: "get_dialog".to_string(),
+        description: "Read the native dialog (alert, confirm, prompt, or \"leave this page?\") open on the page: its type, message, and a prompt's default text. While one is open the page does nothing else and every other page tool fails with DIALOG_OPEN; a site often puts a validation error in an alert. Read it, then answer it with handle_dialog. Answers open: false when none is open.".to_string(),
+        input_schema: serde_json::json!({
+          "type": "object",
+          "properties": {
+            "profile_id": {
+              "type": "string",
+              "description": "The UUID of the running profile"
+            }
+          },
+          "required": ["profile_id"]
+        }),
+      },
+      McpTool {
+        name: "handle_dialog".to_string(),
+        description: "Answer the native dialog open on the page: accept (OK, Leave) or dismiss (Cancel, Stay). Accepting a confirm or a \"leave this page?\" dialog lets the page go on with what it asked about, such as a delete or leaving with unsaved changes, so read it with get_dialog first. A prompt takes prompt_text when accepted. Answers where the page is afterwards, or the next dialog when the page opens another.".to_string(),
+        input_schema: serde_json::json!({
+          "type": "object",
+          "properties": {
+            "profile_id": {
+              "type": "string",
+              "description": "The UUID of the running profile"
+            },
+            "accept": {
+              "type": "boolean",
+              "description": "true to accept (OK), false to dismiss (Cancel)"
+            },
+            "prompt_text": {
+              "type": "string",
+              "description": "The text to answer a prompt with; its default text when left out"
+            }
+          },
+          "required": ["profile_id", "accept"]
         }),
       },
       McpTool {
@@ -6698,7 +6908,7 @@ impl McpServer {
       },
       McpTool {
         name: "type_locator".to_string(),
-        description: "Resolve a locator to exactly one field, focus it with a real click and type text into it one key at a time. On Wayfern 152 the keys are paced by the profile's own typing rhythm, with a few seed-determined typos corrected along the way when typos is on; on older builds the same human-typing model as type_text is used. The typed text replaces what the field holds unless clear_first is false. The field is read back afterwards: a field that does not hold the text fails with TYPE_NOT_APPLIED (data.reason not_focused or value, data.value what it holds), never a success. An autocomplete keeps the typed text only until you pick an option.".to_string(),
+        description: "Resolve a locator to exactly one field, focus it with a real click and type text into it one key at a time. On Wayfern 152 the keys are paced by the profile's own typing rhythm, with a few seed-determined typos corrected along the way when typos is on; on older builds the same human-typing model as type_text is used. The typed text replaces what the field holds unless clear_first is false. The field is read back afterwards: a field that does not hold the text fails with TYPE_NOT_APPLIED (data.reason not_focused, focus_moved or value, data.value what it holds), never a success. An autocomplete keeps the typed text only until you pick an option.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -7635,6 +7845,22 @@ impl McpServer {
         )
         .await?;
         self.handle_get_page_info(arguments).await
+      }
+      "get_dialog" => {
+        Self::require_capability(
+          "Browser automation",
+          CLOUD_AUTH.can_use_browser_automation().await,
+        )
+        .await?;
+        self.handle_get_dialog(arguments).await
+      }
+      "handle_dialog" => {
+        Self::require_capability(
+          "Browser automation",
+          CLOUD_AUTH.can_use_browser_automation().await,
+        )
+        .await?;
+        self.handle_handle_dialog(arguments).await
       }
       "get_interactive_elements" => {
         Self::require_capability(
@@ -10902,15 +11128,19 @@ impl McpServer {
   /// `run-remote` is driven by exactly the tools that drive a local one. The
   /// alternative — a parallel set of remote-only tools — drifts from the local
   /// set within a release and doubles every future change.
+  ///
+  /// The page is watched for dialogs, and refused while one holds it.
   async fn resolve_cdp_target(&self, profile_id: &str) -> Result<CdpTarget, McpError> {
+    let target = self.locate_cdp_target(profile_id).await?;
+    watch_page(&target, false).await?;
+    Ok(target)
+  }
+
+  /// [`Self::resolve_cdp_target`] for what must work whatever the page is
+  /// doing: cleanups, bringing the window forward, answering a dialog.
+  async fn locate_cdp_target(&self, profile_id: &str) -> Result<CdpTarget, McpError> {
     let profile = self.get_wayfern_profile(profile_id)?;
-    crate::cdp_target::resolve(&profile)
-      .await
-      .map_err(|e| McpError {
-        code: -32000,
-        message: e.to_string(),
-        data: None,
-      })
+    locate_target(&profile).await
   }
 
   async fn send_cdp(
@@ -10996,11 +11226,15 @@ impl McpServer {
     serde_json::from_value(reply.pointer("/result/value")?.clone()).ok()
   }
 
-  /// `report` as the tool's text, followed by where the page is now.
+  /// `report` as the tool's text, followed by where the page is now, or by
+  /// the dialog the action opened.
   async fn with_page_line(&self, target: &CdpTarget, report: String) -> serde_json::Value {
     let text = match self.page_state(target).await {
       Some(state) => format!("{report}\n{}", page_report(&state)),
-      None => report,
+      None => match crate::page_dialog::open_dialog(target) {
+        Some(dialog) => format!("{report}\n{}", dialog_refusal(&dialog)),
+        None => report,
+      },
     };
     serde_json::json!({ "content": [{ "type": "text", "text": text }] })
   }
@@ -11178,7 +11412,9 @@ impl McpServer {
       .and_then(|v| v.as_bool())
       .unwrap_or(true);
 
-    let target = self.resolve_cdp_target(profile_id).await?;
+    // Each step is refused on its own while a dialog holds the page, so a
+    // batch may start by answering one.
+    let target = self.locate_cdp_target(profile_id).await?;
     let mut url = self.page_state(&target).await.map(|state| state.url);
     let mut results = Vec::new();
     let mut stopped: Option<String> = None;
@@ -11471,7 +11707,10 @@ impl McpServer {
     // Read and validated in one step, so the safe path is the short one.
     let url = Self::require_navigable_url(arguments, "url")?;
 
-    let target = self.resolve_cdp_target(profile_id).await?;
+    // A page that answers nothing is let through: a navigation ends a dialog
+    // that opened before the page was watched.
+    let target = self.locate_cdp_target(profile_id).await?;
+    watch_page(&target, true).await?;
 
     self
       .send_cdp_and_wait_for_load(
@@ -11931,6 +12170,63 @@ impl McpServer {
     let info: serde_json::Value = serde_json::from_str(info_str).unwrap_or(serde_json::json!({}));
 
     Self::json_content(&info)
+  }
+
+  async fn handle_get_dialog(
+    &self,
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let target = self.locate_cdp_target(profile_id).await?;
+    let state = crate::page_dialog::watch(&target)
+      .await
+      .map_err(cdp_error)?;
+    let answer = match state {
+      crate::page_dialog::PageState::Dialog(dialog) => {
+        serde_json::json!({ "open": true, "dialog": dialog })
+      }
+      crate::page_dialog::PageState::Ready => serde_json::json!({ "open": false }),
+      crate::page_dialog::PageState::Unanswered => serde_json::json!({
+        "open": serde_json::Value::Null,
+        "page_responding": false,
+        "note": AgentError::PageNotResponding.message(),
+      }),
+    };
+    Self::json_content(&answer)
+  }
+
+  async fn handle_handle_dialog(
+    &self,
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let accept = arguments
+      .get("accept")
+      .and_then(serde_json::Value::as_bool)
+      .ok_or_else(|| McpError {
+        code: -32602,
+        message: "Missing accept: true to accept the dialog (OK), false to dismiss it (Cancel)"
+          .to_string(),
+        data: None,
+      })?;
+    let prompt_text = arguments
+      .get("prompt_text")
+      .and_then(serde_json::Value::as_str);
+    let target = self.locate_cdp_target(profile_id).await?;
+    let answered = crate::page_dialog::answer(&target, accept, prompt_text)
+      .await
+      .map_err(|error| match error {
+        crate::page_dialog::AnswerError::NoDialog => AgentError::NoDialog.into_mcp(),
+        crate::page_dialog::AnswerError::Unanswered => AgentError::PageNotResponding.into_mcp(),
+        crate::page_dialog::AnswerError::Cdp(error) => cdp_error(error),
+      })?;
+    let report = answer_report(&answered.dialog, accept);
+    Ok(match &answered.next {
+      Some(next) => serde_json::json!({
+        "content": [{ "type": "text", "text": format!("{report}\nThe page opened another dialog. {}", dialog_refusal(next)) }]
+      }),
+      None => self.with_page_line(&target, report).await,
+    })
   }
 
   async fn handle_get_interactive_elements(
@@ -12907,7 +13203,7 @@ impl McpServer {
 
   pub(crate) async fn bring_profile_to_front(&self, profile_id: &str) -> Result<(), String> {
     let target = self
-      .resolve_cdp_target(profile_id)
+      .locate_cdp_target(profile_id)
       .await
       .map_err(|_| crate::backend_error("PROFILE_NOT_RUNNING"))?;
     self
@@ -13799,7 +14095,7 @@ mod tests {
     // tool was added or removed on purpose.
     assert_eq!(
       tools.len(),
-      115,
+      117,
       "the tool list is a published contract; update this number deliberately"
     );
 
@@ -15590,6 +15886,7 @@ mod tests {
       "pick_element",
       "select_option",
       "file_upload",
+      "handle_dialog",
       // A capture reads every request the browser makes.
       "start_network_capture",
       "list_network_requests",
@@ -15624,12 +15921,16 @@ mod tests {
       "get_remote_hours_quota",
       "list_remote_sessions",
       "get_remote_session",
+      // Reading what holds the page works while the person has paused agents.
+      "get_dialog",
     ] {
       assert!(
         !McpServer::is_automation_tool_call(&request("tools/call", Some(name))),
         "free or non-leasing tool was limited: {name}"
       );
     }
+    assert!(McpServer::is_passive_tool("get_dialog"));
+    assert!(!McpServer::is_passive_tool("handle_dialog"));
 
     assert!(!McpServer::is_automation_tool_call(&request(
       "tools/list",
@@ -16052,6 +16353,196 @@ mod tests {
     assert!(!sent.iter().any(|m| m.starts_with("Vellum.")));
     // Focused by the page before the keys, so no click was needed.
     assert!(!sent.iter().any(|m| m == "Input.dispatchMouseEvent"));
+  }
+
+  #[tokio::test]
+  async fn keys_lost_in_a_background_tab_are_typed_again_as_key_events_and_said_so() {
+    use crate::wayfern_cdp::test_support::{fake_browser, methods, Fake};
+
+    let request: AgentTypeRequest = serde_json::from_value(serde_json::json!({
+      "locator": { "role": "textbox", "name": "Email" },
+      "text": "hi"
+    }))
+    .unwrap();
+    let (target, frames) = fake_browser(Fake::BackgroundTab).await;
+    let ctx = agent_context_for("156.0.8078.80", target);
+    let typed = agent_type_locator(&ctx, &request, 300.0).await.unwrap();
+    assert!(typed.verified, "the key events put the text in the field");
+    assert_eq!(typed.typed_with, TypedWith::KeyEvents);
+    assert_eq!(typed.corrections, None, "the counts are the key events'");
+    let sent = methods(&frames);
+    let inscribed = sent.iter().position(|m| m == "Vellum.inscribe").unwrap();
+    let keyed = sent
+      .iter()
+      .position(|m| m == "Input.dispatchKeyEvent")
+      .expect("the text is typed again as key events");
+    assert!(
+      inscribed < keyed,
+      "the browser's keyboard is tried first: {sent:?}"
+    );
+    let report = typing_report(
+      "Typed text into element: #email",
+      &FieldTyping {
+        inscription: Some(vellum::Inscription {
+          characters: 2,
+          corrections: 0,
+          duration_ms: 1.0,
+        }),
+        verified: true,
+        typed_with: TypedWith::KeyEvents,
+        fallback_ms: Some(120.0),
+      },
+    );
+    assert!(report.contains("typed as key events"), "{report}");
+    assert!(!report.contains("2 characters"), "{report}");
+
+    // A browser that says the keys did not arrive is never taken at its count.
+    let (target, frames) = fake_browser(Fake::KeysRefused).await;
+    let ctx = agent_context_for("157.0.0.0", target);
+    let typed = agent_type_locator(&ctx, &request, 300.0).await.unwrap();
+    assert!(typed.verified);
+    assert_eq!(typed.typed_with, TypedWith::KeyEvents);
+    assert!(methods(&frames)
+      .iter()
+      .any(|m| m == "Input.dispatchKeyEvent"));
+
+    // In a tab that is shown, an unchanged field is the page's doing: nothing
+    // is typed twice.
+    let (target, frames) = fake_browser(Fake::TypingLost).await;
+    let ctx = agent_context_for("156.0.8078.80", target);
+    assert!(agent_type_locator(&ctx, &request, 300.0).await.is_err());
+    assert!(!methods(&frames)
+      .iter()
+      .any(|m| m == "Input.dispatchKeyEvent"));
+
+    let (target, _) = fake_browser(Fake::Cooperative).await;
+    let ctx = agent_context_for("156.0.8078.80", target);
+    let typed = agent_type_locator(&ctx, &request, 300.0).await.unwrap();
+    assert_eq!(typed.typed_with, TypedWith::BrowserKeyboard);
+    assert_eq!(
+      serde_json::to_value(&typed).unwrap()["typed_with"],
+      "browser_keyboard"
+    );
+  }
+
+  #[test]
+  fn keys_the_page_sent_to_another_field_are_reported_there() {
+    let before = FieldValue {
+      kind: "value".into(),
+      field_type: "text".into(),
+      ..FieldValue::default()
+    };
+    let after = FieldValue {
+      kind: "value".into(),
+      field_type: "text".into(),
+      focus_moved: true,
+      moved_to: Some("input#overlay-q \"Search\"".into()),
+      moved_value: Some("laptops".into()),
+      ..FieldValue::default()
+    };
+    let refused = typing_verdict("laptops", &before, &after, true).unwrap_err();
+    let error = refused.into_mcp();
+    let data = error.data.unwrap();
+    assert_eq!(data["code"], "TYPE_NOT_APPLIED");
+    assert_eq!(data["reason"], "focus_moved");
+    assert!(
+      error.message.contains("input#overlay-q")
+        && error.message.contains("\"laptops\"")
+        && error.message.contains("holds nothing"),
+      "{}",
+      error.message
+    );
+
+    let into_frame = FieldValue {
+      moved_to: Some("a frame (iframe#pay)".into()),
+      moved_value: None,
+      ..after
+    };
+    let refused = typing_verdict("laptops", &before, &into_frame, true).unwrap_err();
+    assert!(
+      refused.message().contains("a frame (iframe#pay)"),
+      "{}",
+      refused.message()
+    );
+  }
+
+  #[tokio::test]
+  async fn an_open_dialog_refuses_a_page_tool_at_once_and_names_the_dialog() {
+    use crate::page_dialog::{test_support, PageState as Page};
+    use crate::wayfern_cdp::test_support::{fake_browser, methods, Fake};
+
+    let (target, frames) = fake_browser(Fake::Cooperative).await;
+    let open = test_support::dialog("alert", "Validation error: name is required");
+    test_support::hold(&target, Page::Dialog(open));
+    let request: AgentTypeRequest = serde_json::from_value(serde_json::json!({
+      "locator": { "role": "textbox", "name": "Email" },
+      "text": "hi"
+    }))
+    .unwrap();
+    let ctx = agent_context_for("156.0.8078.80", target.clone());
+    let started = std::time::Instant::now();
+    let refused = agent_type_locator(&ctx, &request, 300.0)
+      .await
+      .expect_err("a page held by a dialog types nothing");
+    assert!(started.elapsed() < Duration::from_secs(2));
+    assert_eq!(refused.code(), "DIALOG_OPEN");
+    assert!(
+      methods(&frames).is_empty(),
+      "nothing is sent to a page a dialog holds: {:?}",
+      methods(&frames)
+    );
+    let error = refused.into_mcp();
+    assert_eq!(error.code, -32000);
+    assert!(
+      error.message.contains("Validation error: name is required")
+        && error.message.contains("handle_dialog"),
+      "{}",
+      error.message
+    );
+    let data = error.data.unwrap();
+    assert_eq!(data["code"], "DIALOG_OPEN");
+    assert_eq!(data["dialog"]["type"], "alert");
+    assert_eq!(
+      data["dialog"]["message"],
+      "Validation error: name is required"
+    );
+
+    let refused = crate::cdp_target::run_command(
+      &target,
+      "Runtime.evaluate",
+      serde_json::json!({ "expression": "1" }),
+    )
+    .await
+    .expect_err("a one-shot command is refused the same way");
+    assert_eq!(cdp_error(refused).data.unwrap()["code"], "DIALOG_OPEN");
+
+    test_support::release(&target);
+    let typed = agent_type_locator(&ctx, &request, 300.0).await;
+    assert!(
+      typed.is_ok(),
+      "the page works again once the dialog is gone"
+    );
+  }
+
+  #[test]
+  fn an_answer_report_says_what_was_answered() {
+    let dialog = crate::page_dialog::test_support::dialog("confirm", "Delete it?");
+    assert_eq!(
+      answer_report(&dialog, true),
+      "Accepted a confirm dialog that says \"Delete it?\"."
+    );
+    assert_eq!(
+      answer_report(&dialog, false),
+      "Dismissed a confirm dialog that says \"Delete it?\"."
+    );
+    assert_eq!(
+      AgentError::NoDialog.into_mcp().data.unwrap()["code"],
+      "NO_DIALOG_OPEN"
+    );
+    assert_eq!(
+      AgentError::PageNotResponding.into_mcp().data.unwrap()["code"],
+      "PAGE_NOT_RESPONDING"
+    );
   }
 
   #[tokio::test]

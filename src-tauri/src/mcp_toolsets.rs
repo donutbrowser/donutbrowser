@@ -52,6 +52,8 @@ pub const TOOLSETS: &[(&str, &[&str])] = &[
       "type_text",
       "get_page_content",
       "get_page_info",
+      "get_dialog",
+      "handle_dialog",
       "get_interactive_elements",
       "click_by_index",
       "type_by_index",

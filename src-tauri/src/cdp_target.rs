@@ -112,6 +112,9 @@ pub enum CdpError {
   Transport(String),
   /// The browser answered with a CDP `error` object.
   Protocol(String),
+  /// A native dialog is open on the page. The page runs nothing else until it
+  /// is answered, so the command was not sent, or its reply cannot come.
+  DialogOpen(crate::page_dialog::OpenDialog),
 }
 
 impl std::fmt::Display for CdpError {
@@ -122,6 +125,7 @@ impl std::fmt::Display for CdpError {
       Self::NotDrivable(m) => write!(f, "browser is not drivable yet: {m}"),
       Self::Transport(m) => write!(f, "CDP transport failed: {m}"),
       Self::Protocol(m) => write!(f, "CDP error: {m}"),
+      Self::DialogOpen(dialog) => f.write_str(&dialog.refusal()),
     }
   }
 }
@@ -397,6 +401,24 @@ pub struct CdpConnection {
   /// page-level commands reach the page rather than the browser.
   cdp_session: Option<String>,
   closed: Option<CloseInfo>,
+  /// The page's dialog state, when [`crate::page_dialog`] watches the page.
+  dialog: Option<tokio::sync::watch::Receiver<crate::page_dialog::PageState>>,
+}
+
+/// How long a reply may still take once a dialog is open on the page. The
+/// browser answers what it handles itself (a pointer release, a target query)
+/// at once; what needs the page never comes until the dialog is answered.
+const DIALOG_GRACE: Duration = Duration::from_millis(1500);
+
+/// What one read off the socket produced.
+enum Read {
+  Text(String),
+  Failed(CdpError),
+  Gone,
+  /// The dialog state changed; the caller reads again.
+  DialogChanged,
+  /// A dialog is open and the grace has passed.
+  Blocked(crate::page_dialog::OpenDialog),
 }
 
 impl CdpConnection {
@@ -405,6 +427,47 @@ impl CdpConnection {
       stream,
       cdp_session: None,
       closed: None,
+      dialog: None,
+    }
+  }
+
+  /// The socket and the page session it addresses, for a caller that reads
+  /// and writes it concurrently.
+  pub(crate) fn into_parts(self) -> (WebSocketStream<MaybeTlsStream<TcpStream>>, Option<String>) {
+    (self.stream, self.cdp_session)
+  }
+
+  /// The error a reply's CDP `error` object stands for. A browser that refuses
+  /// a page command because a dialog is open says so in its message.
+  pub fn reply_error(&self, error: &Value) -> CdpError {
+    let message = error.to_string();
+    if message.contains("JavaScript dialog is open") {
+      return CdpError::DialogOpen(
+        self
+          .open_dialog()
+          .unwrap_or_else(crate::page_dialog::OpenDialog::unknown),
+      );
+    }
+    CdpError::Protocol(message)
+  }
+
+  /// The dialog open on the page now, when the page is watched.
+  pub fn open_dialog(&self) -> Option<crate::page_dialog::OpenDialog> {
+    self
+      .dialog
+      .as_ref()
+      .and_then(|state| state.borrow().dialog().cloned())
+  }
+
+  /// A command the browser would only run once the open dialog is answered is
+  /// refused before it is sent: sent, it would wait in the page and run later,
+  /// after the agent was told it failed.
+  fn refuse_during_dialog(&self, method: &str) -> Result<(), CdpError> {
+    match self.open_dialog() {
+      Some(dialog) if !crate::page_dialog::answered_during_dialog(method) => {
+        Err(CdpError::DialogOpen(dialog))
+      }
+      _ => Ok(()),
     }
   }
 
@@ -415,6 +478,7 @@ impl CdpConnection {
     method: &str,
     params: Value,
   ) -> Result<(), CdpError> {
+    self.refuse_during_dialog(method)?;
     let frame = cdp_frame(self.cdp_session.as_deref(), id, method, params);
     self.send_frame(frame).await
   }
@@ -428,6 +492,9 @@ impl CdpConnection {
     method: &str,
     params: Value,
   ) -> Result<(), CdpError> {
+    if session.is_none() {
+      self.refuse_during_dialog(method)?;
+    }
     self
       .send_frame(cdp_frame(session, id, method, params))
       .await
@@ -445,24 +512,74 @@ impl CdpConnection {
   /// The next text message, or `None` once the peer has gone.
   ///
   /// Binary frames, pings and pongs are consumed silently; a close is recorded
-  /// so its reason survives into whatever error the caller builds.
+  /// so its reason survives into whatever error the caller builds. On a
+  /// watched page, a dialog that is open for [`DIALOG_GRACE`] while nothing
+  /// arrives ends the wait with [`CdpError::DialogOpen`].
   pub async fn next_text(&mut self) -> Option<Result<String, CdpError>> {
+    let mut grace = None;
+    self.next_text_within(&mut grace).await
+  }
+
+  /// [`Self::next_text`], with the dialog grace kept in `grace` so a caller
+  /// that reads several messages for one reply grants it once.
+  async fn next_text_within(
+    &mut self,
+    grace: &mut Option<tokio::time::Instant>,
+  ) -> Option<Result<String, CdpError>> {
+    loop {
+      match self.open_dialog() {
+        Some(_) if grace.is_none() => *grace = Some(tokio::time::Instant::now() + DIALOG_GRACE),
+        None => *grace = None,
+        Some(_) => {}
+      }
+      match self.read(*grace).await {
+        Read::Text(text) => return Some(Ok(text)),
+        Read::Failed(error) => return Some(Err(error)),
+        Read::Gone => return None,
+        Read::DialogChanged => continue,
+        Read::Blocked(dialog) => return Some(Err(CdpError::DialogOpen(dialog))),
+      }
+    }
+  }
+
+  async fn read(&mut self, grace: Option<tokio::time::Instant>) -> Read {
     use futures_util::stream::StreamExt;
     loop {
-      match self.stream.next().await? {
-        Ok(Message::Text(text)) => return Some(Ok(text.to_string())),
-        Ok(Message::Close(frame)) => {
+      let frame = match self.dialog.as_mut() {
+        None => self.stream.next().await,
+        Some(state) => {
+          let until = grace.unwrap_or_else(|| tokio::time::Instant::now() + COMMAND_TIMEOUT);
+          tokio::select! {
+            frame = self.stream.next() => frame,
+            changed = state.changed() => {
+              if changed.is_err() {
+                // The watch is gone with its socket; nothing tracks the page now.
+                self.dialog = None;
+              }
+              return Read::DialogChanged;
+            }
+            () = tokio::time::sleep_until(until), if grace.is_some() => {
+              return match self.open_dialog() {
+                Some(dialog) => Read::Blocked(dialog),
+                None => Read::DialogChanged,
+              };
+            }
+          }
+        }
+      };
+      match frame {
+        None => return Read::Gone,
+        Some(Ok(Message::Text(text))) => return Read::Text(text.to_string()),
+        Some(Ok(Message::Close(frame))) => {
           self.closed = frame.map(|f| CloseInfo {
             code: u16::from(f.code),
             reason: f.reason.to_string(),
           });
-          return None;
+          return Read::Gone;
         }
-        Ok(_) => continue,
-        Err(e) => {
-          return Some(Err(CdpError::Transport(format!(
-            "CDP WebSocket error: {e}"
-          ))))
+        Some(Ok(_)) => continue,
+        Some(Err(e)) => {
+          return Read::Failed(CdpError::Transport(format!("CDP WebSocket error: {e}")))
         }
       }
     }
@@ -495,6 +612,7 @@ impl CdpConnection {
   /// Read until the reply to `id` arrives, discarding events on the way.
   pub async fn await_reply(&mut self, id: u64, timeout: Duration) -> Result<Value, CdpError> {
     let deadline = tokio::time::Instant::now() + timeout;
+    let mut grace = None;
     loop {
       let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
       if remaining.is_zero() {
@@ -502,7 +620,7 @@ impl CdpConnection {
           "timed out waiting for a CDP response".to_string(),
         ));
       }
-      let text = match tokio::time::timeout(remaining, self.next_text()).await {
+      let text = match tokio::time::timeout(remaining, self.next_text_within(&mut grace)).await {
         Err(_) => {
           return Err(CdpError::Transport(
             "timed out waiting for a CDP response".to_string(),
@@ -518,7 +636,7 @@ impl CdpConnection {
         continue;
       }
       if let Some(error) = response.get("error") {
-        return Err(CdpError::Protocol(error.to_string()));
+        return Err(self.reply_error(error));
       }
       return Ok(
         response
@@ -575,6 +693,10 @@ impl CdpConnection {
   }
 }
 
+/// How long [`run_command_awaiting_load`] waits for the replies it only uses
+/// to watch the load.
+const SETUP_REPLY_WAIT: Duration = Duration::from_secs(5);
+
 /// Ids used by the one-shot command runners below.
 ///
 /// A caller never picks these, so they are stated once here rather than being
@@ -621,8 +743,9 @@ static POOL: std::sync::LazyLock<
 > = std::sync::LazyLock::new(Default::default);
 
 impl CdpTarget {
-  /// The socket a pooled connection to this target serves.
-  fn pool_key(&self) -> String {
+  /// The page socket this target names: the key of its pooled connection and
+  /// of its dialog watch.
+  pub(crate) fn pool_key(&self) -> String {
     match self {
       Self::Local { ws_url } => ws_url.clone(),
       Self::Remote {
@@ -640,9 +763,13 @@ fn not_delivered(error: &CdpError) -> bool {
       || message.contains("connection closed"))
 }
 
-/// Whether the socket is still fit for the next command after `result`.
+/// Whether the socket is still fit for the next command after `result`. A
+/// late reply to a command cut short by a dialog is skipped by its id.
 fn reusable(result: &Result<Value, CdpError>) -> bool {
-  matches!(result, Ok(_) | Err(CdpError::Protocol(_)))
+  matches!(
+    result,
+    Ok(_) | Err(CdpError::Protocol(_)) | Err(CdpError::DialogOpen(_))
+  )
 }
 
 async fn give_back(key: String, pooled: PooledConnection) {
@@ -736,15 +863,31 @@ pub async fn run_command_awaiting_load(
 
   // Page events have to be on before the command runs, or `loadEventFired`
   // for a fast navigation is missed and the wait runs to its full timeout.
+  // A page that answers nothing (a dialog no watch saw holds it) still takes a
+  // navigation, which ends the dialog, so its answer is not required.
   connection
-    .call(RUN_PAGE_ENABLE_ID, "Page.enable", serde_json::json!({}))
+    .send_command(RUN_PAGE_ENABLE_ID, "Page.enable", serde_json::json!({}))
     .await?;
-  let main_frame = connection
-    .call(
+  match connection
+    .await_reply(RUN_PAGE_ENABLE_ID, SETUP_REPLY_WAIT)
+    .await
+  {
+    Err(CdpError::Transport(message)) if message.starts_with("timed out") => {
+      log::debug!("Page.enable unanswered, sending {method} anyway");
+    }
+    other => {
+      other?;
+    }
+  }
+  connection
+    .send_command(
       RUN_FRAME_TREE_ID,
       "Page.getFrameTree",
       serde_json::json!({}),
     )
+    .await?;
+  let main_frame = connection
+    .await_reply(RUN_FRAME_TREE_ID, SETUP_REPLY_WAIT)
     .await
     .ok()
     .and_then(|tree| main_frame_of(&tree));
@@ -786,7 +929,7 @@ pub async fn run_command_awaiting_load(
 
     if response.get("id") == Some(&Value::from(RUN_COMMAND_ID)) {
       if let Some(error) = response.get("error") {
-        failure = Some(CdpError::Protocol(error.to_string()));
+        failure = Some(connection.reply_error(error));
         break;
       }
       command_result = Some(
@@ -855,7 +998,10 @@ impl CdpTarget {
     let mut attempt = 0u32;
     loop {
       let error = match self.connect_once().await {
-        Ok(connection) => return Ok(connection),
+        Ok(mut connection) => {
+          connection.dialog = crate::page_dialog::state_of(&self.pool_key());
+          return Ok(connection);
+        }
         Err(e) => e,
       };
       attempt += 1;

@@ -272,6 +272,7 @@ mod mcp_toolsets;
 mod mcp_views;
 mod navigation_watch;
 mod network_capture;
+mod page_dialog;
 mod tag_manager;
 pub mod team_activity;
 mod team_lock;

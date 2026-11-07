@@ -794,4 +794,9 @@ export interface AgentTyping {
    * not hold the text fails with `TYPE_NOT_APPLIED`.
    */
   verified: boolean;
+  /**
+   * How the text reached the field: the browser's own keyboard, key events
+   * (after that keyboard did not reach a background tab), or all at once.
+   */
+  typed_with: "browser_keyboard" | "key_events" | "inserted";
 }

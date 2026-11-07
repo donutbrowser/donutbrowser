@@ -915,6 +915,7 @@ class _AgentTypingRequired(TypedDict):
     engine: str
     match: LocatorCandidate
     verified: bool
+    typed_with: str
 
 
 class AgentTyping(_AgentTypingRequired, total=False):
@@ -924,7 +925,9 @@ class AgentTyping(_AgentTypingRequired, total=False):
     own mistypes. ``verified`` is true when the field was read back and holds
     the text; it is false only for a field whose value is not the typed text
     (a date or colour picker). A field that does not hold the text fails with
-    ``TYPE_NOT_APPLIED``.
+    ``TYPE_NOT_APPLIED``. ``typed_with`` is ``browser_keyboard``, ``key_events``
+    (after the browser's keyboard did not reach a background tab) or
+    ``inserted``.
     """
 
     corrections: int

@@ -1003,6 +1003,7 @@ struct ImportProxiesResponse {
     crate::mcp_server::AgentHold,
     crate::mcp_server::AgentTypeRequest,
     crate::mcp_server::AgentTyping,
+    crate::mcp_server::TypedWith,
     crate::mcp_server::AgentPickRequest,
   )),
   tags(
@@ -4141,6 +4142,7 @@ fn cdp_error_response(err: crate::cdp_target::CdpError) -> (StatusCode, String) 
     CdpError::NotDrivable(_) => StatusCode::NOT_FOUND,
     CdpError::Unreachable(_) => StatusCode::BAD_GATEWAY,
     CdpError::Transport(_) | CdpError::Protocol(_) => StatusCode::BAD_GATEWAY,
+    CdpError::DialogOpen(_) => StatusCode::CONFLICT,
   };
   (status, err.to_string())
 }
@@ -5551,8 +5553,12 @@ fn agent_error_response(error: crate::mcp_server::AgentError) -> (StatusCode, St
     AgentError::AuthorizationUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
     AgentError::PickerTimedOut { .. } => StatusCode::REQUEST_TIMEOUT,
     AgentError::PickerCancelled { .. } => StatusCode::CONFLICT,
-    // The page did not take the text: a conflict with its state, not a fault.
-    AgentError::TypeNotApplied { .. } => StatusCode::CONFLICT,
+    // The page did not take the text, or a dialog holds it: a conflict with
+    // its state, not a fault.
+    AgentError::TypeNotApplied { .. }
+    | AgentError::Cdp(CdpError::DialogOpen(_))
+    | AgentError::NoDialog
+    | AgentError::PageNotResponding => StatusCode::CONFLICT,
     AgentError::Cdp(CdpError::Unauthorized(_)) => StatusCode::UNAUTHORIZED,
     // Nothing answers on the profile's socket: the browser is gone, or is not
     // drivable yet. Both read as "start it and try again".
@@ -5711,7 +5717,7 @@ async fn agent_hold_api(
     (status = 401, description = "Unauthorized"),
     (status = 402, description = "Active paid plan with browser automation required"),
     (status = 404, description = "Profile not found"),
-    (status = 409, description = "The profile is not running, or the field did not take the focus or the text (`code` TYPE_NOT_APPLIED, `reason` not_focused or value)"),
+    (status = 409, description = "The profile is not running, the field did not take the focus or the text (`code` TYPE_NOT_APPLIED, `reason` not_focused, focus_moved or value), or a dialog is open on the page (`code` DIALOG_OPEN)"),
     (status = 429, description = "Automation request rate limit exceeded"),
     (status = 502, description = "The browser did not answer as documented"),
     (status = 500, description = "Internal server error")
@@ -7024,6 +7030,10 @@ mod tests {
     assert!(
       !typing.iter().any(|f| f == "corrections"),
       "the fallback engine counts no corrections: {typing:?}"
+    );
+    assert!(
+      typing.iter().any(|f| f == "typed_with"),
+      "a typing answer says how the text reached the field: {typing:?}"
     );
   }
 

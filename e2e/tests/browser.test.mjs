@@ -1818,6 +1818,234 @@ test("MCP locators and typing act on the field a person sees", async () => {
   }
 });
 
+test("MCP answers native dialogs and types into a background tab", async (t) => {
+  assert.ok(process.env.WAYFERN_TEST_TOKEN, "WAYFERN_TEST_TOKEN is required");
+  const localWayfernVersion = cachedFixtureVersion(
+    process.env.DONUT_E2E_PROJECT_ROOT,
+  );
+  const app = appFromEnvironment("browser-mcp-dialogs", {
+    seedVersionCache: localWayfernVersion ?? false,
+    wayfernTermsAccepted: false,
+  });
+  // On Linux the browser window opens on the suite's own display, where a tab
+  // in the background behaves as on a desktop. Elsewhere it stays headless,
+  // so no window shows on the desktop.
+  const headless = process.platform !== "linux";
+  let cdp;
+  let browserPid;
+  try {
+    const prepared = await prepareWayfern(
+      app,
+      process.env.DONUT_E2E_PROJECT_ROOT,
+    );
+    if (!app.session) await app.start();
+    if (!(await app.invoke("check_wayfern_terms_accepted"))) {
+      await app.invoke("accept_wayfern_terms");
+    }
+    const profile = await createRealProfile(
+      app,
+      prepared.version,
+      "MCP Dialogs",
+    );
+    const settings = await app.invoke("get_app_settings");
+    const saved = await app.invoke("save_app_settings", {
+      settings: {
+        ...settings,
+        api_enabled: true,
+        api_port: 0,
+        api_token: null,
+        onboarding_completed: true,
+      },
+    });
+    const port = await app.invoke("start_api_server", { port: 0 });
+    const base = `http://127.0.0.1:${port}`;
+    const launched = await request(`${base}/v1/profiles/${profile.id}/run`, {
+      method: "POST",
+      token: saved.api_token,
+      body: { url: `${fixtureUrl}/mcp-dialogs`, headless },
+    });
+    assert.equal(launched.response.status, 200, JSON.stringify(launched.value));
+    const debugPort = launched.value.remote_debugging_port;
+    browserPid = (await app.invoke("list_browser_profiles")).find(
+      (item) => item.id === profile.id,
+    )?.process_id;
+    cdp = await CdpClient.connect(debugPort);
+    await cdp.waitFor("window.__dialogsReady === true", {
+      description: "the MCP dialogs fixture",
+    });
+    const { tool, toolJson, toolError } = await mcpClient(
+      base,
+      saved.api_token,
+      profile.id,
+    );
+    const timed = async (call) => {
+      const started = Date.now();
+      const value = await call();
+      return { value, ms: Date.now() - started };
+    };
+
+    assert.deepEqual(await toolJson("get_dialog"), { open: false });
+
+    // An inline Save link that answers with a validation alert. The click
+    // says what opened, and every page tool after it fails at once.
+    const clicked = await timed(() =>
+      tool("click_element", { selector: "#save" }),
+    );
+    assert.match(
+      clicked.value.text,
+      /An alert dialog that says "Validation error: name is required" is open on the page/,
+    );
+    assert.ok(clicked.ms < 20_000, `the click took ${clicked.ms} ms`);
+    for (const [name, args] of [
+      ["evaluate_javascript", { expression: "1 + 1" }],
+      ["get_page_info", {}],
+      [
+        "type_locator",
+        { locator: { role: "textbox", name: "Later" }, text: "x" },
+      ],
+    ]) {
+      const refused = await timed(() => toolError(name, args));
+      assert.equal(
+        refused.value.data?.code,
+        "DIALOG_OPEN",
+        JSON.stringify(refused.value),
+      );
+      assert.equal(refused.value.data.dialog.type, "alert");
+      assert.equal(
+        refused.value.data.dialog.message,
+        "Validation error: name is required",
+      );
+      assert.match(refused.value.message, /get_dialog.*handle_dialog/);
+      assert.ok(refused.ms < 5_000, `${name} waited ${refused.ms} ms`);
+    }
+    const read = await toolJson("get_dialog");
+    assert.equal(read.open, true, JSON.stringify(read));
+    assert.equal(read.dialog.type, "alert");
+    assert.equal(read.dialog.message, "Validation error: name is required");
+    const answered = await tool("handle_dialog", { accept: true });
+    assert.match(
+      answered.text,
+      /^Accepted an alert dialog that says "Validation error: name is required"\./,
+    );
+    assert.match(answered.text, /Page: Donut E2E MCP Dialogs/);
+    assert.equal(
+      await cdp.evaluate("document.body.dataset.saved"),
+      "after-alert",
+    );
+    assert.equal(
+      (await toolJson("get_page_info")).title,
+      "Donut E2E MCP Dialogs",
+    );
+    const none = await toolError("handle_dialog", { accept: true });
+    assert.equal(none.data?.code, "NO_DIALOG_OPEN", JSON.stringify(none));
+
+    // A confirm dismissed, and a prompt answered with text.
+    await tool("click_locator", {
+      locator: { role: "button", name: "Delete" },
+    });
+    const confirm = await toolJson("get_dialog");
+    assert.equal(confirm.dialog.type, "confirm", JSON.stringify(confirm));
+    assert.match(
+      (await tool("handle_dialog", { accept: false })).text,
+      /^Dismissed a confirm dialog that says "Delete it\?"/,
+    );
+    assert.equal(await cdp.evaluate("document.body.dataset.deleted"), "false");
+    await tool("click_element", { selector: "#rename" });
+    const prompt = await toolJson("get_dialog");
+    assert.equal(prompt.dialog.type, "prompt", JSON.stringify(prompt));
+    assert.equal(prompt.dialog.default_prompt, "Ann");
+    await tool("handle_dialog", { accept: true, prompt_text: "Bob" });
+    assert.equal(await cdp.evaluate("document.body.dataset.renamed"), "Bob");
+
+    // The person brings another tab to the front, and the agent's tab loads
+    // again behind it. The text still reaches the field, and the answer says
+    // how.
+    const { tabs } = await toolJson("list_tabs");
+    const agentTab = tabs.find((tab) => tab.url.includes("/mcp-dialogs"));
+    assert.ok(agentTab, JSON.stringify(tabs));
+    await toolJson("switch_tab", { tab_id: agentTab.id });
+    const front = await fetch(
+      `http://127.0.0.1:${debugPort}/json/new?about:blank`,
+      { method: "PUT" },
+    );
+    assert.equal(front.status, 200);
+    await tool("navigate", { url: `${fixtureUrl}/mcp-dialogs?again` });
+    assert.equal(
+      (
+        await toolJson("evaluate_javascript", {
+          expression: "document.visibilityState",
+        })
+      ).value,
+      "hidden",
+    );
+    const typed = await toolJson("type_locator", {
+      locator: { role: "textbox", name: "Later" },
+      text: "typed behind",
+    });
+    assert.equal(typed.verified, true, JSON.stringify(typed));
+    assert.ok(
+      ["browser_keyboard", "key_events"].includes(typed.typed_with),
+      JSON.stringify(typed),
+    );
+    t.diagnostic(
+      `background tab typed_with=${typed.typed_with} headless=${headless}`,
+    );
+    assert.equal(
+      (
+        await toolJson("evaluate_javascript", {
+          expression: "document.querySelector('#later').value",
+        })
+      ).value,
+      "typed behind",
+    );
+
+    // A tab that opens an alert while it loads, before anything watched it:
+    // the page answers nothing, and a navigation ends the dialog.
+    await toolJson("open_tab", {
+      url: `${fixtureUrl}/mcp-dialogs?alert-on-load`,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    const unknown = await toolJson("get_dialog");
+    assert.equal(unknown.page_responding, false, JSON.stringify(unknown));
+    const stuck = await timed(() => toolError("get_page_info"));
+    assert.equal(
+      stuck.value.data?.code,
+      "PAGE_NOT_RESPONDING",
+      JSON.stringify(stuck.value),
+    );
+    assert.ok(stuck.ms < 10_000, `get_page_info waited ${stuck.ms} ms`);
+    await tool("navigate", { url: `${fixtureUrl}/mcp-dialogs` });
+    assert.equal(
+      (await toolJson("get_page_info")).title,
+      "Donut E2E MCP Dialogs",
+    );
+    assert.deepEqual(await toolJson("get_dialog"), { open: false });
+
+    await request(`${base}/v1/profiles/${profile.id}/kill`, {
+      method: "POST",
+      token: saved.api_token,
+    });
+    if (browserPid) await waitForProcessExit(app, browserPid);
+    await app.invoke("stop_api_server");
+    await app.invoke("delete_profile", { profileId: profile.id });
+  } catch (error) {
+    await app.capture("failure");
+    throw error;
+  } finally {
+    cdp?.close();
+    if (app.session && browserPid && processExists(browserPid)) {
+      const running = (
+        await app.invoke("list_browser_profiles").catch(() => [])
+      ).find((item) => item.process_id === browserPid);
+      if (running)
+        await app
+          .invoke("kill_browser_profile", { profile: running })
+          .catch(() => {});
+    }
+    await app.close();
+  }
+});
+
 /// Read every donut-proxy worker config the app has on disk.
 async function readWorkerConfigs(app) {
   const dir = path.join(app.dataRoot, "cache", "proxy_workers");

@@ -844,3 +844,50 @@ export function mcpFormsPage() {
   </body>
 </html>`;
 }
+
+/**
+ * Native dialogs a site opens: an inline Save link that answers with a
+ * validation alert, a confirm, a prompt, and a field typed into later from a
+ * background tab. `?alert-on-load` opens an alert while the page loads.
+ */
+export function mcpDialogsPage() {
+  return `<!doctype html>
+<html>
+  <head>
+    <title>Donut E2E MCP Dialogs</title>
+    <style>
+      body { font: 14px sans-serif; margin: 0; padding: 16px; }
+      .row { margin: 12px 0; }
+      input { width: 260px; height: 24px; }
+    </style>
+  </head>
+  <body>
+    <h1>MCP dialogs</h1>
+    <div class="row"><a href="#" id="save">Save</a></div>
+    <div class="row"><button id="delete" type="button">Delete</button></div>
+    <div class="row"><button id="rename" type="button">Rename</button></div>
+    <div class="row"><label for="later">Later</label> <input id="later" name="later"></div>
+    <script>
+      (() => {
+        document.getElementById("save").addEventListener("click", (event) => {
+          event.preventDefault();
+          alert("Validation error: name is required");
+          document.body.dataset.saved = "after-alert";
+        });
+        document.getElementById("delete").addEventListener("click", () => {
+          document.body.dataset.deleted = String(confirm("Delete it?"));
+        });
+        document.getElementById("rename").addEventListener("click", () => {
+          document.body.dataset.renamed = String(prompt("New name?", "Ann"));
+        });
+        const later = document.getElementById("later");
+        later.addEventListener("keydown", () => {
+          later.dataset.keys = String(Number(later.dataset.keys || 0) + 1);
+        });
+        window.__dialogsReady = true;
+        if (location.search.includes("alert-on-load")) alert("Hello on load");
+      })();
+    </script>
+  </body>
+</html>`;
+}
