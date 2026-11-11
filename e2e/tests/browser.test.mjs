@@ -2218,21 +2218,33 @@ test("MCP answers native dialogs and types into a background tab", async (t) => 
       "typed behind",
     );
 
-    // A tab that opens an alert while it loads, before anything watched it:
-    // the page answers nothing, and a navigation ends the dialog.
+    // A tab that opens an alert while it loads, before anything watched it.
+    // A browser that announces an open dialog to a new watcher shows it; an
+    // older one answers nothing until a navigation ends the dialog.
     await toolJson("open_tab", {
       url: `${fixtureUrl}/mcp-dialogs?alert-on-load`,
     });
     await new Promise((resolve) => setTimeout(resolve, 2_000));
-    const unknown = await toolJson("get_dialog");
-    assert.equal(unknown.page_responding, false, JSON.stringify(unknown));
+    const early = await toolJson("get_dialog");
     const stuck = await timed(() => toolError("get_page_info"));
-    assert.equal(
-      stuck.value.data?.code,
-      "PAGE_NOT_RESPONDING",
-      JSON.stringify(stuck.value),
-    );
     assert.ok(stuck.ms < 10_000, `get_page_info waited ${stuck.ms} ms`);
+    if (early.open === true) {
+      assert.equal(early.dialog?.type, "alert", JSON.stringify(early));
+      assert.equal(
+        stuck.value.data?.code,
+        "DIALOG_OPEN",
+        JSON.stringify(stuck.value),
+      );
+      await tool("handle_dialog", { accept: true });
+    } else {
+      assert.equal(early.page_responding, false, JSON.stringify(early));
+      assert.equal(
+        stuck.value.data?.code,
+        "PAGE_NOT_RESPONDING",
+        JSON.stringify(stuck.value),
+      );
+    }
+    t.diagnostic(`alert on load seen=${early.open === true}`);
     await tool("navigate", { url: `${fixtureUrl}/mcp-dialogs` });
     assert.equal(
       (await toolJson("get_page_info")).title,
