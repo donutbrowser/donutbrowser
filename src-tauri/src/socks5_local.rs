@@ -21,8 +21,8 @@
 
 use crate::profile_dns::ProfileResolver;
 use crate::proxy_server::{
-  connect_to_target_via_upstream, redacted_upstream, tunnel_streams, BlocklistMatcher,
-  BypassMatcher,
+  connect_to_target_via_upstream, redacted_upstream, tunnel_streams, upstream_endpoint,
+  BlocklistMatcher, BypassMatcher,
 };
 use crate::traffic_stats::{get_traffic_tracker, LiveTrafficTracker};
 use async_socks5::{AddrKind, Auth, SocksDatagram};
@@ -562,8 +562,7 @@ async fn associate_upstream(
   upstream_url: &str,
 ) -> Result<SocksDatagram<TcpStream>, Box<dyn std::error::Error + Send + Sync>> {
   let upstream = Url::parse(upstream_url)?;
-  let host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
-  let port = upstream.port().unwrap_or(1080);
+  let (host, port) = upstream_endpoint(&upstream, 1080);
   let auth = if !upstream.username().is_empty() {
     Some(Auth {
       username: upstream.username().to_string(),

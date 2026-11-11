@@ -394,6 +394,19 @@ fn upstream_userpass(upstream: &Url) -> (String, String) {
   (username, password)
 }
 
+/// The host and port to dial for an upstream proxy URL.
+///
+/// `Url::port()` is `None` when the URL names its scheme's default port, so
+/// `http://host:80` read as "no port" and was dialed on the fallback. The
+/// scheme's default comes first; `fallback_port` serves only the schemes
+/// with no default (socks, ss, httpstls) when the URL has no port.
+pub(crate) fn upstream_endpoint(upstream: &Url, fallback_port: u16) -> (&str, u16) {
+  (
+    crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1")),
+    upstream.port_or_known_default().unwrap_or(fallback_port),
+  )
+}
+
 /// Transparent AsyncRead/AsyncWrite wrapper that logs every read/write
 /// byte of the SOCKS5 handshake. Used only during the handshake — the
 /// inner stream is taken back via `into_inner` once the handshake
@@ -882,8 +895,7 @@ async fn handle_http_via_socks4(
     }
   };
 
-  let socks_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
-  let socks_port = upstream.port().unwrap_or(1080);
+  let (socks_host, socks_port) = upstream_endpoint(&upstream, 1080);
 
   // Parse target from request URI
   let target_uri = req.uri();
@@ -1216,8 +1228,7 @@ async fn handle_http_via_shadowsocks(
     .unwrap_or_else(|| "unknown".to_string());
   let port = req.uri().port_u16().unwrap_or(80);
 
-  let ss_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
-  let ss_port = upstream.port().unwrap_or(8388);
+  let (ss_host, ss_port) = upstream_endpoint(upstream, 8388);
   let method_str = urlencoding::decode(upstream.username())
     .unwrap_or_default()
     .to_string();
@@ -1776,7 +1787,7 @@ pub fn redacted_upstream(upstream: &str) -> String {
     return "none".to_string();
   }
   match Url::parse(upstream) {
-    Ok(u) => match (u.host_str(), u.port()) {
+    Ok(u) => match (u.host_str(), u.port_or_known_default()) {
       (Some(host), Some(port)) => format!("{}://{host}:{port}", u.scheme()),
       (Some(host), None) => format!("{}://{host}", u.scheme()),
       _ => "<redacted>".to_string(),
@@ -2578,8 +2589,7 @@ pub(crate) async fn dial_route(
           // stored `https` proxy, so the encrypted hop is the separate
           // `httpstls` scheme below.
           "http" | "https" => {
-            let proxy_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
-            let proxy_port = upstream.port().unwrap_or(8080);
+            let (proxy_host, proxy_port) = upstream_endpoint(&upstream, 8080);
             let proxy_stream = crate::dialer::connect_host(
               "upstream proxy",
               proxy_host,
@@ -2602,8 +2612,7 @@ pub(crate) async fn dial_route(
           // `Proxy-Authorization` credentials are written only after the
           // handshake, so neither reaches the wire in the clear.
           "httpstls" => {
-            let proxy_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
-            let proxy_port = upstream.port().unwrap_or(443);
+            let (proxy_host, proxy_port) = upstream_endpoint(&upstream, 443);
             let tcp = crate::dialer::connect_host(
               "upstream proxy",
               proxy_host,
@@ -2625,8 +2634,7 @@ pub(crate) async fn dial_route(
             .await?
           }
           "socks4" | "socks5" => {
-            let socks_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
-            let socks_port = upstream.port().unwrap_or(1080);
+            let (socks_host, socks_port) = upstream_endpoint(&upstream, 1080);
 
             let (username, password) = upstream_userpass(&upstream);
             let auth = (!username.is_empty()).then_some((username.as_str(), password.as_str()));
@@ -2646,8 +2654,7 @@ pub(crate) async fn dial_route(
             // Shadowsocks: URL format is ss://method:password@host:port
             // where "method" is the cipher (e.g. aes-256-gcm, chacha20-ietf-poly1305)
             // and "password" is the SS server password.
-            let ss_host = crate::proxy_storage::bare_host(upstream.host_str().unwrap_or("127.0.0.1"));
-            let ss_port = upstream.port().unwrap_or(8388);
+            let (ss_host, ss_port) = upstream_endpoint(&upstream, 8388);
 
             // The "username" field carries the cipher method
             let method_str = urlencoding::decode(upstream.username())
@@ -2978,6 +2985,68 @@ mod tests {
     );
     assert_eq!(redacted_upstream("not a URL"), "<redacted>");
     assert_eq!(redacted_upstream(""), "none");
+  }
+
+  fn endpoint_of(url: &str, fallback_port: u16) -> (String, u16) {
+    let url = Url::parse(url).unwrap();
+    let (host, port) = upstream_endpoint(&url, fallback_port);
+    (host.to_string(), port)
+  }
+
+  #[test]
+  fn an_upstream_on_its_schemes_default_port_is_dialed_there() {
+    let built =
+      crate::proxy_storage::build_proxy_url("http", "proxy.example.com", 80, Some("u"), Some("p"));
+    assert_eq!(endpoint_of(&built, 8080), ("proxy.example.com".into(), 80));
+    assert_eq!(
+      endpoint_of("https://u:p@proxy.example.com:443", 8080),
+      ("proxy.example.com".into(), 443)
+    );
+    assert_eq!(redacted_upstream(&built), "http://proxy.example.com:80");
+    assert_eq!(
+      redacted_upstream("https://proxy.example.com:443"),
+      "https://proxy.example.com:443"
+    );
+  }
+
+  #[test]
+  fn an_upstream_port_is_dialed_as_written() {
+    assert_eq!(
+      endpoint_of("http://proxy.example.com:3128", 8080),
+      ("proxy.example.com".into(), 3128)
+    );
+    assert_eq!(
+      endpoint_of("https://proxy.example.com:80", 8080),
+      ("proxy.example.com".into(), 80)
+    );
+    assert_eq!(
+      endpoint_of("socks5://[::1]:1081", 1080),
+      ("::1".into(), 1081)
+    );
+    assert_eq!(
+      endpoint_of("httpstls://proxy.example.com:8443", 443),
+      ("proxy.example.com".into(), 8443)
+    );
+  }
+
+  #[test]
+  fn an_upstream_without_a_port_uses_its_schemes_default_then_the_fallback() {
+    assert_eq!(
+      endpoint_of("http://proxy.example.com", 8080),
+      ("proxy.example.com".into(), 80)
+    );
+    assert_eq!(
+      endpoint_of("socks5://proxy.example.com", 1080),
+      ("proxy.example.com".into(), 1080)
+    );
+    assert_eq!(
+      endpoint_of("ss://aes-256-gcm:pw@proxy.example.com", 8388),
+      ("proxy.example.com".into(), 8388)
+    );
+    assert_eq!(
+      endpoint_of("httpstls://proxy.example.com", 443),
+      ("proxy.example.com".into(), 443)
+    );
   }
 
   #[test]
