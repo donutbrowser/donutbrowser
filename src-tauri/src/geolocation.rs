@@ -5,7 +5,6 @@ use crate::geoip_downloader::GeoIPDownloader;
 use maxminddb::{geoip2, Reader};
 use quick_xml::events::Event;
 use quick_xml::Reader as XmlReader;
-use rand::RngExt;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
@@ -92,6 +91,9 @@ pub struct Geolocation {
 struct LanguagePopulation {
   language: String,
   population_percent: f64,
+  /// CLDR lists it as `official` or `de_facto_official` there. A regional
+  /// official language (`official_regional`, es in the US) is not.
+  official: bool,
 }
 
 pub struct LocaleSelector {
@@ -131,6 +133,7 @@ impl LocaleSelector {
           } else if name_str == "languagePopulation" && current_territory.is_some() {
             let mut lang_type = None;
             let mut pop_percent = 0.0;
+            let mut official = false;
 
             for attr in e.attributes().flatten() {
               match attr.key.as_ref() {
@@ -140,6 +143,9 @@ impl LocaleSelector {
                 "populationPercent" => {
                   pop_percent = attr.value.parse().unwrap_or(0.0);
                 }
+                "officialStatus" => {
+                  official = matches!(&*attr.value, "official" | "de_facto_official");
+                }
                 _ => {}
               }
             }
@@ -148,6 +154,7 @@ impl LocaleSelector {
               current_languages.push(LanguagePopulation {
                 language: lang.replace('_', "-"),
                 population_percent: pop_percent,
+                official,
               });
             }
           }
@@ -179,12 +186,11 @@ impl LocaleSelector {
   /// Whether CLDR associates `language` with `region` at all.
   ///
   /// Returns `None` for a territory with no language data, so callers can skip
-  /// rather than guess. The test is deliberately "is this language listed for
-  /// this country", not "is this the country's main language": `from_region`
-  /// samples the whole listed distribution weighted by speaker share, so every
-  /// listed language is one this selector itself can emit. Anything stricter
-  /// would flag fingerprints Donut generated on purpose — CLDR puts `es` at
-  /// 9.6% in the US and `fr` at 30% in Canada, and those get picked.
+  /// rather than guess. The test is "is this language listed for this
+  /// country", not "is this the country's main language": a person can set
+  /// `fr-CA` on a Canadian profile, and profiles made before `main_locale`
+  /// can carry any listed language (`es-US`). Both are plausible for the
+  /// exit. The main language is always listed, so a generated profile passes.
   pub fn region_speaks(&self, region: &str, language: &str) -> Option<bool> {
     let languages = self.territories.get(&region.to_uppercase())?;
     if languages.is_empty() {
@@ -198,8 +204,14 @@ impl LocaleSelector {
     )
   }
 
-  #[allow(clippy::wrong_self_convention)]
-  pub fn from_region(&self, region: &str) -> Result<Locale, GeolocationError> {
+  /// The exit country's main language, as a locale of that country: `en-US`
+  /// for the US, `de-CH` for Switzerland.
+  ///
+  /// The main language is the most spoken one CLDR lists as official there,
+  /// else the most spoken one listed. It is the same for every profile: a
+  /// language drawn by speaker share gave a US exit `es-US` or `fr-US` now
+  /// and then, and sites then showed in a language the person did not ask for.
+  pub fn main_locale(&self, region: &str) -> Result<Locale, GeolocationError> {
     let region_upper = region.to_uppercase();
 
     let languages = self
@@ -207,29 +219,25 @@ impl LocaleSelector {
       .get(&region_upper)
       .ok_or_else(|| GeolocationError::UnknownTerritory(region.to_string()))?;
 
-    if languages.is_empty() {
-      return Err(GeolocationError::NoLanguageData(region.to_string()));
-    }
+    let most_spoken = |official_only: bool| {
+      languages
+        .iter()
+        .filter(|l| l.official || !official_only)
+        .reduce(|best, l| {
+          if l.population_percent > best.population_percent {
+            l
+          } else {
+            best
+          }
+        })
+    };
+    let main = most_spoken(true)
+      .or_else(|| most_spoken(false))
+      .ok_or_else(|| GeolocationError::NoLanguageData(region.to_string()))?;
 
-    let total: f64 = languages.iter().map(|l| l.population_percent).sum();
-    let mut rng = rand::rng();
-    let target = rng.random::<f64>() * total;
-    let mut cumulative = 0.0;
-
-    for lang in languages {
-      cumulative += lang.population_percent;
-      if cumulative >= target {
-        return Ok(normalize_locale(&format!(
-          "{}-{}",
-          lang.language, region_upper
-        )));
-      }
-    }
-
-    let first_lang = &languages[0].language;
     Ok(normalize_locale(&format!(
       "{}-{}",
-      first_lang, region_upper
+      main.language, region_upper
     )))
   }
 }
@@ -486,7 +494,7 @@ pub fn get_geolocation(ip: &str) -> Result<Geolocation, GeolocationError> {
   let selector = locale_selector().ok_or_else(|| {
     GeolocationError::LocationNotFound("CLDR locale data is unavailable".to_string())
   })?;
-  let locale = selector.from_region(&iso_code)?;
+  let locale = selector.main_locale(&iso_code)?;
 
   Ok(Geolocation {
     locale,
@@ -590,19 +598,58 @@ mod tests {
     assert!(selector.is_ok());
   }
 
+  fn main_locale_of(region: &str) -> String {
+    LocaleSelector::new()
+      .unwrap()
+      .main_locale(region)
+      .unwrap()
+      .as_string()
+  }
+
   #[test]
-  fn test_locale_from_region() {
+  fn a_country_gets_its_main_language_every_time() {
+    assert_eq!(main_locale_of("US"), "en-US");
+    assert_eq!(main_locale_of("us"), "en-US");
+    assert_eq!(main_locale_of("CA"), "en-CA");
+    assert_eq!(main_locale_of("DE"), "de-DE");
+    assert_eq!(main_locale_of("JP"), "ja-JP");
+    // CLDR lists one language for South Korea.
+    assert_eq!(main_locale_of("KR"), "ko-KR");
+  }
+
+  #[test]
+  fn a_multilingual_country_gets_its_most_spoken_official_language() {
+    // More people speak gsw and en in Switzerland, and en in Belgium, but
+    // neither is official there.
+    assert_eq!(main_locale_of("CH"), "de-CH");
+    assert_eq!(main_locale_of("BE"), "nl-BE");
+    assert_eq!(main_locale_of("IN"), "hi-IN");
+    assert_eq!(main_locale_of("LU"), "fr-LU");
+    assert_eq!(main_locale_of("TW"), "zh-TW");
+  }
+
+  #[test]
+  fn an_unknown_country_has_no_main_language() {
     let selector = LocaleSelector::new().unwrap();
+    assert!(matches!(
+      selector.main_locale("ZZ"),
+      Err(GeolocationError::UnknownTerritory(_))
+    ));
+  }
 
-    let us_locale = selector.from_region("US");
-    assert!(us_locale.is_ok());
-    let us = us_locale.unwrap();
-    assert_eq!(us.region, Some("US".to_string()));
-
-    let de_locale = selector.from_region("DE");
-    assert!(de_locale.is_ok());
-    let de = de_locale.unwrap();
-    assert_eq!(de.region, Some("DE".to_string()));
+  #[test]
+  fn every_main_language_passes_the_language_check_of_its_country() {
+    let selector = LocaleSelector::new().unwrap();
+    assert!(selector.territories.len() > 200);
+    for region in selector.territories.keys() {
+      let locale = selector.main_locale(region).unwrap();
+      assert_eq!(locale.region.as_deref(), Some(region.as_str()));
+      assert_eq!(
+        selector.region_speaks(region, &locale.as_string()),
+        Some(true),
+        "{region}"
+      );
+    }
   }
 
   #[test]

@@ -213,14 +213,14 @@ fn probe_url(settings: &crate::browser::ProxySettings) -> Option<String> {
 
 /// Whether the fingerprint's language is plausible for the exit country.
 ///
-/// Validated against the same CLDR data the fingerprint generator samples from
+/// Validated against the same CLDR data the fingerprint generator reads
 /// (`geolocation::LocaleSelector`), not a hand-written country->language table.
-/// The generator picks a language at random weighted by CLDR speaker share, so
-/// any table naming one "expected" language per country flags fingerprints
-/// Donut itself produced — roughly 10% of US profiles legitimately get `es-US`
-/// and ~23% of Canadian ones get `fr-CA`. `None` means the country has no CLDR
-/// data, so the language cannot be judged either way, the caller reports that
-/// dimension as unverified rather than counting it as a match.
+/// The generator gives the country's main language, and the check accepts
+/// every language CLDR lists for the country: older profiles carry drawn
+/// languages such as `es-US`, and a person can choose `fr-CA`. `None` means
+/// the country has no CLDR data, so the language cannot be judged either way,
+/// the caller reports that dimension as unverified rather than counting it as
+/// a match.
 fn language_matches_country(cc: &str, language: &str) -> Option<bool> {
   crate::geolocation::locale_selector()?.region_speaks(cc, language)
 }
@@ -545,11 +545,10 @@ mod tests {
   }
 
   #[test]
-  fn language_check_accepts_what_the_fingerprint_generator_emits() {
-    // These are not the "expected" language for the country, but the generator
-    // samples the CLDR distribution and produces them routinely — CLDR puts es
-    // at 9.6% in the US and fr at 30% in Canada. Flagging them warns the user
-    // about a fingerprint Donut itself created.
+  fn language_check_accepts_every_language_listed_for_the_country() {
+    // Not the main language, but older profiles were given them by a draw
+    // weighted by speaker share, and a person can choose them. Flagging them
+    // warns the user about a fingerprint Donut itself created.
     assert_eq!(language_matches_country("US", "es-US"), Some(true));
     assert_eq!(language_matches_country("CA", "fr-CA"), Some(true));
     assert_eq!(language_matches_country("CA", "en-CA"), Some(true));
