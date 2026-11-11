@@ -39,6 +39,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { translateBackendError } from "@/lib/backend-errors";
 import { getEntitlements } from "@/lib/entitlements";
+import { formatLanguageList, parseLanguageList } from "@/lib/language-list";
 import type {
   PersonaField,
   WayfernConfig,
@@ -319,6 +320,10 @@ export function WayfernConfigForm({
   } | null>(null);
   const [deviceAttempt, setDeviceAttempt] = useState(0);
   const ownEditRef = useRef<{ json: string | undefined } | null>(null);
+  // The languages text while the field has focus. Most keystrokes of an edit
+  // leave a list that does not parse yet, so the field shows what was typed and
+  // stores only complete lists.
+  const [languagesDraft, setLanguagesDraft] = useState<string | null>(null);
 
   const handleGenerateFingerprint = async () => {
     if (!profileVersion) return;
@@ -1236,24 +1241,17 @@ export function WayfernConfigForm({
                 <Input
                   id="languages"
                   value={
-                    Array.isArray(fingerprintConfig.languages)
-                      ? JSON.stringify(fingerprintConfig.languages)
-                      : ""
+                    languagesDraft ??
+                    formatLanguageList(fingerprintConfig.languages)
                   }
                   onChange={(e) => {
-                    if (!e.target.value) {
-                      updateFingerprintConfig("languages", undefined);
-                      return;
-                    }
-                    try {
-                      const parsed = JSON.parse(e.target.value);
-                      if (Array.isArray(parsed)) {
-                        updateFingerprintConfig("languages", parsed);
-                      }
-                    } catch {
-                      // Invalid JSON, keep current value
+                    setLanguagesDraft(e.target.value);
+                    const languages = parseLanguageList(e.target.value);
+                    if (languages) {
+                      updateFingerprintConfig("languages", languages);
                     }
                   }}
+                  onBlur={() => setLanguagesDraft(null)}
                   placeholder='["en-US", "en"]'
                 />
               </div>

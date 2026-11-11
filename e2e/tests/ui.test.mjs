@@ -7188,6 +7188,96 @@ test("a Pro user's fingerprint tab shows the device, and says why when it cannot
   });
 });
 
+test("a languages edit typed one key at a time is kept and saved", async () => {
+  await withApp("ui-fingerprint-languages", async (app) => {
+    const created = await createUiProfile(app, "Languages Device");
+    const file = path.join(
+      app.dataRoot,
+      "data",
+      "profiles",
+      created.id,
+      "metadata.json",
+    );
+    const stored = JSON.parse(await readFile(file, "utf8"));
+    stored.version = "154.0.8037.57";
+    delete stored.wayfern_config.fingerprint;
+    stored.wayfern_config.identity_id = "6f9619ff-8b86-4d01-b42d-00c04fc964ff";
+    await writeFile(file, JSON.stringify(stored));
+    await app.restart();
+    await app.waitForText("Languages Device");
+    const device = {
+      userAgent: "Mozilla/5.0 (Macintosh) E2E/1.0",
+      platform: "MacIntel",
+      language: "en-US",
+      languages: ["en-US", "uk-UA", "uk", "ru"],
+    };
+    try {
+      await stubCommand(app, "get_profile_fingerprint", JSON.stringify(device));
+      await stubCommand(app, "cloud_get_user", {
+        logged_in_at: "2020-01-01T00:00:00Z",
+        user: {
+          id: "languages-pro",
+          email: "languages@example.test",
+          plan: "pro",
+          planPeriod: "monthly",
+          subscriptionStatus: "active",
+          profileLimit: 50,
+          isPrimaryDevice: true,
+        },
+      });
+      await app.invoke("plugin:event|emit", {
+        event: "cloud-auth-changed",
+        payload: null,
+      });
+      await app.clickSelector(
+        `[data-slot="profile-inspect-trigger"][data-profile-id="${created.id}"]`,
+      );
+      await app.clickSelector(
+        '[data-slot="profile-info-section"][data-section="fingerprint"]',
+      );
+      const shown = () =>
+        app.execute(
+          `const input = document.querySelector("#languages");
+           return input && !input.matches(":disabled") ? input.value : null;`,
+        );
+      await app.waitFor(
+        async () => (await shown()) === JSON.stringify(device.languages),
+        { description: "the device's languages in the field" },
+      );
+
+      // Deleting the three other languages from the end, one key at a time as
+      // a person does: every text between the first and the last key is a
+      // list that does not parse, and the field must keep each one.
+      const field = await app.execute(
+        `return document.querySelector("#languages");`,
+      );
+      const removed = ',"uk-UA","uk","ru"]';
+      await app.session.sendKeys(field, "\uE003".repeat(removed.length));
+      assert.equal(await shown(), '["en-US"');
+      await app.session.sendKeys(field, "]");
+      assert.equal(await shown(), '["en-US"]');
+
+      await app.clickText(en.common.buttons.save, { exact: true });
+      await app.waitFor(
+        async () => {
+          const [profile] = await app.invoke("list_browser_profiles");
+          const edits = profile.wayfern_config.identity_overrides;
+          return edits && JSON.parse(edits).languages?.join() === "en-US";
+        },
+        { description: "the saved languages edit" },
+      );
+      const [saved] = await app.invoke("list_browser_profiles");
+      assert.deepEqual(JSON.parse(saved.wayfern_config.identity_overrides), {
+        languages: ["en-US"],
+      });
+      assert.equal(await shown(), '["en-US"]');
+      await app.capture("fingerprint-languages-saved");
+    } finally {
+      await restoreStubs(app);
+    }
+  });
+});
+
 test("Pro users can edit and save launch arguments in each profile", async () => {
   await withApp(
     "ui-launch-args",
