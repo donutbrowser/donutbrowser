@@ -264,6 +264,7 @@ fn tool_hints(name: &str) -> Option<ToolHints> {
     | "get_diagnostics"
     | "wait_for_human"
     | "list_tabs"
+    | "list_downloads"
     | "pick_element" => READS,
     "get_dialog" => READS_PAGE,
     "screenshot"
@@ -325,6 +326,7 @@ fn tool_hints(name: &str) -> Option<ToolHints> {
     | "type_locator"
     | "select_option"
     | "file_upload"
+    | "confirm_download"
     | "handle_dialog" => ACTS_ON_PAGE,
     "run_profile" | "batch_run_profiles" | "navigate" | "open_tab" | "scroll" | "go_back"
     | "run_profile_remote" | "run_cookie_bot_now" | "extract_structured" | "send_feedback" => {
@@ -445,6 +447,88 @@ fn dialog_refusal(dialog: &crate::page_dialog::OpenDialog) -> String {
     "{} Read it with get_dialog, then answer it with handle_dialog (accept or dismiss).",
     dialog.refusal()
   )
+}
+
+/// A failed `method`: a Wayfern command the browser does not know means a
+/// browser older than the command, which only an update fixes.
+fn command_error(method: &str, error: CdpError) -> McpError {
+  if !(method.starts_with("Wayfern.") && error.is_unknown_method()) {
+    return cdp_error(error);
+  }
+  McpError {
+    code: -32000,
+    message: "This profile's browser is too old for this tool. Ask the person to update the browser in Donut Browser and restart the profile, then try again.".to_string(),
+    data: Some(serde_json::json!({ "code": "BROWSER_UPDATE_REQUIRED", "method": method })),
+  }
+}
+
+/// `name` in the folder of `path`, written with that path's own separator, so
+/// it holds for a browser running on another computer's OS. None when `path`
+/// names no folder.
+fn beside(path: &str, name: &str) -> Option<String> {
+  let end = path.rfind(['/', '\\'])?;
+  Some(format!("{}{name}", &path[..=end]))
+}
+
+fn invalid_download_argument(message: &str) -> McpError {
+  McpError {
+    code: -32602,
+    message: message.to_string(),
+    data: None,
+  }
+}
+
+/// The checked `file_name` of a confirm_download call: a name, never a path.
+fn download_file_name(
+  arguments: &serde_json::Value,
+  accept: bool,
+) -> Result<Option<String>, McpError> {
+  let Some(raw) = arguments
+    .get("file_name")
+    .and_then(serde_json::Value::as_str)
+  else {
+    return Ok(None);
+  };
+  if !accept {
+    return Err(invalid_download_argument("file_name goes with accept true"));
+  }
+  if raw.contains(['/', '\\']) {
+    return Err(invalid_download_argument(
+      "file_name is a name, not a path; the file goes in the folder the browser suggests",
+    ));
+  }
+  crate::agent_uploads::clean_name(raw)
+    .map(Some)
+    .ok_or_else(|| {
+      invalid_download_argument("file_name is not a usable file name; give a name like report.pdf")
+    })
+}
+
+/// The `Wayfern.confirmDownload` parameters. `save_to` is a `save_path`
+/// answer: a folder the browser chose, never a path the caller gave.
+fn confirm_download_params(id: &str, accept: bool, save_to: Option<String>) -> serde_json::Value {
+  let mut params = serde_json::json!({ "id": id, "accept": accept });
+  if let Some(path) = save_to {
+    params["path"] = serde_json::json!(path);
+  }
+  params
+}
+
+/// Where `name` saves the download `id` from a `Wayfern.getDownloads` reply:
+/// beside the file the browser suggests, and only while it asks for a
+/// location.
+fn save_path(reply: &serde_json::Value, id: &str, name: &str) -> Option<String> {
+  reply
+    .get("downloads")?
+    .as_array()?
+    .iter()
+    .find(|entry| {
+      entry.get("id").and_then(serde_json::Value::as_str) == Some(id)
+        && crate::mcp_views::awaiting_of(entry) == Some("location")
+    })?
+    .get("filePath")?
+    .as_str()
+    .and_then(|suggested| beside(suggested, name))
 }
 
 /// Replace the engine's plan refusal with the server's device refusal.
@@ -5020,6 +5104,9 @@ impl McpServer {
         // Answering a dialog acts on the page. Reading one is passive, so an
         // agent can still see what holds the page while the person has it.
         | "handle_dialog"
+        // A decision the person would make on a download: it saves or deletes
+        // files and allows or blocks a site's downloads.
+        | "confirm_download"
         // A capture reads every request the browser makes, so starting one
         // and reading it are browser reads like get_page_content, and are
         // refused while the person has paused agents or holds the profile.
@@ -7098,6 +7185,38 @@ impl McpServer {
         ),
       },
       McpTool {
+        name: "list_downloads".to_string(),
+        description: "List the downloads of a running profile, the ones that wait for a decision first, then the rest newest first, at most 100: id, url, file_name, state (in_progress, completed, canceled or interrupted), received_bytes, total_bytes when known, tab_id (the tab that started it, as list_tabs names it), and awaiting while the person would have to decide: permission (the page asked to download several files and the tab asks whether to allow them; the entry is the tab's and its id is the tab id), location (the browser asks where to save the file) or warning (an insecure or dangerous file held until it is kept or discarded). Decide those with confirm_download. Downloads started earlier, by the person or by another call, are listed too.".to_string(),
+        input_schema: serde_json::json!({
+          "type": "object",
+          "properties": {
+            "profile_id": { "type": "string", "description": "The UUID of the running profile" },
+            "awaiting_only": {
+              "type": "boolean",
+              "description": "List only the downloads that wait for a decision (default: false)"
+            }
+          },
+          "required": ["profile_id"]
+        }),
+      },
+      McpTool {
+        name: "confirm_download".to_string(),
+        description: "Decide what a list_downloads entry waits for, as the person would, and close the browser's prompt or dialog. permission: accept allows the site's automatic downloads and the waiting files download; deny blocks the site's automatic downloads. location: accept saves the file in the folder the browser suggests, under file_name when given; deny cancels the download. warning: accept keeps the file; deny deletes it. Call list_downloads again for the outcome.".to_string(),
+        input_schema: serde_json::json!({
+          "type": "object",
+          "properties": {
+            "profile_id": { "type": "string", "description": "The UUID of the running profile" },
+            "id": { "type": "string", "description": "The entry's id from list_downloads" },
+            "accept": { "type": "boolean", "description": "true to allow, save or keep; false to block, cancel or delete" },
+            "file_name": {
+              "type": "string",
+              "description": "For a location entry with accept true: the name to save under, with its extension (report.pdf), in the suggested folder"
+            }
+          },
+          "required": ["profile_id", "id", "accept"]
+        }),
+      },
+      McpTool {
         name: "start_network_capture".to_string(),
         description: "Start recording the requests that every tab of a running profile makes, for list_network_requests and get_network_request. Nothing the page can see changes. The record is in memory only: at most 2,000 requests and text response bodies up to 2 MB each and 32 MB in all, the oldest dropped first. Cookie, Set-Cookie, Authorization and Proxy-Authorization values read [redacted]. Requests made while the person has paused agents or taken over the profile are not recorded. The capture and its record end when the browser stops, or with stop_network_capture. Only for profiles running on this computer; a capture already running is kept.".to_string(),
         input_schema: serde_json::json!({
@@ -8054,6 +8173,22 @@ impl McpServer {
         )
         .await?;
         self.handle_file_upload(caller, arguments).await
+      }
+      "list_downloads" => {
+        Self::require_capability(
+          "Browser automation",
+          CLOUD_AUTH.can_use_browser_automation().await,
+        )
+        .await?;
+        self.handle_list_downloads(arguments).await
+      }
+      "confirm_download" => {
+        Self::require_capability(
+          "Browser automation",
+          CLOUD_AUTH.can_use_browser_automation().await,
+        )
+        .await?;
+        self.handle_confirm_download(arguments).await
       }
       "start_network_capture" => {
         Self::require_capability(
@@ -11259,7 +11394,7 @@ impl McpServer {
   ) -> Result<serde_json::Value, McpError> {
     crate::cdp_target::run_command(target, method, params)
       .await
-      .map_err(cdp_error)
+      .map_err(|error| command_error(method, error))
   }
 
   /// `expect_navigation`: the command is a navigation, so the page's load is
@@ -11422,6 +11557,62 @@ impl McpServer {
       .await
       .map_err(tab_error)?;
     Ok(serde_json::json!({ "content": [{ "type": "text", "text": "Tab closed" }] }))
+  }
+
+  async fn handle_list_downloads(
+    &self,
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let awaiting_only = arguments
+      .get("awaiting_only")
+      .and_then(serde_json::Value::as_bool)
+      .unwrap_or(false);
+    let target = self.resolve_cdp_target(profile_id).await?;
+    let reply = self
+      .send_cdp(&target, "Wayfern.getDownloads", serde_json::json!({}))
+      .await?;
+    Self::json_content(&crate::mcp_views::downloads(&reply, awaiting_only))
+  }
+
+  async fn handle_confirm_download(
+    &self,
+    arguments: &serde_json::Value,
+  ) -> Result<serde_json::Value, McpError> {
+    let profile_id = Self::require_str(arguments, "profile_id")?;
+    let id = Self::require_str(arguments, "id")?;
+    let accept = arguments
+      .get("accept")
+      .and_then(serde_json::Value::as_bool)
+      .ok_or_else(|| {
+        invalid_download_argument(
+          "Missing accept: true to allow, save or keep; false to block, cancel or delete",
+        )
+      })?;
+    let file_name = download_file_name(arguments, accept)?;
+    let target = self.resolve_cdp_target(profile_id).await?;
+    let save_to = match file_name {
+      None => None,
+      Some(name) => {
+        let listed = self
+          .send_cdp(&target, "Wayfern.getDownloads", serde_json::json!({}))
+          .await?;
+        Some(save_path(&listed, id, &name).ok_or_else(|| {
+          invalid_download_argument("file_name goes with a download that asks where to save it")
+        })?)
+      }
+    };
+    self
+      .send_cdp(
+        &target,
+        "Wayfern.confirmDownload",
+        confirm_download_params(id, accept, save_to),
+      )
+      .await?;
+    Ok(serde_json::json!({ "content": [{
+      "type": "text",
+      "text": "Decided. Call list_downloads for the outcome."
+    }] }))
   }
 
   /// The index the caller named, directly or as a stable element id (`e12`)
@@ -14229,7 +14420,7 @@ mod tests {
     // tool was added or removed on purpose.
     assert_eq!(
       tools.len(),
-      117,
+      119,
       "the tool list is a published contract; update this number deliberately"
     );
 
@@ -14323,6 +14514,8 @@ mod tests {
     assert!(tool_names.contains(&"type_locator"));
     assert!(tool_names.contains(&"select_option"));
     assert!(tool_names.contains(&"file_upload"));
+    assert!(tool_names.contains(&"list_downloads"));
+    assert!(tool_names.contains(&"confirm_download"));
     // Network capture tools
     assert!(tool_names.contains(&"start_network_capture"));
     assert!(tool_names.contains(&"stop_network_capture"));
@@ -16021,6 +16214,7 @@ mod tests {
       "select_option",
       "file_upload",
       "handle_dialog",
+      "confirm_download",
       // A capture reads every request the browser makes.
       "start_network_capture",
       "list_network_requests",
@@ -17600,6 +17794,8 @@ mod tests {
       "pick_element",
       "select_option",
       "file_upload",
+      "list_downloads",
+      "confirm_download",
       "start_network_capture",
       "list_network_requests",
       "get_network_request",
@@ -17977,6 +18173,106 @@ mod tests {
     );
     assert!(message(serde_json::json!({ "error": "single" })).contains("takes one option"));
     assert!(select_refusal(&serde_json::json!({ "selected": [], "changed": false })).is_none());
+  }
+
+  #[test]
+  fn a_new_download_name_goes_beside_the_suggested_file() {
+    assert_eq!(
+      beside("/home/a/Downloads/x.bin", "y.pdf").as_deref(),
+      Some("/home/a/Downloads/y.pdf")
+    );
+    assert_eq!(
+      beside("C:\\Users\\a\\Downloads\\x.bin", "y.pdf").as_deref(),
+      Some("C:\\Users\\a\\Downloads\\y.pdf")
+    );
+    assert_eq!(beside("x.bin", "y.pdf"), None);
+  }
+
+  #[test]
+  fn a_download_file_name_is_a_name_and_only_saves() {
+    let name = |raw: &str, accept: bool| {
+      download_file_name(&serde_json::json!({ "file_name": raw }), accept)
+    };
+    assert_eq!(
+      name("report.pdf", true).unwrap().as_deref(),
+      Some("report.pdf")
+    );
+    assert_eq!(name("a:b.pdf", true).unwrap().as_deref(), Some("a_b.pdf"));
+    assert!(download_file_name(&serde_json::json!({}), false)
+      .unwrap()
+      .is_none());
+    for refused in ["../x.pdf", "/etc/x", "C:\\x.pdf", "..", " ", ""] {
+      let error = name(refused, true).unwrap_err();
+      assert_eq!(error.code, -32602, "{refused}");
+    }
+    assert!(name("report.pdf", false)
+      .unwrap_err()
+      .message
+      .contains("accept true"));
+  }
+
+  #[test]
+  fn a_new_name_saves_only_a_download_that_asks_where() {
+    let reply = serde_json::json!({ "downloads": [
+      { "id": "a", "filePath": "/home/u/Downloads/a.bin", "awaiting": "location" },
+      { "id": "b", "filePath": "/home/u/Downloads/b.bin", "awaiting": "warning" },
+      { "id": "c", "filePath": "/home/u/Downloads/c.bin" },
+      { "id": "d", "filePath": "d.bin", "awaiting": "location" },
+    ] });
+    assert_eq!(
+      save_path(&reply, "a", "x.pdf").as_deref(),
+      Some("/home/u/Downloads/x.pdf")
+    );
+    for id in ["b", "c", "d", "missing"] {
+      assert_eq!(save_path(&reply, id, "x.pdf"), None, "{id}");
+    }
+    assert_eq!(
+      confirm_download_params("a", true, save_path(&reply, "a", "x.pdf")),
+      serde_json::json!({ "id": "a", "accept": true, "path": "/home/u/Downloads/x.pdf" })
+    );
+    assert_eq!(
+      confirm_download_params("TAB1", false, None),
+      serde_json::json!({ "id": "TAB1", "accept": false })
+    );
+  }
+
+  #[test]
+  fn an_older_browser_is_told_to_update_for_wayfern_commands_only() {
+    let unknown = |method: &str| {
+      CdpError::Protocol(format!(
+        r#"{{"code":-32601,"message":"'{method}' wasn't found"}}"#
+      ))
+    };
+    let error = command_error("Wayfern.getDownloads", unknown("Wayfern.getDownloads"));
+    assert!(error.message.contains("update the browser"));
+    assert_eq!(
+      error.data,
+      Some(serde_json::json!({
+        "code": "BROWSER_UPDATE_REQUIRED",
+        "method": "Wayfern.getDownloads"
+      }))
+    );
+    assert_eq!(McpServer::error_code_of(&error), "BROWSER_UPDATE_REQUIRED");
+    // A CDP method a page session lacks is a routing fault, not an old browser.
+    let routing = command_error("Page.navigate", unknown("Page.navigate"));
+    assert!(routing.data.is_none());
+    assert!(routing.message.contains("wasn't found"));
+    // The browser's own refusals reach the agent as they are.
+    let refused = command_error(
+      "Wayfern.confirmDownload",
+      CdpError::Protocol(r#"{"code":-32000,"message":"The download awaits no decision"}"#.into()),
+    );
+    assert!(refused.message.contains("awaits no decision"));
+    assert!(refused.data.is_none());
+  }
+
+  #[test]
+  fn downloads_are_listed_passively_and_decided_as_automation() {
+    assert!(McpServer::is_passive_tool("list_downloads"));
+    assert!(!McpServer::is_automation_tool("list_downloads"));
+    assert!(!McpServer::is_passive_tool("confirm_download"));
+    assert!(McpServer::is_automation_tool("confirm_download"));
+    assert!(!LOCAL_PATH_TOOLS.contains(&"confirm_download"));
   }
 
   #[test]

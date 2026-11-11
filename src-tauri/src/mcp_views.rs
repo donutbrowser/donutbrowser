@@ -7,6 +7,8 @@
 //!   next to ids so an agent needs no second call to read them.
 //! - `profile_detail`: one profile without device internals, secrets or
 //!   another person's email.
+//! - `downloads`: a browser's downloads, the waiting ones first, without
+//!   local paths.
 
 use crate::profile::BrowserProfile;
 use serde_json::{json, Value};
@@ -280,6 +282,73 @@ pub fn profile_detail(profile: &BrowserProfile, names: &Names) -> Value {
   value
 }
 
+/// The most downloads one list_downloads answer shows; every download that
+/// waits for a decision is always among them.
+const MAX_LISTED_DOWNLOADS: usize = 100;
+
+/// A download as the tools show it: snake_case names, the tab id list_tabs
+/// uses, and no local path, because a caller over the bridge does not see
+/// this computer's files.
+fn download_view(entry: &Value) -> Value {
+  let mut view = serde_json::Map::new();
+  for (from, to) in [
+    ("id", "id"),
+    ("url", "url"),
+    ("fileName", "file_name"),
+    ("receivedBytes", "received_bytes"),
+    ("totalBytes", "total_bytes"),
+    ("targetId", "tab_id"),
+    ("awaiting", "awaiting"),
+  ] {
+    if let Some(value) = entry.get(from) {
+      view.insert(to.to_string(), value.clone());
+    }
+  }
+  if let Some(state) = entry.get("state").and_then(Value::as_str) {
+    let state = if state == "inProgress" {
+      "in_progress"
+    } else {
+      state
+    };
+    view.insert("state".to_string(), json!(state));
+  }
+  Value::Object(view)
+}
+
+/// What a download waits for: permission, location or warning.
+pub fn awaiting_of(entry: &Value) -> Option<&str> {
+  entry.get("awaiting").and_then(Value::as_str)
+}
+
+/// The list_downloads answer for a `Wayfern.getDownloads` reply, which lists
+/// oldest first: every waiting entry, then the rest newest first, at most
+/// MAX_LISTED_DOWNLOADS in all.
+pub fn downloads(reply: &Value, awaiting_only: bool) -> Value {
+  let listed = reply
+    .get("downloads")
+    .and_then(Value::as_array)
+    .map(Vec::as_slice)
+    .unwrap_or_default();
+  let (waiting, rest): (Vec<_>, Vec<_>) = listed
+    .iter()
+    .partition(|entry| awaiting_of(entry).is_some());
+  let mut downloads: Vec<Value> = waiting.iter().copied().map(download_view).collect();
+  if !awaiting_only {
+    let room = MAX_LISTED_DOWNLOADS.saturating_sub(downloads.len());
+    downloads.extend(rest.iter().rev().take(room).copied().map(download_view));
+  }
+  let total = if awaiting_only {
+    waiting.len()
+  } else {
+    listed.len()
+  };
+  json!({
+    "downloads": downloads,
+    "awaiting": waiting.len(),
+    "truncated": downloads.len() < total,
+  })
+}
+
 /// The `outputSchema` of a tool whose answer has a fixed shape.
 pub fn output_schema_for(tool: &str) -> Option<Value> {
   match tool {
@@ -474,5 +543,85 @@ mod tests {
     {
       assert!(row.get(key.as_str().unwrap()).is_some(), "{key}");
     }
+  }
+
+  #[test]
+  fn a_download_shows_in_the_tools_names_without_its_local_path() {
+    let view = download_view(&json!({
+      "id": "6f1c",
+      "url": "https://example.com/a.pdf",
+      "fileName": "a.pdf",
+      "filePath": "/Users/someone/Downloads/a.pdf",
+      "state": "inProgress",
+      "receivedBytes": 10,
+      "totalBytes": 20,
+      "targetId": "TAB1",
+      "awaiting": "location"
+    }));
+    assert_eq!(
+      view,
+      json!({
+        "id": "6f1c",
+        "url": "https://example.com/a.pdf",
+        "file_name": "a.pdf",
+        "state": "in_progress",
+        "received_bytes": 10,
+        "total_bytes": 20,
+        "tab_id": "TAB1",
+        "awaiting": "location"
+      })
+    );
+    // A permission entry carries no file.
+    assert_eq!(
+      download_view(&json!({
+        "id": "TAB1", "url": "https://example.com/", "targetId": "TAB1", "awaiting": "permission"
+      })),
+      json!({
+        "id": "TAB1", "url": "https://example.com/", "tab_id": "TAB1", "awaiting": "permission"
+      })
+    );
+  }
+
+  #[test]
+  fn waiting_downloads_come_first_then_the_newest() {
+    let entry = |id: usize, awaiting: Option<&str>| {
+      let mut entry = json!({ "id": id.to_string(), "state": "completed" });
+      if let Some(awaiting) = awaiting {
+        entry["awaiting"] = json!(awaiting);
+      }
+      entry
+    };
+    let ids = |answer: &Value| -> Vec<String> {
+      answer["downloads"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["id"].as_str().unwrap().to_string())
+        .collect()
+    };
+    let reply = json!({ "downloads": [
+      entry(0, None), entry(1, Some("warning")), entry(2, None), entry(3, Some("location"))
+    ] });
+    let all = downloads(&reply, false);
+    assert_eq!(ids(&all), ["1", "3", "2", "0"]);
+    assert_eq!(all["awaiting"], 2);
+    assert_eq!(all["truncated"], false);
+    let waiting = downloads(&reply, true);
+    assert_eq!(ids(&waiting), ["1", "3"]);
+    assert_eq!(waiting["truncated"], false);
+
+    // Past the cap the oldest finished downloads go; waiting ones never do.
+    let mut many: Vec<_> = (0..150).map(|id| entry(id, None)).collect();
+    many[5] = entry(5, Some("permission"));
+    let capped = downloads(&json!({ "downloads": many }), false);
+    let capped_ids = ids(&capped);
+    assert_eq!(capped_ids.len(), MAX_LISTED_DOWNLOADS);
+    assert_eq!(capped_ids[0], "5");
+    assert_eq!(capped_ids[1], "149");
+    assert_eq!(capped["truncated"], true);
+
+    let empty = downloads(&json!({}), false);
+    assert_eq!(empty["downloads"], json!([]));
+    assert_eq!(empty["awaiting"], 0);
   }
 }

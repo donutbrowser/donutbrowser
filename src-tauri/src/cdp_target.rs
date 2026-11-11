@@ -140,6 +140,18 @@ impl CdpError {
   fn is_retryable(&self) -> bool {
     matches!(self, Self::Unreachable(_) | Self::Transport(_))
   }
+
+  /// Whether the browser does not know the command (JSON-RPC -32601), as a
+  /// build older than the command answers.
+  pub fn is_unknown_method(&self) -> bool {
+    let Self::Protocol(error) = self else {
+      return false;
+    };
+    serde_json::from_str::<Value>(error)
+      .ok()
+      .and_then(|error| error.get("code").and_then(Value::as_i64))
+      == Some(-32601)
+  }
 }
 
 /// Why a profile could not be resolved to a browser at all.
@@ -1431,6 +1443,16 @@ mod tests {
     assert!(!CdpError::Unauthorized("x".into()).is_retryable());
     assert!(!CdpError::NotDrivable("x".into()).is_retryable());
     assert!(!CdpError::Protocol("x".into()).is_retryable());
+  }
+
+  #[test]
+  fn an_unknown_command_is_told_apart_by_its_code() {
+    let unknown = r#"{"code":-32601,"message":"'Wayfern.getDownloads' wasn't found"}"#;
+    assert!(CdpError::Protocol(unknown.into()).is_unknown_method());
+    let refused = r#"{"code":-32000,"message":"The download awaits no decision"}"#;
+    assert!(!CdpError::Protocol(refused.into()).is_unknown_method());
+    assert!(!CdpError::Protocol("wasn't found".into()).is_unknown_method());
+    assert!(!CdpError::Transport(unknown.into()).is_unknown_method());
   }
 
   #[test]

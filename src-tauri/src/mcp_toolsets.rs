@@ -64,6 +64,8 @@ pub const TOOLSETS: &[(&str, &[&str])] = &[
       "type_locator",
       "select_option",
       "file_upload",
+      "list_downloads",
+      "confirm_download",
       "extract_structured",
       "pick_element",
       // The person watching

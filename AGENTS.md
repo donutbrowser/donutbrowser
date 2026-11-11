@@ -63,7 +63,7 @@ donutbrowser/
 │   │   ├── api_server.rs            # REST API (utoipa + axum)
 │   │   ├── mcp_server.rs            # MCP tool engine, served over the remote bridge
 │   │   ├── mcp_toolsets.rs          # Optional MCP toolsets: which tools a client lists (core + opt-in sets)
-│   │   ├── mcp_views.rs             # Compact MCP views: profile summaries, filters, paging, size caps
+│   │   ├── mcp_views.rs             # Compact MCP views: profile summaries, downloads, filters, paging, size caps
 │   │   ├── navigation_watch.rs      # Whether a CDP action navigated, so a click waits only for a load that comes
 │   │   ├── page_dialog.rs           # Native dialogs on agent-driven pages: a Page-enabled socket per local page, one relay socket per cloud session that pins the page its tools drive, DIALOG_OPEN fail fast, answers
 │   │   ├── network_capture.rs       # MCP network capture: one browser-level socket per profile, in memory, credentials redacted
