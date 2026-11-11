@@ -624,6 +624,14 @@
     },
     "group": {
       "notFound": "Grup bulunamadı."
+    },
+    "screen": {
+      "label": "Ekran boyutu",
+      "any": "Herhangi",
+      "anyScreen": "Herhangi bir ekran",
+      "size": "{{width}} × {{height}}",
+      "search": "Ekran boyutu ara...",
+      "notFound": "Ekran boyutu bulunamadı."
     }
   },
   "deleteDialog": {
@@ -2764,6 +2772,9 @@
     "profileGenerationLimitReached": "Son bir saatte {{limit}} profil oluşturdunuz; bu, planınızın sınırıdır. Yenisini oluşturmadan önce yaklaşık {{minutes}} dakika bekleyin.",
     "wayfernBrowserBusy": "Tarayıcı bir parmak izi uygulamakla meşguldü. Tekrar deneyin.",
     "wayfernBrowserExited": "Tarayıcı başlatılırken kapandı. {{detail}}",
+    "wayfernScreenNotOffered": "Bu tarayıcı sürümü bu ekran boyutuyla profil oluşturamaz. Başka bir boyut veya Herhangi seçin.",
+    "wayfernScreenNotFound": "Bu ekran boyutunda bir cihaz bulunamadı. Tekrar deneyin veya Herhangi seçin.",
+    "wayfernScreenOptionsFailed": "Ekran boyutları okunamadı. {{detail}}",
     "profileExportFailed": "Bu profil dışa aktarılamadı. {{detail}}",
     "profileExportTooLarge": "Bu profil dışa aktarmak için fazla büyük. Gezinme verilerinin bir kısmını silip yeniden deneyin.",
     "profileImportFailed": "Bu arşiv okunamadı. {{detail}}",

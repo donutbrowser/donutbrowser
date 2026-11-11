@@ -257,6 +257,8 @@ export const commandCoverage = {
       "ensure_active_browsers_downloaded",
       "update_wayfern_config",
       "generate_sample_fingerprint",
+      "wayfern_manager::get_wayfern_screen_options",
+      "wayfern_manager::release_wayfern_screen_helper",
       "get_profile_fingerprint",
       "is_geoip_database_available",
       "download_geoip_database",

@@ -624,6 +624,14 @@
     },
     "group": {
       "notFound": "Keine Gruppen gefunden."
+    },
+    "screen": {
+      "label": "Bildschirmgröße",
+      "any": "Beliebig",
+      "anyScreen": "Beliebiger Bildschirm",
+      "size": "{{width}} × {{height}}",
+      "search": "Bildschirmgrößen suchen...",
+      "notFound": "Keine Bildschirmgröße gefunden."
     }
   },
   "deleteDialog": {
@@ -2764,6 +2772,9 @@
     "profileGenerationLimitReached": "Sie haben in der letzten Stunde {{limit}} Profile erstellt, das ist das Limit Ihres Tarifs. Warten Sie etwa {{minutes}} Minuten, bevor Sie ein weiteres erstellen.",
     "wayfernBrowserBusy": "Der Browser war mit dem Anwenden eines Fingerprints beschäftigt. Versuchen Sie es erneut.",
     "wayfernBrowserExited": "Der Browser wurde beim Start geschlossen. {{detail}}",
+    "wayfernScreenNotOffered": "Diese Browserversion kann kein Profil mit dieser Bildschirmgröße erstellen. Wählen Sie eine andere Größe oder „Beliebig“.",
+    "wayfernScreenNotFound": "Es wurde kein Gerät mit dieser Bildschirmgröße gefunden. Versuchen Sie es erneut oder wählen Sie „Beliebig“.",
+    "wayfernScreenOptionsFailed": "Die Bildschirmgrößen konnten nicht gelesen werden. {{detail}}",
     "profileExportFailed": "Dieses Profil konnte nicht exportiert werden. {{detail}}",
     "profileExportTooLarge": "Dieses Profil ist zu groß für den Export. Löschen Sie einen Teil seiner Browserdaten und versuchen Sie es erneut.",
     "profileImportFailed": "Dieses Archiv konnte nicht gelesen werden. {{detail}}",

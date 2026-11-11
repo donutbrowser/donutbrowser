@@ -588,8 +588,17 @@ export interface PersonaField {
   value: string;
 }
 
+/** A claimed screen in CSS pixels. */
+export interface ScreenSize {
+  width: number;
+  height: number;
+}
+
 export interface WayfernConfig {
   proxy?: string;
+  /** The screen a new identity is minted with. Sent while a profile is
+   * created, never stored: the identity id gives the screen from then on. */
+  screen?: ScreenSize;
   screen_max_width?: number;
   screen_max_height?: number;
   screen_min_width?: number;

@@ -71,6 +71,11 @@ pub struct WayfernConfig {
   pub block_webgl: Option<bool>,
   #[serde(default, skip_serializing)]
   pub proxy: Option<String>,
+  /// The screen a new identity is minted with, one of `screen_options`.
+  /// Read only while the identity is created: the identity id alone gives the
+  /// screen from then on, so it is never stored.
+  #[serde(default, skip_serializing)]
+  pub screen: Option<ScreenSize>,
   /// Stable signature of the proxy/VPN/geoip the fingerprint's location data
   /// (timezone, latitude/longitude, language) was last computed for. Compared
   /// on launch to detect that the routing changed since creation, so the
@@ -92,6 +97,32 @@ pub struct WayfernConfig {
   /// piece of device state an identity-backed profile persists.
   #[serde(default)]
   pub location: Option<String>,
+}
+
+/// A claimed screen in CSS pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ScreenSize {
+  pub width: u32,
+  pub height: u32,
+}
+
+/// The screens of each desktop claim, by `operatingSystem` name.
+type ScreensByOs = HashMap<String, Vec<ScreenSize>>;
+
+/// The claims whose screen can be chosen; a phone's screen follows its model.
+pub fn has_screen_choice(os: &str) -> bool {
+  matches!(os, "windows" | "macos" | "linux")
+}
+
+/// Ask `Wayfern.createIdentity` for `screen`, for a claim that has the choice.
+fn add_screen(params: &mut serde_json::Value, screen: Option<ScreenSize>, os: &str) {
+  let Some(screen) = screen.filter(|_| has_screen_choice(os)) else {
+    return;
+  };
+  if let Some(params) = params.as_object_mut() {
+    params.insert("screenWidth".to_string(), json!(screen.width));
+    params.insert("screenHeight".to_string(), json!(screen.height));
+  }
 }
 
 impl WayfernConfig {
@@ -701,12 +732,20 @@ pub fn cdp_error_message(detail: &str) -> String {
   detail.trim().to_string()
 }
 
-pub fn cdp_error_is_invalid_params(detail: &str) -> bool {
+fn cdp_error_code(detail: &str) -> Option<i64> {
   detail
     .split_once("CDP error: ")
     .and_then(|(_, rest)| serde_json::from_str::<serde_json::Value>(rest.trim()).ok())
     .and_then(|error| error.get("code").and_then(|code| code.as_i64()))
-    == Some(-32602)
+}
+
+pub fn cdp_error_is_invalid_params(detail: &str) -> bool {
+  cdp_error_code(detail) == Some(-32602)
+}
+
+/// Whether the browser does not know the command: a build older than it.
+pub fn cdp_error_is_unknown_method(detail: &str) -> bool {
+  cdp_error_code(detail) == Some(-32601)
 }
 
 pub fn known_wayfern_failure(detail: &str, claimed_os: Option<&str>) -> Option<String> {
@@ -748,6 +787,12 @@ pub fn known_wayfern_failure(detail: &str, claimed_os: Option<&str>) -> Option<S
     || says("the derived identity was not committed")
   {
     return Some(crate::backend_error("WAYFERN_BROWSER_BUSY"));
+  }
+  if says("Wayfern.getScreenOptions lists them") {
+    return Some(crate::backend_error("WAYFERN_SCREEN_NOT_OFFERED"));
+  }
+  if says("No fresh identity with that screen was found") {
+    return Some(crate::backend_error("WAYFERN_SCREEN_NOT_FOUND"));
   }
   None
 }
@@ -1235,6 +1280,10 @@ impl HeadlessWayfern {
 
   pub(crate) fn page_ws_url(&self) -> &str {
     &self.page_ws_url
+  }
+
+  fn is_running(&mut self) -> bool {
+    matches!(self.child.try_wait(), Ok(None))
   }
 
   pub(crate) async fn call(
@@ -2762,13 +2811,26 @@ impl WayfernManager {
     config: &WayfernConfig,
   ) -> Result<GeneratedFingerprint, Box<dyn std::error::Error + Send + Sync>> {
     let wayfern_token = crate::cloud_auth::CLOUD_AUTH.get_wayfern_token().await;
-    let session = HeadlessWayfern::start(
-      self,
-      profile,
-      wayfern_token.as_deref(),
-      &format!("purpose=generation profile={}", profile.id),
-    )
-    .await?;
+    let session = match take_screen_helper(&profile.version).await {
+      Some(mut helper) => {
+        helper.label = format!("purpose=generation profile={}", profile.id);
+        log::info!(
+          "Headless browser reused pid={} {}",
+          helper.child.id().unwrap_or_default(),
+          helper.label
+        );
+        helper
+      }
+      None => {
+        HeadlessWayfern::start(
+          self,
+          profile,
+          wayfern_token.as_deref(),
+          &format!("purpose=generation profile={}", profile.id),
+        )
+        .await?
+      }
+    };
     let ws_url = session.page_ws_url().to_string();
 
     // A profile without an explicit claim keeps the OS of the machine that
@@ -2847,6 +2909,7 @@ impl WayfernManager {
           params.extend(location.clone());
         }
       }
+      add_screen(&mut generate_params, config.screen, os);
     }
     let mut generate_result = self
       .generate_device(&ws_url, use_identity_api, generate_params.clone())
@@ -2961,6 +3024,115 @@ impl WayfernManager {
       identity_id,
       geolocation_applied,
     })
+  }
+
+  /// The screens `Wayfern.createIdentity` can mint for the claim `os` on
+  /// `version`, most common first. `None` when `os` has no screen choice or
+  /// the browser predates it. One headless browser reads every desktop claim,
+  /// once per version and app run: the list is the build's own. That browser
+  /// stays for the profile creation that follows (`take_screen_helper`), so
+  /// the create dialog holds one browser seat, and its identity is minted
+  /// where the sizes are already measured.
+  pub async fn screen_options(
+    &self,
+    version: &str,
+    os: &str,
+  ) -> Result<Option<Vec<ScreenSize>>, String> {
+    if !has_screen_choice(os) {
+      return Ok(None);
+    }
+    let mut choice = SCREEN_CHOICE.lock().await;
+    if !choice.known.contains_key(version) {
+      let (read, helper) = self.read_screen_options(version).await?;
+      choice.known.insert(version.to_string(), read);
+      if let Some(session) = helper {
+        if let Some(previous) = choice.keep(version, session) {
+          previous.stop().await;
+        }
+      }
+    }
+    Ok(
+      choice
+        .known
+        .get(version)
+        .and_then(Option::as_ref)
+        .and_then(|by_os| by_os.get(os).cloned()),
+    )
+  }
+
+  /// The sizes `version` offers, and the browser that read them when it
+  /// offers any.
+  async fn read_screen_options(
+    &self,
+    version: &str,
+  ) -> Result<(Option<ScreensByOs>, Option<HeadlessWayfern>), String> {
+    let failure = |detail: String| wayfern_failure(&detail, "WAYFERN_SCREEN_OPTIONS_FAILED", None);
+    let profile = BrowserProfile {
+      browser: "wayfern".to_string(),
+      version: version.to_string(),
+      ..Default::default()
+    };
+    // The person's token, as a creation's browser gets it: the helper may
+    // mint the identity, and the plan's own limits apply to it.
+    let token = crate::cloud_auth::CLOUD_AUTH.get_wayfern_token().await;
+    let session = HeadlessWayfern::start(
+      self,
+      &profile,
+      token.as_deref(),
+      &format!("purpose=screen_options version={version}"),
+    )
+    .await
+    .map_err(|e| failure(e.to_string()))?;
+    let started = std::time::Instant::now();
+    let mut by_os = HashMap::new();
+    let mut outcome = Ok(true);
+    for os in ["windows", "macos", "linux"] {
+      let call = session.call(
+        self,
+        "Wayfern.getScreenOptions",
+        json!({ "operatingSystem": os }),
+      );
+      match tokio::time::timeout(SCREEN_OPTIONS_LIMIT, call).await {
+        Ok(Ok(reply)) => {
+          by_os.insert(os.to_string(), screen_options_of(&reply));
+        }
+        Ok(Err(e)) if cdp_error_is_unknown_method(&e.to_string()) => {
+          outcome = Ok(false);
+          break;
+        }
+        Ok(Err(e)) => {
+          outcome = Err(failure(e.to_string()));
+          break;
+        }
+        Err(_) => {
+          outcome = Err(failure(format!(
+            "Wayfern.getScreenOptions got no answer in {} s",
+            SCREEN_OPTIONS_LIMIT.as_secs()
+          )));
+          break;
+        }
+      }
+    }
+    let offered = match outcome {
+      Ok(offered) => offered,
+      Err(e) => {
+        session.stop().await;
+        return Err(e);
+      }
+    };
+    log::info!(
+      "Screen options read version={} offered={offered} windows={} macos={} linux={} elapsed_ms={}",
+      crate::log_redaction::Plain(version),
+      by_os.get("windows").map_or(0, Vec::len),
+      by_os.get("macos").map_or(0, Vec::len),
+      by_os.get("linux").map_or(0, Vec::len),
+      started.elapsed().as_millis()
+    );
+    if !offered {
+      session.stop().await;
+      return Ok((None, None));
+    }
+    Ok((Some(by_os), Some(session)))
   }
 
   /// The device a profile presents, as a JSON object string: the stored
@@ -4338,6 +4510,125 @@ static TOKEN_AT_LAUNCH: crate::log_streak::Streak =
 static FINGERPRINT_VIEWS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, String>>> =
   std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
 
+/// What the create dialog's screen choice holds. Locked while sizes are read,
+/// so a second reader, or a creation that wants the helper, waits for that
+/// browser instead of starting another one.
+#[derive(Default)]
+struct ScreenChoice {
+  /// The sizes of each Wayfern version read so far; `None` for a version
+  /// without the choice.
+  known: HashMap<String, Option<ScreensByOs>>,
+  /// The browser that read them, kept for the creation that follows.
+  helper: Option<ScreenHelper>,
+  kept: u64,
+}
+
+struct ScreenHelper {
+  version: String,
+  id: u64,
+  session: HeadlessWayfern,
+}
+
+impl ScreenChoice {
+  /// Keep `session` as the helper and stop it after `SCREEN_HELPER_IDLE`
+  /// unless a creation takes it first. Returns the helper it replaces.
+  fn keep(&mut self, version: &str, session: HeadlessWayfern) -> Option<HeadlessWayfern> {
+    self.kept += 1;
+    let id = self.kept;
+    tauri::async_runtime::spawn(async move {
+      tokio::time::sleep(SCREEN_HELPER_IDLE).await;
+      release_screen_helper(Some(id)).await;
+    });
+    self
+      .helper
+      .replace(ScreenHelper {
+        version: version.to_string(),
+        id,
+        session,
+      })
+      .map(|helper| helper.session)
+  }
+}
+
+static SCREEN_CHOICE: std::sync::LazyLock<AsyncMutex<ScreenChoice>> =
+  std::sync::LazyLock::new(|| AsyncMutex::new(ScreenChoice::default()));
+
+/// How long the helper waits for a creation once the sizes are read.
+const SCREEN_HELPER_IDLE: Duration = Duration::from_secs(5 * 60);
+
+/// The helper browser for a creation on `version`, when one runs. Waits for
+/// sizes being read. A helper of another version is stopped, so a creation
+/// never runs beside it.
+pub(crate) async fn take_screen_helper(version: &str) -> Option<HeadlessWayfern> {
+  let helper = SCREEN_CHOICE.lock().await.helper.take()?;
+  let mut session = helper.session;
+  if helper.version == version && session.is_running() {
+    return Some(session);
+  }
+  session.stop().await;
+  None
+}
+
+/// Stop the helper browser; with `only`, only while it is still that one.
+pub async fn release_screen_helper(only: Option<u64>) {
+  let helper = {
+    let mut choice = SCREEN_CHOICE.lock().await;
+    match (&choice.helper, only) {
+      (Some(helper), Some(id)) if helper.id != id => None,
+      _ => choice.helper.take(),
+    }
+  };
+  if let Some(helper) = helper {
+    helper.session.stop().await;
+  }
+}
+
+/// At exit: stop the helper unless sizes are being read right now.
+pub fn release_screen_helper_at_exit() {
+  let helper = SCREEN_CHOICE
+    .try_lock()
+    .ok()
+    .and_then(|mut choice| choice.helper.take());
+  if let Some(helper) = helper {
+    tauri::async_runtime::block_on(helper.session.stop());
+  }
+}
+
+/// The first `Wayfern.getScreenOptions` of a browser reads its whole catalog.
+const SCREEN_OPTIONS_LIMIT: Duration = Duration::from_secs(30);
+
+/// The sizes of a `Wayfern.getScreenOptions` reply, in its order.
+fn screen_options_of(reply: &serde_json::Value) -> Vec<ScreenSize> {
+  reply
+    .get("options")
+    .and_then(serde_json::Value::as_array)
+    .map(|options| {
+      options
+        .iter()
+        .filter_map(|option| serde_json::from_value::<ScreenSize>(option.clone()).ok())
+        .collect()
+    })
+    .unwrap_or_default()
+}
+
+/// The screens a new profile can claim on `version` for `os`, most common
+/// first; `None` when there is no choice to offer.
+#[tauri::command]
+pub async fn get_wayfern_screen_options(
+  version: String,
+  os: String,
+) -> Result<Option<Vec<ScreenSize>>, String> {
+  WayfernManager::instance()
+    .screen_options(&version, &os)
+    .await
+}
+
+/// The create dialog closed: its helper browser has nothing left to do.
+#[tauri::command]
+pub async fn release_wayfern_screen_helper() {
+  release_screen_helper(None).await;
+}
+
 static WAYFERN_MANAGER: std::sync::LazyLock<WayfernManager> =
   std::sync::LazyLock::new(WayfernManager::new);
 
@@ -4375,6 +4666,110 @@ fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (u8, u8, u8) {
   let m = l - c / 2.0;
   let to_u8 = |v: f64| ((v + m) * 255.0).round().clamp(0.0, 255.0) as u8;
   (to_u8(r1), to_u8(g1), to_u8(b1))
+}
+
+#[cfg(test)]
+mod screen_tests {
+  use super::*;
+
+  #[test]
+  fn a_chosen_screen_goes_to_the_mint_of_a_desktop_claim_only() {
+    let screen = Some(ScreenSize {
+      width: 1920,
+      height: 1080,
+    });
+    let mut params = json!({ "operatingSystem": "windows" });
+    add_screen(&mut params, screen, "windows");
+    assert_eq!(
+      params,
+      json!({ "operatingSystem": "windows", "screenWidth": 1920, "screenHeight": 1080 })
+    );
+    for os in ["android", "ios"] {
+      let mut params = json!({ "operatingSystem": os });
+      add_screen(&mut params, screen, os);
+      assert_eq!(params, json!({ "operatingSystem": os }));
+    }
+    let mut params = json!({ "operatingSystem": "linux" });
+    add_screen(&mut params, None, "linux");
+    assert_eq!(params, json!({ "operatingSystem": "linux" }));
+  }
+
+  #[test]
+  fn the_screen_choice_is_read_but_never_stored() {
+    let config: WayfernConfig = serde_json::from_value(json!({
+      "os": "macos",
+      "screen": { "width": 1512, "height": 982 }
+    }))
+    .unwrap();
+    assert_eq!(
+      config.screen,
+      Some(ScreenSize {
+        width: 1512,
+        height: 982
+      })
+    );
+    let stored = serde_json::to_value(&config).unwrap();
+    assert!(stored.get("screen").is_none());
+    assert!(serde_json::from_value::<WayfernConfig>(json!({ "screen": { "width": 1 } })).is_err());
+  }
+
+  #[test]
+  fn screen_options_keep_the_browsers_order_and_drop_bad_rows() {
+    let reply = json!({ "options": [
+      { "width": 1920, "height": 1080, "share": 0.4 },
+      { "width": 1366 },
+      { "width": 2560, "height": 1440, "share": 0.1 },
+    ] });
+    assert_eq!(
+      screen_options_of(&reply),
+      vec![
+        ScreenSize {
+          width: 1920,
+          height: 1080
+        },
+        ScreenSize {
+          width: 2560,
+          height: 1440
+        },
+      ]
+    );
+    assert!(screen_options_of(&json!({})).is_empty());
+  }
+
+  #[test]
+  fn a_browser_without_the_screen_choice_is_told_apart_by_its_code() {
+    assert!(cdp_error_is_unknown_method(
+      r#"CDP error: {"code":-32601,"message":"'Wayfern.getScreenOptions' wasn't found"}"#
+    ));
+    assert!(!cdp_error_is_unknown_method(
+      r#"CDP error: {"code":-32602,"message":"Invalid operating system"}"#
+    ));
+    assert!(!cdp_error_is_unknown_method("wasn't found"));
+    assert!(has_screen_choice("macos") && !has_screen_choice("ios"));
+  }
+
+  #[test]
+  fn screen_refusals_have_their_own_codes() {
+    let code = |message: &str| {
+      let detail = format!(
+        "CDP error: {}",
+        json!({ "code": -32602, "message": message })
+      );
+      let coded = wayfern_failure(&detail, "WAYFERN_FINGERPRINT_GENERATION_FAILED", None);
+      serde_json::from_str::<serde_json::Value>(&coded).unwrap()["code"]
+        .as_str()
+        .unwrap()
+        .to_string()
+    };
+    assert_eq!(
+      code("Screen 1000x700 is not one a windows identity can have at this catalog epoch; nearest: 1024x768. Wayfern.getScreenOptions lists them."),
+      "WAYFERN_SCREEN_NOT_OFFERED"
+    );
+    assert_eq!(
+      code("No fresh identity with that screen was found; retry"),
+      "WAYFERN_SCREEN_NOT_FOUND"
+    );
+  }
 }
 
 #[cfg(test)]

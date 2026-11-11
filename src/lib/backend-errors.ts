@@ -351,6 +351,9 @@ export type BackendErrorCode =
   | "PROFILE_GENERATION_LIMIT_REACHED"
   | "WAYFERN_BROWSER_BUSY"
   | "WAYFERN_BROWSER_EXITED"
+  | "WAYFERN_SCREEN_NOT_OFFERED"
+  | "WAYFERN_SCREEN_NOT_FOUND"
+  | "WAYFERN_SCREEN_OPTIONS_FAILED"
   | "PROFILE_EXPORT_FAILED"
   | "PROFILE_EXPORT_TOO_LARGE"
   | "PROFILE_IMPORT_FAILED"
@@ -1247,6 +1250,14 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.wayfernBrowserBusy");
     case "WAYFERN_BROWSER_EXITED":
       return t("backendErrors.wayfernBrowserExited", {
+        detail: parsed.params?.detail ?? "",
+      });
+    case "WAYFERN_SCREEN_NOT_OFFERED":
+      return t("backendErrors.wayfernScreenNotOffered");
+    case "WAYFERN_SCREEN_NOT_FOUND":
+      return t("backendErrors.wayfernScreenNotFound");
+    case "WAYFERN_SCREEN_OPTIONS_FAILED":
+      return t("backendErrors.wayfernScreenOptionsFailed", {
         detail: parsed.params?.detail ?? "",
       });
     case "PROFILE_EXPORT_FAILED":

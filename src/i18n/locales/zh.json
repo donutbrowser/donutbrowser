@@ -624,6 +624,14 @@
     },
     "group": {
       "notFound": "未找到分组。"
+    },
+    "screen": {
+      "label": "屏幕尺寸",
+      "any": "任意",
+      "anyScreen": "任意屏幕",
+      "size": "{{width}} × {{height}}",
+      "search": "搜索屏幕尺寸...",
+      "notFound": "未找到屏幕尺寸。"
     }
   },
   "deleteDialog": {
@@ -2764,6 +2772,9 @@
     "profileGenerationLimitReached": "过去一小时内你已创建 {{limit}} 个配置文件，已达当前套餐上限。请等待约 {{minutes}} 分钟后再创建。",
     "wayfernBrowserBusy": "浏览器正忙于应用指纹。请重试。",
     "wayfernBrowserExited": "浏览器在启动过程中关闭了。{{detail}}",
+    "wayfernScreenNotOffered": "此浏览器版本无法用该屏幕尺寸创建配置文件。请选择其他尺寸或“任意”。",
+    "wayfernScreenNotFound": "未找到该屏幕尺寸的设备。请重试，或选择“任意”。",
+    "wayfernScreenOptionsFailed": "无法读取屏幕尺寸。{{detail}}",
     "profileExportFailed": "无法导出此配置文件。{{detail}}",
     "profileExportTooLarge": "此配置文件太大，无法导出。请清理部分浏览数据后重试。",
     "profileImportFailed": "无法读取此存档。{{detail}}",

@@ -624,6 +624,14 @@
     },
     "group": {
       "notFound": "그룹을 찾을 수 없습니다."
+    },
+    "screen": {
+      "label": "화면 크기",
+      "any": "모두",
+      "anyScreen": "모든 화면",
+      "size": "{{width}} × {{height}}",
+      "search": "화면 크기 검색...",
+      "notFound": "화면 크기를 찾을 수 없습니다."
     }
   },
   "deleteDialog": {
@@ -2764,6 +2772,9 @@
     "profileGenerationLimitReached": "지난 1시간 동안 프로필 {{limit}}개를 만들었습니다. 현재 요금제의 한도입니다. 약 {{minutes}}분 후에 다시 시도하세요.",
     "wayfernBrowserBusy": "브라우저가 지문을 적용하는 중이었습니다. 다시 시도하세요.",
     "wayfernBrowserExited": "브라우저가 시작되는 도중에 종료되었습니다. {{detail}}",
+    "wayfernScreenNotOffered": "이 브라우저 버전으로는 해당 화면 크기의 프로필을 만들 수 없습니다. 다른 크기나 모두를 선택하세요.",
+    "wayfernScreenNotFound": "해당 화면 크기의 기기를 찾지 못했습니다. 다시 시도하거나 모두를 선택하세요.",
+    "wayfernScreenOptionsFailed": "화면 크기를 읽을 수 없습니다. {{detail}}",
     "profileExportFailed": "이 프로필을 내보낼 수 없습니다. {{detail}}",
     "profileExportTooLarge": "이 프로필은 너무 커서 내보낼 수 없습니다. 검색 데이터를 일부 지우고 다시 시도하세요.",
     "profileImportFailed": "이 아카이브를 읽을 수 없습니다. {{detail}}",

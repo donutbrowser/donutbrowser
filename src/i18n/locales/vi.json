@@ -624,6 +624,14 @@
     },
     "group": {
       "notFound": "Không tìm thấy nhóm."
+    },
+    "screen": {
+      "label": "Kích thước màn hình",
+      "any": "Bất kỳ",
+      "anyScreen": "Màn hình bất kỳ",
+      "size": "{{width}} × {{height}}",
+      "search": "Tìm kích thước màn hình...",
+      "notFound": "Không tìm thấy kích thước màn hình."
     }
   },
   "deleteDialog": {
@@ -2764,6 +2772,9 @@
     "profileGenerationLimitReached": "Bạn đã tạo {{limit}} hồ sơ trong giờ qua, đây là giới hạn của gói hiện tại. Hãy đợi khoảng {{minutes}} phút trước khi tạo hồ sơ tiếp theo.",
     "wayfernBrowserBusy": "Trình duyệt đang bận áp dụng dấu vân tay. Hãy thử lại.",
     "wayfernBrowserExited": "Trình duyệt đã đóng khi đang khởi động. {{detail}}",
+    "wayfernScreenNotOffered": "Phiên bản trình duyệt này không thể tạo hồ sơ với kích thước màn hình đó. Hãy chọn kích thước khác hoặc Bất kỳ.",
+    "wayfernScreenNotFound": "Không tìm thấy thiết bị có kích thước màn hình đó. Hãy thử lại hoặc chọn Bất kỳ.",
+    "wayfernScreenOptionsFailed": "Không thể đọc kích thước màn hình. {{detail}}",
     "profileExportFailed": "Không thể xuất hồ sơ này. {{detail}}",
     "profileExportTooLarge": "Hồ sơ này quá lớn để xuất. Hãy xóa bớt dữ liệu duyệt web rồi thử lại.",
     "profileImportFailed": "Không thể đọc tệp lưu trữ này. {{detail}}",

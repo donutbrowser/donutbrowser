@@ -624,6 +624,14 @@
     },
     "group": {
       "notFound": "No groups found."
+    },
+    "screen": {
+      "label": "Screen size",
+      "any": "Any",
+      "anyScreen": "Any screen",
+      "size": "{{width}} × {{height}}",
+      "search": "Search screen sizes...",
+      "notFound": "No screen size found."
     }
   },
   "deleteDialog": {
@@ -2764,6 +2772,9 @@
     "profileGenerationLimitReached": "You have created {{limit}} profiles in the last hour, which is the limit on your plan. Wait about {{minutes}} minutes before creating another one.",
     "wayfernBrowserBusy": "The browser was busy applying a fingerprint. Try again.",
     "wayfernBrowserExited": "The browser closed while starting. {{detail}}",
+    "wayfernScreenNotOffered": "This browser version cannot make a profile with that screen size. Choose another size or Any.",
+    "wayfernScreenNotFound": "No device with that screen size was found. Try again, or choose Any.",
+    "wayfernScreenOptionsFailed": "Could not read the screen sizes. {{detail}}",
     "profileExportFailed": "This profile could not be exported. {{detail}}",
     "profileExportTooLarge": "This profile is too large to export. Clear some of its browsing data and try again.",
     "profileImportFailed": "This archive could not be read. {{detail}}",

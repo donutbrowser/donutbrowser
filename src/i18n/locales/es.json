@@ -625,6 +625,14 @@
     },
     "group": {
       "notFound": "No se encontraron grupos."
+    },
+    "screen": {
+      "label": "Tamaño de pantalla",
+      "any": "Cualquiera",
+      "anyScreen": "Cualquier pantalla",
+      "size": "{{width}} × {{height}}",
+      "search": "Buscar tamaños de pantalla...",
+      "notFound": "No se encontró ningún tamaño de pantalla."
     }
   },
   "deleteDialog": {
@@ -2783,6 +2791,9 @@
     "profileGenerationLimitReached": "Has creado {{limit}} perfiles en la última hora, el límite de tu plan. Espera unos {{minutes}} minutos antes de crear otro.",
     "wayfernBrowserBusy": "El navegador estaba ocupado aplicando una huella digital. Inténtalo de nuevo.",
     "wayfernBrowserExited": "El navegador se cerró mientras se iniciaba. {{detail}}",
+    "wayfernScreenNotOffered": "Esta versión del navegador no puede crear un perfil con ese tamaño de pantalla. Elige otro tamaño o Cualquiera.",
+    "wayfernScreenNotFound": "No se encontró ningún dispositivo con ese tamaño de pantalla. Inténtalo de nuevo o elige Cualquiera.",
+    "wayfernScreenOptionsFailed": "No se pudieron leer los tamaños de pantalla. {{detail}}",
     "profileExportFailed": "No se pudo exportar este perfil. {{detail}}",
     "profileExportTooLarge": "Este perfil es demasiado grande para exportarlo. Borra parte de sus datos de navegación e inténtalo de nuevo.",
     "profileImportFailed": "No se pudo leer este archivo. {{detail}}",

@@ -21,6 +21,7 @@ import {
   LuLock,
   LuLockOpen,
   LuMinus,
+  LuMonitor,
   LuPlus,
   LuShieldCheck,
   LuTrash2,
@@ -98,6 +99,7 @@ import type {
   BrowserReleaseTypes,
   BulkCreateResult,
   ProfileTemplate,
+  ScreenSize,
   TemplateSettings,
   WayfernConfig,
   WayfernOS,
@@ -108,6 +110,10 @@ const PASSWORD_MIN_LEN = 8;
 const MAX_BULK_CREATE = 100;
 
 const OS_OPTIONS: WayfernOS[] = ["windows", "macos", "linux", "android", "ios"];
+/** The claims whose screen can be chosen; a phone's screen follows its model. */
+const SCREEN_CHOICE_OS: WayfernOS[] = ["windows", "macos", "linux"];
+/** More screens than this get a search field. */
+const SCREEN_SEARCH_FROM = 8;
 
 const getCurrentOS = (): WayfernOS => {
   if (typeof navigator === "undefined") return "linux";
@@ -650,6 +656,22 @@ export function CreateProfileDialog({
     [],
   );
 
+  const chooseScreen = useCallback((screen: ScreenSize | undefined) => {
+    setWayfernConfig((previous) => {
+      if (sameScreen(previous.screen, screen)) return previous;
+      // A fingerprint made in advance has its own screen, so the new choice
+      // makes the profile mint its identity again.
+      return {
+        ...previous,
+        screen,
+        identity_id: undefined,
+        location: undefined,
+        fingerprint: undefined,
+        identity_overrides: undefined,
+      };
+    });
+  }, []);
+
   const animateEntry = motionAllowed;
   const rise = (delay: number) =>
     animateEntry
@@ -835,7 +857,14 @@ export function CreateProfileDialog({
                             value={os}
                             disabled={locked}
                             onSelect={() => {
-                              updateWayfernConfig("os", os);
+                              setWayfernConfig((previous) => ({
+                                ...previous,
+                                os,
+                                screen:
+                                  previous.os === os
+                                    ? previous.screen
+                                    : undefined,
+                              }));
                               setOsPopoverOpen(false);
                             }}
                           >
@@ -862,6 +891,16 @@ export function CreateProfileDialog({
                 </Command>
               </PopoverContent>
             </Popover>
+            {creatableVersion && SCREEN_CHOICE_OS.includes(selectedOs) && (
+              <ScreenPicker
+                version={creatableVersion}
+                os={selectedOs}
+                screen={wayfernConfig.screen}
+                onChange={chooseScreen}
+                disabled={isCreating}
+                animate={animateEntry}
+              />
+            )}
           </motion.div>
 
           <motion.div className="flex items-center gap-1.5" {...rise(0.04)}>
@@ -1635,6 +1674,166 @@ export function CreateProfileDialog({
         onClose={() => setShowProxyForm(false)}
       />
     </Dialog>
+  );
+}
+
+function sameScreen(a: ScreenSize | undefined, b: ScreenSize | undefined) {
+  return a?.width === b?.width && a?.height === b?.height;
+}
+
+/**
+ * The screen a new identity claims, from the sizes the browser lists for the
+ * claim, most common first. Not shown when the browser has no such list.
+ */
+function ScreenPicker({
+  version,
+  os,
+  screen,
+  onChange,
+  disabled,
+  animate,
+}: {
+  version: string;
+  os: WayfernOS;
+  screen: ScreenSize | undefined;
+  onChange: (screen: ScreenSize | undefined) => void;
+  disabled: boolean;
+  animate: boolean;
+}) {
+  const { t } = useTranslation();
+  const labelId = useId();
+  const valueId = useId();
+  const listboxId = useId();
+  const [open, setOpen] = useState(false);
+  const key = `${version}|${os}`;
+  // `null`: the browser lists no sizes, or could not list them.
+  const [loaded, setLoaded] = useState<{
+    key: string;
+    sizes: ScreenSize[] | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let current = true;
+    invoke<ScreenSize[] | null>("get_wayfern_screen_options", { version, os })
+      .then((sizes) => {
+        if (current) setLoaded({ key: `${version}|${os}`, sizes });
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to read the screen sizes:", error);
+        if (current) setLoaded({ key: `${version}|${os}`, sizes: null });
+      });
+    return () => {
+      current = false;
+    };
+  }, [version, os]);
+
+  // The browser that read the sizes waits for this dialog's creation; once
+  // the picker is gone it has nothing left to do.
+  useEffect(
+    () => () => {
+      void invoke("release_wayfern_screen_helper").catch((error: unknown) => {
+        console.error("Failed to release the screen size browser:", error);
+      });
+    },
+    [],
+  );
+
+  const sizes = loaded?.key === key ? loaded.sizes : undefined;
+  const loading = sizes === undefined;
+  const offered = !screen || !!sizes?.some((size) => sameScreen(size, screen));
+
+  // A size this browser does not list is no choice at all.
+  useEffect(() => {
+    if (!loading && !offered) onChange(undefined);
+  }, [loading, offered, onChange]);
+
+  if (sizes === null) return null;
+
+  const sizeLabel = (size: ScreenSize) =>
+    t("createProfile.screen.size", {
+      width: size.width,
+      height: size.height,
+    });
+
+  return (
+    <>
+      <span id={labelId} className="sr-only">
+        {t("createProfile.screen.label")}
+      </span>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            id="profile-screen"
+            type="button"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listboxId}
+            aria-labelledby={`${labelId} ${valueId}`}
+            aria-busy={loading}
+            className={cn(optionPill(!!screen), "shrink-0")}
+            disabled={disabled || loading}
+          >
+            <PillIcon on={!!screen} animate={animate}>
+              {loading ? (
+                <LuLoaderCircle className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                <LuMonitor />
+              )}
+            </PillIcon>
+            <PillLabel
+              id={valueId}
+              label={
+                screen ? sizeLabel(screen) : t("createProfile.screen.anyScreen")
+              }
+              animate={animate}
+            />
+            <LuChevronDown
+              className={cn(
+                "-mr-0.5 opacity-60 transition-transform duration-200 motion-reduce:transition-none",
+                open && "rotate-180",
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-52 p-0" align="end" sideOffset={6}>
+          <Command>
+            {(sizes?.length ?? 0) > SCREEN_SEARCH_FROM && (
+              <CommandInput placeholder={t("createProfile.screen.search")} />
+            )}
+            <CommandList id={listboxId}>
+              <CommandEmpty>{t("createProfile.screen.notFound")}</CommandEmpty>
+              <CommandGroup heading={t("createProfile.screen.label")}>
+                {[undefined, ...(sizes ?? [])].map((size) => (
+                  <CommandItem
+                    key={size ? `${size.width}x${size.height}` : "any"}
+                    value={size ? `${size.width}x${size.height}` : "__any__"}
+                    keywords={[
+                      size ? sizeLabel(size) : t("createProfile.screen.any"),
+                    ]}
+                    onSelect={() => {
+                      onChange(size);
+                      setOpen(false);
+                    }}
+                  >
+                    <LuCheck
+                      className={cn(
+                        "size-4 shrink-0",
+                        sameScreen(size, screen) ? "opacity-100" : "opacity-0",
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span className="truncate tabular-nums">
+                      {size ? sizeLabel(size) : t("createProfile.screen.any")}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </>
   );
 }
 

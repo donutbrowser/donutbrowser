@@ -3707,6 +3707,8 @@ pub fn run_with_builder(
       import_proxies_from_parsed,
       update_wayfern_config,
       generate_sample_fingerprint,
+      wayfern_manager::get_wayfern_screen_options,
+      wayfern_manager::release_wayfern_screen_helper,
       get_profile_fingerprint,
       get_profile_groups,
       get_groups_with_profile_counts,
@@ -3983,6 +3985,7 @@ pub fn run_with_builder(
         mcp_remote::stop(None);
         tauri::async_runtime::block_on(discard_stale_ephemeral_dirs());
         ephemeral_dirs::detach_unused_ram_disk();
+        wayfern_manager::release_screen_helper_at_exit();
         log::info!("Donut exiting {}", process_report::summary());
         tauri::async_runtime::block_on(
           team_lock::PROFILE_LOCK.release_all_held_within(team_lock::SHUTDOWN_RELEASE_TIMEOUT),

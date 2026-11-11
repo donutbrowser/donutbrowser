@@ -624,6 +624,14 @@
     },
     "group": {
       "notFound": "グループが見つかりません。"
+    },
+    "screen": {
+      "label": "画面サイズ",
+      "any": "指定なし",
+      "anyScreen": "画面サイズ指定なし",
+      "size": "{{width}} × {{height}}",
+      "search": "画面サイズを検索...",
+      "notFound": "画面サイズが見つかりません。"
     }
   },
   "deleteDialog": {
@@ -2764,6 +2772,9 @@
     "profileGenerationLimitReached": "過去1時間に{{limit}}件のプロファイルを作成しました。これはご利用プランの上限です。次の作成まで約{{minutes}}分お待ちください。",
     "wayfernBrowserBusy": "ブラウザーがフィンガープリントを適用中でした。もう一度お試しください。",
     "wayfernBrowserExited": "ブラウザーが起動中に終了しました。{{detail}}",
+    "wayfernScreenNotOffered": "このブラウザーのバージョンでは、その画面サイズのプロファイルを作成できません。別のサイズか「指定なし」を選んでください。",
+    "wayfernScreenNotFound": "その画面サイズのデバイスが見つかりませんでした。もう一度試すか、「指定なし」を選んでください。",
+    "wayfernScreenOptionsFailed": "画面サイズを読み込めませんでした。{{detail}}",
     "profileExportFailed": "このプロファイルを書き出せませんでした。{{detail}}",
     "profileExportTooLarge": "このプロファイルは大きすぎて書き出せません。閲覧データを一部消してからもう一度お試しください。",
     "profileImportFailed": "このアーカイブを読み取れませんでした。{{detail}}",
