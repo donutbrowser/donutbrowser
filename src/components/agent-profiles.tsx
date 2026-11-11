@@ -118,7 +118,7 @@ export function AgentProfiles({
   return (
     <div
       data-testid="agent-profiles"
-      className="flex min-h-0 flex-1 flex-col gap-3"
+      className="@container flex min-h-0 min-w-0 flex-1 flex-col gap-3"
     >
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         <Label htmlFor={searchId} className="sr-only">
@@ -213,18 +213,23 @@ export function AgentProfiles({
                 <TableHead
                   className={cn(
                     DATA_TABLE_CLASSES.head,
-                    "hidden @2xl:table-cell",
+                    "hidden @4xl:table-cell",
                   )}
                 >
                   {t("agent.profiles.columns.agent")}
                 </TableHead>
-                <TableHead className={DATA_TABLE_CLASSES.head}>
+                <TableHead
+                  className={cn(
+                    DATA_TABLE_CLASSES.head,
+                    "hidden @2xl:table-cell",
+                  )}
+                >
                   {t("agent.profiles.columns.lastAction")}
                 </TableHead>
                 <TableHead
                   className={cn(
                     DATA_TABLE_CLASSES.head,
-                    "hidden @xl:table-cell",
+                    "hidden @3xl:table-cell",
                   )}
                 >
                   {t("agent.profiles.columns.result")}
@@ -232,7 +237,7 @@ export function AgentProfiles({
                 <TableHead
                   className={cn(
                     DATA_TABLE_CLASSES.head,
-                    "hidden @xl:table-cell",
+                    "hidden @3xl:table-cell",
                   )}
                 >
                   {t("agent.profiles.columns.when")}
@@ -289,7 +294,7 @@ export function AgentProfiles({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="hidden max-w-40 truncate text-xs text-muted-foreground @2xl:table-cell">
+                    <TableCell className="hidden max-w-40 truncate text-xs text-muted-foreground @4xl:table-cell">
                       {row.session_id
                         ? sessionLabel(
                             sessionsById.get(row.session_id),
@@ -298,7 +303,7 @@ export function AgentProfiles({
                           )
                         : "—"}
                     </TableCell>
-                    <TableCell className="max-w-64">
+                    <TableCell className="hidden max-w-64 @2xl:table-cell">
                       {row.last ? (
                         <span className="flex min-w-0 items-center gap-2 text-xs">
                           <span className="shrink-0 font-mono text-foreground">
@@ -314,7 +319,7 @@ export function AgentProfiles({
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="hidden text-xs @xl:table-cell">
+                    <TableCell className="hidden text-xs @3xl:table-cell">
                       {row.last ? (
                         row.last.ok ? (
                           <span className="text-success-text">
@@ -329,7 +334,7 @@ export function AgentProfiles({
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="hidden text-xs tabular-nums text-muted-foreground @xl:table-cell">
+                    <TableCell className="hidden text-xs tabular-nums text-muted-foreground @3xl:table-cell">
                       <time dateTime={new Date(row.at).toISOString()}>
                         {relative(row.at, now)}
                       </time>
@@ -341,6 +346,11 @@ export function AgentProfiles({
                       >
                         {t(`agent.profiles.state.${row.state}`)}
                       </Badge>
+                      {row.last && !row.last.ok && row.last.error_code && (
+                        <span className="mt-0.5 block truncate font-mono text-[11px] text-destructive-text @3xl:hidden">
+                          {row.last.error_code}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
