@@ -425,6 +425,18 @@ function startFixtureServer(geoIpFixture, geoIpAsnFixture) {
       });
       return;
     }
+    // A file the browser saves instead of showing, for the download tools.
+    if (url.pathname.startsWith("/download/")) {
+      const body = Buffer.from("Donut download\n");
+      response.writeHead(200, {
+        "content-type": "application/octet-stream",
+        "content-disposition": `attachment; filename="${path.basename(url.pathname)}"`,
+        "content-length": String(body.length),
+        "cache-control": "no-store",
+      });
+      response.end(body);
+      return;
+    }
     if (url.pathname.startsWith("/dns/")) {
       response.writeHead(200, {
         "content-type": "text/plain; charset=utf-8",

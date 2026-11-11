@@ -200,7 +200,7 @@ async function mcpClient(base, token, profileId) {
     protocolVersion: "2025-06-18",
     clientInfo: { name: "Donut E2E", version: "1" },
   });
-  return { mcp, tool, toolJson, toolError };
+  return { mcp, call, tool, toolJson, toolError };
 }
 
 /** `fingerprint` is the serialised fingerprint STRING, or null for a fresh one. */
@@ -397,12 +397,63 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
     assert.equal(await app.invoke("is_geoip_database_available"), true);
     assert.equal(await app.invoke("check_missing_geoip_database"), false);
 
+    // The screen sizes a new identity can claim; a phone's screen follows its
+    // model.
+    const hostOs =
+      { darwin: "macos", win32: "windows" }[process.platform] ?? "linux";
+    const screens = await app.invoke("get_wayfern_screen_options", {
+      version: prepared.version,
+      os: hostOs,
+    });
+    assert.equal(
+      await app.invoke("get_wayfern_screen_options", {
+        version: prepared.version,
+        os: "android",
+      }),
+      null,
+    );
+    assert.ok(
+      Array.isArray(screens) && screens.length > 0,
+      `the published browser lists screen sizes: ${JSON.stringify(screens)}`,
+    );
+    for (const size of screens) {
+      assert.deepEqual(Object.keys(size).sort(), ["height", "width"]);
+      assert.ok(Number.isInteger(size.width) && size.width > 0);
+      assert.ok(Number.isInteger(size.height) && size.height > 0);
+    }
+
     // The new-profile form (which needs a downloaded browser and its release
     // types, so it renders here and not in the UI suite): session restore is
     // on by default and the checkbox is a live control. It sits under the
     // collapsed advanced options.
     await app.clickSelector('[aria-label="Profiles"]');
     await app.clickText("New");
+    const screenPill = () =>
+      app.execute(
+        `const pill = document.querySelector("[role='dialog'] #profile-screen");
+         return pill ? { busy: pill.getAttribute("aria-busy"), text: pill.textContent } : null;`,
+      );
+    await app.waitFor(async () => (await screenPill())?.busy === "false", {
+      description: "the screen picker with its sizes",
+    });
+    assert.equal((await screenPill()).text, en.createProfile.screen.anyScreen);
+    await app.clickSelector("#profile-screen");
+    const firstScreen = en.createProfile.screen.size
+      .replace("{{width}}", String(screens[0].width))
+      .replace("{{height}}", String(screens[0].height));
+    await app.clickText(firstScreen, { roles: ["option"] });
+    await app.waitFor(async () => (await screenPill())?.text === firstScreen, {
+      description: "the chosen screen on the picker",
+    });
+    // The closed menu must be gone before the next key: a hidden window runs
+    // the end of its exit late, and until then it takes Escape.
+    await app.waitFor(
+      () =>
+        app.execute(
+          `return !document.querySelector('[data-slot="popover-content"]');`,
+        ),
+      { description: "the screen menu to close" },
+    );
     await app.clickText(en.createProfile.advancedOptions, {
       roles: ["button"],
     });
@@ -429,6 +480,38 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
           `return !document.querySelector("[role='dialog'] #restore-session");`,
         ),
       { description: "the new-profile dialog to close" },
+    );
+    // Closing the form lets its helper browser go; a second release is a no-op.
+    await app.invoke("release_wayfern_screen_helper");
+    // The chosen screen is the one the minted identity claims. The second
+    // most common size, when there is one, so the default cannot pass.
+    const chosen = screens[1] ?? screens[0];
+    const minted = JSON.parse(
+      (
+        await app.invoke("generate_sample_fingerprint", {
+          browser: "wayfern",
+          version: prepared.version,
+          configJson: JSON.stringify({
+            geoip: false,
+            os: hostOs,
+            screen: chosen,
+          }),
+        })
+      ).fingerprint,
+    );
+    assert.equal(minted.screenWidth, chosen.width);
+    assert.equal(minted.screenHeight, chosen.height);
+    assert.match(
+      await app.invokeError("generate_sample_fingerprint", {
+        browser: "wayfern",
+        version: prepared.version,
+        configJson: JSON.stringify({
+          geoip: false,
+          os: hostOs,
+          screen: { width: 1001, height: 703 },
+        }),
+      }),
+      /WAYFERN_SCREEN_NOT_OFFERED/,
     );
 
     await app.invoke("update_wayfern_config", {
@@ -844,7 +927,7 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
 
     // The MCP browser tools, through the engine an agent reaches over the
     // remote bridge. Each action says where the page is afterwards.
-    const { mcp, tool, toolJson, toolError } = await mcpClient(
+    const { mcp, call, tool, toolJson, toolError } = await mcpClient(
       base,
       saved.api_token,
       profile.id,
@@ -1061,6 +1144,91 @@ test("real Wayfern fingerprinting, terms, API automation, CDP, cookies, and proc
       ],
     });
     assert.match(oneFileOnly.message, /takes one file/);
+
+    // Downloads: what the page saved, without a path on this computer.
+    const firstList = await call("list_downloads", {});
+    assert.equal(firstList.error, undefined, JSON.stringify(firstList));
+    const firstDownloads = JSON.parse(firstList.result.content[0].text);
+    assert.deepEqual(Object.keys(firstDownloads).sort(), [
+      "awaiting",
+      "downloads",
+      "truncated",
+    ]);
+    await cdp.evaluate(`(() => {
+      const link = document.createElement('a');
+      link.href = '/download/donut-report.bin';
+      link.download = 'donut-report.bin';
+      document.body.append(link);
+      link.click();
+    })()`);
+    let lastListed = null;
+    const listedWhere = async (match, description) =>
+      app
+        .waitFor(
+          async () => {
+            lastListed = await toolJson("list_downloads");
+            return lastListed.downloads.find(match) ?? null;
+          },
+          { timeoutMs: 15_000, description },
+        )
+        .catch((error) => {
+          throw new Error(`${error.message}: ${JSON.stringify(lastListed)}`);
+        });
+    const started = await listedWhere(
+      (download) => download.file_name === "donut-report.bin",
+      "the started download",
+    );
+    // The browser asks where to save and waits for that answer; the agent
+    // gives it as a name, and the file goes in the suggested folder.
+    assert.equal(started.awaiting, "location", JSON.stringify(started));
+    assert.equal(lastListed.awaiting, 1, JSON.stringify(lastListed));
+    assert.deepEqual(
+      (await toolJson("list_downloads", { awaiting_only: true })).downloads.map(
+        (download) => download.id,
+      ),
+      [started.id],
+    );
+    const decided = await tool("confirm_download", {
+      id: started.id,
+      accept: true,
+      file_name: "donut-saved.bin",
+    });
+    assert.match(decided.text, /list_downloads/);
+    const finished = await listedWhere(
+      (download) =>
+        download.id === started.id && download.state === "completed",
+      "the saved download",
+    );
+    assert.equal(finished.file_name, "donut-saved.bin");
+    assert.equal(finished.received_bytes, 15);
+    assert.equal(typeof finished.tab_id, "string");
+    assert.equal(finished.awaiting, undefined);
+    for (const key of Object.keys(finished)) {
+      assert.ok(
+        [
+          "id",
+          "url",
+          "file_name",
+          "state",
+          "received_bytes",
+          "total_bytes",
+          "tab_id",
+        ].includes(key),
+        `${key} must not reach the agent`,
+      );
+    }
+    const nothingToDecide = await call("confirm_download", {
+      id: finished.id,
+      accept: true,
+    });
+    assert.ok(nothingToDecide.error, JSON.stringify(nothingToDecide));
+    assert.equal(nothingToDecide.error.data, undefined);
+    const pathRefused = await call("confirm_download", {
+      id: "none",
+      accept: true,
+      file_name: "../escape.bin",
+    });
+    assert.equal(pathRefused.error?.code, -32602, JSON.stringify(pathRefused));
 
     // Network capture: what the page fetches, with its bodies and without its
     // credentials, and nothing while the person holds the profile.
@@ -2019,13 +2187,15 @@ test("MCP answers native dialogs and types into a background tab", async (t) => 
     );
     assert.equal(front.status, 200);
     await tool("navigate", { url: `${fixtureUrl}/mcp-dialogs?again` });
+    // A tab an agent drives stays a foreground page behind the other tab, so
+    // it reads visible and its timers keep running.
     assert.equal(
       (
         await toolJson("evaluate_javascript", {
           expression: "document.visibilityState",
         })
       ).value,
-      "hidden",
+      "visible",
     );
     const typed = await toolJson("type_locator", {
       locator: { role: "textbox", name: "Later" },

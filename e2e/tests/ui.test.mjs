@@ -621,6 +621,140 @@ test("profile creation stays compact and saves basic, protected, and ephemeral p
   );
 });
 
+test("the create dialog offers the browser's screen sizes and sends the chosen one only while the profile is made", async () => {
+  await withApp(
+    "ui-screen-picker",
+    async (app) => {
+      // No browser runs in the UI suite, so the backend's answers are stubbed:
+      // the sizes the browser lists, and a creation that records what it got.
+      await stubCommand(app, "is_geoip_database_available", true);
+      await stubCommand(app, "get_wayfern_screen_options", [
+        { width: 1920, height: 1080 },
+        { width: 1366, height: 768 },
+      ]);
+      await stubCommand(app, "release_wayfern_screen_helper", null);
+      await app.execute(`
+      const originalFetch = window.fetch;
+      window.__donutScreenRequests = [];
+      window.fetch = function(input, init) {
+        const url = typeof input === 'string' ? input : input?.url ?? '';
+        if (url.endsWith('/create_browser_profile_new')) {
+          const payload = JSON.parse(init.body);
+          window.__donutScreenRequests.push(structuredClone(payload));
+          payload.wayfernConfig = { ...payload.wayfernConfig, fingerprint: '{}' };
+          return originalFetch.call(window, input, { ...init, body: JSON.stringify(payload) });
+        }
+        return originalFetch.apply(window, arguments);
+      };
+    `);
+      const pill = () =>
+        app.execute(
+          `const pill = document.querySelector("[role='dialog'] #profile-screen");
+         return pill ? {
+           busy: pill.getAttribute("aria-busy"),
+           text: pill.textContent.trim(),
+           label: pill.getAttribute("aria-labelledby").split(" ")
+             .map((id) => document.getElementById(id)?.textContent.trim()),
+         } : null;`,
+        );
+      const size = (width, height) =>
+        en.createProfile.screen.size
+          .replace("{{width}}", String(width))
+          .replace("{{height}}", String(height));
+      try {
+        await openProfileCreation(app);
+        await app.waitFor(async () => (await pill())?.busy === "false", {
+          description: "the screen picker with the listed sizes",
+        });
+        assert.deepEqual(await pill(), {
+          busy: "false",
+          text: en.createProfile.screen.anyScreen,
+          label: [
+            en.createProfile.screen.label,
+            en.createProfile.screen.anyScreen,
+          ],
+        });
+        await app.clickSelector("#profile-screen");
+        await app.waitFor(
+          () =>
+            app.execute(
+              `return document.querySelectorAll('[cmdk-item]').length === 3;`,
+            ),
+          { description: "Any and the two listed sizes" },
+        );
+        assert.deepEqual(
+          await app.execute(
+            `return [...document.querySelectorAll('[cmdk-group-heading], [cmdk-item]')]
+             .map((node) => node.textContent.trim());`,
+          ),
+          [
+            en.createProfile.screen.label,
+            en.createProfile.screen.any,
+            size(1920, 1080),
+            size(1366, 768),
+          ],
+        );
+        await app.clickText(size(1366, 768), { roles: ["option"] });
+        await app.waitFor(
+          async () => (await pill())?.text === size(1366, 768),
+          {
+            description: "the chosen size on the picker",
+          },
+        );
+        // The closed menu must be gone before the next key: a hidden window
+        // runs the end of its exit late, and until then it takes Escape.
+        await app.waitFor(
+          () =>
+            app.execute(
+              `return !document.querySelector('[data-slot="popover-content"]');`,
+            ),
+          { description: "the screen menu to close" },
+        );
+        await app.fillSelector("#profile-name", "Screen profile");
+        const made = await submitProfileCreation(app, "Screen profile");
+        assert.ok(made);
+        const [request] = await app.execute(
+          "return window.__donutScreenRequests;",
+        );
+        assert.deepEqual(request.wayfernConfig.screen, {
+          width: 1366,
+          height: 768,
+        });
+        // The identity gives the screen from then on, so none is stored.
+        assert.equal(made.wayfern_config.screen, undefined);
+
+        // A browser without the choice: the dialog offers none.
+        await stubCommand(app, "get_wayfern_screen_options", null);
+        await openProfileCreation(app);
+        await app.waitFor(
+          async () =>
+            (await app.execute(
+              `return window.__donutStubbedCalls.filter((call) => call.command === "get_wayfern_screen_options").length;`,
+            )) >= 2,
+          { description: "the second dialog asked for sizes" },
+        );
+        await app.waitFor(async () => (await pill()) === null, {
+          description: "no screen picker without sizes",
+        });
+        await app.pressShortcut({ key: "Escape" });
+        await app.waitFor(
+          () => app.execute(`return !document.querySelector('#profile-name');`),
+          { description: "create dialog closed" },
+        );
+        // Each closed picker lets the browser that read the sizes go.
+        assert.ok(
+          (await restoreStubs(app)).some(
+            (call) => call.command === "release_wayfern_screen_helper",
+          ),
+        );
+      } finally {
+        await restoreStubs(app);
+      }
+    },
+    { seedDownloadedBrowser: true },
+  );
+});
+
 test("a found update waits while automatic updates are off; on, it downloads by itself and offers a restart", async () => {
   await withApp("ui-app-update", async (app) => {
     const update = (version, autoInstall) => ({
