@@ -671,6 +671,36 @@ impl ProfileManager {
     Ok(true)
   }
 
+  /// Change the stored copy of a profile under the write lock, and save it
+  /// when `change` returns true. For a writer whose own copy can be older than
+  /// the stored one: what was saved after that writer read the profile stays.
+  /// Returns the stored copy as it is afterwards.
+  pub fn update_stored(
+    &self,
+    profile_id: &uuid::Uuid,
+    change: impl FnOnce(&mut BrowserProfile) -> bool,
+  ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
+    let profile_file = self
+      .get_profiles_dir()
+      .join(profile_id.to_string())
+      .join("metadata.json");
+    let serialized = METADATA_WRITES.lock().unwrap_or_else(|e| e.into_inner());
+    let mut stored: BrowserProfile = serde_json::from_str(&fs::read_to_string(&profile_file)?)?;
+    let tags = stored.tags.clone();
+    if !change(&mut stored) {
+      return Ok(stored);
+    }
+    atomic_write_locked(
+      &profile_file,
+      serde_json::to_string_pretty(&stored)?.as_bytes(),
+    )?;
+    drop(serialized);
+    if stored.tags != tags {
+      self.rebuild_tags();
+    }
+    Ok(stored)
+  }
+
   /// Write a profile and update tag suggestions when its tags changed.
   pub fn save_profile(&self, profile: &BrowserProfile) -> Result<(), Box<dyn std::error::Error>> {
     if self.write_profile(profile)? {

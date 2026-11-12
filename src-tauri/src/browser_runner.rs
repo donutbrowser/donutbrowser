@@ -1913,33 +1913,53 @@ fn refused_override(error: &str) -> Option<String> {
   (!name.is_empty()).then_some(name)
 }
 
-/// `profile` without the override the browser refused, saved so the next
-/// launch does not trip on it again. `None` when the error names no override
-/// this profile carries.
+/// `profile` without the override the browser refused, also removed from the
+/// stored copy so the next launch does not trip on it again. `None` when the
+/// error names no override this profile carries.
 fn drop_refused_override(
   profile: &BrowserProfile,
   error: &str,
 ) -> Option<(BrowserProfile, String)> {
   let property = refused_override(error)?;
   let mut updated = profile.clone();
-  let config = updated.wayfern_config.as_mut()?;
-  let mut overrides: serde_json::Map<String, serde_json::Value> =
-    serde_json::from_str(config.identity_overrides.as_deref()?).ok()?;
-  overrides.remove(&property)?;
-  config.identity_overrides = if overrides.is_empty() {
-    None
-  } else {
-    serde_json::to_string(&overrides).ok()
-  };
+  if !remove_override(&mut updated, &property) {
+    return None;
+  }
   // Not an edit of the person's: the stored copy only stops asking for what the
-  // browser cannot give, so `updated_at` stays and sync is not woken.
-  if let Err(e) = ProfileManager::instance().save_profile(&updated) {
+  // browser cannot give, so `updated_at` stays and sync is not woken. The
+  // stored copy, not `profile`: the launch's pull or an edit can be newer.
+  if let Err(e) = ProfileManager::instance()
+    .update_stored(&profile.id, |stored| remove_override(stored, &property))
+  {
     log::warn!(
       "Refused override not saved profile={} err=\"{e}\"",
       profile.id
     );
   }
   Some((updated, property))
+}
+
+/// Removes one identity override. Returns whether the profile had it.
+fn remove_override(profile: &mut BrowserProfile, property: &str) -> bool {
+  let Some(config) = profile.wayfern_config.as_mut() else {
+    return false;
+  };
+  let Some(mut overrides) = config
+    .identity_overrides
+    .as_deref()
+    .and_then(|raw| serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(raw).ok())
+  else {
+    return false;
+  };
+  if overrides.remove(property).is_none() {
+    return false;
+  }
+  config.identity_overrides = if overrides.is_empty() {
+    None
+  } else {
+    serde_json::to_string(&overrides).ok()
+  };
+  true
 }
 
 async fn launch_browser_profile_tracked(

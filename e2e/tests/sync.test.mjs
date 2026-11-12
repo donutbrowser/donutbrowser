@@ -1536,6 +1536,139 @@ test("a launch takes the newest cookie jar another device uploaded before the br
   }
 });
 
+test("a proxy set while the profile syncs stays set, and the launch that waits for that sync uses it", async () => {
+  assert.ok(syncUrl && syncToken, "Sync infrastructure was not started");
+  const app = appFromEnvironment("sync-edit-during-sync");
+  let holdKey = null;
+  const held = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  const leaseAsked = Promise.withResolvers();
+  const server = createServer(async (request, response) => {
+    try {
+      const chunks = [];
+      for await (const chunk of request) chunks.push(chunk);
+      const body = Buffer.concat(chunks).toString();
+      if (request.url.endsWith("/subscribe")) {
+        response.writeHead(503).end();
+        return;
+      }
+      const input = body ? JSON.parse(body) : {};
+      if (holdKey && input.key === holdKey) {
+        holdKey = null;
+        held.resolve();
+        await release.promise;
+      }
+      if (request.url === "/v1/locks/acquire") leaseAsked.resolve();
+      const upstream = await fetch(`${syncUrl}${request.url}`, {
+        method: request.method,
+        headers: {
+          authorization: `Bearer ${syncToken}`,
+          "content-type": "application/json",
+        },
+        ...(body ? { body } : {}),
+        signal: AbortSignal.timeout(30_000),
+      });
+      const text = await upstream.text();
+      response.writeHead(upstream.status, {
+        "content-type": "application/json",
+      });
+      response.end(text);
+    } catch {
+      response.writeHead(502).end();
+    }
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const serverUrl = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    await app.start();
+    await app.invoke("save_sync_settings", {
+      syncServerUrl: serverUrl,
+      syncToken,
+    });
+    await app.invoke("restart_sync_service");
+    const settings = await app.invoke("get_app_settings");
+    await app.invoke("save_app_settings", {
+      settings: { ...settings, require_route_for_launch: true },
+    });
+
+    const profile = await createProfile(app, "Edited While Syncing");
+    const data = path.join(
+      app.dataRoot,
+      "data",
+      "profiles",
+      profile.id,
+      "profile",
+      "Default",
+    );
+    await mkdir(data, { recursive: true });
+    await writeFile(path.join(data, "Preferences"), "{}");
+    await app.invoke("set_profile_sync_mode", {
+      profileId: profile.id,
+      syncMode: "Regular",
+    });
+    await app.invoke("request_profile_sync", { profileId: profile.id });
+    await waitFor(
+      app,
+      async () =>
+        (await app.invoke("list_browser_profiles")).some(
+          (item) => item.id === profile.id && item.last_sync != null,
+        ),
+      "the first upload finishes",
+    );
+    const proxy = await app.invoke("create_stored_proxy", {
+      name: "Set While Syncing",
+      proxySettings: {
+        proxy_type: "http",
+        host: "127.0.0.1",
+        port: 9,
+        username: null,
+        password: null,
+      },
+    });
+
+    // The sync a stopped browser starts: it read the profile, then waits on
+    // the server while the proxy is set.
+    holdKey = `profiles/${profile.id}/manifest.json`;
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    await writeFile(path.join(data, "Preferences"), '{"session":2}');
+    await app.invoke("request_profile_sync", { profileId: profile.id });
+    await held.promise;
+    await app.invoke("update_profile_proxy", {
+      profileId: profile.id,
+      proxyId: proxy.id,
+    });
+    const stored = async () =>
+      (await app.invoke("list_browser_profiles")).find(
+        (item) => item.id === profile.id,
+      );
+    assert.equal((await stored()).proxy_id, proxy.id);
+
+    // The launch takes the lease, then its pull waits for that sync.
+    const launch = app.invokeError("launch_browser_profile", {
+      profile: await stored(),
+      url: null,
+    });
+    await leaseAsked.promise;
+    release.resolve();
+    const launched = backendCode(await launch);
+    assert.notEqual(launched.code, "PROFILE_ROUTE_REQUIRED", launched.text);
+    assert.equal(
+      (await stored()).proxy_id,
+      proxy.id,
+      "the proxy set during the sync stays",
+    );
+  } catch (error) {
+    await app.capture("failure");
+    throw error;
+  } finally {
+    release.resolve();
+    await app.close();
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("the connection check fails a server whose storage host this device cannot reach", async () => {
   assert.ok(syncUrl && syncToken, "Sync infrastructure was not started");
   const app = appFromEnvironment("sync-preflight");

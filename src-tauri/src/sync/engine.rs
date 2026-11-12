@@ -626,6 +626,31 @@ fn note_synced(profile_id: &str, profile_dir: &Path, manifest: &SyncManifest) {
   super::lease::clear_taken_over(profile_id);
 }
 
+/// Records the finished sync of `synced` on the stored profile, and returns
+/// the stored copy. The files can take minutes, and an edit saved meanwhile is
+/// newer than `synced`: it keeps the stored copy as it is, and its own queued
+/// sync uploads it.
+fn mark_profile_synced(synced: &BrowserProfile) -> SyncResult<BrowserProfile> {
+  let stored = ProfileManager::instance()
+    .update_stored(&synced.id, |stored| {
+      if stored.updated_at != synced.updated_at {
+        return false;
+      }
+      stored.last_sync = Some(super::conflicts::synced_at(stored.updated_at));
+      true
+    })
+    .map_err(|e| SyncError::IoError(format!("Failed to save profile sync time: {e}")))?;
+  if stored.updated_at != synced.updated_at {
+    log::info!(
+      "Profile edited during sync, edit kept profile={} synced_updated_at={} updated_at={}",
+      synced.id,
+      synced.updated_at.unwrap_or(0),
+      stored.updated_at.unwrap_or(0)
+    );
+  }
+  Ok(stored)
+}
+
 /// Check if sync is configured (cloud or self-hosted)
 pub fn is_sync_configured() -> bool {
   // Cloud backup is a plan capability. Gating on the capability — not just
@@ -1356,13 +1381,7 @@ impl SyncEngine {
       }
     }
 
-    let mut updated_profile = profile.clone();
-    updated_profile.last_sync = Some(super::conflicts::synced_at(updated_profile.updated_at));
-    profile_manager
-      .save_profile(&updated_profile)
-      .map_err(|e| {
-        SyncError::IoError(format!("Failed to save reconciled profile metadata: {e}"))
-      })?;
+    let updated_profile = mark_profile_synced(profile)?;
     let _ = events::emit("profiles-changed", ());
 
     if let Some(session_id) = &pending_session {
@@ -1552,24 +1571,40 @@ impl SyncEngine {
       return Ok(profile.clone());
     }
 
-    super::conflicts::note_download(
-      self.read_only,
-      "profile",
-      &profile_id,
-      Some(&profile.name),
-      local_updated,
-      profile.last_sync,
-      remote_updated,
-    );
     let mut remote = self.download_profile_metadata(&remote_key).await?;
-    // Process state is device-local and deliberately stripped from uploads.
-    remote.process_id = profile.process_id;
-    remote.last_launch = profile.last_launch;
-    remote.last_sync = profile.last_sync;
-    ProfileManager::instance()
-      .save_profile(&remote)
+    let mut replaced = false;
+    let stored = ProfileManager::instance()
+      .update_stored(&profile.id, |stored| {
+        // An edit saved during the download is newer than what was compared.
+        if stored.updated_at.unwrap_or(0) != local_updated {
+          return false;
+        }
+        // Process state is device-local and deliberately stripped from uploads.
+        remote.process_id = stored.process_id;
+        remote.last_launch = stored.last_launch;
+        remote.last_sync = stored.last_sync;
+        *stored = std::mem::take(&mut remote);
+        replaced = true;
+        true
+      })
       .map_err(|e| SyncError::IoError(format!("Failed to save remote profile metadata: {e}")))?;
-    Ok(remote)
+    if replaced {
+      super::conflicts::note_download(
+        self.read_only,
+        "profile",
+        &profile_id,
+        Some(&profile.name),
+        local_updated,
+        profile.last_sync,
+        remote_updated,
+      );
+    } else {
+      log::info!(
+        "Profile edited during sync, edit kept profile={profile_id} remote_updated_at={remote_updated} updated_at={}",
+        stored.updated_at.unwrap_or(0)
+      );
+    }
+    Ok(stored)
   }
 
   /// Sync only metadata for profiles bound to another OS (tags, notes,
@@ -5626,5 +5661,241 @@ mod tests {
       .query_row("SELECT COUNT(*) FROM cookies", [], |row| row.get(0))
       .unwrap();
     assert_eq!(count, 1);
+  }
+
+  /// A profile sync reads the profile, then waits on the network. These check
+  /// what it writes back when the stored copy changed in that time.
+  mod stored_copy {
+    use super::*;
+    use serde_json::json;
+    use wiremock::matchers::{body_partial_json, method, path};
+    use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
+
+    const PROXY: &str = "proxy-set-on-this-device";
+
+    fn isolated() -> (tempfile::TempDir, crate::app_dirs::TestDirGuard) {
+      let dir = tempfile::TempDir::new().unwrap();
+      let guard = crate::app_dirs::set_test_data_dir(dir.path().to_path_buf());
+      (dir, guard)
+    }
+
+    fn saved(updated_at: u64, proxy_id: Option<&str>) -> BrowserProfile {
+      let profile = BrowserProfile {
+        id: uuid::Uuid::new_v4(),
+        name: "synced".to_string(),
+        browser: "wayfern".to_string(),
+        sync_mode: SyncMode::Regular,
+        proxy_id: proxy_id.map(str::to_string),
+        last_launch: Some(77),
+        last_sync: Some(updated_at),
+        updated_at: Some(updated_at),
+        ..BrowserProfile::default()
+      };
+      ProfileManager::instance().save_profile(&profile).unwrap();
+      profile
+    }
+
+    fn stored(profile: &BrowserProfile) -> BrowserProfile {
+      ProfileManager::instance()
+        .find_profile(&profile.id.to_string())
+        .unwrap()
+    }
+
+    fn metadata_file(profile: &BrowserProfile) -> PathBuf {
+      ProfileManager::instance()
+        .get_profiles_dir()
+        .join(profile.id.to_string())
+        .join("metadata.json")
+    }
+
+    /// The server holds `profile`'s metadata edited at `updated_at`; `body`
+    /// answers its download.
+    async fn remote(
+      server: &MockServer,
+      profile: &BrowserProfile,
+      updated_at: u64,
+      body: impl Respond + 'static,
+    ) -> SyncEngine {
+      let key = format!("profiles/{}/metadata.json", profile.id);
+      Mock::given(method("POST"))
+        .and(path("/v1/objects/stat"))
+        .and(body_partial_json(json!({ "key": key })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+          "exists": true,
+          "metadata": { "updated-at": updated_at.to_string() },
+        })))
+        .mount(server)
+        .await;
+      Mock::given(method("POST"))
+        .and(path("/v1/objects/presign-download"))
+        .and(body_partial_json(json!({ "key": key })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+          "url": format!("{}/bucket/metadata", server.uri()),
+          "expiresAt": "2099-01-01T00:00:00Z",
+        })))
+        .mount(server)
+        .await;
+      Mock::given(method("GET"))
+        .and(path("/bucket/metadata"))
+        .respond_with(body)
+        .mount(server)
+        .await;
+      SyncEngine::new(server.uri(), "token".to_string())
+    }
+
+    fn uploaded(profile: &BrowserProfile) -> Vec<u8> {
+      let mut copy = profile.clone();
+      copy.process_id = None;
+      copy.last_launch = None;
+      copy.last_sync = None;
+      serde_json::to_vec(&copy).unwrap()
+    }
+
+    /// Saves an edit to the profile file while it serves the download, as an
+    /// edit made on this device during the sync does.
+    struct EditDuringDownload {
+      file: PathBuf,
+      edit: String,
+      body: Vec<u8>,
+    }
+
+    impl Respond for EditDuringDownload {
+      fn respond(&self, _: &Request) -> ResponseTemplate {
+        std::fs::write(&self.file, &self.edit).unwrap();
+        ResponseTemplate::new(200).set_body_bytes(self.body.clone())
+      }
+    }
+
+    #[tokio::test]
+    async fn a_newer_copy_from_another_device_replaces_the_local_one() {
+      let _dirs = isolated();
+      let local = saved(200, Some(PROXY));
+      let mut elsewhere = local.clone();
+      elsewhere.proxy_id = None;
+      elsewhere.updated_at = Some(300);
+      let server = MockServer::start().await;
+      let engine = remote(
+        &server,
+        &local,
+        300,
+        ResponseTemplate::new(200).set_body_bytes(uploaded(&elsewhere)),
+      )
+      .await;
+
+      let reconciled = engine.reconcile_profile_metadata(&local).await.unwrap();
+
+      let kept = stored(&local);
+      assert_eq!(kept.proxy_id, None, "the later edit wins");
+      assert_eq!(kept.updated_at, Some(300));
+      assert_eq!(kept.last_launch, Some(77), "device state stays");
+      assert_eq!(reconciled.proxy_id, None);
+    }
+
+    #[tokio::test]
+    async fn an_older_remote_copy_never_reverts_a_local_edit() {
+      let _dirs = isolated();
+      let local = saved(200, Some(PROXY));
+      let mut older = local.clone();
+      older.proxy_id = None;
+      older.updated_at = Some(100);
+      let server = MockServer::start().await;
+      let engine = remote(
+        &server,
+        &local,
+        100,
+        ResponseTemplate::new(200).set_body_bytes(uploaded(&older)),
+      )
+      .await;
+      Mock::given(method("POST"))
+        .and(path("/v1/objects/presign-upload"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+          "url": format!("{}/bucket/upload", server.uri()),
+          "expiresAt": "2099-01-01T00:00:00Z",
+          "metadata": { "updated-at": "200", "group-id": "" },
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+      Mock::given(method("PUT"))
+        .and(path("/bucket/upload"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+      let reconciled = engine.reconcile_profile_metadata(&local).await.unwrap();
+
+      assert_eq!(stored(&local).proxy_id.as_deref(), Some(PROXY));
+      assert_eq!(reconciled.proxy_id.as_deref(), Some(PROXY));
+    }
+
+    #[tokio::test]
+    async fn an_edit_saved_while_the_remote_copy_downloads_is_kept() {
+      let _dirs = isolated();
+      let read_by_sync = saved(200, None);
+      let mut edit = read_by_sync.clone();
+      edit.proxy_id = Some(PROXY.to_string());
+      edit.updated_at = Some(400);
+      let mut elsewhere = read_by_sync.clone();
+      elsewhere.note = Some("from another device".to_string());
+      elsewhere.updated_at = Some(300);
+      let server = MockServer::start().await;
+      let engine = remote(
+        &server,
+        &read_by_sync,
+        300,
+        EditDuringDownload {
+          file: metadata_file(&read_by_sync),
+          edit: serde_json::to_string_pretty(&edit).unwrap(),
+          body: uploaded(&elsewhere),
+        },
+      )
+      .await;
+
+      let reconciled = engine
+        .reconcile_profile_metadata(&read_by_sync)
+        .await
+        .unwrap();
+
+      let kept = stored(&read_by_sync);
+      assert_eq!(kept.proxy_id.as_deref(), Some(PROXY), "the edit stays");
+      assert_eq!(kept.updated_at, Some(400));
+      assert_eq!(reconciled.proxy_id.as_deref(), Some(PROXY));
+    }
+
+    #[test]
+    fn a_sync_that_ran_across_an_edit_keeps_the_edit() {
+      let _dirs = isolated();
+      let read_by_sync = saved(200, None);
+      let mut edit = read_by_sync.clone();
+      edit.proxy_id = Some(PROXY.to_string());
+      edit.updated_at = Some(400);
+      ProfileManager::instance().save_profile(&edit).unwrap();
+
+      mark_profile_synced(&read_by_sync).unwrap();
+
+      let kept = stored(&read_by_sync);
+      assert_eq!(kept.proxy_id.as_deref(), Some(PROXY));
+      assert_eq!(kept.updated_at, Some(400));
+      assert_eq!(kept.last_sync, Some(200), "the edit is not uploaded yet");
+    }
+
+    #[test]
+    fn a_finished_sync_writes_only_its_time() {
+      let _dirs = isolated();
+      let read_by_sync = saved(200, None);
+      ProfileManager::instance()
+        .update_stored(&read_by_sync.id, |stored| {
+          stored.process_id = Some(4242);
+          true
+        })
+        .unwrap();
+
+      mark_profile_synced(&read_by_sync).unwrap();
+
+      let kept = stored(&read_by_sync);
+      assert_eq!(kept.process_id, Some(4242));
+      assert!(kept.last_sync.unwrap() >= crate::proxy_manager::now_secs() - 5);
+    }
   }
 }

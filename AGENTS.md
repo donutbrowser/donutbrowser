@@ -549,6 +549,12 @@ every upload/download and must NOT decide sync direction. (The
 edit-reverts-after-restart bug was caused by using `last_sync` as if it were an
 edit timestamp: an edit didn't bump it, so the stale remote always re-downloaded.)
 
+A sync waits on the network for seconds or minutes after it reads a profile.
+It never saves the copy it read: it changes the stored copy with
+`ProfileManager::update_stored`, and only while that copy's `updated_at` is
+the one it compared. An edit saved during a sync (a proxy set right after a
+browser stopped) stays, and its own queued sync uploads it.
+
 Reconcile (`engine.rs::remote_updated_at` + each `sync_X`):
 1. `stat` (HEAD) the remote object. Its `updated_at` is read from S3 object
    metadata (`x-amz-meta-updated-at`), with no body download when nothing changed.

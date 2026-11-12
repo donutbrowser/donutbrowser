@@ -18,8 +18,8 @@ pub(super) fn replaces_unsent_edit(
   local_updated_at > last_sync && remote_updated_at > local_updated_at
 }
 
-/// Tell the app, when this download replaces an unsent edit. Called just
-/// before the download, with what the reconcile compared.
+/// Tell the app, when this download replaces an unsent edit. Called with
+/// what the reconcile compared.
 pub(super) fn note_download(
   read_only: bool,
   entity: &str,
