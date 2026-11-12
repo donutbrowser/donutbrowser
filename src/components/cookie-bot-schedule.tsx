@@ -296,7 +296,7 @@ function ScheduleRow({
         <div className="relative h-7 min-w-[120px]">
           <span
             aria-hidden="true"
-            className="absolute inset-x-0 top-1 bottom-1 rounded-md bg-foreground/4"
+            className="absolute inset-x-0 top-1 bottom-1 rounded-md bg-foreground/5"
           />
           {HOUR_MARKS.slice(1, -1).map((hour) => (
             <span

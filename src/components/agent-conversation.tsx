@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   LuActivity,
@@ -319,7 +326,7 @@ function SessionButton({
       onClick={onSelect}
       className={cn(
         "flex w-full cursor-pointer flex-col gap-1 rounded-lg px-2 py-2 text-left transition-colors duration-100 hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        selected && "bg-foreground/7 hover:bg-foreground/7",
+        selected && "bg-foreground/8 hover:bg-foreground/8",
       )}
     >
       <span className="flex min-w-0 items-center gap-2">
@@ -414,7 +421,7 @@ function SessionList({
         }}
         className={cn(
           "flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-medium transition-colors duration-100 hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-          selectedSessionId === null && "bg-foreground/7 hover:bg-foreground/7",
+          selectedSessionId === null && "bg-foreground/8 hover:bg-foreground/8",
         )}
       >
         {t("agent.sessions.all")}
@@ -675,7 +682,7 @@ function ProfilePicker({
           aria-controls={listId}
           aria-label={t("agent.composer.profile")}
           data-testid="agent-composer-profile"
-          className="h-8 max-w-56 justify-between gap-2 rounded-lg text-xs font-normal"
+          className="h-8 max-w-56 shrink-0 justify-between gap-2 rounded-lg text-xs font-normal"
         >
           <span className="truncate">
             {selected ?? t("agent.composer.noProfile")}
@@ -786,7 +793,7 @@ function Composer({
 
   return (
     <form
-      className="flex shrink-0 flex-col gap-2 p-3 pt-1"
+      className="flex shrink-0 flex-col gap-2 p-2"
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
@@ -798,7 +805,7 @@ function Composer({
       <Textarea
         ref={textareaRef}
         id={inputId}
-        rows={2}
+        rows={1}
         value={text}
         maxLength={MAX_TEXT_CHARS}
         aria-describedby={hintId}
@@ -808,7 +815,7 @@ function Composer({
             : t("agent.composer.placeholderAll")
         }
         variant="soft"
-        className="min-h-14 resize-none text-sm"
+        className="max-h-32 min-h-9 resize-none text-sm field-sizing-content"
         data-testid="agent-composer-input"
         onChange={(event) => {
           setText(event.target.value);
@@ -824,7 +831,7 @@ function Composer({
           }
         }}
       />
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <ProfilePicker
           profiles={profiles}
           value={profileId}
@@ -833,14 +840,14 @@ function Composer({
         />
         <span
           id={hintId}
-          className="hidden text-[11px] text-muted-foreground @2xl:inline"
+          className="hidden min-w-0 truncate text-[11px] text-muted-foreground @2xl:inline"
         >
           {t("agent.composer.hint")}
         </span>
         <Button
           type="submit"
           size="sm"
-          className="ml-auto h-8 gap-1.5 rounded-lg text-xs"
+          className="ml-auto h-8 shrink-0 gap-1.5 rounded-lg text-xs"
           disabled={busy || text.trim().length === 0}
           data-testid="agent-composer-send"
         >
@@ -853,6 +860,7 @@ function Composer({
 }
 
 export function AgentConversation({
+  lead,
   agentConsole,
   profiles,
   profileNames,
@@ -865,6 +873,8 @@ export function AgentConversation({
   preferredProfileIds,
   now,
 }: {
+  /** Requests and notices above the conversation; they scroll with it. */
+  lead?: ReactNode;
   agentConsole: AgentConsole;
   profiles: BrowserProfile[];
   profileNames: Map<string, string>;
@@ -898,60 +908,73 @@ export function AgentConversation({
   }, [items]);
 
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(12rem,1fr)] gap-3 @3xl:grid-cols-[16rem_minmax(0,1fr)] @3xl:grid-rows-[minmax(0,1fr)]">
-      <SessionList
-        sessions={agentConsole.sessions}
-        selectedSessionId={selectedSessionId}
-        onSelectSession={onSelectSession}
-        now={now}
-      />
-      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl bg-foreground/3">
-        <div
-          ref={threadRef}
-          role="log"
-          aria-label={t("agent.thread.label")}
-          data-testid="agent-thread"
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
-          onScroll={() => {
-            const element = threadRef.current;
-            if (!element) return;
-            stickToBottom.current =
-              element.scrollHeight - element.scrollTop - element.clientHeight <
-              48;
-          }}
-        >
-          {items.length === 0 ? (
-            <p className="m-auto max-w-sm text-center text-xs text-muted-foreground">
-              {t("agent.thread.empty")}
-            </p>
-          ) : (
-            items.map((item) => (
-              <ThreadEntry
-                key={item.id}
-                item={item}
-                nameOf={nameOf}
-                profileName={
-                  item.profile_id
-                    ? (profileNames.get(item.profile_id) ??
-                      t("common.labels.unknownProfile"))
-                    : null
-                }
-                now={now}
-              />
-            ))
-          )}
+    // The composer stays on screen under everything that scrolls; a short
+    // window scrolls the requests, the agents and the thread together.
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
+        {lead}
+        <div className="grid min-h-[14rem] flex-1 grid-rows-[auto_minmax(10rem,1fr)] gap-3 @3xl:grid-cols-[16rem_minmax(0,1fr)] @3xl:grid-rows-[minmax(0,1fr)]">
+          <SessionList
+            sessions={agentConsole.sessions}
+            selectedSessionId={selectedSessionId}
+            onSelectSession={onSelectSession}
+            now={now}
+          />
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl bg-foreground/5">
+            <div
+              ref={threadRef}
+              role="log"
+              aria-label={t("agent.thread.label")}
+              data-testid="agent-thread"
+              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
+              onScroll={() => {
+                const element = threadRef.current;
+                if (!element) return;
+                stickToBottom.current =
+                  element.scrollHeight -
+                    element.scrollTop -
+                    element.clientHeight <
+                  48;
+              }}
+            >
+              {items.length === 0 ? (
+                <p className="m-auto max-w-sm text-center text-xs text-muted-foreground">
+                  {t("agent.thread.empty")}
+                </p>
+              ) : (
+                items.map((item) => (
+                  <ThreadEntry
+                    key={item.id}
+                    item={item}
+                    nameOf={nameOf}
+                    profileName={
+                      item.profile_id
+                        ? (profileNames.get(item.profile_id) ??
+                          t("common.labels.unknownProfile"))
+                        : null
+                    }
+                    now={now}
+                  />
+                ))
+              )}
+            </div>
+          </div>
         </div>
-        <Composer
-          agentConsole={agentConsole}
-          sessionId={selectedSessionId}
-          sessionName={nameOf(selectedSessionId)}
-          profiles={profiles}
-          profileId={composerProfileId}
-          onProfileChange={onComposerProfileChange}
-          focusRequested={focusComposer}
-          onFocused={onComposerFocused}
-          preferredIds={preferredProfileIds}
-        />
+      </div>
+      <div className="grid shrink-0 gap-3 @3xl:grid-cols-[16rem_minmax(0,1fr)]">
+        <div className="rounded-xl bg-foreground/5 @3xl:col-start-2">
+          <Composer
+            agentConsole={agentConsole}
+            sessionId={selectedSessionId}
+            sessionName={nameOf(selectedSessionId)}
+            profiles={profiles}
+            profileId={composerProfileId}
+            onProfileChange={onComposerProfileChange}
+            focusRequested={focusComposer}
+            onFocused={onComposerFocused}
+            preferredIds={preferredProfileIds}
+          />
+        </div>
       </div>
     </div>
   );

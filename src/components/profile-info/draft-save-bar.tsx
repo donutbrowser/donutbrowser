@@ -138,7 +138,7 @@ export function DraftSaveBar({
               "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl py-1.5 pr-1.5 pl-3 text-xs transition-[background-color,box-shadow] duration-200",
               dirty
                 ? "bg-primary/8 ring-1 ring-primary/20"
-                : "bg-foreground/4 ring-1 ring-transparent",
+                : "bg-foreground/5 ring-1 ring-transparent",
             )}
           >
             {error ? (

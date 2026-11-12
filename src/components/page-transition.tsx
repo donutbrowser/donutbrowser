@@ -17,6 +17,7 @@ import {
   useEffect,
   useRef,
 } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { MOTION_DURATION, MOTION_EASE_IN, MOTION_SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -173,7 +174,9 @@ export function PageTransition({
       transition={MOTION_SPRING.page}
       className={className}
     >
-      {children}
+      {/* A page that fails to render shows the error in its own place and
+          leaves the rail working; the next page starts clean. */}
+      <ErrorBoundary resetKey={pageKey}>{children}</ErrorBoundary>
     </Swap>
   );
 }

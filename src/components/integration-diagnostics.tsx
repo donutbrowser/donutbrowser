@@ -119,7 +119,7 @@ export function IntegrationDiagnostics({
         </LoadingButton>
       </div>
       <AnimatedDisclosureContent open={busy || result !== null || !!error}>
-        <div className="mt-3 border-t border-foreground/6 pt-3">
+        <div className="mt-3 border-t border-foreground/8 pt-3">
           {(busy || result) && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
               <OperationFlow

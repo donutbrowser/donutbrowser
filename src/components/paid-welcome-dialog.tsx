@@ -78,7 +78,7 @@ export function PaidWelcomeDialog({
             >
               <Logo className="size-12" />
             </motion.div>
-            <DialogTitle className="text-2xl font-semibold tracking-tight text-balance">
+            <DialogTitle className="text-2xl font-semibold text-balance">
               {t("paidWelcome.title", { plan: displayPlan(plan) })}
             </DialogTitle>
             <p className="max-w-[40ch] text-sm/6 text-pretty text-muted-foreground">

@@ -127,7 +127,7 @@ function ProgressBar({
   const fraction = Math.min(Math.max(percentage, 0), 100) / 100;
   return (
     <div
-      className={`h-1.5 overflow-hidden rounded-full bg-foreground/10 ${className}`}
+      className={`h-1.5 overflow-hidden rounded-full bg-foreground/12 ${className}`}
     >
       <div
         className="h-1.5 w-full origin-left rounded-full bg-foreground transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
@@ -251,10 +251,16 @@ export function UnifiedToast(props: ToastProps) {
             <div className="mt-2 space-y-1">
               <div className="flex items-center justify-between">
                 <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                  {progress.percentage.toFixed(1)}%
-                  {progress.speed && ` • ${progress.speed} MB/s`}
-                  {progress.eta &&
-                    ` • ${t("toasts.progress.remaining", { time: progress.eta })}`}
+                  {progress.percentage > 0 ? (
+                    <>
+                      {progress.percentage.toFixed(1)}%
+                      {progress.speed && ` • ${progress.speed} MB/s`}
+                      {progress.eta &&
+                        ` • ${t("toasts.progress.remaining", { time: progress.eta })}`}
+                    </>
+                  ) : (
+                    t("toasts.progress.starting")
+                  )}
                 </p>
               </div>
               <ProgressBar percentage={progress.percentage} />
@@ -278,8 +284,8 @@ export function UnifiedToast(props: ToastProps) {
                   <ProgressBar percentage={progress.percentage} />
                 </>
               ) : (
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
-                  <div className="h-1.5 w-1/3 animate-progress-indeterminate rounded-full bg-foreground motion-reduce:animate-none" />
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/12 motion-reduce:hidden">
+                  <div className="h-1.5 w-1/3 animate-progress-indeterminate rounded-full bg-foreground" />
                 </div>
               )}
             </div>

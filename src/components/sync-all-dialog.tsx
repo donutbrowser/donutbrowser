@@ -140,7 +140,7 @@ export function SyncAllDialog({ isOpen, onClose }: SyncAllDialogProps) {
             {items.map(({ key, count, label, Icon }) => (
               <div
                 key={key}
-                className="flex items-center gap-3 rounded-lg bg-foreground/4 p-3 transition-colors hover:bg-foreground/6"
+                className="flex items-center gap-3 rounded-lg bg-foreground/5 p-3 transition-colors hover:bg-foreground/8"
               >
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary-text">
                   <Icon className="size-4" />

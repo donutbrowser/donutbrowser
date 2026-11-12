@@ -52,7 +52,8 @@ function DrawnLogo({ animate }: { animate: boolean }) {
   );
 }
 
-function EmptyIcon({
+/** The round mark at the top of an empty page. */
+export function EmptyIcon({
   icon: Icon,
   animate,
 }: {
@@ -62,7 +63,7 @@ function EmptyIcon({
   return (
     <motion.div
       aria-hidden="true"
-      className="grid size-12 place-items-center rounded-full bg-foreground/6"
+      className="grid size-12 place-items-center rounded-full bg-foreground/8"
       initial={animate ? { scale: 0.9 } : false}
       animate={{ scale: 1 }}
       transition={{ duration: 0.24, ease: MOTION_EASE_OUT }}

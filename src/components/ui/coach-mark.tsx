@@ -430,7 +430,7 @@ export interface CoachMarkProps extends DataAttributes {
   anchors: readonly CoachAnchorId[];
   /** With no anchor on screen, wait at the bottom of the window instead of hiding. */
   floatWithoutAnchor?: boolean;
-  /** Dims the page around the anchor, for a guided tour. */
+  /** Dims the page around the anchor, for a guided tour. The dim takes no clicks: the page stays usable. */
   spotlight?: boolean;
   /** The side to prefer when the anchor does not name one (`data-tip-side`). */
   side?: Side;
@@ -861,7 +861,6 @@ export function CoachMark({
           <motion.path
             d={hole}
             fillRule="evenodd"
-            className="pointer-events-auto"
             style={{
               fill: "color-mix(in oklab, var(--background) 70%, transparent)",
             }}
@@ -1050,7 +1049,7 @@ export function CoachMarkHeader({
         )}
         <h2
           id={titleId}
-          className="text-sm leading-snug font-semibold tracking-tight text-balance"
+          className="text-sm leading-snug font-semibold text-balance"
         >
           {title}
         </h2>

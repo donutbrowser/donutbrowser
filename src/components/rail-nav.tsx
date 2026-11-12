@@ -291,8 +291,10 @@ interface RailNavProps {
 
 const BADGE_SPRING = { type: "spring" as const, stiffness: 600, damping: 26 };
 
+// Under 460 px of height (the minimum window is 400) the rail packs tighter,
+// so every item stays on screen.
 const RAIL_BUTTON = cn(
-  "relative grid size-7 shrink-0 cursor-pointer place-items-center rounded-md transition-colors duration-100",
+  "relative grid size-7 shrink-0 cursor-pointer place-items-center rounded-md transition-colors duration-100 [@media(max-height:460px)]:size-6",
   FOCUS_RING,
 );
 
@@ -309,7 +311,7 @@ function ActivePill() {
       layoutId={animate ? "rail-active-pill" : undefined}
       transition={animate ? MOTION_SPRING_POSITION : { duration: 0 }}
       data-slot="rail-active-pill"
-      className="absolute inset-0 rounded-md bg-foreground/8"
+      className="pointer-events-none absolute inset-0 rounded-md bg-foreground/8"
     >
       <span className="absolute inset-y-1.5 left-[-7px] w-[2px] rounded-full bg-foreground" />
     </motion.span>
@@ -509,14 +511,14 @@ export function RailNav({
   ];
 
   return (
-    <nav className="relative flex w-10 shrink-0 flex-col items-center gap-1 border-r border-border bg-background py-2">
+    <nav className="relative flex w-10 shrink-0 flex-col items-center gap-1 border-r border-border bg-background py-2 [@media(max-height:460px)]:gap-0.5 [@media(max-height:460px)]:py-1">
       {!isHidden ? (
         <button
           ref={logoRef}
           type="button"
           aria-label={t("header.donutLogo")}
           className={cn(
-            "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-transparent text-foreground select-none",
+            "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md bg-transparent text-foreground select-none [@media(max-height:460px)]:size-6",
             FOCUS_RING,
           )}
           onClick={handleClick}
@@ -557,12 +559,12 @@ export function RailNav({
           </span>
         </button>
       ) : (
-        <div className="size-7 shrink-0" />
+        <div className="size-7 shrink-0 [@media(max-height:460px)]:size-6" />
       )}
 
-      <div className="my-1 h-px w-5 shrink-0 bg-border" />
+      <div className="my-1 h-px w-5 shrink-0 bg-border [@media(max-height:460px)]:my-0.5" />
 
-      <div className="flex min-h-0 w-full scrollbar-none flex-col items-center gap-1 overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex min-h-0 w-full scrollbar-none flex-col items-center gap-1 overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [@media(max-height:460px)]:gap-0.5">
         {TOP_ITEMS.map(({ page, labelKey, anchor }) => {
           const Icon = PAGE_ICONS[page];
           const active =

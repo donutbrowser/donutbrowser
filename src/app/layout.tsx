@@ -4,6 +4,7 @@ import { GeistSans } from "geist/font/sans";
 import "@/styles/globals.css";
 import "flag-icons/css/flag-icons.min.css";
 import { ClientProviders } from "@/components/client-providers";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 export default function RootLayout({
   children,
@@ -17,7 +18,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="antialiased overflow-hidden bg-background">
-        <ClientProviders>{children}</ClientProviders>
+        <ClientProviders>
+          <ErrorBoundary fill>{children}</ErrorBoundary>
+        </ClientProviders>
       </body>
     </html>
   );

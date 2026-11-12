@@ -20,9 +20,9 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         // Tinted from the theme's own foreground, so the fill stays quiet in
         // themes whose accent or secondary color is loud.
-        soft: "bg-foreground/6 text-foreground hover:bg-foreground/10 aria-expanded:bg-foreground/10",
+        soft: "bg-foreground/8 text-foreground hover:bg-foreground/12 aria-expanded:bg-foreground/12",
         subtle:
-          "text-muted-foreground hover:bg-foreground/6 hover:text-foreground aria-expanded:bg-foreground/6 aria-expanded:text-foreground",
+          "text-muted-foreground hover:bg-foreground/8 hover:text-foreground aria-expanded:bg-foreground/8 aria-expanded:text-foreground",
         link: "text-primary-text underline-offset-4 hover:underline",
       },
       size: {

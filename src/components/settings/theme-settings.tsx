@@ -112,7 +112,7 @@ function CardCaption({
 }
 
 const CARD_CLASS =
-  "p-1.5 hover:bg-foreground/4 data-[state=unchecked]:hover:-translate-y-px";
+  "p-1.5 hover:bg-foreground/5 data-[state=unchecked]:hover:-translate-y-px";
 
 /** Light, Dark, System and Custom, each drawn in its own palette. */
 export function ThemeModePicker({
@@ -243,7 +243,7 @@ export function ThemeColorEditor({
                 type="button"
                 aria-label={label}
                 className={cn(
-                  "flex min-w-0 cursor-pointer items-center gap-2 rounded-lg bg-foreground/4 p-1.5 pr-2 text-left transition-colors duration-150 hover:bg-foreground/7 aria-expanded:bg-foreground/8",
+                  "flex min-w-0 cursor-pointer items-center gap-2 rounded-lg bg-foreground/5 p-1.5 pr-2 text-left transition-colors duration-150 hover:bg-foreground/8 aria-expanded:bg-foreground/8",
                   FOCUS_RING,
                 )}
               >

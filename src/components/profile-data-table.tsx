@@ -37,6 +37,8 @@ import {
   LuPlay,
   LuPuzzle,
   LuRefreshCw,
+  LuShieldBan,
+  LuShieldCheck,
   LuShuffle,
   LuSlidersHorizontal,
   LuSparkles,
@@ -179,7 +181,10 @@ import {
   deleteCookieBotSchedule,
   runCookieBotNow,
 } from "@/lib/cookie-bot";
-import { DNS_BLOCKLIST_LEVELS } from "@/lib/dns-blocklist-levels";
+import {
+  DNS_BLOCKLIST_LEVELS,
+  dnsBlocklistLabelKey,
+} from "@/lib/dns-blocklist-levels";
 import { canUseCookieBot } from "@/lib/entitlements";
 import { formatRelativeTime } from "@/lib/flag-utils";
 import {
@@ -197,6 +202,7 @@ import {
   resolveTableVisibility,
   togglePins,
 } from "@/lib/table-tools";
+import { contentColumnWidth, textWidth } from "@/lib/text-width";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type {
@@ -493,8 +499,11 @@ function readableError(
  */
 const BOT_LABEL_WIDTH = 880;
 
-/** The name column keeps at least this much; other columns leave first. */
-const NAME_MIN_WIDTH = 220;
+/**
+ * The name column keeps at least this much, or its longest name when that
+ * is shorter; other columns leave first.
+ */
+const NAME_MIN_WIDTH = 180;
 
 /**
  * The columns that always show: select (wide enough to show the browser or
@@ -503,10 +512,14 @@ const NAME_MIN_WIDTH = 220;
 const SELECT_COLUMN_WIDTH = 60;
 const FIXED_COLUMNS_WIDTH = SELECT_COLUMN_WIDTH + 44 + 28 + 32;
 
+/** Columns sized to their content: padding of the cell and of its button. */
+const CONTENT_CHROME = 32;
+
 /**
  * Optional columns, most expendable first, with their floor and their share
- * of the container. The id, the note and the tags leave first: the details
- * panel and the search reach them. DNS and status stay longest: they are the
+ * of the container. Proxy, extensions, DNS and status take the width of
+ * their content instead (`contentWants`). The id, the note and the tags
+ * leave first: the details panel and the search reach them. DNS and status stay longest: they are the
  * controls the onboarding tour and the tips point at. The proxy column stays:
  * it is where a running row shows its traffic.
  */
@@ -710,7 +723,7 @@ function ExtCell({
           type="button"
           disabled={isSaving}
           className={cn(
-            "flex h-6 w-full items-center rounded-md px-2 text-left text-sm transition-colors duration-100 hover:bg-foreground/6 disabled:opacity-50",
+            "flex h-6 w-full items-center rounded-md px-2 text-left text-sm transition-colors duration-100 hover:bg-foreground/8 disabled:opacity-50",
             FOCUS_RING,
           )}
         >
@@ -820,12 +833,14 @@ function DnsCell({
           {...tipAnchor("row-dns")}
           disabled={isSaving}
           className={cn(
-            "flex h-6 w-full items-center rounded-md px-2 text-left text-sm transition-colors duration-100 hover:bg-foreground/6 disabled:opacity-50",
+            "flex h-6 w-full items-center rounded-md px-2 text-left text-sm transition-colors duration-100 hover:bg-foreground/8 disabled:opacity-50",
             FOCUS_RING,
           )}
           title={
-            level
-              ? meta.t("profiles.table.dnsLevel", { level })
+            currentLabel
+              ? meta.t("profiles.table.dnsLevel", {
+                  level: meta.t(currentLabel),
+                })
               : meta.t("dnsBlocklist.none")
           }
         >
@@ -833,7 +848,13 @@ function DnsCell({
             text={meta.t("profileTable.aria.dns", { name: profile.name })}
           />
           {currentLabel ? (
-            <span className="flex-1 truncate">{meta.t(currentLabel)}</span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <LuShieldBan
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-muted-foreground"
+              />
+              <span className="truncate">{meta.t(currentLabel)}</span>
+            </span>
           ) : (
             <EmptyCellValue label={meta.t("dnsBlocklist.none")} />
           )}
@@ -914,7 +935,7 @@ function StatusCell({
           data-slot="profile-status-cell"
           disabled={isSaving}
           className={cn(
-            "flex h-6 w-full min-w-0 items-center rounded-md px-2 text-left text-sm transition-colors duration-100 hover:bg-foreground/6 disabled:opacity-50",
+            "flex h-6 w-full min-w-0 items-center rounded-md px-2 text-left text-sm transition-colors duration-100 hover:bg-foreground/8 disabled:opacity-50",
             FOCUS_RING,
           )}
         >
@@ -1230,7 +1251,7 @@ const TagsCell = React.memo<{
             FOCUS_RING,
             isDisabled
               ? "cursor-not-allowed opacity-60"
-              : "cursor-pointer hover:bg-foreground/6",
+              : "cursor-pointer hover:bg-foreground/8",
           )}
           onClick={() => {
             if (!isDisabled) setOpenTagsEditorFor(profile.id);
@@ -1501,12 +1522,10 @@ function ProxyPicker({
                     vpnId === vpn.id ? "opacity-100" : "opacity-0",
                   )}
                 />
-                <Badge
-                  variant="soft"
-                  className="mr-1 px-1 py-0 text-[11px] leading-tight"
-                >
-                  WG
-                </Badge>
+                <LuShieldCheck
+                  aria-hidden="true"
+                  className="mr-1.5 size-3.5 shrink-0 text-muted-foreground"
+                />
                 {vpn.name}
               </CommandItem>
             ))}
@@ -1538,9 +1557,9 @@ const ProxyCellTrigger = React.memo<{
   profileName: string;
   displayName: string;
   hasAssignment: boolean;
-  vpnBadge: string | null;
+  isVpn: boolean;
   isDisabled: boolean;
-}>(({ profileName, displayName, hasAssignment, vpnBadge, isDisabled }) => {
+}>(({ profileName, displayName, hasAssignment, isVpn, isDisabled }) => {
   const { t } = useTranslation();
   const textRef = React.useRef<HTMLSpanElement | null>(null);
   const [isOverflowing, setIsOverflowing] = React.useState(false);
@@ -1567,16 +1586,14 @@ const ProxyCellTrigger = React.memo<{
               FOCUS_RING,
               isDisabled
                 ? "cursor-not-allowed opacity-60"
-                : "cursor-pointer hover:bg-foreground/6",
+                : "cursor-pointer hover:bg-foreground/8",
             )}
           >
-            {vpnBadge && (
-              <Badge
-                variant="soft"
-                className="shrink-0 px-1 py-0 text-[11px] leading-tight"
-              >
-                {vpnBadge}
-              </Badge>
+            {isVpn && (
+              <LuShieldCheck
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-muted-foreground"
+              />
             )}
             {hasAssignment ? (
               <span ref={textRef} className="min-w-0 truncate text-sm">
@@ -1718,7 +1735,7 @@ const NoteCell = React.memo<{
                   FOCUS_RING,
                   isDisabled
                     ? "cursor-not-allowed opacity-60"
-                    : "cursor-pointer hover:bg-foreground/6",
+                    : "cursor-pointer hover:bg-foreground/8",
                 )}
                 onClick={() => {
                   if (!isDisabled) {
@@ -1885,7 +1902,7 @@ const BotCell = React.memo<{
         <button
           type="button"
           aria-label={t("cookieBot.state.rowMenu", { name: profile.name })}
-          className="flex h-6 w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-md border-none bg-transparent px-2 text-left transition-colors duration-100 hover:bg-foreground/6"
+          className="flex h-6 w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-md border-none bg-transparent px-2 text-left transition-colors duration-100 hover:bg-foreground/8"
         >
           {tone ? (
             <StatusDot tone={tone} pulse={isPreparing} className="size-1.5" />
@@ -3549,7 +3566,7 @@ export function ProfilesDataTable({
                 type="button"
                 data-row-name
                 className={cn(
-                  "mr-auto flex h-6 max-w-full min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-md border-none bg-transparent px-2 py-1 text-left transition-colors duration-100 hover:bg-foreground/6",
+                  "mr-auto flex h-6 max-w-full min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-md border-none bg-transparent px-2 py-1 text-left transition-colors duration-100 hover:bg-foreground/8",
                   FOCUS_RING,
                 )}
                 onClick={(event) =>
@@ -3763,7 +3780,6 @@ export function ProfilesDataTable({
             : effectiveProxy
               ? effectiveProxy.name
               : meta.t("profiles.table.none");
-          const vpnBadge = effectiveVpn ? "WG" : null;
           const isSelectorOpen = meta.openProxySelectorFor === profile.id;
           const selectedId = effectiveVpnId ?? effectiveProxyId ?? null;
 
@@ -3795,7 +3811,7 @@ export function ProfilesDataTable({
                   profileName={profile.name}
                   displayName={displayName}
                   hasAssignment={hasAssignment}
-                  vpnBadge={vpnBadge}
+                  isVpn={Boolean(effectiveVpn)}
                   isDisabled={isDisabled}
                 />
 
@@ -3897,7 +3913,7 @@ export function ProfilesDataTable({
                       status: dot.tooltip,
                     })}
                     className={cn(
-                      "grid size-6 cursor-pointer place-items-center rounded-md transition-colors duration-100 hover:bg-foreground/6",
+                      "grid size-6 cursor-pointer place-items-center rounded-md transition-colors duration-100 hover:bg-foreground/8",
                       FOCUS_RING,
                     )}
                     onClick={() => meta.onOpenProfileSyncDialog?.(profile)}
@@ -3966,11 +3982,78 @@ export function ProfilesDataTable({
   );
 
   // Optional columns leave the table, most expendable first, until the name
-  // keeps NAME_MIN_WIDTH; their data stays reachable in the details panel.
+  // keeps its minimum (`contentWants.name`); their data stays reachable in the details panel.
   // Visibility (not CSS hiding) so table-fixed reclaims the width. Before the
   // first measurement `bot` and `profileId` stay hidden: an unentitled account
   // must never see a paid column, and the id must not flash into a narrow
   // table, not even for one frame.
+  const contentWants = React.useMemo<Record<string, number>>(() => {
+    const header = (key: string) =>
+      Math.max(48, textWidth(t(key), 12, "sans", 500) + 20);
+    const proxyNames = new Map(storedProxies.map((p) => [p.id, p.name]));
+    const vpnNames = new Map(vpnConfigs.map((v) => [v.id, v.name]));
+    const groupNames = new Map(extensionGroups.map((g) => [g.id, g.name]));
+    const statusNames = new Map(profileStatuses.map((s) => [s.id, s.name]));
+    const routes: string[] = [];
+    const tunnels: string[] = [];
+    for (const profile of profiles) {
+      const vpn = profile.vpn_id ? vpnNames.get(profile.vpn_id) : undefined;
+      if (vpn) tunnels.push(vpn);
+      else if (profile.proxy_id)
+        routes.push(proxyNames.get(profile.proxy_id) ?? "");
+    }
+    const column = (texts: string[], labelKey: string, chrome: number) =>
+      contentColumnWidth(texts, {
+        chrome: CONTENT_CHROME + chrome,
+        min: header(labelKey),
+        max: 240,
+      });
+    return {
+      // Short names leave their room to the other columns.
+      name: Math.min(
+        NAME_MIN_WIDTH,
+        contentColumnWidth(
+          profiles.map((p) => p.name),
+          { chrome: CONTENT_CHROME, min: 120, max: NAME_MIN_WIDTH },
+        ),
+      ),
+      // A proxy has its check button beside it; a VPN its shield.
+      proxy: Math.max(
+        column(routes, "profiles.table.proxy", 36),
+        column(tunnels, "profiles.table.proxy", 20),
+      ),
+      ext: column(
+        profiles.map((p) =>
+          p.extension_group_id
+            ? (groupNames.get(p.extension_group_id) ?? "")
+            : "",
+        ),
+        "profiles.table.ext",
+        0,
+      ),
+      dns: column(
+        profiles.map((p) =>
+          p.dns_blocklist ? t(dnsBlocklistLabelKey(p.dns_blocklist)) : "",
+        ),
+        "profiles.table.dns",
+        20,
+      ),
+      state: column(
+        profiles.map((p) =>
+          p.status_id ? (statusNames.get(p.status_id) ?? "") : "",
+        ),
+        "profileStatuses.column",
+        14,
+      ),
+    };
+  }, [
+    t,
+    profiles,
+    storedProxies,
+    vpnConfigs,
+    extensionGroups,
+    profileStatuses,
+  ]);
   const columnFit = React.useMemo(() => {
     if (containerWidth <= 0) return null;
     const choices = view.preferences.visibility;
@@ -3987,9 +4070,13 @@ export function ProfilesDataTable({
           ? { ...column, floor: 28, pct: 0 }
           : column;
       const resized = sizing[column.id];
+      const want = contentWants[column.id];
       candidates.push({
         ...shaped,
-        ...(resized ? { floor: resized, pct: 0 } : {}),
+        ...(want === undefined
+          ? {}
+          : { floor: Math.min(shaped.floor, want), want }),
+        ...(resized ? { floor: resized, pct: 0, want: undefined } : {}),
         pinned: shaped.pinned || choices[column.id] === true,
       });
     }
@@ -3997,11 +4084,12 @@ export function ProfilesDataTable({
       containerWidth,
       FIXED_COLUMNS_WIDTH,
       candidates,
-      NAME_MIN_WIDTH,
+      contentWants.name,
     );
   }, [
     containerWidth,
     cookieBotUnlocked,
+    contentWants,
     view.preferences.visibility,
     view.preferences.sizing,
   ]);
@@ -4404,6 +4492,9 @@ export function ProfilesDataTable({
     Boolean(selectedGroupId) &&
     selectedGroupId !== "__all__" &&
     !allProfiles.some((profile) => profile.group_id === selectedGroupId);
+  // With no profile at all the page shows only the invitation: no toolbar,
+  // no header row. The table stays mounted, so its measurements stay live.
+  const noProfiles = showOnboardingEmptyState && !isLoading;
   const emptyKind: ProfilesEmptyKind = showOnboardingEmptyState
     ? "onboarding"
     : groupIsEmpty
@@ -4528,12 +4619,25 @@ export function ProfilesDataTable({
 
   return (
     <>
-      <div className="mb-3 flex shrink-0 flex-wrap items-start justify-between gap-2">
+      {noProfiles && (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+          <ProfilesEmptyState
+            kind="onboarding"
+            onCreateProfile={onCreateProfile}
+            onImportProfiles={onImportProfiles}
+          />
+        </div>
+      )}
+      <div
+        hidden={noProfiles}
+        className="mb-3 flex shrink-0 flex-wrap items-start justify-between gap-2"
+      >
         {filterControls}
         <TableViewControls table={table} view={view} labels={columnLabels} />
       </div>
       <div
         ref={workspaceRef}
+        hidden={noProfiles}
         data-slot="profile-workspace"
         className="relative flex min-h-0 min-w-0 flex-1 gap-3"
       >
@@ -4669,7 +4773,7 @@ export function ProfilesDataTable({
                           </TableCell>
                         </TableRow>
                       ))
-                    ) : (
+                    ) : noProfiles ? null : (
                       <TableRow className={DATA_TABLE_CLASSES.row}>
                         <TableCell
                           colSpan={table.getVisibleLeafColumns().length}

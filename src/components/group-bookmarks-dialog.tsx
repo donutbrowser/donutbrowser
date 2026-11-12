@@ -252,7 +252,7 @@ export function GroupBookmarksDialog({
               {t("common.buttons.loading")}
             </p>
           ) : rows.length === 0 ? (
-            <p className="flex items-center gap-2 rounded-xl bg-foreground/3 px-3 py-4 text-sm text-muted-foreground">
+            <p className="flex items-center gap-2 rounded-xl bg-foreground/5 px-3 py-4 text-sm text-muted-foreground">
               <LuBookmark aria-hidden="true" className="size-4 shrink-0" />
               {t("groupBookmarks.empty")}
             </p>
@@ -275,7 +275,7 @@ export function GroupBookmarksDialog({
                       ease: MOTION_EASE_OUT,
                       layout: MOTION_SPRING_POSITION,
                     }}
-                    className="flex items-end gap-2 rounded-xl bg-foreground/3 p-3"
+                    className="flex items-end gap-2 rounded-xl bg-foreground/5 p-3"
                   >
                     <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
                       <div className="space-y-1">

@@ -333,9 +333,6 @@ export function ProxyCheckButton({
               <CheckPill
                 state={state}
                 resultKey={result?.timestamp}
-                compact={
-                  state !== "ok" || typeof result?.latency_ms !== "number"
-                }
                 onClick={() => {
                   if (!result) void handleCheck();
                 }}

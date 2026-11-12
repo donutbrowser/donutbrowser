@@ -132,7 +132,7 @@ export function CodeExamplesDialog({
                       "relative flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       active
                         ? "font-medium text-foreground"
-                        : "text-muted-foreground hover:bg-foreground/4 hover:text-foreground",
+                        : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
                     )}
                   >
                     {active && (
@@ -142,7 +142,7 @@ export function CodeExamplesDialog({
                         }
                         initial={false}
                         aria-hidden="true"
-                        className="absolute inset-0 -z-10 rounded-lg bg-foreground/7"
+                        className="absolute inset-0 -z-10 rounded-lg bg-foreground/8"
                         transition={
                           animate ? MOTION_SPRING.position : { duration: 0 }
                         }

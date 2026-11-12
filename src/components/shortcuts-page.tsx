@@ -250,9 +250,6 @@ export function ShortcutsPage({
       >
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="text-lg font-semibold">
-              {t("shortcutsPage.title")}
-            </h1>
             <p className="text-xs text-muted-foreground">
               {t("shortcutsPage.description")}
             </p>
@@ -262,7 +259,7 @@ export function ShortcutsPage({
             data-slot="shortcuts-open-palette"
             onClick={onOpenPalette}
             onPointerEnter={playDemo}
-            className="flex shrink-0 cursor-pointer items-center gap-3 rounded-lg bg-foreground/5 px-3 py-2 text-left transition-colors hover:bg-foreground/10"
+            className="flex shrink-0 cursor-pointer items-center gap-3 rounded-lg bg-foreground/5 px-3 py-2 text-left transition-colors hover:bg-foreground/12"
           >
             <KbdGroup
               keys={paletteKeys}

@@ -96,11 +96,8 @@ export function TickingCount({
   );
 }
 
-/**
- * What kind of thing a row is: a protocol, a tunnel type. Neutral on purpose,
- * since a type is a fact, not a state that needs attention.
- */
-export function KindBadge({
+/** What kind of thing a row is: a protocol, a tunnel type. Plain text. */
+export function KindLabel({
   children,
   icon,
   className,
@@ -109,9 +106,9 @@ export function KindBadge({
   return (
     <span
       {...props}
-      data-slot="kind-badge"
+      data-slot="kind-label"
       className={cn(
-        "inline-flex h-5 max-w-full items-center gap-1 rounded-md bg-foreground/6 px-1.5 font-mono text-[10px] leading-none font-medium tracking-wide text-muted-foreground uppercase [&_svg]:size-2.5 [&_svg]:shrink-0",
+        "inline-flex max-w-full items-center gap-1.5 text-sm text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0",
         className,
       )}
     >
@@ -128,15 +125,36 @@ export type SyncStatus =
   | "error"
   | "waiting";
 
-const SYNC_DOT: Record<SyncStatus, string> = {
-  synced: "bg-success",
+/** Only states the switch cannot show get a light. */
+const SYNC_DOT: Record<SyncStatus, string | null> = {
+  synced: null,
   syncing: "bg-primary motion-safe:animate-pulse",
   waiting: "bg-primary/40",
   error: "bg-destructive",
-  disabled: "bg-foreground/15",
+  disabled: null,
 };
 
-/** The sync switch of one row, with a light for where its sync stands. */
+/** The Sync column's header; its tooltip says what the column does. */
+export function SyncColumnHeader() {
+  const { t } = useTranslation();
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="cursor-default">
+          {t("proxies.management.syncCol")}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">
+        <p>{t("syncTooltips.column")}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * The sync switch of one row. A light beside it shows a sync in progress,
+ * waiting or failed; the switch alone says on or off.
+ */
 export function SyncCell({
   name,
   enabled,
@@ -158,6 +176,7 @@ export function SyncCell({
   onToggle: () => void;
 }) {
   const { t } = useTranslation();
+  const statusId = useId();
   const status: SyncStatus = !enabled
     ? "disabled"
     : liveStatus && liveStatus !== "disabled"
@@ -187,15 +206,21 @@ export function SyncCell({
           data-sync={status}
           className="inline-flex items-center gap-2"
         >
-          <span
-            aria-hidden="true"
-            className={cn(
-              "size-2 shrink-0 rounded-full transition-colors duration-200",
-              SYNC_DOT[status],
-            )}
-          />
+          {SYNC_DOT[status] && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-2 shrink-0 rounded-full transition-colors duration-200",
+                SYNC_DOT[status],
+              )}
+            />
+          )}
+          <span id={statusId} className="sr-only">
+            {statusText}
+          </span>
           <AnimatedSwitch
             aria-label={`${t("proxies.management.syncCol")}: ${name}`}
+            aria-describedby={statusId}
             checked={enabled}
             onCheckedChange={onToggle}
             disabled={busy || Boolean(lockedReason)}
@@ -335,20 +360,15 @@ export function CheckPill({
   state,
   icon,
   resultKey,
-  compact = false,
   children,
   className,
-  "aria-describedby": describedBy,
   ...props
 }: React.ComponentProps<"button"> & {
   state: CheckState;
   icon: ReactNode;
   /** Changes when a new result arrives, so the same state still rolls in. */
   resultKey?: string | number;
-  /** Shows the icon alone; the text stays for screen readers. */
-  compact?: boolean;
 }) {
-  const textId = useId();
   const motionAllowed = useEntityMotion();
   const previous = useRef(state);
   const roll =
@@ -360,20 +380,16 @@ export function CheckPill({
     <button
       type="button"
       {...props}
-      aria-describedby={
-        [describedBy, compact ? textId : null].filter(Boolean).join(" ") ||
-        undefined
-      }
       data-slot="check-pill"
       data-check-state={state}
       className={cn(
         "relative inline-flex h-6 max-w-full cursor-pointer items-center overflow-hidden rounded-full text-xs whitespace-nowrap outline-none transition-[background-color,color,transform] duration-150 ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 motion-reduce:active:scale-100 [&_svg]:size-3 [&_svg]:shrink-0",
-        compact ? "w-6 justify-center" : "px-2",
+        "px-2",
         state === "failed"
           ? "bg-destructive/10 text-destructive-text hover:bg-destructive/15"
           : state === "ok"
-            ? "bg-foreground/5 text-foreground hover:bg-foreground/10"
-            : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+            ? "bg-foreground/5 text-foreground hover:bg-foreground/12"
+            : "bg-foreground/5 text-muted-foreground hover:bg-foreground/12 hover:text-foreground",
         className,
       )}
     >
@@ -391,14 +407,9 @@ export function CheckPill({
           transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE_OUT }}
         >
           {icon}
-          {!compact && <span className="truncate">{children}</span>}
+          <span className="truncate">{children}</span>
         </motion.span>
       </AnimatePresence>
-      {compact && (
-        <span id={textId} className="sr-only">
-          {children}
-        </span>
-      )}
     </button>
   );
 }

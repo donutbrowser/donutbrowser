@@ -13,7 +13,7 @@ const inputVariants = cva(
     variants: {
       variant: {
         default: `h-9 rounded-md border border-input bg-transparent px-3 py-1 shadow-xs ${FOCUS_RING} aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive dark:bg-input/30`,
-        soft: `h-9 rounded-lg bg-foreground/5 px-3 py-1 hover:bg-foreground/7 focus-visible:bg-foreground/7 ${FOCUS_RING} aria-invalid:bg-destructive/10 aria-invalid:ring-2 aria-invalid:ring-destructive/40 aria-invalid:focus-visible:ring-destructive`,
+        soft: `h-9 rounded-lg bg-foreground/5 px-3 py-1 hover:bg-foreground/8 focus-visible:bg-foreground/8 ${FOCUS_RING} aria-invalid:bg-destructive/10 aria-invalid:ring-2 aria-invalid:ring-destructive/40 aria-invalid:focus-visible:ring-destructive`,
         bare: "bg-transparent p-0",
       },
     },

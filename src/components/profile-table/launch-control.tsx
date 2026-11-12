@@ -15,6 +15,7 @@ import {
   useLaunchActivity,
 } from "@/hooks/use-launch-activity";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";
+import { tipAnchor } from "@/lib/coach-mark";
 import { MOTION_EASE_OUT, MOTION_SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -207,7 +208,7 @@ export function LaunchControl({
       launching={isLaunching}
       content={tooltip}
     >
-      <span className="relative inline-flex">
+      <span className="relative inline-flex" {...tipAnchor("row-launch")}>
         {ping !== null && (
           <motion.span
             key={ping}

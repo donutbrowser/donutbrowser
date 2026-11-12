@@ -19,6 +19,10 @@ import { useTranslation } from "react-i18next";
 import { tableSelectionCounts } from "@/components/data-table-action-bar";
 import { RowNameProvider } from "@/components/entity-page";
 import {
+  type FitColumn,
+  fitColumns,
+} from "@/components/profile-table/column-fit";
+import {
   DATA_TABLE_CLASSES,
   TableColumnResizer,
   TableFilterControls,
@@ -102,6 +106,71 @@ const LABELS: Record<EntityTableId, Record<string, string>> = {
   },
 };
 
+/** The name column keeps at least this much; other columns leave first. */
+const NAME_MIN_WIDTH = 160;
+
+/**
+ * Columns that may leave the table, most expendable first. Any column not
+ * listed (select, icon, actions) always shows.
+ */
+const DROP_ORDER: Record<EntityTableId | "trash", string[]> = {
+  proxies: ["usage", "udp", "protocol", "sync", "hostPort", "check"],
+  vpns: ["usage", "type", "sync", "check"],
+  extensions: ["compat", "usage", "source", "sync"],
+  extensionGroups: ["usage", "extensions", "sync"],
+  groups: ["bookmarks", "sync", "count"],
+  trash: ["detail", "size", "deleted", "kind", "expires"],
+};
+
+/**
+ * Which optional columns show at `width`: they leave in DROP_ORDER until the
+ * name keeps NAME_MIN_WIDTH. A column the person chose to show stays; one
+ * they hid stays hidden.
+ */
+export function useFittedVisibility<T extends object>(
+  id: EntityTableId | "trash",
+  width: number,
+  columns: ColumnDef<T>[],
+  preferences: {
+    visibility: Record<string, boolean>;
+    sizing: Record<string, number>;
+  },
+) {
+  const { visibility: choices, sizing } = preferences;
+  return useMemo(() => {
+    const order = DROP_ORDER[id];
+    const size = (column: ColumnDef<T>) => {
+      const columnId =
+        column.id ??
+        ("accessorKey" in column ? String(column.accessorKey) : "");
+      return { columnId, width: sizing[columnId] ?? column.size ?? 0 };
+    };
+    let fixed = 0;
+    const optional = new Map<string, number>();
+    for (const column of columns) {
+      const { columnId, width: columnWidth } = size(column);
+      if (columnId === "name") continue;
+      if (order.includes(columnId)) optional.set(columnId, columnWidth);
+      else fixed += columnWidth;
+    }
+    const candidates: FitColumn[] = order
+      .filter(
+        (columnId) => optional.has(columnId) && choices[columnId] !== false,
+      )
+      .map((columnId) => ({
+        id: columnId,
+        floor: optional.get(columnId) ?? 0,
+        pct: 0,
+        pinned: choices[columnId] === true,
+      }));
+    return resolveTableVisibility(
+      fitColumns(width, fixed, candidates, NAME_MIN_WIDTH).visible,
+      choices,
+      ["name", "select", "actions", "icon"],
+    );
+  }, [id, width, columns, choices, sizing]);
+}
+
 function entitySearch(row: Entity) {
   const parts = [row.name];
   if ("proxy_settings" in row)
@@ -176,6 +245,7 @@ export function useEntityTableTools<T extends Entity>(
   id: EntityTableId,
   data: T[],
   setSelection: Dispatch<SetStateAction<RowSelectionState>>,
+  columns: ColumnDef<T>[],
 ) {
   const { t } = useTranslation();
   const view = useTablePreferences(id);
@@ -249,15 +319,7 @@ export function useEntityTableTools<T extends Entity>(
           );
     });
   }, [data, setSelection]);
-  const visibility = resolveTableVisibility(
-    id === "proxies"
-      ? { hostPort: width >= 672, protocol: width >= 672 }
-      : id === "vpns"
-        ? { type: width >= 672 }
-        : {},
-    view.preferences.visibility,
-    ["name", "select", "actions", "icon"],
-  );
+  const visibility = useFittedVisibility(id, width, columns, view.preferences);
   return { view, labels, filters, visibility, setWidth };
 }
 
@@ -305,7 +367,7 @@ export function ManagedDataTable<T extends Entity>({
           (sum, column) =>
             sum +
             (column.id === "name" && !view.preferences.sizing.name
-              ? 220
+              ? NAME_MIN_WIDTH
               : column.getSize()),
           0,
         )

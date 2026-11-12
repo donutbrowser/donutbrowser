@@ -1,9 +1,10 @@
 "use client";
 
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
-import { LuCookie, LuSearch } from "react-icons/lu";
+import { LuArrowUpRight, LuCloud, LuCookie, LuSearch } from "react-icons/lu";
 import {
   CookieBotActivity,
   type RunFilter,
@@ -54,6 +55,7 @@ import {
   getCookieBotRuns,
 } from "@/lib/cookie-bot";
 import { canUseCookieBot, getEntitlements } from "@/lib/entitlements";
+import { PRICING_URL } from "@/lib/plan-labels";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type { BrowserProfile, CloudUser } from "@/types";
@@ -77,6 +79,7 @@ interface CookieBotPageProps {
   onOpenProfileSync: (profile: BrowserProfile) => void;
   /** Opens proxy assignment for profiles with no exit node. */
   onAssignProxy: (profileIds: string[]) => void;
+  onOpenSignIn: () => void;
 }
 
 export function CookieBotPage({
@@ -88,6 +91,7 @@ export function CookieBotPage({
   cloudUser,
   onOpenProfileSync,
   onAssignProxy,
+  onOpenSignIn,
 }: CookieBotPageProps) {
   const { t } = useTranslation();
   const entitlements = getEntitlements(cloudUser);
@@ -244,7 +248,7 @@ export function CookieBotPage({
   }, [pendingRemoval, reload, t]);
 
   const dialogBody = !unlocked ? (
-    <LockedState />
+    <LockedState onOpenSignIn={cloudUser ? undefined : onOpenSignIn} />
   ) : (
     <div className="@container flex min-h-0 w-full flex-1 flex-col">
       <AnimatedTabs
@@ -452,7 +456,8 @@ export function CookieBotPage({
   );
 }
 
-function LockedState() {
+/** Without the plan: what Cookie Bot does, and the way to get it. */
+function LockedState({ onOpenSignIn }: { onOpenSignIn?: () => void }) {
   const { t } = useTranslation();
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
@@ -468,6 +473,29 @@ function LockedState() {
       <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
         {t("cookieBot.locked.hint")}
       </p>
+      <div className="mt-1 flex flex-wrap justify-center gap-2">
+        <Button
+          size="sm"
+          variant={onOpenSignIn ? "soft" : "default"}
+          data-slot="cookie-bot-see-plans"
+          className="h-8 gap-1.5 rounded-lg text-xs"
+          onClick={() => void openUrl(PRICING_URL)}
+        >
+          {t("account.seePlans")}
+          <LuArrowUpRight className="size-3.5" />
+        </Button>
+        {onOpenSignIn && (
+          <Button
+            size="sm"
+            data-slot="cookie-bot-sign-in"
+            className="h-8 gap-1.5 rounded-lg text-xs"
+            onClick={onOpenSignIn}
+          >
+            <LuCloud className="size-3.5" />
+            {t("account.signIn")}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

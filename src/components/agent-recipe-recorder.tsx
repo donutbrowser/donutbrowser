@@ -124,7 +124,7 @@ export function RecipeRecorder({
   return (
     <div
       data-slot="agent-recipe-recorder"
-      className="flex flex-col gap-3 rounded-xl bg-foreground/3 p-3"
+      className="flex flex-col gap-3 rounded-xl bg-foreground/5 p-3"
     >
       <p className="text-xs text-muted-foreground">
         {t("agent.recipes.recording.description")}

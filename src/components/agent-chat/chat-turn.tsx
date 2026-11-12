@@ -134,7 +134,7 @@ function WorkGroup({ turn }: { turn: ChatTurn }) {
         onClick={() => {
           setOpen((value) => !value);
         }}
-        className="group/work -mx-2 flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-foreground/4 disabled:hover:bg-transparent motion-reduce:transition-none"
+        className="group/work -mx-2 flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-foreground/5 disabled:hover:bg-transparent motion-reduce:transition-none"
       >
         <WorkMark turn={turn} />
         <AnimatePresence initial={false} mode="popLayout">

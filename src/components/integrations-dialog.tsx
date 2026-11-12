@@ -766,7 +766,7 @@ export function IntegrationsDialog({
         data-agent-id={agent.id}
         className={cn(
           "flex flex-col justify-center gap-2 rounded-xl px-3 py-2.5 transition-colors duration-200",
-          agent.connected ? "bg-foreground/5" : "bg-foreground/3",
+          agent.connected ? "bg-foreground/8" : "bg-foreground/5",
         )}
       >
         <div className="flex items-center gap-3">
@@ -1069,7 +1069,7 @@ export function IntegrationsDialog({
 
                 <AnimatedDisclosureContent open={settings.api_enabled}>
                   <div className="flex flex-col gap-4 pt-3">
-                    <SettingsPanel className="divide-y divide-foreground/6 py-3">
+                    <SettingsPanel className="divide-y divide-foreground/8 py-3">
                       <SettingsRow
                         label={t("integrations.apiPortLabel")}
                         description={t("integrations.apiPortDescription")}
@@ -1302,7 +1302,7 @@ export function IntegrationsDialog({
                     }
                   >
                     <div className="flex flex-col gap-4 pt-3">
-                      <SettingsPanel className="divide-y divide-foreground/6 py-3">
+                      <SettingsPanel className="divide-y divide-foreground/8 py-3">
                         <SettingsRow
                           label={t("integrations.remote.credentialLabel")}
                           description={t("integrations.remote.credentialHint")}

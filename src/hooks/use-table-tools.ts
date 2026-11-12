@@ -146,7 +146,9 @@ export function useTableKeyboard<T extends RowData>(
         pending.current = null;
       } else if (++attempts < 8) pending.current = requestAnimationFrame(focus);
     };
-    pending.current = requestAnimationFrame(focus);
+    // The cell is usually on screen already; a row scrolled into view by
+    // the virtualizer comes a frame later.
+    focus();
   }, []);
 
   // Tab into the rows lands on the remembered cell, not on the first button

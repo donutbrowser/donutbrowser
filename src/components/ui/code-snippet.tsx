@@ -74,7 +74,7 @@ export function CodeSnippet({
     <div
       data-slot="code-snippet"
       className={cn(
-        "group/snippet flex min-w-0 rounded-lg bg-foreground/4 font-mono text-[11px] leading-5 text-foreground",
+        "group/snippet flex min-w-0 rounded-lg bg-foreground/5 font-mono text-[11px] leading-5 text-foreground",
         multiline ? "items-start" : "items-center",
         className,
       )}

@@ -416,7 +416,7 @@ export function AgentWorkspace({
             }}
             disabled={usable.length === 0}
             icon={<LuUsers className="size-3.5" aria-hidden="true" />}
-            className="h-8 rounded-full bg-foreground/6 px-3 hover:bg-foreground/9"
+            className="h-8 rounded-full bg-foreground/8 px-3 hover:bg-foreground/12"
           />
         ) : null
       }

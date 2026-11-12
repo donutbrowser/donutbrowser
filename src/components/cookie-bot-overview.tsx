@@ -138,7 +138,7 @@ export function CookieBotOverview({
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div
         data-slot="cookie-bot-summary"
-        className="grid shrink-0 overflow-hidden rounded-xl bg-foreground/3 @2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
+        className="grid shrink-0 overflow-hidden rounded-xl bg-foreground/5 @2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
       >
         <NextRunSection
           live={live}
@@ -293,7 +293,7 @@ function NextRunSection({
       {running ? (
         <>
           <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 truncate text-base font-semibold tracking-tight text-foreground">
+            <span className="min-w-0 truncate text-base font-semibold text-foreground">
               {sessionDisplayName(live[0], profileIndex, undefined) ??
                 t("cookieBot.live.unnamedSession")}
             </span>
@@ -324,7 +324,7 @@ function NextRunSection({
           <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="cursor-default text-2xl leading-none font-semibold tracking-tight tabular-nums text-foreground">
+                <span className="cursor-default text-2xl leading-none font-semibold tabular-nums text-foreground">
                   {clockInZone(nextAt, next.timezone)}
                 </span>
               </TooltipTrigger>
@@ -412,7 +412,7 @@ function RecentSection({
   return (
     <section
       data-slot="cookie-bot-recent"
-      className="flex min-w-0 flex-col gap-1.5 border-t border-foreground/6 px-4 py-3 @2xl:border-t-0 @2xl:border-l"
+      className="flex min-w-0 flex-col gap-1.5 border-t border-foreground/8 px-4 py-3 @2xl:border-t-0 @2xl:border-l"
     >
       <span className={SECTION_LABEL_CLASS}>
         {t("cookieBot.lastDay.label")}
@@ -433,7 +433,7 @@ function RecentSection({
               value={stat.count}
               format={(value) => String(Math.round(value))}
               className={cn(
-                "text-2xl leading-none font-semibold tracking-tight",
+                "text-2xl leading-none font-semibold",
                 stat.count === 0 ? "text-muted-foreground" : "text-foreground",
               )}
             />
@@ -586,7 +586,7 @@ function MachineTimeChart({
   return (
     <section
       data-slot="cookie-bot-usage-chart"
-      className="flex shrink-0 flex-col gap-2.5 rounded-xl bg-foreground/3 px-4 pt-3 pb-2.5"
+      className="flex shrink-0 flex-col gap-2.5 rounded-xl bg-foreground/5 px-4 pt-3 pb-2.5"
     >
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
         <h3 className="text-sm font-medium text-foreground">
@@ -634,7 +634,7 @@ function MachineTimeChart({
                   aria-hidden="true"
                   className={cn(
                     "absolute inset-x-0 h-px",
-                    tick === 0 ? "bg-foreground/12" : "bg-foreground/6",
+                    tick === 0 ? "bg-foreground/12" : "bg-foreground/8",
                   )}
                   style={{ bottom: `${(tick / axis.top) * 100}%` }}
                 />
@@ -730,7 +730,7 @@ function DayBar({
           data-today={today || undefined}
           className={cn(
             "relative flex h-full min-w-0 flex-1 items-end justify-center rounded-[4px]",
-            today && "bg-foreground/4",
+            today && "bg-foreground/5",
           )}
         >
           {day.seconds > 0 ? (
@@ -750,7 +750,7 @@ function DayBar({
               )}
             />
           ) : (
-            <span className="h-0.5 w-full max-w-4 rounded-full bg-foreground/10" />
+            <span className="h-0.5 w-full max-w-4 rounded-full bg-foreground/12" />
           )}
         </div>
       </TooltipTrigger>
@@ -858,7 +858,7 @@ function EnrolledRow({
           {hiddenTimes > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="shrink-0 cursor-default rounded-sm bg-foreground/6 px-1 text-[11px] text-muted-foreground">
+                <span className="shrink-0 cursor-default rounded-sm bg-foreground/8 px-1 text-[11px] text-muted-foreground">
                   +{hiddenTimes}
                 </span>
               </TooltipTrigger>

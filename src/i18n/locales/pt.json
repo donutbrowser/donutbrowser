@@ -27,7 +27,6 @@
       "export": "Exportar",
       "refresh": "Atualizar",
       "loading": "Carregando...",
-      "saveSettings": "Salvar configurações",
       "moreInfo": "Mais informações",
       "downloading": "Baixando...",
       "minimize": "Minimizar",
@@ -122,7 +121,7 @@
     "appearance": {
       "title": "Aparência",
       "theme": "Tema",
-      "themeDescription": "Escolha seu tema preferido ou siga as configurações do sistema. Alterações de tema personalizado são aplicadas apenas ao salvar.",
+      "themeDescription": "Escolha um tema ou siga as configurações do sistema.",
       "themePreset": "Tema predefinido",
       "customColors": "Cores personalizadas",
       "yourOwn": "Seu próprio",
@@ -192,10 +191,10 @@
     "commercial": {
       "title": "Licença comercial",
       "trialActive": "Teste: {{days}} dias, {{hours}} horas restantes",
-      "trialActiveDescription": "O uso comercial é gratuito durante o teste. Após o término, todos os recursos continuam funcionando — o uso pessoal permanece gratuito, apenas o uso comercial exigirá uma licença.",
+      "trialActiveDescription": "O uso comercial é gratuito durante o teste. Após o término, todos os recursos continuam funcionando. O uso pessoal permanece gratuito. Apenas o uso comercial exigirá uma licença.",
       "trialExpired": "Teste expirado",
       "trialExpiredDescription": "O uso pessoal continua gratuito. O uso comercial requer uma licença.",
-      "subscriptionActive": "Assinado — plano {{plan}}",
+      "subscriptionActive": "O plano {{plan}} está ativo",
       "subscriptionActiveDescription": "Sua assinatura do Donut Browser está ativa. O uso comercial está licenciado enquanto seu plano estiver vigente."
     },
     "advanced": {
@@ -237,7 +236,6 @@
     "trashRetentionOff": "Excluir na hora",
     "scrollSectionsLeft": "Rolar seções para a esquerda",
     "scrollSectionsRight": "Rolar seções para a direita",
-    "changed": "Alterado",
     "open": "Abrir",
     "manage": "Gerenciar",
     "clear": "Limpar",
@@ -292,7 +290,7 @@
       "notificationsDescription": "Enquanto o Donut está em segundo plano, o sistema operacional avisa sobre eventos como uma inicialização com falha ou uma pergunta de um agente."
     },
     "launches": {
-      "title": "Inicializações em lote",
+      "title": "Inicializações",
       "delay": "Pausa entre inicializações",
       "delayDescription": "Quanto tempo o Donut espera antes de iniciar o próximo perfil quando você inicia vários.",
       "concurrency": "Perfis iniciados ao mesmo tempo",
@@ -583,6 +581,7 @@
     },
     "profileName": "Nome do perfil",
     "profileNamePlaceholder": "Digite o nome do perfil",
+    "defaultName": "Perfil {{n}}",
     "proxy": {
       "title": "Proxy / VPN",
       "addProxy": "Adicionar Proxy",
@@ -598,14 +597,15 @@
     },
     "version": {
       "fetching": "Buscando versões disponíveis...",
-      "fetchError": "Falha ao buscar versões do navegador. Por favor, verifique sua conexão com a internet e tente novamente.",
+      "fetchError": "Falha ao buscar versões do navegador. Verifique sua conexão com a internet e tente novamente.",
       "needsDownload": "A versão do {{browser}} ({{version}}) precisa ser baixada",
       "available": "A versão do {{browser}} ({{version}}) está disponível",
       "downloading": "Baixando versão do {{browser}} ({{version}})...",
       "latestNeedsDownload": "A versão mais recente ({{version}}) precisa ser baixada",
       "latestAvailable": "A versão mais recente ({{version}}) está disponível",
       "latestDownloading": "Baixando versão ({{version}})...",
-      "upgradeAvailable": "Uma versão mais recente ({{version}}) do {{browser}} está disponível."
+      "upgradeAvailable": "Uma versão mais recente ({{version}}) do {{browser}} está disponível.",
+      "createWhenReady": "O perfil será criado quando o download do {{browser}} terminar."
     },
     "chromiumLabel": "Chromium",
     "chromiumSubtitle": "Desenvolvido com Wayfern",
@@ -788,7 +788,7 @@
       "dropzonePrompt": "Solte um arquivo de configuração de proxy",
       "dropzoneFormats": "(.json, .txt)",
       "pasteHint": "Cole da área de transferência com {{modKey}}+V",
-      "wrongFileType": "Por favor, solte um arquivo .json ou .txt",
+      "wrongFileType": "Solte um arquivo .json ou .txt",
       "fileReadError": "Falha ao ler o arquivo",
       "fileProcessError": "Falha ao processar o arquivo",
       "noValidProxies": "Nenhum proxy válido encontrado no arquivo",
@@ -893,8 +893,8 @@
       "disabledDescription": "Sem sincronização para este perfil",
       "regularDescription": "Sincronização rápida, sem criptografia",
       "encryptedDescription": "Criptografado antes do upload. O servidor nunca vê os dados em texto simples.",
-      "noPasswordWarning": "Senha E2E não definida. Por favor defina uma senha nas Configurações.",
-      "passwordRequired": "Senha E2E não definida. Por favor defina uma senha nas Configurações primeiro.",
+      "noPasswordWarning": "Senha E2E não definida. Defina uma senha nas Configurações.",
+      "passwordRequired": "Senha E2E não definida. Defina uma senha nas Configurações primeiro.",
       "enabledToast": "Sincronização habilitada",
       "disabledToast": "Sincronização desabilitada",
       "syncQueued": "Sincronização na fila",
@@ -906,7 +906,7 @@
     "title": "Serviço de Sincronização",
     "config": {
       "serverUrlRequired": "Insira uma URL de servidor",
-      "connectionSuccess": "Conexão bem-sucedida!",
+      "connectionSuccess": "Conexão bem-sucedida",
       "serverError": "O servidor respondeu com um erro",
       "connectFailed": "Falha ao conectar ao servidor",
       "storageEndpoint": "Armazenamento: {{endpoint}}",
@@ -946,7 +946,7 @@
       "manageAccount": "Gerenciar conta",
       "logout": "Sair",
       "logoutConfirm": "Tem certeza de que deseja sair? A sincronização na nuvem será interrompida.",
-      "loginSuccess": "Login realizado com sucesso!",
+      "loginSuccess": "Login realizado com sucesso",
       "logoutSuccess": "Logout realizado com sucesso.",
       "server": "Servidor"
     },
@@ -960,7 +960,7 @@
       "manageOnWeb": "Gerenciar equipe no painel web",
       "profileLocked": "Em uso por {{email}}",
       "profileLockedShort": "Em uso",
-      "cannotLaunchLocked": "Não é possível iniciar — o perfil está em uso por {{email}}",
+      "cannotLaunchLocked": "Não é possível iniciar: o perfil está em uso por {{email}}",
       "createdBy": "Criado por {{email}}",
       "roleLauncher": "Iniciador"
     },
@@ -1406,7 +1406,7 @@
       "settingsSaved": "Configurações salvas com sucesso",
       "copied": "Copiado para a área de transferência",
       "permissionRequested": "Acesso ao {{permission}} solicitado",
-      "downloadComplete": "{{browser}} {{version}} baixado com sucesso!",
+      "downloadComplete": "{{browser}} {{version}} baixado com sucesso",
       "importSuccess": "{{count}} itens importados com sucesso",
       "exportSuccess": "{{count}} itens exportados com sucesso",
       "syncSuccess": "Sincronização concluída com sucesso",
@@ -1446,19 +1446,20 @@
     "progress": {
       "remaining": "{{time}} restante",
       "filesProgress": "{{completed}}/{{total}} arquivos",
-      "filesFailed": "{{count}} arquivo(s) com falha"
+      "filesFailed": "{{count}} arquivo(s) com falha",
+      "starting": "Iniciando…"
     }
   },
   "errors": {
     "required": "Este campo é obrigatório",
-    "invalidUrl": "Por favor, insira uma URL válida",
-    "invalidPort": "Por favor, insira um número de porta válido (1-65535)",
-    "invalidEmail": "Por favor, insira um email válido",
+    "invalidUrl": "Insira uma URL válida",
+    "invalidPort": "Insira um número de porta válido (1-65535)",
+    "invalidEmail": "Insira um email válido",
     "minLength": "Deve ter pelo menos {{min}} caracteres",
     "maxLength": "Deve ter no máximo {{max}} caracteres",
-    "networkError": "Erro de rede. Por favor, verifique sua conexão.",
-    "serverError": "Erro do servidor. Por favor, tente novamente mais tarde.",
-    "unknownError": "Ocorreu um erro desconhecido. Por favor, tente novamente.",
+    "networkError": "Erro de rede. Verifique sua conexão.",
+    "serverError": "Erro do servidor. Tente novamente mais tarde.",
+    "unknownError": "Ocorreu um erro desconhecido. Tente novamente.",
     "noProfilesForUrl": "Sem perfis disponíveis. Crie um perfil primeiro antes de abrir URLs.",
     "createProfileFailed": "Falha ao criar o perfil: {{error}}",
     "launchBrowserFailed": "Falha ao iniciar {{name}}: {{error}}",
@@ -1675,7 +1676,7 @@
     "values": {
       "none": "Nenhum",
       "never": "Nunca",
-      "copied": "Copiado!",
+      "copied": "Copiado",
       "yes": "Sim",
       "activeNow": "Ativo agora",
       "direct": "Direto",
@@ -1712,7 +1713,6 @@
       "button": "Clonar"
     },
     "duplicate": "Duplicar",
-    "breadcrumbRoot": "Perfil",
     "openDialog": "Abrir configurações",
     "sections": {
       "overview": "Visão geral",
@@ -1730,7 +1730,9 @@
       "startPages": "Páginas iniciais",
       "twoFactor": "Códigos 2FA",
       "requests": "Requisições",
-      "logs": "Logs"
+      "logs": "Logs",
+      "launch": "Inicialização",
+      "data": "Dados"
     },
     "sectionDesc": {
       "fingerprint": "Configure como este perfil aparece para scripts de fingerprinting.",
@@ -1946,7 +1948,8 @@
     "cookieCopyLocked": "A cópia de cookies é um recurso Pro",
     "cookieImportLocked": "A importação de cookies é um recurso Pro",
     "cookieExportLocked": "A exportação de cookies é um recurso Pro",
-    "cookieManagementLocked": "O gerenciamento de cookies é um recurso Pro"
+    "cookieManagementLocked": "O gerenciamento de cookies é um recurso Pro",
+    "seePlans": "Recurso Pro. Ver planos"
   },
   "dnsBlocklist": {
     "title": "Lista de bloqueio DNS",
@@ -2130,7 +2133,7 @@
       "pasteHint": "Colar da área de transferência com {{modKey}}+V",
       "invalidContent": "O conteúdo não parece ser uma configuração VPN válida",
       "fileReadError": "Falha ao ler o arquivo",
-      "wrongFileType": "Por favor solte um arquivo .conf WireGuard",
+      "wrongFileType": "Solte um arquivo .conf WireGuard",
       "configurationLabel": "Configuração {{type}}",
       "endpointLabel": "Endpoint: {{endpoint}}",
       "vpnNameLabel": "Nome da VPN",
@@ -2248,7 +2251,8 @@
     "enable": "Ativar sincronização",
     "disable": "Desativar sincronização",
     "lockedInUse": "A sincronização está bloqueada enquanto um perfil sincronizado a usar",
-    "bulkToggle": "Alternar sincronização"
+    "bulkToggle": "Alternar sincronização",
+    "column": "Ativado: este item fica igual nos seus outros dispositivos. Uma luz ao lado do botão mostra uma sincronização em andamento, em espera ou com falha."
   },
   "groupManagement": {
     "description": "Gerencie seus grupos de perfis",
@@ -2318,7 +2322,7 @@
     "selectButton": "Selecionar",
     "launching": "Abrindo...",
     "openLink": "Abrir link",
-    "urlCopied": "URL copiada para a área de transferência!",
+    "urlCopied": "URL copiada para a área de transferência",
     "noneAvailableShort": "Nenhum perfil disponível. Crie um perfil primeiro.",
     "noneAvailableLong": "Feche este diálogo e crie um perfil pela janela principal para começar.",
     "badgeRunning": "Em execução",
@@ -2333,7 +2337,7 @@
   "wayfernTerms": {
     "title": "Termos e condições da Wayfern",
     "description": "Antes de usar o Donut Browser, você deve ler e concordar com os Termos e Condições da Wayfern.",
-    "reviewLabel": "Por favor, revise os Termos e Condições em:",
+    "reviewLabel": "Revise os Termos e Condições em:",
     "agreeNotice": "Ao clicar em \"Aceito\", você concorda em ficar vinculado a esses termos.",
     "acceptButton": "Aceito",
     "acceptSuccess": "Termos aceitos com sucesso",
@@ -2353,8 +2357,8 @@
     "titleCamera": "Acesso à câmera necessário",
     "descMicrophone": "O Donut Browser precisa acessar seu microfone para habilitar a funcionalidade de microfone nos navegadores. Cada site que quiser usar seu microfone ainda pedirá sua permissão individualmente.",
     "descCamera": "O Donut Browser precisa acessar sua câmera para habilitar a funcionalidade de câmera nos navegadores. Cada site que quiser usar sua câmera ainda pedirá sua permissão individualmente.",
-    "grantedMicrophone": "Permissão concedida! Os navegadores abertos pelo Donut Browser agora podem acessar seu microfone.",
-    "grantedCamera": "Permissão concedida! Os navegadores abertos pelo Donut Browser agora podem acessar sua câmera.",
+    "grantedMicrophone": "Permissão concedida. Os navegadores abertos pelo Donut Browser agora podem acessar seu microfone.",
+    "grantedCamera": "Permissão concedida. Os navegadores abertos pelo Donut Browser agora podem acessar sua câmera.",
     "notGrantedMicrophone": "Permissão não concedida. Clique no botão abaixo para solicitar acesso ao seu microfone.",
     "notGrantedCamera": "Permissão não concedida. Clique no botão abaixo para solicitar acesso à sua câmera.",
     "doneButton": "Concluído",
@@ -2536,7 +2540,7 @@
   "browserDownload": {
     "toast": {
       "fetchVersionsFailed": "Falha ao obter as versões de {{browser}}",
-      "foundNewVersions": "Foram encontradas {{count}} novas versões de {{browser}}!",
+      "foundNewVersions": "Foram encontradas {{count}} novas versões de {{browser}}",
       "totalAvailableVersions": "Total disponível: {{count}} versões",
       "downloadFailed": "Falha ao baixar {{browser}} {{version}}",
       "calculating": "calculando...",
@@ -2546,7 +2550,7 @@
       "verifying": "Verificando arquivos do navegador...",
       "downloadingRolling": "Baixando build rolling release...",
       "geoipDownloading": "Baixando banco de dados GeoIP",
-      "geoipDownloaded": "Banco de dados GeoIP baixado com sucesso!",
+      "geoipDownloaded": "Banco de dados GeoIP baixado com sucesso",
       "downloadFailedDescription": "Não foi possível concluir o download. Verifique sua conexão e tente novamente."
     }
   },
@@ -2642,7 +2646,7 @@
     "profileNotProtected": "O perfil não está protegido por senha",
     "profileAlreadyProtected": "O perfil já está protegido por senha",
     "profileRunning": "Não é possível realizar esta ação enquanto o perfil está em execução",
-    "profileEphemeral": "Perfis efêmeros não podem ser protegidos por senha — seus dados são apagados ao sair.",
+    "profileEphemeral": "Perfis efêmeros não podem ser protegidos por senha. Seus dados são apagados ao sair.",
     "profileMissingSalt": "O perfil está sem o sal de criptografia",
     "profileLocked": "O perfil está bloqueado. Digite a senha primeiro.",
     "invalidProfileId": "ID de perfil inválido",
@@ -2667,8 +2671,8 @@
     "syncNotConfigured": "A sincronização não está configurada. Faça login ou configure um servidor auto-hospedado.",
     "internal": "Algo deu errado: {{detail}}",
     "invalidLaunchHookUrl": "URL do hook de inicialização inválida. Use uma URL completa http:// ou https://.",
-    "cookieDbLocked": "Não foi possível ler os cookies — o banco de dados está bloqueado. Feche o navegador e tente novamente.",
-    "cookieDbUnavailable": "Não foi possível ler os cookies — o repositório de cookies está indisponível.",
+    "cookieDbLocked": "Não foi possível ler os cookies: o banco de dados está bloqueado. Feche o navegador e tente novamente.",
+    "cookieDbUnavailable": "Não foi possível ler os cookies: o repositório de cookies está indisponível.",
     "cookieImportBrowserRunning": "Não é possível importar cookies enquanto o navegador está em execução. Feche-o e tente novamente.",
     "cookieImportProfileProtected": "Não é possível importar cookies para um perfil protegido por senha. Remova a senha primeiro.",
     "cookieImportRemoteSession": "Não é possível importar cookies enquanto uma sessão remota controla este perfil. Aguarde a sincronização terminar.",
@@ -2676,7 +2680,7 @@
     "selfHostedRequiresLogout": "Saia da sua conta Donut antes de configurar um servidor auto-hospedado.",
     "fingerprintRequiresPro": "Visualizar ou editar a impressão digital requer um plano pago ativo. A proteção está incluída em todos os planos.",
     "proxyNotWorking": "O proxy selecionado não está funcionando, então o perfil não foi criado.",
-    "proxyPaymentRequired": "O proxy selecionado exige pagamento (402) — sua assinatura pode ter expirado — então o perfil não foi criado.",
+    "proxyPaymentRequired": "O proxy selecionado exige pagamento (402). Sua assinatura pode ter expirado. O perfil não foi criado.",
     "vpnNotWorking": "A VPN selecionada não está funcionando, então o perfil não foi criado.",
     "camoufoxImportDeprecated": "A importação deste tipo de perfil não é mais suportada. Use o Wayfern em vez disso.",
     "updateChecksumsUnavailable": "Não foi possível verificar a atualização {{version}} porque o arquivo de somas de verificação não pôde ser obtido. A atualização não foi instalada; será tentada novamente mais tarde.",
@@ -2689,6 +2693,7 @@
     "importSourceNotFound": "O caminho de origem não existe",
     "importNoItems": "Nada selecionado para importar",
     "browserNotDownloaded": "Nenhuma versão baixada de {{browser}} está disponível. Baixe-a primeiro e tente importar novamente.",
+    "browserDownloadFailed": "O download falhou. Verifique a conexão e tente novamente.",
     "archiveExtractionFailed": "Falha ao extrair o arquivo: {{detail}}",
     "unsupportedArchiveFormat": "Formato de arquivo não suportado. Apenas arquivos ZIP são suportados.",
     "clearOnCloseUnavailable": "A limpeza ao fechar não está disponível para perfis efêmeros ou protegidos por senha.",
@@ -3064,7 +3069,7 @@
   },
   "encryption": {
     "required": {
-      "title": "Sincronização pausada — senha necessária",
+      "title": "Sincronização pausada: senha necessária",
       "description": "Dados criptografados foram baixados, mas nenhuma senha E2E está configurada neste dispositivo. Abra Configurações → Criptografia e insira a senha para retomar a sincronização.",
       "openSettings": "Abrir configurações"
     },
@@ -3090,17 +3095,15 @@
     "loggedOut": "Sessão encerrada",
     "signedOut": "Sem sessão",
     "signedOutDescription": "Entre para ativar sincronização na nuvem, perfis criptografados e recursos de equipe.",
-    "plan": "Plano: {{plan}} · {{period}}",
+    "plan": "Plano {{plan}} · {{period}}",
     "teamSeat": "Assento de {{role}} em {{team}}",
     "teamSeatUnnamed": "Assento de {{role}} em uma equipe",
     "refresh": "Atualizar",
     "logout": "Sair",
     "signIn": "Entrar",
     "fields": {
-      "plan": "Plano",
       "status": "Status",
       "teamRole": "Função na equipe",
-      "period": "Período",
       "device": "Dispositivo"
     },
     "tabs": {
@@ -3134,10 +3137,40 @@
       "removed": "Servidor de sincronização removido.",
       "switched": "Sincronizando com {{server}}.",
       "tokenServer": "{{host}} (token de sincronização)"
+    },
+    "planOnly": "Plano {{plan}}",
+    "plans": {
+      "free": "Gratuito",
+      "solo": "Solo",
+      "pro": "Pro",
+      "team": "Team",
+      "enterprise": "Enterprise"
+    },
+    "periods": {
+      "monthly": "Mensal",
+      "yearly": "Anual"
+    },
+    "statuses": {
+      "active": "Ativa",
+      "trialing": "Avaliação",
+      "past_due": "Pagamento em atraso",
+      "unpaid": "Não paga",
+      "canceled": "Cancelada",
+      "incomplete": "Incompleta",
+      "incomplete_expired": "Expirada",
+      "paused": "Pausada"
+    },
+    "seePlans": "Ver planos",
+    "manageSubscription": "Gerenciar assinatura",
+    "hoursLeftOf": "Restam {{left}} h de {{total}} h",
+    "benefits": {
+      "sync": "Sincronize perfis, proxies e grupos entre seus dispositivos",
+      "backup": "Mantenha uma cópia criptografada dos seus perfis na nuvem",
+      "team": "Compartilhe perfis com sua equipe",
+      "remote": "Execute perfis na nuvem e mantenha os cookies ativos com o Cookie Bot"
     }
   },
   "shortcutsPage": {
-    "title": "Atalhos de teclado",
     "description": "Acelere seu fluxo de trabalho com estes atalhos.",
     "paletteHint": "Busca em todas as páginas, perfis e ações.",
     "holdHint": "Segure estas teclas para ver quais atalhos as usam.",
@@ -3162,7 +3195,7 @@
     "actions": {
       "launchProfile": "Iniciar {{name}}",
       "stopProfile": "Parar {{name}}",
-      "profileInfo": "Informações — {{name}}",
+      "profileInfo": "Informações: {{name}}",
       "createProfile": "Criar perfil",
       "about": "Sobre o Donut Browser",
       "agentChat": "Novo chat com o agente",
@@ -3280,27 +3313,10 @@
     "quit": "Sair"
   },
   "onboarding": {
-    "steps": {
-      "createProfile": {
-        "title": "Crie seu primeiro perfil",
-        "content": "Clique aqui para criar seu primeiro perfil. Escolha o Wayfern como navegador: o Chromium recomendado e protegido contra fingerprint."
-      },
-      "dnsBlocking": {
-        "title": "Bloqueio de DNS",
-        "content": "Use este menu para definir o nível da lista de bloqueio DNS do perfil — ele bloqueia anúncios, rastreadores e malware no nível da rede. Níveis mais altos bloqueiam mais."
-      }
-    },
-    "buttons": {
-      "skip": "Pular",
-      "finish": "Concluir"
-    },
-    "thankYou": {
-      "title": "Obrigado por escolher o Donut Browser",
-      "body": "Com sorte, deixará sua navegação mais privada: cada identidade separada e nada saindo do seu dispositivo. Boa navegação!",
-      "cta": "Começar a navegar"
-    },
-    "stepOf": "Passo {{current}} de {{total}}",
-    "progress": "Progresso do tour"
+    "launch": {
+      "title": "Abra seu perfil",
+      "content": "Iniciar abre este perfil no próprio navegador dele."
+    }
   },
   "welcome": {
     "title": "Boas-vindas ao Donut Browser",
@@ -3310,41 +3326,8 @@
     "permissions": {
       "title": "Permitir microfone e câmera",
       "desc": "Conceda acesso para que sites que precisam de microfone ou câmera funcionem nos seus perfis de navegador. O macOS pergunta uma vez; cada site ainda pedirá individualmente.",
-      "skip": "Agora não",
       "grant": "Permitir acesso",
       "requesting": "Solicitando…"
-    },
-    "ready": {
-      "title": "Preparando tudo",
-      "descDownloading": "Baixando seu primeiro navegador (Wayfern). Esta configuração única é executada em segundo plano — aguarde um momento.",
-      "descReady": "Seu navegador está pronto. Vamos criar seu primeiro perfil.",
-      "cta": "Criar meu primeiro perfil",
-      "downloading": "Baixando…",
-      "extracting": "Extraindo…",
-      "stats": "{{downloaded}} de {{total}}",
-      "speed": "{{speed}}/s",
-      "timeLeft": "{{time}} restante",
-      "descExtracting": "Extraindo seu navegador. Esta configuração única é executada em segundo plano — aguarde.",
-      "almostFinished": "Quase terminando…",
-      "errorTitle": "Falha na configuração",
-      "errorDownload": "Não foi possível baixar o {{browser}}. Verifique sua conexão e tente novamente.",
-      "errorExtraction": "Não foi possível extrair o {{browser}}. Tente novamente.",
-      "errorGeneric": "Algo deu errado ao configurar o {{browser}}. Tente novamente.",
-      "retry": "Tentar novamente",
-      "proxyHint": "Se a sua rede bloqueia os servidores do Donut, informe um proxy para o Donut e tente novamente."
-    },
-    "features": {
-      "title": "Recursos",
-      "items": {
-        "setDefault": "Definir como navegador padrão",
-        "proxy": "Suporte a proxy (HTTP/SOCKS5)",
-        "vpn": "Suporte a VPN (WireGuard)",
-        "profiles": "Perfis locais ilimitados",
-        "api": "API de gerenciamento de perfis",
-        "openSource": "Código aberto",
-        "groups": "Grupos de perfis",
-        "cookies": "Importar e exportar cookies"
-      }
     },
     "license": {
       "title": "Licenciamento",
@@ -3353,7 +3336,6 @@
       "personalTitle": "Uso pessoal",
       "personalDesc": "Gratuito para sempre.",
       "commercialTitle": "Uso comercial",
-      "trialBadge": "2 semanas grátis",
       "commercialDesc": "Gratuito durante uma avaliação de 2 semanas. Depois, um plano pago mantém o projeto ativo e próspero."
     },
     "progress": "Progresso da configuração"
@@ -3406,9 +3388,6 @@
     },
     "diagnostics": {
       "title": "Diagnóstico",
-      "version": "Versão",
-      "channel": "Canal",
-      "system": "Sistema",
       "yes": "Sim",
       "no": "Não",
       "notInstalled": "Não instalado",
@@ -3828,8 +3807,8 @@
     "dontWarnExtensions": "Não avisar novamente sobre estas extensões",
     "applyToRemaining": "Aplicar esta escolha aos perfis restantes",
     "cancelledSummary": "{{cancelled}} de {{total}} inicializações canceladas",
-    "vpnExtensionEntry": " {{version}} — {{capability}}, {{source}}",
-    "vpnExtensionEntryNoVersion": " — {{capability}}, {{source}}",
+    "vpnExtensionEntry": " {{version}}: {{capability}}, {{source}}",
+    "vpnExtensionEntryNoVersion": ": {{capability}}, {{source}}",
     "scanIncompleteMissing": "Este perfil ainda não foi iniciado, portanto só foi possível verificar as extensões gerenciadas pelo Donut.",
     "exitUnverifiedTimezone": "A impressão digital deste perfil não declara nenhum fuso horário, então a verificação de saída não consegue conferi-lo. A inicialização não é bloqueada, mas também nada foi comparado.",
     "exitUnverifiedLanguage": "O idioma da impressão digital deste perfil não pode ser comparado com o país de saída, então essa verificação fica sem conferência, não aprovada.",
@@ -3871,35 +3850,10 @@
     "starting": "Iniciando perfis e conectando o sincronizador…",
     "startError": "Não foi possível iniciar o sincronizador. Sua seleção foi mantida. Verifique os perfis e tente novamente."
   },
-  "isolationDemo": {
-    "title": "Uma alteração. Um perfil.",
-    "description": "Experimente estes perfis de exemplo. Nada aqui altera seus perfis reais.",
-    "research": "Pesquisa",
-    "shopping": "Compras",
-    "cookies": "Cookie de sessão",
-    "noCookie": "Sem cookie de sessão",
-    "savedCookie": "Cookie de sessão salvo",
-    "route": "Rota",
-    "direct": "Direta",
-    "proxy": "Proxy de exemplo",
-    "signIn": "Entrar",
-    "signOut": "Sair",
-    "switchRoute": "Trocar rota",
-    "reset": "Redefinir exemplo",
-    "hint": "Selecione um perfil e altere seu cookie ou rota.",
-    "changed": "{{name}} foi alterado. O outro perfil manteve seu próprio cookie e rota.",
-    "resetDone": "Os dois exemplos foram redefinidos.",
-    "device": "Dispositivo",
-    "site": "Site"
-  },
   "appFeedback": {
     "saveFailed": "Não foi possível salvar as configurações",
     "searchSettings": "Buscar configurações…",
-    "pendingChanges": "Alterações não salvas: {{count}}",
-    "reviewChanges": "Revisar alterações",
-    "noChanges": "Nenhuma alteração não salva",
     "discardChanges": "Descartar alterações",
-    "appliesImmediately": "As ações desta seção são aplicadas imediatamente.",
     "searchShortcuts": "Buscar atalhos…",
     "requestedSchedule": "As barras mostram a duração máxima solicitada em cada fuso. As sobreposições compartilham dias; as execuções reais podem variar.",
     "overlappingBookings": "Agendamentos sobrepostos: {{count}}",
@@ -4961,7 +4915,9 @@
     "noOptions": "Nenhuma opção correspondente.",
     "removeFilter": "Remover filtro: {{filter}}",
     "clearFilters": "Limpar filtros",
-    "results": "{{count}} de {{total}} linhas",
+    "results_one": "{{shown}} de {{count}} linha",
+    "results_many": "{{shown}} de {{count}} linhas",
+    "results_other": "{{shown}} de {{count}} linhas",
     "sortSummary": "{{column}}: {{direction}}",
     "descending": "Decrescente",
     "ascending": "Crescente",
@@ -5060,7 +5016,7 @@
     "included": "Também enviado: Donut {{version}}, {{os}} {{arch}}",
     "send": "Enviar",
     "success": {
-      "title": "Obrigado!",
+      "title": "Obrigado",
       "body": "Seu feedback chegou à equipe do Donut.",
       "bodyWithLogs": "Seu feedback e seus logs chegaram à equipe do Donut.",
       "reply": "Se precisarmos de mais detalhes, escreveremos para {{email}}.",
@@ -5346,15 +5302,21 @@
     "lost": "{{device}} assumiu {{profile}}. As alterações feitas aqui não serão sincronizadas."
   },
   "previews": {
-    "title": "Pré-visualizações ao vivo",
     "description": "Clique em uma pré-visualização para trazer a janela para a frente.",
     "locked": "As pré-visualizações ao vivo de perfis em execução fazem parte do Pro e de planos superiores.",
     "seePlans": "Ver planos",
-    "empty": "Nenhum perfil está em execução."
+    "empty": "Nenhum perfil está em execução",
+    "emptyBody": "Inicie um perfil para ver a janela dele aqui."
   },
   "whatsNew": {
     "updated": "Atualizado para {{version}}",
     "open": "Novidades",
     "title": "Novidades da {{version}}"
+  },
+  "errorBoundary": {
+    "title": "Ocorreu um erro",
+    "description": "Esta parte do Donut parou por causa de um erro. Recarregue para continuar. O erro está no log.",
+    "reload": "Recarregar",
+    "copyDetails": "Copiar detalhes"
   }
 }

@@ -272,7 +272,7 @@ export function TableFilterControls({
         role="status"
         className="px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums"
       >
-        {t("tables.results", { count, total })}
+        {t("tables.results", { shown: count, count: total })}
       </span>
     </div>
   );
@@ -696,7 +696,7 @@ export function TableViewControls<T extends RowData>({
               </>
             )}
             {sorting.length > 1 && (
-              <span className="rounded-full bg-foreground/10 px-1.5 text-[10px] leading-4 tabular-nums">
+              <span className="rounded-full bg-foreground/12 px-1.5 text-[10px] leading-4 tabular-nums">
                 +{sorting.length - 1}
               </span>
             )}
@@ -849,7 +849,7 @@ export function TableViewControls<T extends RowData>({
                   data-column-id={label.id}
                   layout={motionAllowed ? "position" : false}
                   transition={MOTION_SPRING.position}
-                  className="flex min-h-8 items-center gap-0.5 rounded-md pr-0.5 transition-colors duration-100 hover:bg-foreground/6"
+                  className="flex min-h-8 items-center gap-0.5 rounded-md pr-0.5 transition-colors duration-100 hover:bg-foreground/8"
                 >
                   <label
                     htmlFor={`table-visible-${view.id}-${label.id}`}

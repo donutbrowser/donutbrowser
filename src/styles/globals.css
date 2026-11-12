@@ -223,7 +223,7 @@
   .data-table > thead > tr > th {
     background-color: color-mix(
       in oklab,
-      var(--foreground) 4%,
+      var(--foreground) 5%,
       var(--background)
     );
   }
@@ -242,7 +242,7 @@
   }
   .data-table > tbody > tr[data-table-row]:hover > td,
   .data-table > tbody > tr[data-table-row][data-inspected="true"] > td {
-    background-color: color-mix(in oklab, var(--foreground) 4%, transparent);
+    background-color: color-mix(in oklab, var(--foreground) 5%, transparent);
   }
   .data-table > tbody > tr[data-table-row][data-state="selected"] > td,
   .data-table > tbody > tr[data-table-row][data-moving="true"] > td {

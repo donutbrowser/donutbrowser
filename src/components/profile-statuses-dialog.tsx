@@ -94,7 +94,7 @@ function ColorChoice({
           type="button"
           disabled={disabled}
           aria-label={t("profileStatuses.color")}
-          className="grid size-8 shrink-0 place-items-center rounded-md transition-colors duration-100 hover:bg-foreground/6 disabled:opacity-50"
+          className="grid size-8 shrink-0 place-items-center rounded-md transition-colors duration-100 hover:bg-foreground/8 disabled:opacity-50"
         >
           <ProfileStatusDot color={value} className="size-3.5" />
         </button>
@@ -109,15 +109,15 @@ function ColorChoice({
               aria-pressed={value === color}
               onClick={() => onChange(color)}
               className={cn(
-                "grid size-7 place-items-center rounded-md transition-colors duration-100 hover:bg-foreground/6",
-                value === color && "bg-foreground/10",
+                "grid size-7 place-items-center rounded-md transition-colors duration-100 hover:bg-foreground/8",
+                value === color && "bg-foreground/12",
               )}
             >
               <ProfileStatusDot color={color} className="size-3.5" />
             </button>
           ))}
         </div>
-        <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs text-muted-foreground hover:bg-foreground/6">
+        <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs text-muted-foreground hover:bg-foreground/8">
           <input
             type="color"
             value={value}
@@ -269,7 +269,7 @@ export function ProfileStatusesDialog({
           </DialogHeader>
 
           {statuses.length === 0 ? (
-            <div className="flex flex-col items-start gap-2 rounded-lg bg-foreground/4 p-3">
+            <div className="flex flex-col items-start gap-2 rounded-lg bg-foreground/5 p-3">
               <p className="text-sm text-muted-foreground">
                 {t("profileStatuses.empty")}
               </p>

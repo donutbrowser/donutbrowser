@@ -187,7 +187,7 @@ function HostCallCard({
       data-call-id={call.callId}
       data-method={request.method}
       aria-label={t(titleKey(request))}
-      className="flex flex-col gap-2.5 rounded-2xl bg-foreground/4 p-3"
+      className="flex flex-col gap-2.5 rounded-2xl bg-foreground/5 p-3"
     >
       <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         <span aria-hidden="true" className="size-2 rounded-full bg-warning" />
@@ -330,7 +330,7 @@ function HostCallCard({
             data-slot="chat-host-edit"
             className={cn(
               "h-8 rounded-lg text-xs",
-              editing && "bg-foreground/6",
+              editing && "bg-foreground/8",
             )}
             onClick={() => {
               setEditing((value) => !value);

@@ -118,7 +118,6 @@ export function VpnCheckButton({ vpn, disabled = false }: VpnCheckButtonProps) {
         <CheckPill
           state={state}
           resultKey={result?.timestamp}
-          compact
           onClick={() => void handleCheck()}
           disabled={disabled}
           aria-busy={checking}

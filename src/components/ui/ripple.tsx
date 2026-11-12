@@ -22,7 +22,7 @@ const buttonVariants = cva(
         secondary:
           "bg-secondary text-secondary-foreground shadow-xs hover:shadow-sm",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        soft: "bg-foreground/6 text-foreground hover:bg-foreground/10",
+        soft: "bg-foreground/8 text-foreground hover:bg-foreground/12",
       },
       size: {
         default: "h-10 px-4 py-2 has-[>svg]:px-3",

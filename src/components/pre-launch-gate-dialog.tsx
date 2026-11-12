@@ -116,7 +116,7 @@ function ExtensionEntry({ extension }: { extension: DetectedVpnExtension }) {
       <span className="font-medium">{extension.name}</span>
       <span className="text-muted-foreground">
         {/* A version-less manifest is legal, and interpolating an empty string
-            into the one template left a doubled space before the dash. */}
+            into the one template left a doubled space before the colon. */}
         {extension.version
           ? t("prelaunchGate.vpnExtensionEntry", {
               version: extension.version,

@@ -61,7 +61,7 @@ export function Kbd({
         size === "sm"
           ? "h-5 min-w-5 px-1 text-[11px]"
           : "h-6 min-w-6 px-1.5 text-[11px]",
-        pressed && "bg-foreground/10 text-foreground shadow-none",
+        pressed && "bg-foreground/12 text-foreground shadow-none",
         className,
       )}
     >

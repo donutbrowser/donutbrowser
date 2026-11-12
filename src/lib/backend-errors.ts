@@ -127,6 +127,7 @@ export type BackendErrorCode =
   | "IMPORT_SOURCE_BROWSER_RUNNING"
   | "IMPORT_NO_ITEMS"
   | "BROWSER_NOT_DOWNLOADED"
+  | "BROWSER_DOWNLOAD_FAILED"
   | "ARCHIVE_EXTRACTION_FAILED"
   | "UNSUPPORTED_ARCHIVE_FORMAT"
   | "CLEAR_ON_CLOSE_UNAVAILABLE"
@@ -786,6 +787,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       });
     case "IMPORT_NO_ITEMS":
       return t("backendErrors.importNoItems");
+    case "BROWSER_DOWNLOAD_FAILED":
+      return t("backendErrors.browserDownloadFailed");
     case "BROWSER_NOT_DOWNLOADED":
       return t("backendErrors.browserNotDownloaded", {
         browser: parsed.params?.browser ?? "",

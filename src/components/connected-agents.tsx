@@ -526,101 +526,109 @@ export function ConnectedAgentsPane({
     switch (tab) {
       case "conversation": {
         const ready = agentConsole.loaded && remoteKnown;
+        const needsYou = agentConsole.openRequests.length > 0 && (
+          <NeedsYouList
+            agentConsole={agentConsole}
+            profileNames={profileNames}
+            now={now}
+          />
+        );
+        if (hasSessions) {
+          return (
+            <AgentConversation
+              lead={
+                <>
+                  {needsYou}
+                  {remoteOff && (
+                    <div
+                      data-testid="agent-setup-remote-off"
+                      className="flex shrink-0 flex-wrap items-center gap-3 rounded-2xl bg-foreground/5 px-3.5 py-2.5 text-xs text-muted-foreground"
+                    >
+                      <LuPower
+                        className="size-3.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 flex-1">
+                        {t("agent.setup.remoteOffInline")}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="soft"
+                        className="h-8 rounded-lg text-xs"
+                        data-testid="agent-setup-turn-on"
+                        onClick={onConnectAgent}
+                      >
+                        {t("agent.setup.remoteOffAction")}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              }
+              agentConsole={agentConsole}
+              profiles={profiles}
+              profileNames={profileNames}
+              selectedSessionId={state.sessionId}
+              onSelectSession={state.setSessionId}
+              composerProfileId={state.composerProfileId}
+              onComposerProfileChange={state.setComposerProfileId}
+              focusComposer={state.focusComposer}
+              onComposerFocused={state.onComposerFocused}
+              preferredProfileIds={state.preferredProfileIds}
+              now={now}
+            />
+          );
+        }
         return (
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-            {agentConsole.openRequests.length > 0 && (
-              <NeedsYouList
-                agentConsole={agentConsole}
-                profileNames={profileNames}
-                now={now}
-              />
-            )}
-            {!ready && !hasSessions ? null : !hasSessions ? (
-              remoteOff ? (
-                <SetupPanel
-                  testId="agent-setup-remote-off"
-                  icon={<LuPower />}
-                  title={t("agent.setup.remoteOffTitle")}
-                  body={t("agent.setup.remoteOffBody")}
+          <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
+            {needsYou}
+            {!ready ? null : remoteOff ? (
+              <SetupPanel
+                testId="agent-setup-remote-off"
+                icon={<LuPower />}
+                title={t("agent.setup.remoteOffTitle")}
+                body={t("agent.setup.remoteOffBody")}
+              >
+                <Button
+                  size="sm"
+                  className="h-8 rounded-lg text-xs"
+                  data-testid="agent-setup-turn-on"
+                  onClick={onConnectAgent}
                 >
+                  {t("agent.setup.remoteOffAction")}
+                </Button>
+              </SetupPanel>
+            ) : (
+              <SetupPanel
+                testId="agent-setup-waiting"
+                icon={<LuHourglass />}
+                title={t("agent.setup.waitingTitle")}
+                body={t("agent.setup.waitingBody")}
+              >
+                <div className="flex w-full max-w-xl flex-col gap-2 text-left">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {t("agent.setup.starterLabel")}
+                  </span>
+                  <CodeSnippet
+                    multiline
+                    wrap
+                    data-testid="agent-starter-text"
+                    code={t("agent.setup.starter")}
+                    copyLabel={t("agent.setup.starterLabel")}
+                    successMessage={t("agent.setup.starterCopied")}
+                    className="font-sans text-xs leading-relaxed"
+                  />
                   <Button
                     size="sm"
-                    className="h-8 rounded-lg text-xs"
-                    data-testid="agent-setup-turn-on"
+                    variant="soft"
+                    className="mt-1 h-8 gap-1.5 self-center rounded-lg text-xs"
+                    data-testid="agent-setup-connect"
                     onClick={onConnectAgent}
                   >
-                    {t("agent.setup.remoteOffAction")}
+                    <LuPlug className="size-3.5" aria-hidden="true" />
+                    {t("agent.header.connect")}
                   </Button>
-                </SetupPanel>
-              ) : (
-                <SetupPanel
-                  testId="agent-setup-waiting"
-                  icon={<LuHourglass />}
-                  title={t("agent.setup.waitingTitle")}
-                  body={t("agent.setup.waitingBody")}
-                >
-                  <div className="flex w-full max-w-xl flex-col gap-2 text-left">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t("agent.setup.starterLabel")}
-                    </span>
-                    <CodeSnippet
-                      multiline
-                      wrap
-                      data-testid="agent-starter-text"
-                      code={t("agent.setup.starter")}
-                      copyLabel={t("agent.setup.starterLabel")}
-                      successMessage={t("agent.setup.starterCopied")}
-                      className="font-sans text-xs leading-relaxed"
-                    />
-                    <Button
-                      size="sm"
-                      variant="soft"
-                      className="mt-1 h-8 gap-1.5 self-center rounded-lg text-xs"
-                      data-testid="agent-setup-connect"
-                      onClick={onConnectAgent}
-                    >
-                      <LuPlug className="size-3.5" aria-hidden="true" />
-                      {t("agent.header.connect")}
-                    </Button>
-                  </div>
-                </SetupPanel>
-              )
-            ) : (
-              <>
-                {remoteOff && (
-                  <div
-                    data-testid="agent-setup-remote-off"
-                    className="flex shrink-0 flex-wrap items-center gap-3 rounded-2xl bg-foreground/4 px-3.5 py-2.5 text-xs text-muted-foreground"
-                  >
-                    <LuPower className="size-3.5 shrink-0" aria-hidden="true" />
-                    <span className="min-w-0 flex-1">
-                      {t("agent.setup.remoteOffInline")}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="soft"
-                      className="h-8 rounded-lg text-xs"
-                      data-testid="agent-setup-turn-on"
-                      onClick={onConnectAgent}
-                    >
-                      {t("agent.setup.remoteOffAction")}
-                    </Button>
-                  </div>
-                )}
-                <AgentConversation
-                  agentConsole={agentConsole}
-                  profiles={profiles}
-                  profileNames={profileNames}
-                  selectedSessionId={state.sessionId}
-                  onSelectSession={state.setSessionId}
-                  composerProfileId={state.composerProfileId}
-                  onComposerProfileChange={state.setComposerProfileId}
-                  focusComposer={state.focusComposer}
-                  onComposerFocused={state.onComposerFocused}
-                  preferredProfileIds={state.preferredProfileIds}
-                  now={now}
-                />
-              </>
+                </div>
+              </SetupPanel>
             )}
           </div>
         );

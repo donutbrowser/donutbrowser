@@ -207,7 +207,7 @@ export function AccountSyncServer({
   return (
     <div
       data-slot="account-sync-source"
-      className="flex flex-col gap-3 border-t border-foreground/6 pt-3"
+      className="flex flex-col gap-3 border-t border-foreground/8 pt-3"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="text-xs text-muted-foreground">

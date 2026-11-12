@@ -1188,7 +1188,7 @@ export function ImportProfileDialog({
                         key={source.path}
                         data-slot="import-receipt"
                         data-status={status ?? "waiting"}
-                        className="min-w-0 rounded-md bg-foreground/4 p-3 text-sm"
+                        className="min-w-0 rounded-md bg-foreground/5 p-3 text-sm"
                       >
                         <div className="flex items-start gap-3">
                           <SourceIcon

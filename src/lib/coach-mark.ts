@@ -23,6 +23,7 @@ export const COACH_ANCHORS = [
   "column-dns",
   "row-dns",
   "row-inspect",
+  "row-launch",
 ] as const;
 
 export type CoachAnchorId = (typeof COACH_ANCHORS)[number];

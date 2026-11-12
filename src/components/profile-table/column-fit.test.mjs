@@ -49,3 +49,53 @@ test("pinned columns stay even when the name cannot keep its minimum", () => {
   assert.equal(fit.visible.proxy, true);
   assert.equal(fit.widths.proxy, 110);
 });
+
+test("a column takes its content width before the name grows", () => {
+  const fit = fitColumns(
+    1200,
+    132,
+    [
+      { id: "ext", floor: 56, pct: 0.11, want: 56 },
+      { id: "proxy", floor: 110, pct: 0.13, want: 190, pinned: true },
+    ],
+    180,
+  );
+  assert.equal(fit.widths.ext, 56, "an empty column keeps its minimum");
+  assert.equal(fit.widths.proxy, 190);
+  assert.equal(fit.nameWidth, 1200 - 132 - 56 - 190);
+});
+
+test("a narrow column comes back when a wider one left before it", () => {
+  const fit = fitColumns(
+    576,
+    112,
+    [
+      { id: "usage", floor: 64, pct: 0 },
+      { id: "sync", floor: 80, pct: 0 },
+      { id: "hostPort", floor: 208, pct: 0 },
+      { id: "check", floor: 112, pct: 0 },
+    ],
+    160,
+  );
+  assert.deepEqual(fit.visible, {
+    usage: true,
+    sync: true,
+    hostPort: false,
+    check: true,
+  });
+  assert.ok(fit.nameWidth >= 160);
+});
+
+test("a column without content leaves before a content column shrinks", () => {
+  const fit = fitColumns(
+    560,
+    100,
+    [
+      { id: "tags", floor: 100, pct: 0.12 },
+      { id: "proxy", floor: 110, pct: 0.13, want: 200, pinned: true },
+    ],
+    180,
+  );
+  assert.equal(fit.visible.tags, false);
+  assert.equal(fit.widths.proxy, 200);
+});

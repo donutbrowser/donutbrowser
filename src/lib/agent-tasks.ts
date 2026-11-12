@@ -239,7 +239,7 @@ export const STATE_FILL: Record<TaskState, string> = {
   needs_you: "bg-warning",
   done: "bg-success",
   failed: "bg-destructive",
-  idle: "bg-foreground/15",
+  idle: "bg-foreground/12",
 };
 
 /** The text color of a line that reports a state. */

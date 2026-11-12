@@ -155,7 +155,7 @@ export function RecipeStepsEditor({
           // Rows are reordered and removed, so the index is the identity here.
           // eslint-disable-next-line react/no-array-index-key
           key={`step-${index}`}
-          className="flex flex-col gap-2 rounded-lg bg-foreground/4 p-2"
+          className="flex flex-col gap-2 rounded-lg bg-foreground/5 p-2"
           data-slot="agent-recipe-step"
         >
           <div className="flex items-center gap-2">

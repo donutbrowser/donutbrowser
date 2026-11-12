@@ -825,7 +825,7 @@ const TONE_BADGE: Record<StatusTone, string> = {
   success: "bg-success/10 text-success-text",
   warning: "bg-warning/12 text-warning-text",
   destructive: "bg-destructive/10 text-destructive-text",
-  muted: "bg-foreground/6 text-muted-foreground",
+  muted: "bg-foreground/8 text-muted-foreground",
   live: "bg-primary/10 text-primary-text",
 };
 

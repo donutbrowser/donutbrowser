@@ -88,7 +88,7 @@ function EndpointRow({
   copyLabel: string;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-foreground/4 py-1.5 pr-1.5 pl-3">
+    <div className="flex items-center gap-2 rounded-lg bg-foreground/5 py-1.5 pr-1.5 pl-3">
       <span className="w-24 shrink-0 text-xs text-muted-foreground">
         {label}
       </span>
@@ -170,7 +170,7 @@ export function DebugEndpointBlock({
         </p>
       )}
       {isRunning && endpoint === null && (
-        <div className="flex items-center gap-2 rounded-lg bg-foreground/4 px-3 py-2 text-xs">
+        <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-3 py-2 text-xs">
           <span className="min-w-0 flex-1 text-muted-foreground">
             {t("profileInfo.debug.unavailable")}
           </span>
@@ -202,7 +202,7 @@ export function DebugEndpointBlock({
               {t("profileInfo.debug.wsPending")}
             </p>
           )}
-          <div className="overflow-hidden rounded-lg bg-foreground/4">
+          <div className="overflow-hidden rounded-lg bg-foreground/5">
             <div className="flex items-center gap-1 px-1.5 pt-1.5">
               {(["playwright", "puppeteer"] as const).map((item) => (
                 <button

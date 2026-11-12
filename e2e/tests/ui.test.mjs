@@ -1859,14 +1859,14 @@ function checkedThemeCard(app, slotName) {
   );
 }
 
-async function saveSettings(app) {
-  await app.clickText("Save settings", { roles: ["button"] });
+/** Settings save each change by themselves; wait until nothing is left to save. */
+async function settingsSaved(app) {
   await app.waitFor(
     () =>
       app.execute(
-        `return document.querySelector('[data-slot="settings-feedback"]')?.textContent.includes("Saved");`,
+        `return document.querySelector('[data-slot="settings-scroller"]')?.dataset.saveState === "idle";`,
       ),
-    { description: "Settings to confirm the saved values" },
+    { description: "Settings to save the change" },
   );
 }
 
@@ -2641,7 +2641,7 @@ test("all primary navigation buttons and sub-page tabs render and remain interac
   });
 });
 
-test("every custom theme keeps tabs, counts, group pills, and rail states readable", async () => {
+test("every custom theme keeps tabs, counts, the groups summary, and rail states readable", async () => {
   await withApp("ui-theme-contrast", async (app) => {
     await app.clickSelector('[aria-label="Extensions"]');
     await app.waitFor(
@@ -2707,24 +2707,22 @@ test("every custom theme keeps tabs, counts, group pills, and rail states readab
     await app.waitFor(
       () =>
         app.execute(
-          `return Boolean(document.querySelector('[data-summary="groups"] [data-slot="animated-tabs-indicator"]'));`,
+          `return Boolean(document.querySelector('[data-summary="groups"] [data-slot="group-summary-count"]'));`,
         ),
-      { description: "Profile groups summary tab" },
+      { description: "Profile groups summary" },
     );
 
     for (const theme of THEMES) {
       await applyThemeForContrastAudit(app, theme);
       const snapshot = await app.execute(`
         const rootStyle = getComputedStyle(document.documentElement);
-        // The page title is the active tab of a one-tab list, as on the
-        // other sub-pages: its fill is the tab indicator.
-        const pill = document.querySelector('[data-summary="groups"]');
-        const count = pill?.querySelector(
+        // The page states its title and count as plain text on the page.
+        const summary = document.querySelector('[data-summary="groups"]');
+        const count = summary?.querySelector(
           '[data-slot="group-summary-count"]',
         );
-        const title = pill?.querySelector('[data-slot="group-summary-title"]');
-        const fill = pill?.querySelector(
-          '[data-slot="animated-tabs-indicator"]',
+        const title = summary?.querySelector(
+          '[data-slot="group-summary-title"]',
         );
         const rail = document.querySelector('nav [aria-current="page"]');
         // The active item's fill is a translucent pill over the rail. Paint
@@ -2747,34 +2745,32 @@ test("every custom theme keeps tabs, counts, group pills, and rail states readab
           return "rgb(" + r + ", " + g + ", " + b + ")";
         })();
         return {
-          pillBackground: fill ? getComputedStyle(fill).backgroundColor : null,
-          pillTitle: title ? getComputedStyle(title).color : null,
-          pillCount: count ? getComputedStyle(count).color : null,
+          pageBackground: getComputedStyle(document.body).backgroundColor,
+          summaryTitle: title ? getComputedStyle(title).color : null,
+          summaryCount: count ? getComputedStyle(count).color : null,
           railBackground: railFill,
           railForeground: rail ? getComputedStyle(rail).color : null,
-          accent: rootStyle.getPropertyValue("--accent").trim(),
-          accentForeground: rootStyle
-            .getPropertyValue("--accent-foreground")
-            .trim(),
+          foreground: rootStyle.getPropertyValue("--foreground").trim(),
+          muted: rootStyle.getPropertyValue("--muted-foreground").trim(),
         };
       `);
       assertColorEquals(
-        snapshot.pillBackground,
-        snapshot.accent,
-        `${theme.id} group pill background`,
+        snapshot.summaryTitle,
+        snapshot.foreground,
+        `${theme.id} group summary title token`,
+      );
+      assertColorEquals(
+        snapshot.summaryCount,
+        snapshot.muted,
+        `${theme.id} group summary count token`,
       );
       for (const [label, color] of [
-        ["group pill title", snapshot.pillTitle],
-        ["group pill count", snapshot.pillCount],
+        ["group summary title", snapshot.summaryTitle],
+        ["group summary count", snapshot.summaryCount],
       ]) {
-        assertColorEquals(
-          color,
-          snapshot.accentForeground,
-          `${theme.id} ${label} token`,
-        );
         assertContrast(
           color,
-          snapshot.pillBackground,
+          snapshot.pageBackground,
           4.5,
           `${theme.id} ${label}`,
         );
@@ -3257,194 +3253,170 @@ test("the command palette finds synonyms, remembers recent commands, and opens n
   });
 });
 
-test("first-run onboarding stays recoverable, responsive, and platform-aware", async () => {
+/** The welcome dialog's box against the window, and what holds the focus. */
+async function welcomeLayout(app) {
+  return app.execute(`
+    const dialog = document.querySelector('[data-slot="welcome-dialog"]');
+    if (!dialog) return null;
+    const rect = dialog.getBoundingClientRect();
+    return {
+      inside: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
+      scrolls: dialog.scrollHeight > dialog.clientHeight + 1,
+      step: dialog.dataset.step,
+      focused: document.activeElement?.textContent.trim() ?? "",
+      clip: Boolean(dialog.querySelector('[data-slot="welcome-clip-panel"]')?.offsetParent),
+    };
+  `);
+}
+
+test("first-run onboarding is short, fits the window, and hands over to profile creation", async () => {
   await withApp(
     "ui-onboarding",
     async (app) => {
-      await app.waitForText("Welcome to Donut Browser");
+      await app.waitForText(en.welcome.title);
       assert.equal(await app.invoke("get_onboarding_completed"), false);
 
-      await app.session.command("POST", "/window/rect", {
-        width: 640,
-        height: 400,
-      });
-      const layout = await app.execute(`
-        const dialog = document.querySelector("[role='dialog']");
-        const progress = dialog?.querySelector("[role='progressbar']");
-        if (!dialog || !progress) return null;
-        const rect = dialog.getBoundingClientRect();
-        return {
-          left: rect.left,
-          top: rect.top,
-          right: rect.right,
-          bottom: rect.bottom,
-          viewportWidth: innerWidth,
-          viewportHeight: innerHeight,
-          progressNow: progress.getAttribute("aria-valuenow"),
-        };
-      `);
-      assert.ok(layout);
-      assert.ok(layout.left >= 0 && layout.right <= layout.viewportWidth);
-      assert.ok(layout.top >= 0 && layout.bottom <= layout.viewportHeight);
-      assert.equal(layout.progressNow, "1");
-
-      await app.clickText("Next", { roles: ["button"] });
-      await app.waitForText(en.isolationDemo.title);
-      await app.clickText("Next", { roles: ["button"] });
-      await app.waitForText("Licensing");
-      // Back returns to the step before, and the dots follow.
-      await app.clickSelector('[data-slot="welcome-back"]');
-      await app.waitForText(en.isolationDemo.title);
+      for (const [width, height] of [
+        [640, 400],
+        [880, 500],
+      ]) {
+        await app.session.command("POST", "/window/rect", { width, height });
+        for (const step of ["intro", "license"]) {
+          const layout = await app.waitFor(
+            async () => {
+              const state = await welcomeLayout(app);
+              return state?.step === step ? state : null;
+            },
+            { description: `the ${step} step at ${width}x${height}` },
+          );
+          assert.ok(layout.inside, `${step} inside ${width}x${height}`);
+          assert.ok(!layout.scrolls, `${step} fits ${width}x${height}`);
+          assert.equal(layout.clip, false, "no cropped clip on a short window");
+          if (step === "intro") {
+            assert.equal(layout.focused, en.welcome.next, "Enter goes on");
+            await app.clickText(en.welcome.next, { roles: ["button"] });
+          } else {
+            assert.equal(layout.focused, en.welcome.license.agree);
+            await app.clickSelector('[data-slot="welcome-back"]');
+          }
+        }
+        await app.waitFor(
+          async () => (await welcomeLayout(app))?.step === "intro",
+          { description: "back on the intro" },
+        );
+      }
       assert.equal(
         await app.execute(
           `return document.querySelector("[role='dialog'] [data-slot='step-dots']")?.getAttribute("aria-valuenow");`,
         ),
-        "2",
+        "1",
       );
-      await app.clickText("Next", { roles: ["button"] });
-      await app.waitForText("Licensing");
-      await app.clickText("I understand", { roles: ["button"] });
 
-      await app.waitFor(
-        async () =>
-          /Allow microphone & camera|Setting things up|Setup failed/.test(
-            await app.bodyText(),
-          ),
-        { description: "platform-appropriate onboarding step" },
-      );
-      const body = await app.bodyText();
-      if (process.platform !== "darwin") {
-        assert.doesNotMatch(body, /Allow microphone & camera/);
-        assert.match(body, /Setting things up|Setup failed/);
+      await app.clickText(en.welcome.next, { roles: ["button"] });
+      await app.waitForText(en.welcome.license.title);
+      await app.clickText(en.welcome.license.agree, { roles: ["button"] });
+      if (process.platform === "darwin") {
+        await app.waitFor(
+          async () => {
+            const body = await app.bodyText();
+            if (body.includes(en.welcome.permissions.title)) {
+              await app.clickText(en.welcome.skip, { roles: ["button"] });
+              return true;
+            }
+            return body.includes(en.createProfile.title);
+          },
+          { description: "permissions or profile creation" },
+        );
       }
 
-      // Setup and the optional product tour are still unfinished, so a crash
-      // or restart must be able to resume onboarding.
-      assert.equal(await app.invoke("get_onboarding_completed"), false);
+      // The welcome ends in the create dialog, its name ready to use.
+      const name = await app.waitFor(
+        () =>
+          app.execute(`
+            const input = document.querySelector('#profile-name');
+            return input?.value ? { value: input.value, selected: input.selectionEnd - input.selectionStart } : null;
+          `),
+        { description: "the create dialog with a default name" },
+      );
+      assert.equal(
+        name.value,
+        en.createProfile.defaultName.replace("{{n}}", "1"),
+      );
+      assert.equal(name.selected, name.value.length, "typing replaces it");
+      assert.equal(await app.invoke("get_onboarding_completed"), true);
     },
     { onboardingCompleted: false },
   );
 });
 
-/** The tour's coach mark: its step and anchor, once it is placed and shown. */
+/** The tour's coach mark and its anchor, once it is placed and shown. */
 async function tourState(app) {
   return app.execute(`
     const card = document.querySelector('[data-slot="onboarding-tour"]');
     if (!card || card.dataset.state !== "shown") return null;
     if (getComputedStyle(card.parentElement).visibility !== "visible") return null;
     return {
-      step: card.dataset.step,
       anchor: card.dataset.anchor,
       spotlight: Boolean(document.querySelector('[data-slot="coach-mark-spotlight"]')),
     };
   `);
 }
 
-test("a new install walks from the welcome into a tour on the real controls", async () => {
+/** Whether a click at the middle of the element lands on it. */
+async function takesClick(app, selector) {
+  return app.execute(
+    `const el = document.querySelector(arguments[0]);
+     if (!el) return false;
+     const r = el.getBoundingClientRect();
+     return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest(arguments[0]) === el;`,
+    [selector],
+  );
+}
+
+test("the first profile gets one coach mark on its Launch button, and the page stays usable", async () => {
   await withApp(
     "ui-onboarding-tour",
     async (app) => {
       await app.waitForText(en.welcome.title);
-      await app.clickText(en.welcome.next, { roles: ["button"] });
-      await app.waitForText(en.isolationDemo.title);
-      await app.clickText(en.welcome.next, { roles: ["button"] });
-      await app.waitForText(en.welcome.license.title);
-      await app.clickText(en.welcome.license.agree, { roles: ["button"] });
-      // macOS asks for the microphone and camera unless they are granted.
-      const next = await app.waitFor(
-        async () => {
-          const body = await app.bodyText();
-          if (body.includes(en.welcome.permissions.title)) return "permissions";
-          if (body.includes(en.welcome.ready.title)) return "setup";
-          return null;
-        },
-        { description: "the step after licensing" },
-      );
-      if (next === "permissions") {
-        await app.clickText(en.welcome.permissions.skip, { roles: ["button"] });
-      }
-      // The browser is registered already, so setup is ready at once.
-      await app.waitForText(en.welcome.ready.cta);
-      await app.clickText(en.welcome.ready.cta, { roles: ["button"] });
-
-      // Step one dims the page around the New button and waits for a profile.
-      const first = await app.waitFor(
-        async () => {
-          const state = await tourState(app);
-          return state?.step === "0" ? state : null;
-        },
-        { description: "the tour on the New button" },
-      );
-      assert.equal(first.anchor, "new-profile");
-      assert.ok(first.spotlight, "the page is dimmed around the button");
-      assert.equal(
-        await app.execute(
-          `return document.elementFromPoint(...(() => { const r = document.querySelector('[data-tip-anchor="new-profile"]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })())?.closest('[data-tip-anchor="new-profile"]') !== null;`,
-        ),
-        true,
-        "the spotlit button still takes the click",
-      );
-      assert.equal(await app.invoke("get_onboarding_completed"), false);
-      await app.capture("onboarding-tour-create");
-
-      // A profile moves the tour on to that profile's DNS blocking.
-      await createUiProfile(app, "Tour Profile");
-      const second = await app.waitFor(
-        async () => {
-          const state = await tourState(app);
-          return state?.step === "1" && state.anchor !== "none" ? state : null;
-        },
-        { description: "the tour on the DNS control" },
-      );
-      assert.ok(
-        ["row-dns", "column-dns"].includes(second.anchor),
-        `the DNS step points at DNS blocking, not ${second.anchor}`,
-      );
-      await app.capture("onboarding-tour-dns");
-
-      await app.clickSelector('[data-slot="onboarding-tour-finish"]');
-      await app.waitForText(en.onboarding.thankYou.title);
-      await app.waitFor(() => app.invoke("get_onboarding_completed"), {
-        description: "onboarding completed by the finished tour",
-      });
+      await app.clickText(en.welcome.skip, { roles: ["button"] });
       await app.waitFor(
         () =>
           app.execute(
-            `return !document.querySelector('[data-slot="onboarding-tour"]');`,
+            `return Boolean(document.querySelector('#profile-name'));`,
           ),
-        { description: "the tour gone after its exit" },
+        { description: "the create dialog" },
       );
-    },
-    { onboardingCompleted: false, seedDownloadedBrowser: true },
-  );
-});
+      assert.equal(await app.invoke("get_onboarding_completed"), true);
+      await app.pressShortcut({ key: "Escape" });
+      await app.waitFor(
+        () => app.execute(`return !document.querySelector('#profile-name');`),
+        { description: "create dialog closed" },
+      );
+      assert.equal(await tourState(app), null, "no mark before a profile");
 
-test("Escape skips the tour and still completes onboarding", async () => {
-  await withApp(
-    "ui-onboarding-tour-skip",
-    async (app) => {
-      await app.waitForText(en.welcome.title);
-      await app.clickText(en.welcome.skip, { roles: ["button"] });
-      await app.waitForText(en.welcome.ready.cta);
-      await app.clickText(en.welcome.ready.cta, { roles: ["button"] });
-      await app.waitFor(async () => (await tourState(app))?.step === "0", {
-        description: "the tour",
-      });
+      await createUiProfile(app, "Tour Profile");
+      const mark = await app.waitFor(
+        async () => {
+          const state = await tourState(app);
+          return state?.anchor === "row-launch" ? state : null;
+        },
+        { description: "the mark on the Launch button" },
+      );
+      assert.ok(mark.spotlight, "the page is dimmed around the button");
+      assert.equal(
+        await takesClick(app, '[data-tip-anchor="new-profile"]'),
+        true,
+        "the dim takes no clicks",
+      );
+      await app.capture("onboarding-tour-launch");
+
       await app.pressShortcut({ key: "Escape" });
       await app.waitFor(
         () =>
           app.execute(
             `return !document.querySelector('[data-slot="onboarding-tour"]');`,
           ),
-        { description: "the tour gone" },
-      );
-      await app.waitFor(() => app.invoke("get_onboarding_completed"), {
-        description: "a skipped tour completes onboarding",
-      });
-      assert.equal(
-        await app.visibleTextIncludes(en.onboarding.thankYou.title),
-        false,
-        "only a finished tour is celebrated",
+        { description: "the mark gone after Escape" },
       );
     },
     { onboardingCompleted: false, seedDownloadedBrowser: true },
@@ -3476,14 +3448,14 @@ test("interface sounds, their pack, volume and kinds stay as saved", async () =>
       `document.querySelector('[data-slot="settings-sound-volume"] [role="slider"]').focus();`,
     );
     await app.pressShortcut({ key: "\uE012" });
-    await saveSettings(app);
+    await settingsSaved(app);
     const saved = await app.invoke("get_app_settings");
     assert.equal(saved.ui_sounds, true);
     assert.equal(saved.ui_sound_pack, "retro");
     assert.equal(saved.ui_sound_events, false);
     assert.equal(saved.ui_sound_volume, 55);
     await app.clickSelector(toggle);
-    await saveSettings(app);
+    await settingsSaved(app);
     assert.equal(await sounds(), false);
     await app.restart();
     const restarted = await app.invoke("get_app_settings");
@@ -3516,7 +3488,7 @@ test("system and bulk launch settings stay as saved", async () => {
       );
       await app.pressShortcut({ key: "\uE014" });
     }
-    await saveSettings(app);
+    await settingsSaved(app);
     const saved = await app.invoke("get_app_settings");
     assert.equal(saved.launch_at_login, true);
     assert.equal(saved.reopen_running_profiles, true);
@@ -3531,7 +3503,7 @@ test("predefined theme remains rendered across navigation and restart", async ()
     await app.clickSelector('[aria-label="Settings"]');
     await app.waitForText("Appearance");
     await chooseThemeCard(app, "settings-theme-option", "light");
-    await saveSettings(app);
+    await settingsSaved(app);
 
     const persisted = await app.invoke("get_app_settings");
     assert.equal(persisted.theme, "light");
@@ -3562,7 +3534,7 @@ test("preset and manually customized themes survive navigation and restart", asy
     await app.waitForText("Appearance");
     await chooseThemeCard(app, "settings-theme-option", "custom");
     await chooseThemeCard(app, "settings-theme-preset", "dracula");
-    await saveSettings(app);
+    await settingsSaved(app);
 
     const presetSettings = await app.invoke("get_app_settings");
     assert.equal(presetSettings.theme, "custom");
@@ -3599,7 +3571,7 @@ test("preset and manually customized themes survive navigation and restart", asy
       "dracula",
     );
     await dragBackgroundColorPicker(app);
-    await saveSettings(app);
+    await settingsSaved(app);
 
     const customizedSettings = await app.invoke("get_app_settings");
     assert.equal(customizedSettings.theme, "custom");
@@ -3641,7 +3613,7 @@ test("a light custom preset keeps light component behavior after restart", async
     await app.waitForText("Appearance");
     await chooseThemeCard(app, "settings-theme-option", "custom");
     await chooseThemeCard(app, "settings-theme-preset", "ayu-light");
-    await saveSettings(app);
+    await settingsSaved(app);
 
     const selected = await waitForTheme(
       app,
@@ -5527,10 +5499,10 @@ test("entity pages teach when empty, label protocols neutrally, and reach row ac
     );
 
     // A protocol is a fact, not a state: an unencrypted first hop keeps the
-    // same quiet badge as an encrypted one, and neither is warning-coloured.
+    // same quiet text as an encrypted one, and neither is warning-coloured.
     const tokens = await themeTokenColors(app);
     const badges = await app.execute(
-      `return [...document.querySelectorAll('[data-table-id="proxies"] [data-slot="kind-badge"]')]
+      `return [...document.querySelectorAll('[data-table-id="proxies"] [data-slot="kind-label"]')]
          .map((badge) => ({
            text: badge.innerText.trim(),
            hop: badge.dataset.firstHop,
@@ -5606,7 +5578,7 @@ test("entity pages teach when empty, label protocols neutrally, and reach row ac
     });
     assert.equal(
       await app.execute(
-        `return getComputedStyle(document.querySelector('[data-table-id="vpns"] [data-slot="kind-badge"]')).color;`,
+        `return getComputedStyle(document.querySelector('[data-table-id="vpns"] [data-slot="kind-label"]')).color;`,
       ),
       tokens.muted,
     );
@@ -6249,7 +6221,7 @@ test("tips open from the rail, walk the catalog, and deep-link into the feature"
     await app.waitFor(
       () =>
         app.execute(
-          `return document.activeElement?.dataset?.settingsSection === "dns";`,
+          `return document.activeElement?.dataset?.settingsTarget === "dns";`,
         ),
       { description: "the DNS settings section focused" },
     );
@@ -6955,7 +6927,7 @@ test("the start pages section saves one page per line and reports a bad page", a
       `[data-slot="profile-inspect-trigger"][data-profile-id="${profile.id}"]`,
     );
     await app.clickSelector(
-      '[data-slot="profile-info-section"][data-section="startPages"]',
+      '[data-slot="profile-info-section"][data-section="launch"]',
     );
     await app.waitForText(en.startPages.description);
     const field = '[data-slot="profile-start-pages-input"]';
@@ -7004,7 +6976,7 @@ test("2FA codes come from a pasted key and from a profile's saved keys", async (
       `[data-slot="profile-inspect-trigger"][data-profile-id="${profile.id}"]`,
     );
     await app.clickSelector(
-      '[data-slot="profile-info-section"][data-section="twoFactor"]',
+      '[data-slot="profile-info-section"][data-section="security"]',
     );
     await app.waitForText(en.totp.empty);
     await app.fillSelector(

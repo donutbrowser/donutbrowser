@@ -114,7 +114,7 @@ export function ExtensionGroupAssignmentDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>{t("extensions.assignTitle")}</Label>
-            <ul className="max-h-[min(8rem,20vh)] space-y-0.5 overflow-y-auto rounded-xl bg-foreground/3 p-1 text-sm">
+            <ul className="max-h-[min(8rem,20vh)] space-y-0.5 overflow-y-auto rounded-xl bg-foreground/5 p-1 text-sm">
               {selectedProfiles.map((profileId) => {
                 const profile = profiles.find(
                   (p: BrowserProfile) => p.id === profileId,

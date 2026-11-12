@@ -316,7 +316,6 @@ export function AboutDialog({
         build?.label,
         build && t(`about.channel.${build.channel}`),
         `${systemInfo.os} ${systemInfo.arch}`,
-        systemInfo.portable ? t("about.portable") : null,
       ]
         .filter(Boolean)
         .join(" · ")
@@ -408,15 +407,6 @@ export function AboutDialog({
                     {t("about.diagnostics.title")}
                   </SectionLabel>
                   <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs">
-                    <DiagnosticRow label={t("about.diagnostics.version")}>
-                      {systemInfo?.app_version}
-                    </DiagnosticRow>
-                    <DiagnosticRow label={t("about.diagnostics.channel")}>
-                      {build && t(`about.channel.${build.channel}`)}
-                    </DiagnosticRow>
-                    <DiagnosticRow label={t("about.diagnostics.system")}>
-                      {systemInfo && `${systemInfo.os} ${systemInfo.arch}`}
-                    </DiagnosticRow>
                     <DiagnosticRow label="Wayfern">
                       {wayfernVersions &&
                         (wayfernVersions.length > 0

@@ -225,7 +225,7 @@ export function AgentSchedules({
         </p>
       )}
       {!isLoading && error === null && recipes.length === 0 && (
-        <p className="shrink-0 rounded-xl bg-foreground/3 p-3 text-xs text-muted-foreground">
+        <p className="shrink-0 rounded-xl bg-foreground/5 p-3 text-xs text-muted-foreground">
           {t("agent.schedules.needsRecipe")}
         </p>
       )}
@@ -267,7 +267,7 @@ export function AgentSchedules({
                 key={schedule.id}
                 data-slot="agent-schedule"
                 data-schedule-id={schedule.id}
-                className="flex flex-col gap-2 rounded-xl bg-foreground/3 p-3 transition-colors duration-150 hover:bg-foreground/5"
+                className="flex flex-col gap-2 rounded-xl bg-foreground/5 p-3 transition-colors duration-150 hover:bg-foreground/8"
               >
                 <div className="flex items-center gap-3">
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -540,7 +540,7 @@ function ScheduleEditor({
   return (
     <form
       data-slot="agent-schedule-editor"
-      className="flex shrink-0 flex-col gap-3 rounded-xl bg-foreground/3 p-3"
+      className="flex shrink-0 flex-col gap-3 rounded-xl bg-foreground/5 p-3"
       onSubmit={(event) => {
         event.preventDefault();
         void save();
@@ -580,7 +580,7 @@ function ScheduleEditor({
         <Label className={labelClass}>
           {t("agent.schedules.profiles", { n: profileIds.length })}
         </Label>
-        <div className="flex max-h-36 flex-col gap-0.5 overflow-y-auto rounded-lg bg-foreground/3 p-1.5">
+        <div className="flex max-h-36 flex-col gap-0.5 overflow-y-auto rounded-lg bg-foreground/5 p-1.5">
           {profiles.map((profile) => {
             const id = `agent-schedule-profile-${profile.id}`;
             return (

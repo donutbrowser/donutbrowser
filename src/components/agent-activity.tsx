@@ -205,7 +205,7 @@ export function AgentActivityFeed({
                   key={entry.id}
                   role="listitem"
                   data-testid={`agent-activity-${entry.id}`}
-                  className="absolute top-0 left-0 flex w-full items-center gap-3 rounded-md px-3 text-xs transition-colors duration-100 hover:bg-foreground/4"
+                  className="absolute top-0 left-0 flex w-full items-center gap-3 rounded-md px-3 text-xs transition-colors duration-100 hover:bg-foreground/5"
                   style={{
                     height: ROW_HEIGHT,
                     transform: `translateY(${row.start}px)`,

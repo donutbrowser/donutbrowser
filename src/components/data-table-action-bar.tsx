@@ -284,7 +284,7 @@ function DataTableActionBarSelection<TData extends RowData>({
         </span>
         <span className="sr-only">{label}</span>
       </span>
-      <div className="mr-1 ml-2 h-4 w-px bg-foreground/10" />
+      <div className="mr-1 ml-2 h-4 w-px bg-foreground/12" />
       <Tooltip>
         <TooltipTrigger asChild>
           <Button

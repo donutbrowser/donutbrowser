@@ -19,8 +19,10 @@ import {
   LuPlus,
   LuRefreshCcwDot,
   LuRefreshCw,
+  LuShieldCheck,
   LuTrash2,
   LuUpload,
+  LuWifi,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import {
@@ -31,11 +33,12 @@ import {
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { EntityEmptyState } from "@/components/entity-empty-state";
 import {
-  KindBadge,
+  KindLabel,
   PageAction,
   RowAction,
   RowActions,
   SyncCell,
+  SyncColumnHeader,
   type SyncStatus,
   TickingCount,
 } from "@/components/entity-page";
@@ -77,6 +80,7 @@ import { runProxyCheck } from "@/lib/proxy-check-store";
 import { rotateProxyIps } from "@/lib/proxy-rotation";
 import { isFirstHopEncrypted, proxyProtocolToken } from "@/lib/proxy-string";
 import { canonicalProxyType, proxyTypeLabelKey } from "@/lib/proxy-type";
+import { contentColumnWidth } from "@/lib/text-width";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import type { StoredProxy, VpnConfig } from "@/types";
 import { ProxyCheckButton, ProxyUdpBadge } from "./proxy-check-button";
@@ -428,6 +432,44 @@ export function ProxyManagementDialog({
   );
 
   const hasRotation = storedProxies.some((proxy) => proxy.rotation_url);
+  const protocolWidth = useMemo(
+    () =>
+      contentColumnWidth(
+        storedProxies.map((proxy) => {
+          const key = proxyTypeLabelKey(proxy.proxy_settings.proxy_type);
+          return key ? t(key) : proxy.proxy_settings.proxy_type;
+        }),
+        { chrome: 38, min: 72, max: 160 },
+      ),
+    [storedProxies, t],
+  );
+  // The status pill: icon, gaps and padding around its longest word.
+  const checkWidth = useMemo(
+    () =>
+      contentColumnWidth(
+        [
+          t("entities.check.notChecked"),
+          t("entities.check.valid"),
+          t("entities.check.invalid"),
+          t("proxyCheck.historyFailed"),
+          t("appFeedback.checking"),
+          t("proxyCheck.latencyValue", { ms: 9999 }),
+        ],
+        { size: 12, chrome: 52, min: 96, max: 180 },
+      ),
+    [t],
+  );
+  const hostPortWidth = useMemo(
+    () =>
+      contentColumnWidth(
+        storedProxies.map(
+          (proxy) =>
+            `${proxy.proxy_settings.host}:${proxy.proxy_settings.port}`,
+        ),
+        { size: 12, kind: "mono", chrome: 20, min: 96, max: 260 },
+      ),
+    [storedProxies],
+  );
   const proxyColumns = useMemo<ColumnDef<StoredProxy>[]>(
     () => [
       { id: "select", size: 36, enableSorting: false },
@@ -455,7 +497,7 @@ export function ProxyManagementDialog({
       },
       {
         id: "protocol",
-        size: 100,
+        size: protocolWidth,
         enableSorting: false,
         header: () => t("proxies.management.protocolCol"),
         cell: ({ row }) => {
@@ -478,14 +520,15 @@ export function ProxyManagementDialog({
             (cipher ?? "").trim().length === 0;
           // The type is free text from the REST API, so an unrecognised one
           // still prints itself; only a blank one falls back to the label.
-          const protocolLabel =
-            proxyProtocolToken(canonicalProxyType(proxyType)) ||
-            t("proxies.management.protocolUnknown");
           const typeName = proxyTypeLabelKey(proxyType);
+          const protocolLabel = typeName
+            ? t(typeName)
+            : proxyProtocolToken(canonicalProxyType(proxyType)) ||
+              t("proxies.management.protocolUnknown");
           return (
             <Tooltip>
               <TooltipTrigger asChild>
-                <KindBadge
+                <KindLabel
                   data-first-hop={
                     encrypted
                       ? "encrypted"
@@ -496,10 +539,9 @@ export function ProxyManagementDialog({
                   icon={encrypted ? <LuLock aria-hidden="true" /> : null}
                 >
                   {protocolLabel}
-                </KindBadge>
+                </KindLabel>
               </TooltipTrigger>
               <TooltipContent>
-                {typeName && <p className="font-medium">{t(typeName)}</p>}
                 <p>
                   {encrypted
                     ? t("proxies.management.firstHopEncryptedTooltip")
@@ -514,7 +556,7 @@ export function ProxyManagementDialog({
       },
       {
         id: "hostPort",
-        size: 132,
+        size: hostPortWidth,
         enableSorting: false,
         header: () => t("proxies.management.hostPort"),
         cell: ({ row }) => (
@@ -526,7 +568,7 @@ export function ProxyManagementDialog({
       },
       {
         id: "check",
-        size: 120,
+        size: checkWidth,
         enableSorting: false,
         header: () => t("common.labels.status"),
         cell: ({ row }) => (
@@ -565,7 +607,7 @@ export function ProxyManagementDialog({
         id: "sync",
         size: 80,
         enableSorting: false,
-        header: () => t("proxies.management.syncCol"),
+        header: () => <SyncColumnHeader />,
         cell: ({ row }) => {
           const proxy = row.original;
           return (
@@ -637,6 +679,9 @@ export function ProxyManagementDialog({
     [
       t,
       hasRotation,
+      protocolWidth,
+      hostPortWidth,
+      checkWidth,
       referencedProfiles,
       referencesFailed,
       proxySyncStatus,
@@ -654,6 +699,7 @@ export function ProxyManagementDialog({
     "proxies",
     storedProxies,
     setProxiesRowSelection,
+    proxyColumns,
   );
   const proxiesTable = useReactTable({
     data: proxiesTableTools.filters.rows,
@@ -708,14 +754,14 @@ export function ProxyManagementDialog({
         enableSorting: false,
         header: () => t("common.labels.type"),
         cell: ({ row }) => (
-          <KindBadge icon={<LuLock aria-hidden="true" />}>
+          <KindLabel icon={<LuLock aria-hidden="true" />}>
             {row.original.vpn_type}
-          </KindBadge>
+          </KindLabel>
         ),
       },
       {
         id: "check",
-        size: 72,
+        size: checkWidth,
         enableSorting: false,
         header: () => t("common.labels.status"),
         cell: ({ row }) => <VpnCheckButton vpn={row.original} />,
@@ -743,7 +789,7 @@ export function ProxyManagementDialog({
         id: "sync",
         size: 80,
         enableSorting: false,
-        header: () => t("proxies.management.syncCol"),
+        header: () => <SyncColumnHeader />,
         cell: ({ row }) => {
           const vpn = row.original;
           return (
@@ -802,6 +848,7 @@ export function ProxyManagementDialog({
     ],
     [
       t,
+      checkWidth,
       referencedProfiles,
       referencesFailed,
       vpnSyncStatus,
@@ -819,6 +866,7 @@ export function ProxyManagementDialog({
     "vpns",
     vpnConfigs,
     setVpnsRowSelection,
+    vpnColumns,
   );
   const vpnsTable = useReactTable({
     data: vpnsTableTools.filters.rows,
@@ -1126,7 +1174,7 @@ export function ProxyManagementDialog({
                   empty={
                     <EntityEmptyState
                       entity="proxies"
-                      clip="proxyCheck"
+                      icon={LuWifi}
                       title={t("entities.empty.proxies.title")}
                       description={t("entities.empty.proxies.body")}
                     >
@@ -1165,7 +1213,7 @@ export function ProxyManagementDialog({
                   empty={
                     <EntityEmptyState
                       entity="vpns"
-                      clip="vpn"
+                      icon={LuShieldCheck}
                       title={t("entities.empty.vpns.title")}
                       description={t("entities.empty.vpns.body")}
                     >

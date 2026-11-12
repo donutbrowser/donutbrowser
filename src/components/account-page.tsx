@@ -1,10 +1,13 @@
 "use client";
 
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   LuArrowRight,
+  LuArrowUpRight,
+  LuCheck,
   LuCircleCheck,
   LuCloud,
   LuEye,
@@ -39,7 +42,6 @@ import { Label } from "@/components/ui/label";
 import { RippleButton } from "@/components/ui/ripple";
 import {
   FeatureIcon,
-  SECTION_LABEL_CLASS,
   SettingsPanel,
   StatusLight,
 } from "@/components/ui/settings-panel";
@@ -53,6 +55,13 @@ import {
   getEntitlements,
   isTeamOwner,
 } from "@/lib/entitlements";
+import {
+  ACCOUNT_URL,
+  PRICING_URL,
+  periodLabel,
+  planLabel,
+  subscriptionStatusLabel,
+} from "@/lib/plan-labels";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type { SyncSettings } from "@/types";
@@ -275,37 +284,41 @@ export function AccountPage({
     return "muted";
   };
 
+  // Only the person who pays manages the subscription; a seat on a team does
+  // not see the action.
+  const planAction =
+    !isLoggedIn || !user || isTeamSeat
+      ? null
+      : effectivePlan === "free"
+        ? { label: t("account.seePlans"), url: PRICING_URL }
+        : user.teamId && user.teamRole !== "owner"
+          ? null
+          : { label: t("account.manageSubscription"), url: ACCOUNT_URL };
+  const tabCount =
+    1 +
+    (showTeamUsage ? 1 : 0) +
+    (showTeamActivity ? 2 : 0) +
+    (isLoggedIn ? 0 : 1);
+
   const details: { id: string; label: string; value: ReactNode }[] = [];
   if (isLoggedIn && user) {
-    details.push(
-      {
-        id: "plan",
-        label: t("account.fields.plan"),
-        value: <span className="uppercase">{effectivePlan}</span>,
-      },
-      {
+    if (user.subscriptionStatus && effectivePlan !== "free") {
+      details.push({
         id: "status",
         label: t("account.fields.status"),
         value: (
           <span className="inline-flex items-center gap-1.5">
             <StatusLight tone={subscriptionTone(user.subscriptionStatus)} />
-            {user.subscriptionStatus ?? "—"}
+            {subscriptionStatusLabel(t, user.subscriptionStatus)}
           </span>
         ),
-      },
-    );
+      });
+    }
     if (user.teamRole) {
       details.push({
         id: "teamRole",
         label: t("account.fields.teamRole"),
         value: seatRole,
-      });
-    }
-    if (user.planPeriod) {
-      details.push({
-        id: "period",
-        label: t("account.fields.period"),
-        value: user.planPeriod,
       });
     }
     if (typeof user.deviceOrdinal === "number") {
@@ -339,7 +352,7 @@ export function AccountPage({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className={cn(subPage && "mx-auto w-full max-w-4xl")}>
             <AnimatedTabs value={activeTab} onValueChange={setActiveTab}>
-              <AnimatedTabsList>
+              <AnimatedTabsList className={cn(tabCount < 2 && "hidden")}>
                 <AnimatedTabsTrigger value="account">
                   {t("account.tabs.account")}
                 </AnimatedTabsTrigger>
@@ -370,7 +383,10 @@ export function AccountPage({
 
               <AnimatedTabsContent
                 value="account"
-                className="@container mt-4 flex flex-col gap-3"
+                className={cn(
+                  "@container flex flex-col gap-3",
+                  tabCount > 1 && "mt-4",
+                )}
               >
                 <SettingsPanel className="flex flex-col gap-4">
                   <div className="flex flex-wrap items-center gap-3">
@@ -380,7 +396,7 @@ export function AccountPage({
                         "grid size-11 shrink-0 place-items-center rounded-full text-base font-semibold uppercase",
                         isLoggedIn && user
                           ? "bg-primary/10 text-foreground"
-                          : "bg-foreground/6 text-muted-foreground",
+                          : "bg-foreground/8 text-muted-foreground",
                       )}
                     >
                       {isLoggedIn && user ? (
@@ -395,13 +411,20 @@ export function AccountPage({
                           <h2 className="truncate text-sm font-semibold">
                             {user.email}
                           </h2>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {t("account.plan", {
-                              plan: effectivePlan,
-                              period: isTeamSeat
-                                ? seatLabel
-                                : (user.planPeriod ?? "—"),
-                            })}
+                          <p
+                            data-slot="account-plan"
+                            className="mt-0.5 text-xs text-muted-foreground"
+                          >
+                            {isTeamSeat || user.planPeriod
+                              ? t("account.plan", {
+                                  plan: planLabel(t, effectivePlan),
+                                  period: isTeamSeat
+                                    ? seatLabel
+                                    : periodLabel(t, user.planPeriod ?? ""),
+                                })
+                              : t("account.planOnly", {
+                                  plan: planLabel(t, effectivePlan),
+                                })}
                           </p>
                         </>
                       ) : (
@@ -452,26 +475,54 @@ export function AccountPage({
                           </LoadingButton>
                         </>
                       ) : (
-                        <RippleButton
-                          size="sm"
-                          onClick={onOpenSignIn}
-                          className="h-8 gap-1.5 rounded-lg text-xs"
-                        >
-                          <LuCloud className="size-3.5" />
-                          {t("account.signIn")}
-                        </RippleButton>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="soft"
+                            onClick={() => void openUrl(PRICING_URL)}
+                            className="h-8 gap-1.5 rounded-lg text-xs"
+                          >
+                            {t("account.seePlans")}
+                            <LuArrowUpRight className="size-3.5" />
+                          </Button>
+                          <RippleButton
+                            size="sm"
+                            onClick={onOpenSignIn}
+                            className="h-8 gap-1.5 rounded-lg text-xs"
+                          >
+                            <LuCloud className="size-3.5" />
+                            {t("account.signIn")}
+                          </RippleButton>
+                        </>
                       )}
                     </div>
                   </div>
+
+                  {!isLoggedIn && (
+                    <ul
+                      data-slot="account-benefits"
+                      className="grid gap-1.5 text-xs @xl:grid-cols-2"
+                    >
+                      {ACCOUNT_BENEFITS.map((key) => (
+                        <li key={key} className="flex items-start gap-2">
+                          <LuCheck
+                            aria-hidden="true"
+                            className="mt-0.5 size-3.5 shrink-0 text-success-text"
+                          />
+                          {t(`account.benefits.${key}`)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
 
                   {details.length > 0 && (
                     <dl className="grid grid-cols-2 gap-2 text-xs @xl:grid-cols-3">
                       {details.map((detail) => (
                         <div
                           key={detail.id}
-                          className="min-w-0 rounded-lg bg-foreground/4 px-3 py-2"
+                          className="min-w-0 rounded-lg bg-foreground/5 px-3 py-2"
                         >
-                          <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                          <dt className="text-[11px] text-muted-foreground">
                             {detail.label}
                           </dt>
                           <dd className="mt-0.5 truncate font-medium">
@@ -502,6 +553,19 @@ export function AccountPage({
                       </p>
                     )}
 
+                  {planAction && (
+                    <Button
+                      size="sm"
+                      variant="soft"
+                      data-slot="account-plan-action"
+                      onClick={() => void openUrl(planAction.url)}
+                      className="h-8 gap-1.5 self-start rounded-lg text-xs"
+                    >
+                      {planAction.label}
+                      <LuArrowUpRight className="size-3.5" />
+                    </Button>
+                  )}
+
                   {isLoggedIn && user && (
                     <AccountSyncServer
                       paid={getEntitlements(user).cloudBackup}
@@ -516,7 +580,7 @@ export function AccountPage({
                   // refused, which is the only way they ever saw it before.
                   <SettingsPanel>
                     <div className="flex items-baseline justify-between gap-3">
-                      <p className={SECTION_LABEL_CLASS}>
+                      <p className="text-xs font-medium text-muted-foreground">
                         {t("cookieBot.hours.label")}
                       </p>
                       {formatDate(quota?.period_end) && (
@@ -527,13 +591,16 @@ export function AccountPage({
                         </p>
                       )}
                     </div>
-                    <p className="mt-2 text-2xl leading-none font-semibold tabular-nums">
-                      {quota ? formatHours(quota.remaining_hours) : "—"}
-                      <span className="ml-1.5 text-sm font-normal text-muted-foreground">
-                        {t("cookieBot.hours.remainingOf", {
-                          total: quota ? formatHours(quota.granted_hours) : "—",
-                        })}
-                      </span>
+                    <p
+                      data-slot="account-remote-hours"
+                      className="mt-2 text-lg leading-none font-semibold tabular-nums"
+                    >
+                      {quota
+                        ? t("account.hoursLeftOf", {
+                            left: formatHours(quota.remaining_hours),
+                            total: formatHours(quota.granted_hours),
+                          })
+                        : "—"}
                     </p>
                     <RemoteHoursMeter
                       quota={quota}
@@ -541,14 +608,8 @@ export function AccountPage({
                       variant="inline"
                       className="mt-3"
                     />
-                    <div className="mt-2 flex items-baseline justify-between gap-3">
-                      <p className="text-xs tabular-nums text-muted-foreground">
-                        {t("cookieBot.hours.used", {
-                          used: quota ? formatHours(quota.used_hours) : "—",
-                          total: quota ? formatHours(quota.granted_hours) : "—",
-                        })}
-                      </p>
-                      {showTeamUsage && (
+                    {showTeamUsage && (
+                      <div className="mt-2 flex justify-end">
                         <Button
                           type="button"
                           variant="subtle"
@@ -561,8 +622,8 @@ export function AccountPage({
                           {t("account.viewTeamUsage")}
                           <LuArrowRight className="size-3.5 transition-transform duration-150 group-hover/team:translate-x-0.5 motion-reduce:transition-none" />
                         </Button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </SettingsPanel>
                 )}
               </AnimatedTabsContent>
@@ -734,3 +795,5 @@ export function AccountPage({
 }
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
+
+const ACCOUNT_BENEFITS = ["sync", "backup", "team", "remote"] as const;

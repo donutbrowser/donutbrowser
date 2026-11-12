@@ -69,7 +69,7 @@ export function BandwidthMiniChart({
       onClick={onClick}
       aria-label={ariaLabel}
       className={cn(
-        "relative flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded border-none bg-transparent px-2 transition-colors hover:bg-foreground/6",
+        "relative flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded border-none bg-transparent px-2 transition-colors hover:bg-foreground/8",
         className,
       )}
     >

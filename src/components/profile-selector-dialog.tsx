@@ -237,7 +237,7 @@ export function ProfileSelectorDialog({
         {link && url && (
           <div
             data-slot="profile-selector-link"
-            className="flex shrink-0 items-center gap-2.5 rounded-xl bg-foreground/4 p-2"
+            className="flex shrink-0 items-center gap-2.5 rounded-xl bg-foreground/5 p-2"
           >
             <ProfileGlyph
               seed={selected?.name ?? ""}
@@ -313,7 +313,7 @@ export function ProfileSelectorDialog({
                 void open(selectedId);
               }
             }}
-            className="min-h-0 bg-transparent **:data-[slot=command-input-wrapper]:mb-2 **:data-[slot=command-input-wrapper]:h-8 **:data-[slot=command-input-wrapper]:rounded-lg **:data-[slot=command-input-wrapper]:border-0 **:data-[slot=command-input-wrapper]:bg-foreground/5 **:data-[slot=command-input-wrapper]:px-2.5 **:data-[slot=command-input-wrapper]:transition-[background-color,box-shadow] **:data-[slot=command-input-wrapper]:focus-within:bg-foreground/6 **:data-[slot=command-input-wrapper]:focus-within:ring-2 **:data-[slot=command-input-wrapper]:focus-within:ring-foreground/10 [&_[data-slot=command-input-wrapper]_svg]:size-3.5"
+            className="min-h-0 bg-transparent **:data-[slot=command-input-wrapper]:mb-2 **:data-[slot=command-input-wrapper]:h-8 **:data-[slot=command-input-wrapper]:rounded-lg **:data-[slot=command-input-wrapper]:border-0 **:data-[slot=command-input-wrapper]:bg-foreground/5 **:data-[slot=command-input-wrapper]:px-2.5 **:data-[slot=command-input-wrapper]:transition-[background-color,box-shadow] **:data-[slot=command-input-wrapper]:focus-within:bg-foreground/8 **:data-[slot=command-input-wrapper]:focus-within:ring-2 **:data-[slot=command-input-wrapper]:focus-within:ring-foreground/10 [&_[data-slot=command-input-wrapper]_svg]:size-3.5"
           >
             {searching ? (
               <CommandInput

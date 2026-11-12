@@ -27,7 +27,6 @@
       "export": "エクスポート",
       "refresh": "更新",
       "loading": "読み込み中...",
-      "saveSettings": "設定を保存",
       "moreInfo": "詳細",
       "downloading": "ダウンロード中...",
       "minimize": "最小化",
@@ -122,7 +121,7 @@
     "appearance": {
       "title": "外観",
       "theme": "テーマ",
-      "themeDescription": "お好みのテーマを選択するか、システム設定に従います。カスタムテーマの変更は保存時のみ適用されます。",
+      "themeDescription": "テーマを選ぶか、システム設定に従います。",
       "themePreset": "テーマプリセット",
       "customColors": "カスタムカラー",
       "yourOwn": "カスタム",
@@ -192,10 +191,10 @@
     "commercial": {
       "title": "商用ライセンス",
       "trialActive": "トライアル: 残り {{days}} 日 {{hours}} 時間",
-      "trialActiveDescription": "トライアル期間中は商用利用が無料です。期間が終了してもすべての機能はそのまま使用できます — 個人利用は引き続き無料で、商用利用のみライセンスが必要になります。",
+      "trialActiveDescription": "トライアル期間中は商用利用が無料です。期間が終了してもすべての機能はそのまま使用できます。個人利用は引き続き無料で、商用利用のみライセンスが必要になります。",
       "trialExpired": "トライアル期限切れ",
       "trialExpiredDescription": "個人利用は引き続き無料です。商用利用にはライセンスが必要です。",
-      "subscriptionActive": "サブスクリプション中 — {{plan}} プラン",
+      "subscriptionActive": "{{plan}} プランが有効です",
       "subscriptionActiveDescription": "Donut Browser のサブスクリプションが有効です。プランの期間中、商用利用がライセンスされます。"
     },
     "advanced": {
@@ -236,7 +235,6 @@
     "trashRetentionOff": "すぐに削除",
     "scrollSectionsLeft": "セクションを左へスクロール",
     "scrollSectionsRight": "セクションを右へスクロール",
-    "changed": "変更あり",
     "open": "開く",
     "manage": "管理",
     "clear": "消去",
@@ -291,7 +289,7 @@
       "notificationsDescription": "Donut がバックグラウンドにある間、起動の失敗やエージェントからの質問などを OS が通知します。"
     },
     "launches": {
-      "title": "一括起動",
+      "title": "起動",
       "delay": "起動の間隔",
       "delayDescription": "複数のプロファイルを起動するとき、次のプロファイルを起動するまで Donut が待つ時間です。",
       "concurrency": "同時に起動するプロファイル数",
@@ -582,6 +580,7 @@
     },
     "profileName": "プロファイル名",
     "profileNamePlaceholder": "プロファイル名を入力",
+    "defaultName": "プロファイル {{n}}",
     "proxy": {
       "title": "プロキシ / VPN",
       "addProxy": "プロキシを追加",
@@ -604,7 +603,8 @@
       "latestNeedsDownload": "最新バージョン ({{version}}) をダウンロードする必要があります",
       "latestAvailable": "最新バージョン ({{version}}) は利用可能です",
       "latestDownloading": "バージョン ({{version}}) をダウンロード中...",
-      "upgradeAvailable": "{{browser}} の新しいバージョン（{{version}}）が利用可能です。"
+      "upgradeAvailable": "{{browser}} の新しいバージョン（{{version}}）が利用可能です。",
+      "createWhenReady": "{{browser}} のダウンロードが終わるとプロファイルが作成されます。"
     },
     "chromiumLabel": "Chromium",
     "chromiumSubtitle": "Wayfern搭載",
@@ -901,7 +901,7 @@
     "title": "同期サービス",
     "config": {
       "serverUrlRequired": "サーバーURLを入力してください",
-      "connectionSuccess": "接続に成功しました!",
+      "connectionSuccess": "接続に成功しました",
       "serverError": "サーバーがエラーで応答しました",
       "connectFailed": "サーバーへの接続に失敗しました",
       "storageEndpoint": "ストレージ: {{endpoint}}",
@@ -941,7 +941,7 @@
       "manageAccount": "アカウント管理",
       "logout": "ログアウト",
       "logoutConfirm": "ログアウトしてもよろしいですか？クラウド同期が停止します。",
-      "loginSuccess": "ログインに成功しました！",
+      "loginSuccess": "ログインに成功しました",
       "logoutSuccess": "ログアウトしました。",
       "server": "サーバー"
     },
@@ -955,7 +955,7 @@
       "manageOnWeb": "Webダッシュボードでチームを管理",
       "profileLocked": "{{email}} が使用中",
       "profileLockedShort": "使用中",
-      "cannotLaunchLocked": "起動できません — {{email}} がプロファイルを使用中です",
+      "cannotLaunchLocked": "起動できません。{{email}} がプロファイルを使用中です",
       "createdBy": "{{email}} が作成",
       "roleLauncher": "ランチャー"
     },
@@ -1395,7 +1395,7 @@
       "settingsSaved": "設定が正常に保存されました",
       "copied": "クリップボードにコピーしました",
       "permissionRequested": "{{permission}}へのアクセスをリクエストしました",
-      "downloadComplete": "{{browser}} {{version}} が正常にダウンロードされました！",
+      "downloadComplete": "{{browser}} {{version}} が正常にダウンロードされました",
       "importSuccess": "{{count}} 個のアイテムが正常にインポートされました",
       "exportSuccess": "{{count}} 個のアイテムが正常にエクスポートされました",
       "syncSuccess": "同期が正常に完了しました",
@@ -1435,7 +1435,8 @@
     "progress": {
       "remaining": "残り {{time}}",
       "filesProgress": "{{completed}}/{{total}} ファイル",
-      "filesFailed": "{{count}} 件のファイルが失敗しました"
+      "filesFailed": "{{count}} 件のファイルが失敗しました",
+      "starting": "開始中…"
     }
   },
   "errors": {
@@ -1664,7 +1665,7 @@
     "values": {
       "none": "なし",
       "never": "なし",
-      "copied": "コピーしました！",
+      "copied": "コピーしました",
       "yes": "はい",
       "activeNow": "現在アクティブ",
       "direct": "直接",
@@ -1701,7 +1702,6 @@
       "button": "複製"
     },
     "duplicate": "複製",
-    "breadcrumbRoot": "プロファイル",
     "openDialog": "設定を開く",
     "sections": {
       "overview": "概要",
@@ -1719,7 +1719,9 @@
       "startPages": "スタートページ",
       "twoFactor": "2FA コード",
       "requests": "リクエスト",
-      "logs": "ログ"
+      "logs": "ログ",
+      "launch": "起動",
+      "data": "データ"
     },
     "sectionDesc": {
       "fingerprint": "フィンガープリント対策スクリプトに対するこのプロファイルの表示を設定します。",
@@ -1935,7 +1937,8 @@
     "cookieCopyLocked": "Cookieのコピーはプロ機能です",
     "cookieImportLocked": "Cookieのインポートはプロ機能です",
     "cookieExportLocked": "Cookieのエクスポートはプロ機能です",
-    "cookieManagementLocked": "Cookie管理はプロ機能です"
+    "cookieManagementLocked": "Cookie管理はプロ機能です",
+    "seePlans": "Pro の機能。プランを見る"
   },
   "dnsBlocklist": {
     "title": "DNSブロックリスト",
@@ -2232,7 +2235,8 @@
     "enable": "同期を有効化",
     "disable": "同期を無効化",
     "lockedInUse": "同期されたプロファイルが使用中のため、同期は無効化できません",
-    "bulkToggle": "同期を切り替え"
+    "bulkToggle": "同期を切り替え",
+    "column": "オン: この項目をほかのデバイスと同じ状態に保ちます。スイッチの横のランプは、実行中、待機中、または失敗した同期を示します。"
   },
   "groupManagement": {
     "description": "プロファイルのグループを管理します",
@@ -2299,7 +2303,7 @@
     "selectButton": "選択",
     "launching": "起動中...",
     "openLink": "リンクを開く",
-    "urlCopied": "URL をクリップボードにコピーしました!",
+    "urlCopied": "URL をクリップボードにコピーしました",
     "noneAvailableShort": "利用可能なプロファイルがありません。まずプロファイルを作成してください。",
     "noneAvailableLong": "このダイアログを閉じてメインウィンドウからプロファイルを作成してください。",
     "badgeRunning": "実行中",
@@ -2334,8 +2338,8 @@
     "titleCamera": "カメラへのアクセスが必要です",
     "descMicrophone": "Donut Browser はブラウザのマイク機能を有効にするためにマイクへのアクセスを必要とします。マイクを使用するウェブサイトはそれぞれ個別に許可を求めます。",
     "descCamera": "Donut Browser はブラウザのカメラ機能を有効にするためにカメラへのアクセスを必要とします。カメラを使用するウェブサイトはそれぞれ個別に許可を求めます。",
-    "grantedMicrophone": "許可が付与されました!Donut Browser から起動したブラウザはマイクにアクセスできます。",
-    "grantedCamera": "許可が付与されました!Donut Browser から起動したブラウザはカメラにアクセスできます。",
+    "grantedMicrophone": "許可が付与されました。Donut Browser から起動したブラウザはマイクにアクセスできます。",
+    "grantedCamera": "許可が付与されました。Donut Browser から起動したブラウザはカメラにアクセスできます。",
     "notGrantedMicrophone": "許可されていません。下のボタンを押してマイクへのアクセスを要求してください。",
     "notGrantedCamera": "許可されていません。下のボタンを押してカメラへのアクセスを要求してください。",
     "doneButton": "完了",
@@ -2517,7 +2521,7 @@
   "browserDownload": {
     "toast": {
       "fetchVersionsFailed": "{{browser}} のバージョン取得に失敗しました",
-      "foundNewVersions": "{{browser}} の新バージョン {{count}} 個が見つかりました!",
+      "foundNewVersions": "{{browser}} の新バージョン {{count}} 個が見つかりました",
       "totalAvailableVersions": "合計利用可能: {{count}} バージョン",
       "downloadFailed": "{{browser}} {{version}} のダウンロードに失敗しました",
       "calculating": "計算中...",
@@ -2527,7 +2531,7 @@
       "verifying": "ブラウザファイルを検証中...",
       "downloadingRolling": "ローリングリリースビルドをダウンロード中...",
       "geoipDownloading": "GeoIP データベースをダウンロード中",
-      "geoipDownloaded": "GeoIP データベースのダウンロードが完了しました！",
+      "geoipDownloaded": "GeoIP データベースのダウンロードが完了しました",
       "downloadFailedDescription": "ダウンロードを完了できませんでした。接続を確認して、もう一度お試しください。"
     }
   },
@@ -2623,7 +2627,7 @@
     "profileNotProtected": "プロファイルはパスワード保護されていません",
     "profileAlreadyProtected": "プロファイルはすでにパスワード保護されています",
     "profileRunning": "プロファイルの実行中はこの操作を実行できません",
-    "profileEphemeral": "エフェメラル プロファイルにはパスワードを設定できません — 終了時にデータが消去されます。",
+    "profileEphemeral": "エフェメラル プロファイルにはパスワードを設定できません。終了時にデータが消去されます。",
     "profileMissingSalt": "プロファイルに暗号化ソルトがありません",
     "profileLocked": "プロファイルはロックされています。先にパスワードを入力してください。",
     "invalidProfileId": "無効なプロファイルIDです",
@@ -2648,8 +2652,8 @@
     "syncNotConfigured": "同期が設定されていません。サインインするか、セルフホストサーバーを設定してください。",
     "internal": "問題が発生しました: {{detail}}",
     "invalidLaunchHookUrl": "起動フックURLが無効です。完全な http:// または https:// URL を使用してください。",
-    "cookieDbLocked": "Cookie を読み取れません — データベースがロックされています。ブラウザを閉じてから再試行してください。",
-    "cookieDbUnavailable": "Cookie を読み取れません — Cookie ストアを利用できません。",
+    "cookieDbLocked": "Cookie を読み取れません。データベースがロックされています。ブラウザを閉じてから再試行してください。",
+    "cookieDbUnavailable": "Cookie を読み取れません。Cookie ストアを利用できません。",
     "cookieImportBrowserRunning": "ブラウザの実行中は Cookie をインポートできません。ブラウザを閉じてから再試行してください。",
     "cookieImportProfileProtected": "パスワード保護されたプロファイルには Cookie をインポートできません。先にパスワードを解除してください。",
     "cookieImportRemoteSession": "リモートセッションがこのプロファイルを使用している間は Cookie をインポートできません。同期の完了をお待ちください。",
@@ -2670,6 +2674,7 @@
     "importSourceNotFound": "ソースパスが存在しません",
     "importNoItems": "インポートする項目が選択されていません",
     "browserNotDownloaded": "{{browser}}のダウンロード済みバージョンがありません。先にダウンロードしてから、再度インポートしてください。",
+    "browserDownloadFailed": "ダウンロードに失敗しました。接続を確認してから、もう一度お試しください。",
     "archiveExtractionFailed": "アーカイブの展開に失敗しました：{{detail}}",
     "unsupportedArchiveFormat": "サポートされていないアーカイブ形式です。ZIPアーカイブのみサポートされています。",
     "clearOnCloseUnavailable": "終了時消去は、一時プロファイルやパスワード保護されたプロファイルでは利用できません。",
@@ -3023,7 +3028,7 @@
     "integrations": "連携",
     "account": "アカウント",
     "cookieBot": "Cookie Bot",
-    "cookieBotRunning": "Cookie Bot — 実行中",
+    "cookieBotRunning": "Cookie Bot：実行中",
     "agent": "エージェント",
     "agentWaiting": "エージェント、対応待ちのリクエスト: {{count}}"
   },
@@ -3044,7 +3049,7 @@
   },
   "encryption": {
     "required": {
-      "title": "同期一時停止 — パスワードが必要です",
+      "title": "同期一時停止：パスワードが必要です",
       "description": "暗号化されたデータがダウンロードされましたが、このデバイスにはE2Eパスワードが設定されていません。設定 → 暗号化を開いてパスワードを入力し、同期を再開してください。",
       "openSettings": "設定を開く"
     },
@@ -3070,17 +3075,15 @@
     "loggedOut": "ログアウトしました",
     "signedOut": "未ログイン",
     "signedOutDescription": "クラウド同期、暗号化プロファイル、チーム機能を有効にするにはサインインしてください。",
-    "plan": "プラン: {{plan}} · {{period}}",
+    "plan": "{{plan}} プラン · {{period}}",
     "teamSeat": "{{team}} の{{role}}シート",
     "teamSeatUnnamed": "チームの{{role}}シート",
     "refresh": "更新",
     "logout": "サインアウト",
     "signIn": "サインイン",
     "fields": {
-      "plan": "プラン",
       "status": "ステータス",
       "teamRole": "チームロール",
-      "period": "請求周期",
       "device": "デバイス"
     },
     "tabs": {
@@ -3114,10 +3117,40 @@
       "removed": "同期サーバーを削除しました。",
       "switched": "{{server}} と同期しています。",
       "tokenServer": "{{host}}（同期トークン）"
+    },
+    "planOnly": "{{plan}} プラン",
+    "plans": {
+      "free": "無料",
+      "solo": "Solo",
+      "pro": "Pro",
+      "team": "Team",
+      "enterprise": "Enterprise"
+    },
+    "periods": {
+      "monthly": "月払い",
+      "yearly": "年払い"
+    },
+    "statuses": {
+      "active": "有効",
+      "trialing": "試用中",
+      "past_due": "支払い期限切れ",
+      "unpaid": "未払い",
+      "canceled": "解約済み",
+      "incomplete": "未完了",
+      "incomplete_expired": "期限切れ",
+      "paused": "一時停止中"
+    },
+    "seePlans": "プランを見る",
+    "manageSubscription": "サブスクリプションを管理",
+    "hoursLeftOf": "残り {{left}} 時間（{{total}} 時間中）",
+    "benefits": {
+      "sync": "プロファイル、プロキシ、グループをデバイス間で同期",
+      "backup": "プロファイルの暗号化コピーをクラウドに保存",
+      "team": "チームとプロファイルを共有",
+      "remote": "クラウドでプロファイルを実行し、Cookie Bot で Cookie を維持"
     }
   },
   "shortcutsPage": {
-    "title": "キーボードショートカット",
     "description": "これらのショートカットでワークフローを高速化できます。",
     "paletteHint": "すべてのページ、プロファイル、アクションを検索します。",
     "holdHint": "これらのキーを押し続けると、使うショートカットが分かります。",
@@ -3142,7 +3175,7 @@
     "actions": {
       "launchProfile": "{{name}} を起動",
       "stopProfile": "{{name}} を停止",
-      "profileInfo": "情報 — {{name}}",
+      "profileInfo": "情報：{{name}}",
       "createProfile": "プロファイルを作成",
       "about": "Donut Browser について",
       "agentChat": "新しいエージェントチャット",
@@ -3260,27 +3293,10 @@
     "quit": "終了"
   },
   "onboarding": {
-    "steps": {
-      "createProfile": {
-        "title": "最初のプロファイルを作成",
-        "content": "ここをクリックして最初のプロファイルを作成します。ブラウザには Wayfern を選んでください。フィンガープリント対策済みの推奨 Chromium です。"
-      },
-      "dnsBlocking": {
-        "title": "DNS ブロック",
-        "content": "このドロップダウンでプロファイルの DNS ブロックリストのレベルを設定します。広告・トラッカー・マルウェアをネットワークレベルでブロックします。レベルが高いほど多くブロックします。"
-      }
-    },
-    "buttons": {
-      "skip": "スキップ",
-      "finish": "完了"
-    },
-    "thankYou": {
-      "title": "Donut Browser を選んでいただきありがとうございます",
-      "body": "それぞれのIDを分けて、データを端末の外に出さずに、よりプライベートなブラウジングのお役に立てれば幸いです。どうぞお楽しみください。",
-      "cta": "ブラウジングを始める"
-    },
-    "stepOf": "ステップ {{current}}/{{total}}",
-    "progress": "ツアーの進行状況"
+    "launch": {
+      "title": "プロファイルを開く",
+      "content": "起動すると、このプロファイルが専用のブラウザーで開きます。"
+    }
   },
   "welcome": {
     "title": "Donut Browser へようこそ",
@@ -3290,41 +3306,8 @@
     "permissions": {
       "title": "マイクとカメラを許可",
       "desc": "マイクやカメラを必要とするサイトがブラウザプロファイル内で動作するよう、アクセスを許可してください。macOS は一度だけ確認します。各サイトは引き続き個別に許可を求めます。",
-      "skip": "後で",
       "grant": "アクセスを許可",
       "requesting": "リクエスト中…"
-    },
-    "ready": {
-      "title": "準備しています",
-      "descDownloading": "最初のブラウザ（Wayfern）をダウンロードしています。この初回セットアップはバックグラウンドで実行されます。少々お待ちください。",
-      "descReady": "ブラウザの準備ができました。最初のプロファイルを作成しましょう。",
-      "cta": "最初のプロファイルを作成",
-      "downloading": "ダウンロード中…",
-      "extracting": "展開中…",
-      "stats": "{{total}} 中 {{downloaded}}",
-      "speed": "{{speed}}/秒",
-      "timeLeft": "残り {{time}}",
-      "descExtracting": "ブラウザを展開しています。この初回セットアップはバックグラウンドで実行されます。少々お待ちください。",
-      "almostFinished": "まもなく完了します…",
-      "errorTitle": "セットアップに失敗しました",
-      "errorDownload": "{{browser}} をダウンロードできませんでした。接続を確認して、もう一度お試しください。",
-      "errorExtraction": "{{browser}} を展開できませんでした。もう一度お試しください。",
-      "errorGeneric": "{{browser}} のセットアップ中に問題が発生しました。もう一度お試しください。",
-      "retry": "再試行",
-      "proxyHint": "ネットワークが Donut のサーバーをブロックしている場合は、Donut 用のプロキシを入力してから再試行してください。"
-    },
-    "features": {
-      "title": "機能",
-      "items": {
-        "setDefault": "既定のブラウザに設定",
-        "proxy": "プロキシ対応（HTTP/SOCKS5）",
-        "vpn": "VPN対応（WireGuard）",
-        "profiles": "無制限のローカルプロファイル",
-        "api": "プロファイル管理API",
-        "openSource": "オープンソース",
-        "groups": "プロファイルグループ",
-        "cookies": "Cookieのインポート・エクスポート"
-      }
     },
     "license": {
       "title": "ライセンス",
@@ -3333,7 +3316,6 @@
       "personalTitle": "個人利用",
       "personalDesc": "永久に無料です。",
       "commercialTitle": "商用利用",
-      "trialBadge": "2週間無料",
       "commercialDesc": "2週間の評価期間は無料です。その後は有料プランが必要で、これによりプロジェクトの維持と発展が支えられます。"
     },
     "progress": "セットアップの進行状況"
@@ -3386,9 +3368,6 @@
     },
     "diagnostics": {
       "title": "診断",
-      "version": "バージョン",
-      "channel": "チャンネル",
-      "system": "システム",
       "yes": "はい",
       "no": "いいえ",
       "notInstalled": "未インストール",
@@ -3830,35 +3809,10 @@
     "starting": "プロファイルを起動し、同期機能に接続中…",
     "startError": "同期機能を開始できませんでした。選択内容は保持されています。プロファイルを確認して再試行してください。"
   },
-  "isolationDemo": {
-    "title": "1つの変更。1つのプロファイル。",
-    "description": "サンプルのプロファイルを試せます。実際のプロファイルは変更されません。",
-    "research": "調べ物",
-    "shopping": "買い物",
-    "cookies": "セッションCookie",
-    "noCookie": "セッションCookieなし",
-    "savedCookie": "セッションCookieを保存済み",
-    "route": "経路",
-    "direct": "直接接続",
-    "proxy": "サンプルのプロキシ",
-    "signIn": "ログイン",
-    "signOut": "ログアウト",
-    "switchRoute": "経路を切り替え",
-    "reset": "サンプルをリセット",
-    "hint": "プロファイルを選択して、Cookieや経路を変更してください。",
-    "changed": "{{name}}を変更しました。もう一方のプロファイルのCookieと経路はそのままです。",
-    "resetDone": "両方のサンプルをリセットしました。",
-    "device": "デバイス",
-    "site": "サイト"
-  },
   "appFeedback": {
     "saveFailed": "設定を保存できませんでした",
     "searchSettings": "設定を検索…",
-    "pendingChanges": "未保存の変更: {{count}}",
-    "reviewChanges": "変更を確認",
-    "noChanges": "未保存の変更はありません",
     "discardChanges": "変更を破棄",
-    "appliesImmediately": "このセクションの操作はすぐに適用されます。",
     "searchShortcuts": "ショートカットを検索…",
     "requestedSchedule": "バーは各タイムゾーンで指定した最大実行時間を示します。重複は同じ曜日に発生します。実際の実行は異なる場合があります。",
     "overlappingBookings": "重複する予定: {{count}}",
@@ -4908,7 +4862,8 @@
     "noOptions": "一致する選択肢がありません。",
     "removeFilter": "フィルターを削除: {{filter}}",
     "clearFilters": "フィルターをクリア",
-    "results": "{{total}} 行中 {{count}} 行",
+    "results_one": "{{count}} 行中 {{shown}} 行",
+    "results_other": "{{count}} 行中 {{shown}} 行",
     "sortSummary": "{{column}}: {{direction}}",
     "descending": "降順",
     "ascending": "昇順",
@@ -5007,7 +4962,7 @@
     "included": "あわせて送信: Donut {{version}}、{{os}} {{arch}}",
     "send": "送信",
     "success": {
-      "title": "ありがとうございます！",
+      "title": "ありがとうございます",
       "body": "フィードバックは Donut チームに届きました。",
       "bodyWithLogs": "フィードバックとログは Donut チームに届きました。",
       "reply": "詳細が必要な場合は {{email}} にご連絡します。",
@@ -5291,15 +5246,21 @@
     "lost": "{{device}} が {{profile}} を引き継ぎました。ここでの変更は同期されません。"
   },
   "previews": {
-    "title": "ライブプレビュー",
     "description": "プレビューをクリックすると、そのウィンドウを前面に出します。",
     "locked": "実行中のプロファイルのライブプレビューは Pro 以上のプランに含まれます。",
     "seePlans": "プランを見る",
-    "empty": "実行中のプロファイルはありません。"
+    "empty": "実行中のプロファイルはありません",
+    "emptyBody": "プロファイルを起動すると、そのウィンドウがここに表示されます。"
   },
   "whatsNew": {
     "updated": "{{version}} にアップデートしました",
     "open": "新機能",
     "title": "{{version}} の新機能"
+  },
+  "errorBoundary": {
+    "title": "エラーが発生しました",
+    "description": "エラーのため Donut のこの部分が停止しました。続けるには再読み込みしてください。エラーはログに記録されています。",
+    "reload": "再読み込み",
+    "copyDetails": "詳細をコピー"
   }
 }

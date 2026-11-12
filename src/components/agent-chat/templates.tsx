@@ -152,7 +152,7 @@ export function FeaturedTemplates({
                 onPick(template);
               }}
               className={cn(
-                "flex w-full cursor-pointer items-center gap-3 rounded-2xl p-2 text-left transition-colors duration-150 hover:bg-foreground/4 motion-reduce:transition-none",
+                "flex w-full cursor-pointer items-center gap-3 rounded-2xl p-2 text-left transition-colors duration-150 hover:bg-foreground/5 motion-reduce:transition-none",
                 FOCUS_RING,
               )}
             >
@@ -207,7 +207,7 @@ function TemplateCard({
           onPick(template);
         }}
         className={cn(
-          "relative flex h-full w-full cursor-pointer flex-col gap-2.5 rounded-2xl bg-foreground/4 p-3 text-left transition-colors duration-150 hover:bg-foreground/7 motion-reduce:transition-none",
+          "relative flex h-full w-full cursor-pointer flex-col gap-2.5 rounded-2xl bg-foreground/5 p-3 text-left transition-colors duration-150 hover:bg-foreground/8 motion-reduce:transition-none",
           FOCUS_RING,
         )}
       >
@@ -364,7 +364,7 @@ export function TemplateGallery({
                   "inline-flex h-7 cursor-pointer items-center rounded-lg px-2 text-xs transition-colors duration-150 motion-reduce:transition-none",
                   FOCUS_RING,
                   on
-                    ? "bg-foreground/6 text-foreground"
+                    ? "bg-foreground/8 text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >

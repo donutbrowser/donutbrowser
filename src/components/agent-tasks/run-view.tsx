@@ -133,7 +133,7 @@ function StateFilters({
             className={cn(
               "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
               on
-                ? "bg-foreground/6 text-foreground"
+                ? "bg-foreground/8 text-foreground"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -216,7 +216,7 @@ function RunTile({
           FOCUS_RING,
           state === "needs_you"
             ? "bg-warning/10 hover:bg-warning/15"
-            : "hover:bg-foreground/4",
+            : "hover:bg-foreground/5",
         )}
       >
         <LiveFrame

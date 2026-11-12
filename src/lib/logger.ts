@@ -35,3 +35,11 @@ export async function setupLogging() {
     console.error("Failed to attach console to logging plugin:", err);
   }
 }
+
+/** A render error an error boundary caught, with the components it was in. */
+export function logRenderError(error: unknown, componentStack?: string | null) {
+  const where = componentStack?.trim().split("\n")[0]?.trim();
+  void logError(
+    `Render error err="${describe(error)}"${where ? ` component="${where}"` : ""}`,
+  ).catch(() => {});
+}

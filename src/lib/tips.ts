@@ -279,14 +279,14 @@ export const TIPS: readonly TipDefinition[] = [
   {
     id: "fingerprintGate",
     section: "network",
-    action: { kind: "settings", section: "advanced" },
+    action: { kind: "settings", section: "launches" },
     anchors: ["rail-settings"],
     inUse: (usage) => usage.fingerprintGateChanged === true,
   },
   {
     id: "requireRoute",
     section: "network",
-    action: { kind: "settings", section: "privacy" },
+    action: { kind: "settings", section: "launches" },
     anchors: ["rail-settings"],
     inUse: (usage) => usage.routeRequired === true,
   },

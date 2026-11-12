@@ -129,7 +129,7 @@ export function SiteStoragePanel({
       )}
 
       {report.backups.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-lg bg-foreground/4 px-3 py-2">
+        <div className="flex flex-col gap-2 rounded-lg bg-foreground/5 px-3 py-2">
           <p className="text-xs font-medium text-muted-foreground">
             {t("siteStorage.backupsTitle")}
           </p>

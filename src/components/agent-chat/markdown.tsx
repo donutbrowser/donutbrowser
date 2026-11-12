@@ -67,7 +67,7 @@ const COMPONENTS: Components = {
     <h5 className="mt-3 mb-1 text-sm font-semibold first:mt-0">{children}</h5>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="my-2 rounded-lg bg-foreground/4 px-3 py-1.5 text-muted-foreground">
+    <blockquote className="my-2 rounded-lg bg-foreground/5 px-3 py-1.5 text-muted-foreground">
       {children}
     </blockquote>
   ),
@@ -83,7 +83,7 @@ const COMPONENTS: Components = {
   code: ({ className, children }) => (
     <code
       className={cn(
-        "rounded-md bg-foreground/6 px-1 py-px font-mono text-[0.85em]",
+        "rounded-md bg-foreground/8 px-1 py-px font-mono text-[0.85em]",
         className,
       )}
     >

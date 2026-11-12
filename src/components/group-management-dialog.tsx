@@ -33,6 +33,7 @@ import {
   RowAction,
   RowActions,
   SyncCell,
+  SyncColumnHeader,
   type SyncStatus,
   TickingCount,
 } from "@/components/entity-page";
@@ -44,11 +45,6 @@ import {
 } from "@/components/managed-data-table";
 import { ProfileUsageButton } from "@/components/profile-usage-button";
 import { SortableColumnHeader } from "@/components/table-controls";
-import {
-  AnimatedTabs,
-  AnimatedTabsList,
-  AnimatedTabsTrigger,
-} from "@/components/ui/animated-tabs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -382,7 +378,7 @@ export function GroupManagementDialog({
         id: "sync",
         size: 80,
         enableSorting: false,
-        header: () => t("proxies.management.syncCol"),
+        header: () => <SyncColumnHeader />,
         cell: ({ row }) => {
           const group = row.original;
           return (
@@ -447,7 +443,12 @@ export function GroupManagementDialog({
     ],
   );
 
-  const tableTools = useEntityTableTools("groups", groups, setRowSelection);
+  const tableTools = useEntityTableTools(
+    "groups",
+    groups,
+    setRowSelection,
+    columns,
+  );
   const table = useReactTable({
     data: tableTools.filters.rows,
     columns: useMemo(() => configureEntityColumns(columns), [columns]),
@@ -546,20 +547,19 @@ export function GroupManagementDialog({
 
           <div className="@container flex min-h-0 w-full flex-1 flex-col">
             <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-2">
-              <AnimatedTabs value="groups">
-                <AnimatedTabsList>
-                  <AnimatedTabsTrigger value="groups" data-summary="groups">
-                    <span data-slot="group-summary-title">
-                      {t("groups.pageTitle")}
-                    </span>
-                    <TickingCount
-                      slot="group-summary-count"
-                      value={groups.length}
-                      className="text-xs"
-                    />
-                  </AnimatedTabsTrigger>
-                </AnimatedTabsList>
-              </AnimatedTabs>
+              <p
+                data-summary="groups"
+                className="flex items-center gap-2 text-sm font-medium text-foreground"
+              >
+                <span data-slot="group-summary-title">
+                  {t("groups.pageTitle")}
+                </span>
+                <TickingCount
+                  slot="group-summary-count"
+                  value={groups.length}
+                  className="text-xs text-muted-foreground"
+                />
+              </p>
               <div className="flex items-center gap-2">
                 <PageAction
                   data-slot="every-profile-bookmarks"
@@ -606,7 +606,7 @@ export function GroupManagementDialog({
                 error ? undefined : (
                   <EntityEmptyState
                     entity="groups"
-                    clip="groups"
+                    icon={LuFolder}
                     title={t("entities.empty.groups.title")}
                     description={t("entities.empty.groups.body")}
                   >

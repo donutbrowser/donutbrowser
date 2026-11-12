@@ -177,11 +177,9 @@ export function TipsDialog({
         }}
       >
         <div className="grid h-full min-h-0 sm:grid-cols-[14rem_minmax(0,1fr)]">
-          <aside className="hidden min-h-0 flex-col border-r border-foreground/6 bg-foreground/[0.025] sm:flex">
+          <aside className="hidden min-h-0 flex-col border-r border-foreground/8 bg-foreground/[0.025] sm:flex">
             <div className="flex flex-col gap-2.5 px-4 pt-5 pb-3">
-              <h2 className="text-sm font-semibold tracking-tight">
-                {t("tips.title")}
-              </h2>
+              <h2 className="text-sm font-semibold">{t("tips.title")}</h2>
               <div className="flex flex-col gap-1.5">
                 <div
                   aria-hidden="true"
@@ -244,7 +242,7 @@ export function TipsDialog({
                                       ? MOTION_SPRING_POSITION
                                       : { duration: 0 }
                                   }
-                                  className="absolute inset-0 -z-10 rounded-lg bg-foreground/6"
+                                  className="absolute inset-0 -z-10 rounded-lg bg-foreground/8"
                                 />
                               )}
                               <span
@@ -291,7 +289,7 @@ export function TipsDialog({
                 ))}
               </nav>
             </FadingScrollArea>
-            <div className="flex items-center gap-2.5 border-t border-foreground/6 px-4 py-3">
+            <div className="flex items-center gap-2.5 border-t border-foreground/8 px-4 py-3">
               <AnimatedSwitch
                 id={autoShowId}
                 data-slot="tips-auto-show"
@@ -315,7 +313,7 @@ export function TipsDialog({
             <div className="px-5 pt-5 [@media(max-height:640px)]:pt-4">
               <div
                 data-slot="tip-clip-panel"
-                className="relative aspect-[2/1] max-h-64 w-full overflow-hidden rounded-xl bg-foreground/[0.025] [@media(max-height:640px)]:max-h-40"
+                className="relative mx-auto aspect-[2/1] w-full max-w-[32rem] overflow-hidden rounded-xl bg-foreground/[0.025] [@media(max-height:640px)]:max-w-80"
               >
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
@@ -361,16 +359,7 @@ export function TipsDialog({
               direction={direction}
               className="flex flex-col gap-2 px-6 pt-5 [@media(max-height:640px)]:pt-3"
             >
-              <p
-                className={cn(
-                  SECTION_LABEL_CLASS,
-                  "flex items-center gap-1.5 [&_svg]:size-3",
-                )}
-              >
-                <TipIcon id={tip.id} />
-                {t(`tips.sections.${tip.section}`)}
-              </p>
-              <DialogTitle className="text-xl leading-tight font-semibold tracking-tight text-balance">
+              <DialogTitle className="text-xl leading-tight font-semibold text-balance">
                 {t(keys.title, { mod })}
               </DialogTitle>
               <p className="max-w-[58ch] text-sm/6 text-pretty text-muted-foreground">

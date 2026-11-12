@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { Slider as SliderPrimitive } from "radix-ui";
 import {
   createContext,
@@ -9,14 +9,12 @@ import {
   useContext,
   useId,
 } from "react";
-import { useTranslation } from "react-i18next";
 import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { Label } from "@/components/ui/label";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import {
   MOTION_DURATION,
   MOTION_EASE_OUT,
-  MOTION_SPRING,
   MOTION_SPRING_POSITION,
 } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -28,7 +26,6 @@ export function SettingsSection({
   title,
   active,
   hidden,
-  aside,
   children,
 }: {
   id: string;
@@ -36,7 +33,6 @@ export function SettingsSection({
   title: string;
   active: boolean;
   hidden: boolean;
-  aside?: ReactNode;
   children: ReactNode;
 }) {
   const titleId = `settings-section-${id}`;
@@ -56,17 +52,14 @@ export function SettingsSection({
             "grid size-7 shrink-0 place-items-center rounded-lg transition-colors duration-200 [&_svg]:size-3.5",
             active
               ? "bg-primary/12 text-primary-text"
-              : "bg-foreground/6 text-muted-foreground",
+              : "bg-foreground/8 text-muted-foreground",
           )}
         >
           {icon}
         </span>
-        <h2 id={titleId} className="text-sm font-semibold tracking-tight">
+        <h2 id={titleId} className="text-sm font-semibold">
           {title}
         </h2>
-        {aside && (
-          <div className="ml-auto flex items-center gap-2">{aside}</div>
-        )}
       </header>
       {children}
     </section>
@@ -84,35 +77,12 @@ export function SettingsCard({
   return (
     <div
       className={cn(
-        "divide-y divide-foreground/6 rounded-xl bg-foreground/3",
+        "divide-y divide-foreground/8 rounded-xl bg-foreground/5",
         className,
       )}
     >
       {children}
     </div>
-  );
-}
-
-/** Marks a setting whose draft differs from what is saved. */
-export function ChangedDot({ show }: { show: boolean }) {
-  const { t } = useTranslation();
-  const animate = useMotionAllowed();
-  return (
-    <AnimatePresence initial={false}>
-      {show && (
-        <motion.span
-          role="img"
-          aria-label={t("settings.changed")}
-          title={t("settings.changed")}
-          data-slot="settings-changed-dot"
-          initial={animate ? { scale: 0, opacity: 0 } : false}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={animate ? { scale: 0, opacity: 0 } : { opacity: 0 }}
-          transition={animate ? MOTION_SPRING.snappy : { duration: 0 }}
-          className="inline-block size-1.5 shrink-0 rounded-full bg-primary"
-        />
-      )}
-    </AnimatePresence>
   );
 }
 
@@ -124,26 +94,29 @@ export function SettingRow({
   label,
   description,
   htmlFor,
-  changed = false,
   icon,
   children,
   className,
   slot,
+  target,
 }: {
   label: ReactNode;
   description?: ReactNode;
   htmlFor?: string;
-  changed?: boolean;
   icon?: ReactNode;
   children?: ReactNode;
   className?: string;
   slot?: string;
+  /** A jump target inside a section, for links from other pages. */
+  target?: string;
 }) {
   return (
     <div
       data-slot={slot}
+      data-settings-target={target}
+      tabIndex={target ? -1 : undefined}
       className={cn(
-        "flex flex-wrap items-center justify-between gap-x-6 gap-y-2.5 px-4 py-3.5",
+        "flex scroll-mt-3 flex-wrap items-center justify-between gap-x-6 gap-y-2.5 px-4 py-3.5 focus:outline-none",
         className,
       )}
     >
@@ -155,7 +128,6 @@ export function SettingRow({
             className="inline-flex items-center gap-2 text-sm leading-snug font-medium"
           >
             {label}
-            <ChangedDot show={changed} />
           </Label>
           {description && (
             <p className="text-xs leading-relaxed text-pretty text-muted-foreground">
@@ -177,21 +149,22 @@ export function SettingRow({
 export function SettingBlock({
   label,
   description,
-  changed = false,
   children,
+  target,
 }: {
   label: ReactNode;
   description?: ReactNode;
-  changed?: boolean;
   children: ReactNode;
+  target?: string;
 }) {
   return (
-    <div className="flex flex-col gap-3 px-4 py-3.5">
+    <div
+      data-settings-target={target}
+      tabIndex={target ? -1 : undefined}
+      className="flex scroll-mt-3 flex-col gap-3 px-4 py-3.5 focus:outline-none"
+    >
       <div className="flex flex-col gap-0.5">
-        <span className="inline-flex items-center gap-2 text-sm leading-snug font-medium">
-          {label}
-          <ChangedDot show={changed} />
-        </span>
+        <span className="text-sm leading-snug font-medium">{label}</span>
         {description && (
           <p className="text-xs leading-relaxed text-pretty text-muted-foreground">
             {description}
@@ -217,7 +190,7 @@ export function RowIcon({
       className={cn(
         "mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg transition-colors duration-200 [&_svg]:size-4",
         {
-          muted: "bg-foreground/6 text-muted-foreground",
+          muted: "bg-foreground/8 text-muted-foreground",
           primary: "bg-primary/12 text-primary-text",
           success: "bg-success/12 text-success-text",
           warning: "bg-warning/14 text-warning-text",
@@ -440,7 +413,7 @@ export function RuleCheck({ done, label }: { done: boolean; label: string }) {
         aria-hidden="true"
         className={cn(
           "grid size-4 place-items-center rounded-full transition-colors duration-200",
-          done ? "bg-success/15 text-success-text" : "bg-foreground/6",
+          done ? "bg-success/15 text-success-text" : "bg-foreground/8",
         )}
       >
         <svg
@@ -518,7 +491,7 @@ export function SettingSlider({
         onValueChange={([next]) => onChange(stops[next])}
         onValueCommit={([next]) => onCommit?.(stops[next])}
       >
-        <SliderPrimitive.Track className="relative h-1.5 grow overflow-hidden rounded-full bg-foreground/10">
+        <SliderPrimitive.Track className="relative h-1.5 grow overflow-hidden rounded-full bg-foreground/12">
           <SliderPrimitive.Range className="absolute h-full rounded-full bg-primary" />
         </SliderPrimitive.Track>
         <SliderPrimitive.Thumb

@@ -204,7 +204,7 @@ export function AgentRecipes({
                         }
                       : { duration: 0 }
                   }
-                  className="flex items-center gap-3 rounded-xl bg-foreground/3 p-3 transition-colors duration-150 hover:bg-foreground/5"
+                  className="flex items-center gap-3 rounded-xl bg-foreground/5 p-3 transition-colors duration-150 hover:bg-foreground/8"
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-sm font-medium text-foreground">
@@ -329,7 +329,7 @@ function RecipeEditor({
   return (
     <form
       data-slot="agent-recipe-editor"
-      className="flex shrink-0 flex-col gap-3 rounded-xl bg-foreground/3 p-3"
+      className="flex shrink-0 flex-col gap-3 rounded-xl bg-foreground/5 p-3"
       onSubmit={(event) => {
         event.preventDefault();
         void handleSave();

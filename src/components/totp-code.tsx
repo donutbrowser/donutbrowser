@@ -259,7 +259,7 @@ export function ProfileTotpSection({
             return (
               <li
                 key={entry.id}
-                className="flex flex-col gap-1 rounded-lg bg-foreground/4 p-3"
+                className="flex flex-col gap-1 rounded-lg bg-foreground/5 p-3"
                 data-slot="profile-totp-entry"
               >
                 <div className="flex items-center gap-2">

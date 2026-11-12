@@ -40,7 +40,7 @@ donutbrowser/
 │   │   ├── entity-empty-state.tsx     # Empty states of those pages, with their scenes
 │   │   ├── profile-search-input.tsx   # Profile search with ghost-text completion and suggestions
 │   │   ├── profile-table/            # Profile table parts: launch control, traffic cell and snapshots, row menu, column fit
-│   │   ├── settings/                 # Settings page parts: rows, choice cards, theme previews, sounds, save bar
+│   │   ├── settings/                 # Settings page parts: rows, choice cards, theme previews, sounds, autosave
 │   │   ├── feature-clip.tsx          # Recordings of the app (public/clips) for tips and onboarding
 │   │   ├── agent-chat/               # Agent page: chats, composer, sidebar, templates gallery (catalog in lib/agent-templates.ts)
 │   │   └── tips/                     # Feature tips: icons and the day's coach mark
@@ -424,17 +424,22 @@ flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
 
 ## Onboarding
 
-A new install sees `src/components/welcome-dialog.tsx`: intro, the
-profile-isolation example, licensing, macOS permissions, and the browser
-setup, with `StepDots` (`ui/step-dots.tsx`) for progress. The intro shows a
-recording of profiles launching and setup a recording of the first profile
-being made (`FeatureClip`); the download's own progress is in setup's text.
-Steps move, they never fade in: text and controls are opaque from the first
-frame. A user with no profile then gets the tour,
-`src/components/onboarding-tour.tsx`: the same coach mark with `spotlight`
-(the page dims around the anchor, and the anchor still takes clicks), first on
-the New button until a profile exists, then on that profile's DNS control.
-Skip or Escape completes onboarding; Finish also opens the thank-you dialog.
+A new install sees `src/components/welcome-dialog.tsx`: intro (a recording
+of profiles launching, hidden on windows 540 px tall or less), licensing, and
+on macOS, while a permission is missing, the microphone and camera request,
+with `StepDots` (`ui/step-dots.tsx`) for progress. The primary button has the
+focus. Steps move, they never fade in: text and controls are opaque from the
+first frame. Finishing or skipping completes onboarding.
+
+Wayfern downloads in the background from startup; the download toasts
+(`use-browser-download.ts`) show its progress and offer Retry on a failure.
+With no profile yet, the welcome hands over to the create dialog, whose name
+starts as the next free "Profile N". Create pressed before the browser is on
+disk waits for the download and the Wayfern terms, then creates
+(`create-profile-wait.ts`). Once the first profile exists,
+`src/components/onboarding-tour.tsx` shows one coach mark with `spotlight` on
+its Launch button (`row-launch`). The dim takes no clicks. "Got it", Escape or
+a launch closes it.
 
 ## Timelines (`OperationFlow`)
 

@@ -343,7 +343,7 @@ export function Composer({
         {placeholder}
       </label>
       {hero ? (
-        <div className="flex flex-col gap-2 rounded-3xl bg-foreground/5 p-2 transition-colors duration-150 focus-within:bg-foreground/7 motion-reduce:transition-none">
+        <div className="flex flex-col gap-2 rounded-3xl bg-foreground/5 p-2 transition-colors duration-150 focus-within:bg-foreground/8 motion-reduce:transition-none">
           {input}
           <div className="flex min-w-0 items-center gap-1">
             <div className="flex min-w-0 flex-1 items-center gap-1">
@@ -353,7 +353,7 @@ export function Composer({
           </div>
         </div>
       ) : (
-        <div className="flex items-end gap-1 rounded-2xl bg-foreground/5 p-1.5 transition-colors duration-150 focus-within:bg-foreground/7 motion-reduce:transition-none">
+        <div className="flex items-end gap-1 rounded-2xl bg-foreground/5 p-1.5 transition-colors duration-150 focus-within:bg-foreground/8 motion-reduce:transition-none">
           {input}
           {controls}
         </div>

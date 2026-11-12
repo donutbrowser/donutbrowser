@@ -15,7 +15,7 @@ test("an empty query matches everything", () => {
 });
 
 test("every token must match, in any order", () => {
-  assert.ok(paletteScore("Info — ctest", [], "ctest info") > 0);
+  assert.ok(paletteScore("Info: ctest", [], "ctest info") > 0);
   assert.equal(paletteScore("Go to Settings", [], "settings trash"), 0);
 });
 

@@ -20,20 +20,15 @@ import {
   LuCopy,
   LuEyeOff,
   LuGlobe,
-  LuLanguages,
-  LuLockKeyhole,
   LuLogIn,
   LuMic,
   LuMonitor,
   LuMonitorCog,
   LuNetwork,
   LuPalette,
-  LuPlug,
   LuRocket,
   LuRotateCcw,
   LuSearch,
-  LuShieldBan,
-  LuShieldCheck,
   LuTrash2,
   LuVolume2,
   LuWrench,
@@ -56,10 +51,6 @@ import {
   SettingsSection,
 } from "@/components/settings/settings-primitives";
 import {
-  type PendingChange,
-  SettingsSaveBar,
-} from "@/components/settings/settings-save-bar";
-import {
   SoundSettings,
   soundDraft,
 } from "@/components/settings/sound-settings";
@@ -68,6 +59,7 @@ import {
   ThemeModePicker,
   ThemePresetGallery,
 } from "@/components/settings/theme-settings";
+import { useAutosavedSettings } from "@/components/settings/use-autosaved-settings";
 import { useTheme } from "@/components/theme-provider";
 import { AnimatedDisclosureContent } from "@/components/ui/animated-disclosure";
 import { AnimatedSwitch } from "@/components/ui/animated-switch";
@@ -90,7 +82,6 @@ import { useLanguage } from "@/hooks/use-language";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import type { PermissionType } from "@/hooks/use-permissions";
 import { usePermissions } from "@/hooks/use-permissions";
-import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import type { SupportedLanguage } from "@/i18n";
 import { translateBackendError } from "@/lib/backend-errors";
 import { effectivePlanOf } from "@/lib/entitlements";
@@ -98,46 +89,19 @@ import { INTERFACE_ZOOM_STEPS } from "@/lib/interface-zoom";
 import {
   MOTION_DURATION,
   MOTION_EASE_OUT,
-  MOTION_SPRING,
   MOTION_SPRING_POSITION,
 } from "@/lib/motion";
+import { planLabel } from "@/lib/plan-labels";
 import {
   applyThemeColors,
   clearThemeColors,
   getThemeByColors,
   getThemeById,
-  normalizeThemeColors,
   withThemeTransition,
 } from "@/lib/themes";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
-import {
-  applySoundSettings,
-  type SoundSettings as SoundFields,
-} from "@/lib/ui-sounds";
 import { cn } from "@/lib/utils";
 import type { SetDefaultBrowserOutcome } from "@/types";
-
-interface AppSettings extends SoundFields {
-  set_as_default_browser: boolean;
-  theme: string;
-  custom_theme?: Record<string, string>;
-  api_enabled: boolean;
-  api_port: number;
-  api_token?: string;
-  disable_auto_updates?: boolean;
-  keep_decrypted_profiles_in_ram?: boolean;
-  fingerprint_gate_disabled?: boolean;
-  vpn_extension_warning_disabled?: boolean;
-  require_route_for_launch?: boolean;
-  ask_route_for_launch?: boolean;
-  trash_retention_days?: number;
-  record_traffic_domains?: boolean;
-  bulk_launch_delay_ms?: number;
-  bulk_launch_concurrency?: number;
-  system_notifications?: boolean;
-  launch_at_login?: boolean;
-  reopen_running_profiles?: boolean;
-}
 
 /** The retention choices offered, in days. 0 turns the trash off. */
 const TRASH_RETENTION_DAYS = [0, 1, 7, 14, 30, 90] as const;
@@ -157,11 +121,6 @@ const BULK_LAUNCH_CONCURRENCY_STOPS = Array.from(
   (_, index) => index + 1,
 );
 
-interface CustomThemeState {
-  selectedThemeId: string | null;
-  colors: Record<string, string>;
-}
-
 const PERMISSION_TYPES: PermissionType[] = ["microphone", "camera"];
 
 /** Each section's nav id, title, icon and the translation keys search reads. */
@@ -175,13 +134,7 @@ const SECTIONS: Array<{
     id: "appearance",
     title: "settings.appearance.title",
     icon: <LuPalette />,
-    search: ["settings.appearance"],
-  },
-  {
-    id: "language",
-    title: "settings.language.title",
-    icon: <LuLanguages />,
-    search: ["settings.language"],
+    search: ["settings.appearance", "settings.language"],
   },
   {
     id: "sounds",
@@ -190,71 +143,57 @@ const SECTIONS: Array<{
     search: ["settings.sounds"],
   },
   {
-    id: "default",
-    title: "settings.defaultBrowser.title",
-    icon: <LuGlobe />,
-    search: ["settings.defaultBrowser"],
-  },
-  {
     id: "system",
     title: "settings.system.title",
     icon: <LuMonitorCog />,
-    search: ["settings.system"],
-  },
-  {
-    id: "network",
-    title: "settings.network.title",
-    icon: <LuNetwork />,
-    search: ["settings.network"],
+    search: [
+      "settings.system",
+      "settings.defaultBrowser",
+      "settings.permissions",
+      "settings.commercial",
+    ],
   },
   {
     id: "launches",
     title: "settings.launches.title",
     icon: <LuRocket />,
-    search: ["settings.launches"],
-  },
-  {
-    id: "permissions",
-    title: "settings.permissions.title",
-    icon: <LuShieldCheck />,
-    search: ["settings.permissions"],
-  },
-  {
-    id: "integrations",
-    title: "settings.integrations.title",
-    icon: <LuPlug />,
-    search: ["settings.integrations"],
-  },
-  {
-    id: "dns",
-    title: "dnsBlocklist.title",
-    icon: <LuShieldBan />,
     search: [
-      "dnsBlocklist.title",
-      "dnsBlocklist.settingsDescription",
-      "settings.dns",
+      "settings.launches",
+      "settings.privacy.requireRoute",
+      "settings.privacy.requireRouteDescription",
+      "settings.privacy.askRoute",
+      "settings.privacy.askRouteDescription",
+      "settings.privacy.consistencyWarning",
+      "settings.privacy.consistencyWarningDescription",
+      "settings.privacy.vpnExtensionWarning",
+      "settings.privacy.vpnExtensionWarningDescription",
     ],
   },
   {
-    id: "encryption",
-    title: "settings.encryption.title",
-    icon: <LuLockKeyhole />,
-    search: ["settings.encryption"],
-  },
-  {
-    id: "commercial",
-    title: "settings.commercial.title",
-    icon: <LuBriefcaseBusiness />,
-    search: ["settings.commercial"],
+    id: "network",
+    title: "settings.network.title",
+    icon: <LuNetwork />,
+    search: [
+      "settings.network",
+      "settings.dns",
+      "dnsBlocklist.title",
+      "dnsBlocklist.settingsDescription",
+      "settings.integrations",
+    ],
   },
   {
     id: "privacy",
     title: "settings.privacy.title",
     icon: <LuEyeOff />,
     search: [
-      "settings.privacy",
+      "settings.privacy.title",
+      "settings.privacy.recordSites",
+      "settings.privacy.recordSitesDescription",
+      "settings.privacy.clearTraffic",
+      "settings.privacy.clearTrafficDescription",
       "settings.trashRetention",
       "settings.trashRetentionDescription",
+      "settings.encryption",
     ],
   },
   {
@@ -277,7 +216,10 @@ interface SettingsDialogProps {
   onClose: () => void;
   onIntegrationsOpen?: () => void;
   subPage?: boolean;
-  /** A section to scroll to and focus as soon as the page opens. */
+  /**
+   * A section, or a setting inside one (`data-settings-target`), to scroll
+   * to and focus as soon as the page opens.
+   */
   initialSection?: string | null;
 }
 
@@ -288,34 +230,12 @@ export function SettingsDialog({
   subPage,
   initialSection = null,
 }: SettingsDialogProps) {
-  const [settings, setSettings] = useState<AppSettings>({
-    set_as_default_browser: false,
-    theme: "system",
-    custom_theme: undefined,
-    api_enabled: false,
-    api_port: 10108,
-    api_token: undefined,
-  });
-  const [originalSettings, setOriginalSettings] = useState<AppSettings>({
-    set_as_default_browser: false,
-    theme: "system",
-    custom_theme: undefined,
-    api_enabled: false,
-    api_port: 10108,
-    api_token: undefined,
-  });
-  const [customThemeState, setCustomThemeState] = useState<CustomThemeState>({
-    selectedThemeId: null,
-    colors: {},
-  });
+  const { settings, update, isLoading, loaded, saveState } =
+    useAutosavedSettings(isOpen);
   const [isDefaultBrowser, setIsDefaultBrowser] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [search, setSearch] = useState("");
   const [jumpTo, setJumpTo] = useState<string | null>(initialSection);
-  const sectionsRef = useRef<HTMLFieldSetElement>(null);
+  const sectionsRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   // The section the reader is in, so the nav can point at it. A click pins
@@ -333,12 +253,6 @@ export function SettingsDialog({
     useState<PermissionType | null>(null);
   const [dnsBlocklistDialogOpen, setDnsBlocklistDialogOpen] = useState(false);
   const [hasE2ePassword, setHasE2ePassword] = useState(false);
-  // Theme-restore guards: settings load asynchronously, and the dialog can be
-  // unmounted directly by rail navigation (bypassing handleClose). Refs mirror
-  // the loaded state so the unmount cleanup can restore the persisted theme.
-  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
-  const hasLoadedSettingsRef = useRef(false);
-  const originalSettingsRef = useRef<AppSettings | null>(null);
   const [systemInfo, setSystemInfo] = useState<{
     app_version: string;
     os: string;
@@ -371,117 +285,25 @@ export function SettingsDialog({
     isLoading: isLanguageLoading,
   } = useLanguage();
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
-  const [originalLanguage, setOriginalLanguage] = useState<string | null>(null);
 
-  // `animate: false` on the restore paths. Opening Settings re-applies the
-  // theme already on screen, so a whole-document cross-fade to an identical
-  // palette animates nothing. Worse, the mount effect below did it twice in a
-  // row, and the second transition aborts the first mid-snapshot.
-  const applyCustomTheme = useCallback(
-    (vars: Record<string, string>, options?: { animate?: boolean }) => {
-      const apply = () => {
-        applyThemeColors(vars);
-      };
-      if (options?.animate === false) {
-        apply();
-        return;
-      }
-      withThemeTransition(apply);
-    },
-    [],
-  );
-
-  const clearCustomTheme = useCallback((options?: { animate?: boolean }) => {
-    if (options?.animate === false) {
-      clearThemeColors();
-      return;
-    }
-    withThemeTransition(clearThemeColors);
-  }, []);
-
-  const loadSettings = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const appSettings = await invoke<AppSettings>("get_app_settings");
-      const tokyoNightTheme = getThemeById("tokyo-night");
-      if (!tokyoNightTheme) {
-        throw new Error("Tokyo Night theme not found");
-      }
-      const merged: AppSettings = {
-        ...appSettings,
-        custom_theme:
-          appSettings.custom_theme &&
-          Object.keys(appSettings.custom_theme).length > 0
-            ? normalizeThemeColors(appSettings.custom_theme)
-            : tokyoNightTheme.colors,
-      };
-      // One-shot migration off the old localStorage flag. Without it, a user
-      // who explicitly turned the warning off would start getting hard blocks
-      // after updating — the single most likely support complaint here.
-      let migrated = merged;
-      try {
-        if (
-          localStorage.getItem("consistency-warn-disabled") === "1" &&
-          !merged.fingerprint_gate_disabled
-        ) {
-          migrated = { ...merged, fingerprint_gate_disabled: true };
-          await invoke<AppSettings>("save_app_settings", {
-            settings: migrated,
-          });
-        }
-        localStorage.removeItem("consistency-warn-disabled");
-      } catch (err) {
-        console.warn("Failed to migrate consistency warning preference:", err);
-      }
-
-      setSettings(migrated);
-      setOriginalSettings(migrated);
-      originalSettingsRef.current = migrated;
-      hasLoadedSettingsRef.current = true;
-      setHasLoadedSettings(true);
-
-      // Initialize custom theme state
-      if (merged.theme === "custom" && merged.custom_theme) {
-        const matchingTheme = getThemeByColors(merged.custom_theme);
-        setCustomThemeState({
-          selectedThemeId: matchingTheme?.id ?? null,
-          colors: merged.custom_theme,
-        });
-        // Keep the user's custom colors applied while Settings is open —
-        // without this the page shows the default palette until save/close.
-        applyCustomTheme(merged.custom_theme);
-      } else if (merged.theme === "custom") {
-        // Initialize with Tokyo Night if no custom theme exists
-        setCustomThemeState({
-          selectedThemeId: "tokyo-night",
-          colors: tokyoNightTheme.colors,
-        });
-      }
-      // Check E2E password status
-      try {
-        const hasPassword = await invoke<boolean>("check_has_e2e_password");
-        setHasE2ePassword(hasPassword);
-      } catch {
+  useEffect(() => {
+    if (!isOpen) return;
+    void invoke<boolean>("check_has_e2e_password")
+      .then(setHasE2ePassword)
+      .catch(() => {
         setHasE2ePassword(false);
-      }
-      // Load system info
-      try {
-        const info = await invoke<{
-          app_version: string;
-          os: string;
-          arch: string;
-          portable: boolean;
-        }>("get_system_info");
-        setSystemInfo(info);
-      } catch {
+      });
+    void invoke<{
+      app_version: string;
+      os: string;
+      arch: string;
+      portable: boolean;
+    }>("get_system_info")
+      .then(setSystemInfo)
+      .catch(() => {
         setSystemInfo(null);
-      }
-    } catch (error) {
-      console.error("Failed to load settings:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [applyCustomTheme]);
+      });
+  }, [isOpen]);
 
   // The Linux implementation shells out to `which` plus two `xdg-mime query`
   // calls, and `xdg-mime` is a shell script that forks further. Without this
@@ -509,8 +331,7 @@ export function SettingsDialog({
     try {
       // Windows keeps the final choice for its own settings page, so a call
       // that succeeded does not always mean Donut is the default yet. Say which
-      // of the two happened. Saying nothing at all is what left the user
-      // watching the badge stay "Inactive" with no explanation.
+      // of the two happened.
       const outcome = await invoke<SetDefaultBrowserOutcome>(
         "set_as_default_browser",
       );
@@ -552,9 +373,8 @@ export function SettingsDialog({
     setIsClearingCache(true);
     try {
       await invoke("clear_all_version_cache_and_refetch");
-      // Also clear traffic stats cache
       await invoke("clear_all_traffic_stats");
-      // Don't show immediate success toast - let the version update progress events handle it
+      // The version update progress events report the result.
     } catch (error) {
       console.error("Failed to clear cache:", error);
       showErrorToast(t("settings.advanced.clearCacheFailed"), {
@@ -602,391 +422,72 @@ export function SettingsDialog({
     [requestPermission, t],
   );
 
-  const handleSave = useCallback(async (): Promise<boolean> => {
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      // Update settings with current custom theme state
-      let settingsToSave: AppSettings = {
-        ...settings,
-        custom_theme:
-          settings.theme === "custom"
-            ? customThemeState.colors
-            : settings.custom_theme,
-      };
-
-      const savedSettings = await invoke<AppSettings>("save_app_settings", {
-        settings: settingsToSave,
-      });
-
-      // Update settings with any generated tokens
-      setSettings(savedSettings);
-      applySoundSettings(savedSettings);
-      settingsToSave = savedSettings;
-      setOriginalSettings(savedSettings);
-      originalSettingsRef.current = savedSettings;
-      // Pass the actual theme value through. Calling setTheme("dark") here
-      // when the user is on "custom" pushes the provider state to "dark",
-      // which triggers its clear-custom-vars effect and wipes the CSS
-      // variables we set just below — that's the bug where saving a custom
-      // theme made it disappear until the app was restarted.
-      setTheme(settings.theme);
-
-      // Apply or clear custom variables only on Save
-      if (settings.theme === "custom") {
-        if (Object.keys(customThemeState.colors).length > 0) {
-          try {
-            clearThemeColors();
-            applyThemeColors(customThemeState.colors);
-          } catch {
-            /* empty */
-          }
-        }
-      } else {
-        try {
-          clearThemeColors();
-        } catch {
-          /* empty */
-        }
-      }
-
-      // Save language if changed
-      if (selectedLanguage !== originalLanguage) {
-        await changeLanguage(
-          selectedLanguage === "system"
-            ? null
-            : (selectedLanguage as SupportedLanguage),
-        );
-        setOriginalLanguage(selectedLanguage);
-      }
-
-      setOriginalSettings(settingsToSave);
-      // Keep the ref in sync so the unmount-restore effect re-applies the
-      // just-SAVED theme, not the pre-save one (which reverted the theme
-      // until app restart).
-      originalSettingsRef.current = settingsToSave;
-      setSaved(true);
-      if (!subPage) onClose();
-      return true;
-    } catch (error) {
-      console.error("Failed to save settings:", error);
-      const message = translateBackendError(t, error);
-      setSaveError(message);
-      showErrorToast(t("appFeedback.saveFailed"), { description: message });
-      return false;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [
-    onClose,
-    setTheme,
-    settings,
-    customThemeState,
-    selectedLanguage,
-    originalLanguage,
-    changeLanguage,
-    subPage,
-    t,
-  ]);
-
-  const updateSetting = useCallback(
-    (
-      key: keyof AppSettings,
-      value: boolean | number | string | Record<string, string> | undefined,
-    ) => {
-      setSaveError(null);
-      setSettings((prev) => ({ ...prev, [key]: value as unknown as never }));
-    },
-    [],
-  );
-
-  const discardChanges = useCallback(() => {
-    // Restore original theme when closing without saving
-    // Only a revert the user can see is worth animating.
-    const changed = originalSettings.theme !== settings.theme;
-    if (originalSettings.theme === "custom" && originalSettings.custom_theme) {
-      applyCustomTheme(originalSettings.custom_theme, { animate: changed });
-    } else {
-      clearCustomTheme({ animate: false });
-      setTheme(originalSettings.theme, { animate: changed });
-    }
-
-    setSettings(originalSettings);
-    setSelectedLanguage(originalLanguage);
-    setCustomThemeState({
-      selectedThemeId: originalSettings.custom_theme
-        ? (getThemeByColors(originalSettings.custom_theme)?.id ?? null)
-        : null,
-      colors: originalSettings.custom_theme ?? {},
-    });
-    setSaveError(null);
-    setSaved(false);
-  }, [
-    applyCustomTheme,
-    clearCustomTheme,
-    originalSettings,
-    originalLanguage,
-    setTheme,
-    settings.theme,
-  ]);
-
-  // Edits the leave prompt already saved or discarded. The state catches up
-  // on the next render, and a second prompt before it must not ask again.
-  const settledRef = useRef(false);
-
-  // A modal Settings is a form with Cancel: closing it drops the edits. As a
-  // page, the shell's Save, Discard or Stay prompt asks before it closes.
-  const handleClose = useCallback(() => {
-    if (!subPage) {
-      settledRef.current = true;
-      discardChanges();
-    }
-    onClose();
-  }, [discardChanges, onClose, subPage]);
-
-  // Only clear custom theme when switching away from custom, don't apply live
-  // changes. Gated on the async settings load: before it resolves the state
-  // still holds the "system" default, and clearing then wipes the user's
-  // custom theme vars on every Settings visit (the theme-reverts-to-dark bug).
-  //
-  // This effect is both the restore-on-open and the live switch when the user
-  // picks a theme, so it animates only a real change: the first run after the
-  // settings load is re-applying the palette already on screen. Clearing the
-  // inline custom vars is never the animated half — switching to a stylesheet
-  // palette makes them invisible either way, and running two transitions
-  // back to back just aborts the first one mid-snapshot.
+  // The theme on screen follows the settings: a pick, a color edit, and a
+  // failed save putting the stored theme back. Only a change of theme is
+  // animated; the first run re-applies the palette already on screen.
   const appliedThemeRef = useRef<string | null>(null);
   useEffect(() => {
-    if (hasLoadedSettings && settings.theme !== "custom") {
-      const previous = appliedThemeRef.current;
-      appliedThemeRef.current = settings.theme;
-      clearCustomTheme({ animate: false });
-      setTheme(settings.theme, {
-        animate: previous !== null && previous !== settings.theme,
-      });
+    if (!loaded) return;
+    const previous = appliedThemeRef.current;
+    appliedThemeRef.current = settings.theme;
+    const animate = previous !== null && previous !== settings.theme;
+    if (settings.theme === "custom") {
+      const colors = settings.custom_theme ?? {};
+      const apply = () => {
+        applyThemeColors(colors);
+      };
+      if (animate) withThemeTransition(apply);
+      else apply();
+      setTheme("custom", { animate: false });
+    } else {
+      clearThemeColors();
+      setTheme(settings.theme, { animate });
     }
-  }, [hasLoadedSettings, settings.theme, clearCustomTheme, setTheme]);
-
-  // Unmount-safe theme restore: rail navigation unmounts this dialog without
-  // calling handleClose, which used to leave the theme vars wiped for the
-  // rest of the session.
-  useEffect(() => {
-    return () => {
-      const s = originalSettingsRef.current;
-      if (!hasLoadedSettingsRef.current || !s) return;
-      if (s.theme === "custom" && s.custom_theme) {
-        applyThemeColors(s.custom_theme);
-      } else {
-        // A non-custom persisted theme (light/dark/system) uses the
-        // stylesheet palette — strip any leftover inline custom vars so a
-        // just-saved switch away from custom isn't reverted on unmount.
-        clearThemeColors();
-        setTheme(s.theme, { animate: false });
-      }
-    };
-  }, [setTheme]);
+  }, [loaded, settings.theme, settings.custom_theme, setTheme]);
 
   useEffect(() => {
     if (isOpen) {
-      loadSettings().catch((err: unknown) => {
-        console.error(err);
-      });
       checkDefaultBrowserStatus().catch((err: unknown) => {
         console.error(err);
       });
 
       // Re-check periodically so the badge follows a change the user made in
-      // their desktop settings. Ten seconds rather than two: on Linux each
-      // check is three subprocesses, and nobody flips their default browser
-      // often enough to notice the difference.
+      // their desktop settings. Ten seconds: on Linux each check is three
+      // subprocesses.
       const intervalId = setInterval(() => {
         checkDefaultBrowserStatus().catch((err: unknown) => {
           console.error(err);
         });
       }, 10000);
 
-      // Cleanup interval on component unmount or dialog close
       return () => {
         clearInterval(intervalId);
       };
     }
-  }, [isOpen, checkDefaultBrowserStatus, loadSettings]);
+  }, [isOpen, checkDefaultBrowserStatus]);
 
-  // Initialize language selection when dialog opens or language loads
   useEffect(() => {
     if (isOpen && !isLanguageLoading) {
       setSelectedLanguage(currentLanguage);
-      setOriginalLanguage(currentLanguage);
     }
   }, [isOpen, currentLanguage, isLanguageLoading]);
 
-  const draftColors =
-    settings.theme === "custom"
-      ? customThemeState.colors
-      : (settings.custom_theme ?? {});
-  const savedColors = originalSettings.custom_theme ?? {};
-  const themeChanged =
-    settings.theme !== originalSettings.theme ||
-    Object.keys(draftColors).length !== Object.keys(savedColors).length ||
-    Object.entries(draftColors).some(
-      ([key, value]) => savedColors[key] !== value,
-    );
+  const pickLanguage = (value: string) => {
+    const previous = selectedLanguage;
+    setSelectedLanguage(value);
+    changeLanguage(
+      value === "system" ? null : (value as SupportedLanguage),
+    ).catch((error: unknown) => {
+      setSelectedLanguage(previous);
+      showErrorToast(t("appFeedback.saveFailed"), {
+        description: translateBackendError(t, error),
+      });
+    });
+  };
+
   const sounds = soundDraft(settings);
-  const savedSounds = soundDraft(originalSettings);
-  const flagChanged = (key: keyof AppSettings, fallback = false) =>
-    Boolean(settings[key] ?? fallback) !==
-    Boolean(originalSettings[key] ?? fallback);
-  const changes: Array<PendingChange & { key: string; changed: boolean }> = [
-    {
-      key: "theme",
-      changed: themeChanged,
-      label: t("settings.appearance.title"),
-      section: "appearance",
-    },
-    {
-      key: "language",
-      changed: selectedLanguage !== originalLanguage,
-      label: t("settings.language.title"),
-      section: "language",
-    },
-    ...(
-      [
-        ["ui_sounds", "settings.sounds.enabled"],
-        ["ui_sound_volume", "settings.sounds.volume"],
-        ["ui_sound_pack", "settings.sounds.pack"],
-        ["ui_sound_interface", "settings.sounds.categories.interface.label"],
-        ["ui_sound_feedback", "settings.sounds.categories.feedback.label"],
-        ["ui_sound_events", "settings.sounds.categories.events.label"],
-      ] as const
-    ).map(([key, label]) => ({
-      key,
-      changed: sounds[key] !== savedSounds[key],
-      label: t(label),
-      section: "sounds",
-    })),
-    {
-      key: "api_enabled",
-      changed: flagChanged("api_enabled"),
-      label: t("settings.integrations.title"),
-      section: "integrations",
-    },
-    {
-      key: "launch_at_login",
-      changed: flagChanged("launch_at_login"),
-      label: t("settings.system.launchAtLogin"),
-      section: "system",
-    },
-    {
-      key: "reopen_running_profiles",
-      changed: flagChanged("reopen_running_profiles"),
-      label: t("settings.system.reopenRunning"),
-      section: "system",
-    },
-    {
-      key: "system_notifications",
-      changed: flagChanged("system_notifications", true),
-      label: t("settings.system.notifications"),
-      section: "system",
-    },
-    {
-      key: "bulk_launch_delay_ms",
-      changed:
-        (settings.bulk_launch_delay_ms ?? DEFAULT_BULK_LAUNCH_DELAY_MS) !==
-        (originalSettings.bulk_launch_delay_ms ?? DEFAULT_BULK_LAUNCH_DELAY_MS),
-      label: t("settings.launches.delay"),
-      section: "launches",
-    },
-    {
-      key: "bulk_launch_concurrency",
-      changed:
-        (settings.bulk_launch_concurrency ??
-          DEFAULT_BULK_LAUNCH_CONCURRENCY) !==
-        (originalSettings.bulk_launch_concurrency ??
-          DEFAULT_BULK_LAUNCH_CONCURRENCY),
-      label: t("settings.launches.concurrency"),
-      section: "launches",
-    },
-    {
-      key: "require_route_for_launch",
-      changed: flagChanged("require_route_for_launch"),
-      label: t("settings.privacy.requireRoute"),
-      section: "privacy",
-    },
-    {
-      key: "ask_route_for_launch",
-      changed: flagChanged("ask_route_for_launch"),
-      label: t("settings.privacy.askRoute"),
-      section: "privacy",
-    },
-    {
-      key: "fingerprint_gate_disabled",
-      changed: flagChanged("fingerprint_gate_disabled"),
-      label: t("settings.privacy.consistencyWarning"),
-      section: "privacy",
-    },
-    {
-      key: "vpn_extension_warning_disabled",
-      changed: flagChanged("vpn_extension_warning_disabled"),
-      label: t("settings.privacy.vpnExtensionWarning"),
-      section: "privacy",
-    },
-    {
-      key: "record_traffic_domains",
-      changed: flagChanged("record_traffic_domains", true),
-      label: t("settings.privacy.recordSites"),
-      section: "privacy",
-    },
-    {
-      key: "trash_retention_days",
-      changed:
-        (settings.trash_retention_days ?? DEFAULT_TRASH_RETENTION_DAYS) !==
-        (originalSettings.trash_retention_days ?? DEFAULT_TRASH_RETENTION_DAYS),
-      label: t("settings.trashRetention"),
-      section: "privacy",
-    },
-    {
-      key: "disable_auto_updates",
-      changed: flagChanged("disable_auto_updates"),
-      label: t("settings.disableAutoUpdates"),
-      section: "advanced",
-    },
-    {
-      key: "keep_decrypted_profiles_in_ram",
-      changed: flagChanged("keep_decrypted_profiles_in_ram"),
-      label: t("settings.keepDecryptedProfilesInRam"),
-      section: "advanced",
-    },
-  ].filter((change) => change.changed);
-  const changedKeys = new Set(changes.map((change) => change.key));
-  const changedSections = new Set(changes.map((change) => change.section));
-  const isChanged = (key: string) => changedKeys.has(key);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: any new draft makes the edits count again
-  useEffect(() => {
-    settledRef.current = false;
-  }, [settings, selectedLanguage, customThemeState]);
-  const hasPendingChanges = changes.length > 0;
-  useUnsavedChanges("settings", {
-    get dirty() {
-      return hasPendingChanges && !settledRef.current;
-    },
-    save: async () => {
-      const ok = await handleSave();
-      if (ok) settledRef.current = true;
-      return ok;
-    },
-    discard: () => {
-      settledRef.current = true;
-      discardChanges();
-    },
-    label: t("settings.title"),
-  });
-
-  const sections = SECTIONS.filter(
-    ({ id }) =>
-      (id !== "default" || !systemInfo?.portable) &&
-      (id !== "permissions" || isMacOS),
-  );
+  const sections = SECTIONS;
   const needle = search.trim().toLocaleLowerCase();
   const matchingSections = sections.filter(({ title, search: keys }) => {
     const text = [title, ...keys]
@@ -1046,22 +547,28 @@ export function SettingsDialog({
     syncActiveSection();
   }, [syncActiveSection, visibleSectionIds, isLoading]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a target row (the default browser, permissions) can appear only after the settings and system facts load
   useEffect(() => {
-    if (!jumpTo) return;
-    const section = sectionsRef.current?.querySelector<HTMLElement>(
-      `[data-settings-section="${jumpTo}"]`,
+    // The page is inert while it loads, and an inert row cannot take focus.
+    if (!jumpTo || isLoading) return;
+    const target = sectionsRef.current?.querySelector<HTMLElement>(
+      `[data-settings-section="${jumpTo}"], [data-settings-target="${jumpTo}"]`,
     );
-    section?.scrollIntoView({ block: "start" });
-    section?.focus({ preventScroll: true });
+    if (!target) return;
+    target.scrollIntoView({ block: "start" });
+    target.focus({ preventScroll: true });
+    const section =
+      target.closest<HTMLElement>("[data-settings-section]")?.dataset
+        .settingsSection ?? jumpTo;
     if (scrollerRef.current) {
       pinnedSectionRef.current = {
-        id: jumpTo,
+        id: section,
         scrollTop: scrollerRef.current.scrollTop,
       };
     }
-    setActiveSection(jumpTo);
+    setActiveSection(section);
     setJumpTo(null);
-  }, [jumpTo]);
+  }, [jumpTo, isLoading, systemInfo, isMacOS]);
 
   const jump = (id: string) => {
     setSearch("");
@@ -1069,30 +576,19 @@ export function SettingsDialog({
   };
 
   const pickTheme = (value: string) => {
-    updateSetting("theme", value);
-    if (value === "custom" && settings.theme !== "custom") {
-      const colors =
-        settings.custom_theme ?? getThemeById("tokyo-night")?.colors ?? {};
-      setCustomThemeState({
-        selectedThemeId: getThemeByColors(colors)?.id ?? null,
-        colors,
-      });
-    }
+    update({ theme: value });
   };
+  const customColors = settings.custom_theme ?? {};
+  const selectedPresetId = getThemeByColors(customColors)?.id ?? null;
 
   const plan = cloudUser ? effectivePlanOf(cloudUser) : "free";
-  const appliesImmediately = (
-    <span className="text-right text-[11px] leading-tight text-muted-foreground">
-      {t("appFeedback.appliesImmediately")}
-    </span>
-  );
   const systemLine = systemInfo
     ? `Donut Browser ${systemInfo.app_version} · ${systemInfo.os} ${systemInfo.arch}${systemInfo.portable ? " (portable)" : ""}`
     : "";
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={handleClose} subPage={subPage}>
+      <Dialog open={isOpen} onOpenChange={onClose} subPage={subPage}>
         <DialogContent className="flex max-h-[calc(100vh-5rem)] max-w-3xl flex-col">
           {!subPage && (
             <DialogHeader className="shrink-0">
@@ -1185,18 +681,6 @@ export function SettingsDialog({
                         />
                       )}
                       {t(title)}
-                      {changedSections.has(id) && (
-                        <motion.span
-                          aria-hidden="true"
-                          data-slot="settings-nav-changed"
-                          initial={animateNav ? { scale: 0 } : false}
-                          animate={{ scale: 1 }}
-                          transition={
-                            animateNav ? MOTION_SPRING.snappy : { duration: 0 }
-                          }
-                          className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
-                        />
-                      )}
                     </button>
                   );
                 })}
@@ -1205,20 +689,22 @@ export function SettingsDialog({
           </div>
 
           {/* The scroller spans the full width (so the wheel works over the
-              side gutters); the width cap lives on the inner column. Fusing
-              them was the dead-wheel-zone bug. */}
+              side gutters); the width cap lives on the inner column. */}
           <div
             ref={scrollerRef}
             data-slot="settings-scroller"
+            data-save-state={saveState}
             onScroll={syncActiveSection}
             className={cn(
               "min-h-0 flex-1 overflow-y-auto",
               subPage ? "py-2" : "py-4",
             )}
           >
-            <fieldset
+            {/* Not a fieldset: Chrome lays a grid fieldset's container-query
+                children out at zero height until something forces a reflow. */}
+            <div
               ref={sectionsRef}
-              disabled={isSaving || isLoading}
+              inert={isLoading}
               className="mx-auto grid w-full max-w-4xl min-w-0 gap-8 pb-6"
             >
               <SettingsSection {...sectionProps("appearance")}>
@@ -1226,48 +712,33 @@ export function SettingsDialog({
                   <SettingBlock
                     label={t("settings.appearance.theme")}
                     description={t("settings.appearance.themeDescription")}
-                    changed={isChanged("theme")}
                   >
                     <ThemeModePicker
                       value={settings.theme}
                       onValueChange={pickTheme}
-                      customColors={
-                        settings.theme === "custom"
-                          ? customThemeState.colors
-                          : (settings.custom_theme ?? {})
-                      }
+                      customColors={customColors}
                     />
                   </SettingBlock>
                   <AnimatedDisclosureContent
                     open={settings.theme === "custom"}
-                    className="divide-y divide-foreground/6"
+                    className="divide-y divide-foreground/8"
                   >
                     <SettingBlock label={t("settings.appearance.themePreset")}>
                       <ThemePresetGallery
-                        selectedId={customThemeState.selectedThemeId}
-                        colors={customThemeState.colors}
+                        selectedId={selectedPresetId}
+                        colors={customColors}
                         onSelect={(id) => {
                           const theme = id ? getThemeById(id) : undefined;
-                          setCustomThemeState((prev) =>
-                            theme
-                              ? {
-                                  selectedThemeId: theme.id,
-                                  colors: theme.colors,
-                                }
-                              : { ...prev, selectedThemeId: null },
-                          );
+                          if (theme) update({ custom_theme: theme.colors });
                         }}
                       />
                     </SettingBlock>
                     <SettingBlock label={t("settings.appearance.customColors")}>
                       <ThemeColorEditor
-                        colors={customThemeState.colors}
-                        onChange={({ colors, presetId }) =>
-                          setCustomThemeState({
-                            selectedThemeId: presetId,
-                            colors,
-                          })
-                        }
+                        colors={customColors}
+                        onChange={({ colors }) => {
+                          update({ custom_theme: colors });
+                        }}
                       />
                     </SettingBlock>
                   </AnimatedDisclosureContent>
@@ -1290,7 +761,7 @@ export function SettingsDialog({
                           key={step}
                           value={String(step)}
                           slot="settings-interface-size-option"
-                          className="px-3 py-1.5 text-sm font-medium tabular-nums hover:bg-foreground/4"
+                          className="px-3 py-1.5 text-sm font-medium tabular-nums hover:bg-foreground/5"
                         >
                           {new Intl.NumberFormat(i18n.language, {
                             style: "percent",
@@ -1299,19 +770,14 @@ export function SettingsDialog({
                       ))}
                     </ChoiceGroup>
                   </SettingBlock>
-                </SettingsCard>
-              </SettingsSection>
-
-              <SettingsSection {...sectionProps("language")}>
-                <SettingsCard>
                   <SettingBlock
+                    target="language"
                     label={t("settings.language.interface")}
                     description={t("settings.language.description")}
-                    changed={isChanged("language")}
                   >
                     <ChoiceGroup
                       value={selectedLanguage ?? "system"}
-                      onValueChange={setSelectedLanguage}
+                      onValueChange={pickLanguage}
                       label={t("settings.language.interface")}
                       slot="settings-language"
                       className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-1.5"
@@ -1319,7 +785,7 @@ export function SettingsDialog({
                       <ChoiceCard
                         value="system"
                         slot="settings-language-option"
-                        className="flex items-center gap-2 px-3 py-2 hover:bg-foreground/4"
+                        className="flex items-center gap-2 px-3 py-2 hover:bg-foreground/5"
                       >
                         <LuMonitor className="size-3.5 shrink-0 text-muted-foreground" />
                         <span className="text-sm leading-tight font-medium">
@@ -1331,7 +797,7 @@ export function SettingsDialog({
                           key={lang.code}
                           value={lang.code}
                           slot="settings-language-option"
-                          className="flex flex-col px-3 py-2 hover:bg-foreground/4"
+                          className="flex flex-col px-3 py-2 hover:bg-foreground/5"
                         >
                           <span
                             lang={lang.code}
@@ -1351,25 +817,16 @@ export function SettingsDialog({
 
               <SettingsSection {...sectionProps("sounds")}>
                 <SettingsCard>
-                  <SoundSettings
-                    draft={sounds}
-                    onChange={(patch) => {
-                      setSaveError(null);
-                      setSettings((prev) => ({ ...prev, ...patch }));
-                    }}
-                    isChanged={isChanged}
-                  />
+                  <SoundSettings draft={sounds} onChange={update} />
                 </SettingsCard>
               </SettingsSection>
 
-              {!systemInfo?.portable && (
-                <SettingsSection
-                  {...sectionProps("default")}
-                  aside={appliesImmediately}
-                >
-                  <SettingsCard>
+              <SettingsSection {...sectionProps("system")}>
+                <SettingsCard>
+                  {!systemInfo?.portable && (
                     <SettingRow
                       slot="settings-default-browser"
+                      target="default"
                       label={
                         isDefaultBrowser
                           ? t("settings.defaultBrowser.isDefault")
@@ -1400,19 +857,13 @@ export function SettingsDialog({
                         </LoadingButton>
                       )}
                     </SettingRow>
-                  </SettingsCard>
-                </SettingsSection>
-              )}
-
-              <SettingsSection {...sectionProps("system")}>
-                <SettingsCard>
+                  )}
                   <SwitchRow
                     id="settings-launch-at-login"
                     label={t("settings.system.launchAtLogin")}
                     description={t("settings.system.launchAtLoginDescription")}
-                    changed={isChanged("launch_at_login")}
                     checked={settings.launch_at_login ?? false}
-                    onCheckedChange={(v) => updateSetting("launch_at_login", v)}
+                    onCheckedChange={(v) => update({ launch_at_login: v })}
                     icon={
                       <RowIcon
                         tone={settings.launch_at_login ? "primary" : "muted"}
@@ -1425,10 +876,9 @@ export function SettingsDialog({
                     id="settings-reopen-running"
                     label={t("settings.system.reopenRunning")}
                     description={t("settings.system.reopenRunningDescription")}
-                    changed={isChanged("reopen_running_profiles")}
                     checked={settings.reopen_running_profiles ?? false}
                     onCheckedChange={(v) =>
-                      updateSetting("reopen_running_profiles", v)
+                      update({ reopen_running_profiles: v })
                     }
                     icon={
                       <RowIcon
@@ -1444,11 +894,8 @@ export function SettingsDialog({
                     id="settings-system-notifications"
                     label={t("settings.system.notifications")}
                     description={t("settings.system.notificationsDescription")}
-                    changed={isChanged("system_notifications")}
                     checked={settings.system_notifications ?? true}
-                    onCheckedChange={(v) =>
-                      updateSetting("system_notifications", v)
-                    }
+                    onCheckedChange={(v) => update({ system_notifications: v })}
                     icon={
                       <RowIcon
                         tone={
@@ -1461,14 +908,62 @@ export function SettingsDialog({
                       </RowIcon>
                     }
                   />
+                  <CommercialRow plan={plan} trialStatus={trialStatus} />
                 </SettingsCard>
-              </SettingsSection>
-
-              <SettingsSection
-                {...sectionProps("network")}
-                aside={appliesImmediately}
-              >
-                <AppProxySettings />
+                {isMacOS && (
+                  <>
+                    <SettingsCard>
+                      {PERMISSION_TYPES.map((type) => {
+                        const granted =
+                          type === "microphone"
+                            ? isMicrophoneAccessGranted
+                            : isCameraAccessGranted;
+                        return (
+                          <SettingRow
+                            key={type}
+                            target={
+                              type === "microphone" ? "permissions" : undefined
+                            }
+                            label={t(`settings.permissions.${type}`)}
+                            description={t(
+                              `settings.permissions.${type}Description`,
+                            )}
+                            icon={
+                              <RowIcon tone={granted ? "success" : "muted"}>
+                                {type === "microphone" ? (
+                                  <LuMic />
+                                ) : (
+                                  <LuCamera />
+                                )}
+                              </RowIcon>
+                            }
+                          >
+                            {granted ? (
+                              <StatusChip tone="success">
+                                {t("common.status.granted")}
+                              </StatusChip>
+                            ) : (
+                              <LoadingButton
+                                size="sm"
+                                variant="soft"
+                                className="h-8"
+                                isLoading={requestingPermission === type}
+                                onClick={() => {
+                                  void handleRequestPermission(type);
+                                }}
+                              >
+                                {t("common.buttons.grant")}
+                              </LoadingButton>
+                            )}
+                          </SettingRow>
+                        );
+                      })}
+                    </SettingsCard>
+                    <SectionNote>
+                      {t("settings.permissions.description")}
+                    </SectionNote>
+                  </>
+                )}
               </SettingsSection>
 
               <SettingsSection {...sectionProps("launches")}>
@@ -1476,7 +971,6 @@ export function SettingsDialog({
                   <SettingRow
                     label={t("settings.launches.delay")}
                     description={t("settings.launches.delayDescription")}
-                    changed={isChanged("bulk_launch_delay_ms")}
                   >
                     <SettingSlider
                       slot="settings-bulk-launch-delay"
@@ -1493,15 +987,12 @@ export function SettingsDialog({
                           }),
                         })
                       }
-                      onChange={(ms) =>
-                        updateSetting("bulk_launch_delay_ms", ms)
-                      }
+                      onChange={(ms) => update({ bulk_launch_delay_ms: ms })}
                     />
                   </SettingRow>
                   <SettingRow
                     label={t("settings.launches.concurrency")}
                     description={t("settings.launches.concurrencyDescription")}
-                    changed={isChanged("bulk_launch_concurrency")}
                   >
                     <SettingSlider
                       slot="settings-bulk-launch-concurrency"
@@ -1513,67 +1004,77 @@ export function SettingsDialog({
                       label={t("settings.launches.concurrency")}
                       format={(count) => String(count)}
                       onChange={(count) =>
-                        updateSetting("bulk_launch_concurrency", count)
+                        update({ bulk_launch_concurrency: count })
                       }
                     />
                   </SettingRow>
+                  <SwitchRow
+                    id="settings-require-route"
+                    label={t("settings.privacy.requireRoute")}
+                    description={t("settings.privacy.requireRouteDescription")}
+                    checked={settings.require_route_for_launch ?? false}
+                    onCheckedChange={(v) =>
+                      update({ require_route_for_launch: v })
+                    }
+                  />
+                  <AnimatedDisclosureContent
+                    open={!(settings.require_route_for_launch ?? false)}
+                  >
+                    <SwitchRow
+                      id="settings-ask-route"
+                      label={t("settings.privacy.askRoute")}
+                      description={t("settings.privacy.askRouteDescription")}
+                      checked={settings.ask_route_for_launch ?? false}
+                      onCheckedChange={(v) =>
+                        update({ ask_route_for_launch: v })
+                      }
+                    />
+                  </AnimatedDisclosureContent>
+                  <SwitchRow
+                    id="settings-consistency-warning"
+                    label={t("settings.privacy.consistencyWarning")}
+                    description={t(
+                      "settings.privacy.consistencyWarningDescription",
+                    )}
+                    checked={!(settings.fingerprint_gate_disabled ?? false)}
+                    onCheckedChange={(v) =>
+                      update({ fingerprint_gate_disabled: !v })
+                    }
+                  />
+                  <SwitchRow
+                    id="settings-vpn-extension-warning"
+                    label={t("settings.privacy.vpnExtensionWarning")}
+                    description={t(
+                      "settings.privacy.vpnExtensionWarningDescription",
+                    )}
+                    checked={
+                      !(settings.vpn_extension_warning_disabled ?? false)
+                    }
+                    onCheckedChange={(v) =>
+                      update({ vpn_extension_warning_disabled: !v })
+                    }
+                  />
                 </SettingsCard>
               </SettingsSection>
 
-              {isMacOS && (
-                <SettingsSection
-                  {...sectionProps("permissions")}
-                  aside={appliesImmediately}
-                >
-                  <SettingsCard>
-                    {PERMISSION_TYPES.map((type) => {
-                      const granted =
-                        type === "microphone"
-                          ? isMicrophoneAccessGranted
-                          : isCameraAccessGranted;
-                      return (
-                        <SettingRow
-                          key={type}
-                          label={t(`settings.permissions.${type}`)}
-                          description={t(
-                            `settings.permissions.${type}Description`,
-                          )}
-                          icon={
-                            <RowIcon tone={granted ? "success" : "muted"}>
-                              {type === "microphone" ? <LuMic /> : <LuCamera />}
-                            </RowIcon>
-                          }
-                        >
-                          {granted ? (
-                            <StatusChip tone="success">
-                              {t("common.status.granted")}
-                            </StatusChip>
-                          ) : (
-                            <LoadingButton
-                              size="sm"
-                              variant="soft"
-                              className="h-8"
-                              isLoading={requestingPermission === type}
-                              onClick={() => {
-                                void handleRequestPermission(type);
-                              }}
-                            >
-                              {t("common.buttons.grant")}
-                            </LoadingButton>
-                          )}
-                        </SettingRow>
-                      );
-                    })}
-                  </SettingsCard>
-                  <SectionNote>
-                    {t("settings.permissions.description")}
-                  </SectionNote>
-                </SettingsSection>
-              )}
-
-              <SettingsSection {...sectionProps("integrations")}>
+              <SettingsSection {...sectionProps("network")}>
+                <AppProxySettings />
                 <SettingsCard>
                   <SettingRow
+                    target="dns"
+                    label={t("settings.dns.label")}
+                    description={t("dnsBlocklist.settingsDescription")}
+                  >
+                    <Button
+                      variant="soft"
+                      size="sm"
+                      onClick={() => setDnsBlocklistDialogOpen(true)}
+                    >
+                      {t("settings.manage")}
+                    </Button>
+                  </SettingRow>
+                  <SettingRow
+                    target="integrations"
                     label={t("settings.integrations.label")}
                     description={t("settings.integrations.description")}
                   >
@@ -1589,156 +1090,21 @@ export function SettingsDialog({
                 </SettingsCard>
               </SettingsSection>
 
-              <SettingsSection {...sectionProps("dns")}>
-                <SettingsCard>
-                  <SettingRow
-                    label={t("settings.dns.label")}
-                    description={t("dnsBlocklist.settingsDescription")}
-                  >
-                    <Button
-                      variant="soft"
-                      size="sm"
-                      onClick={() => setDnsBlocklistDialogOpen(true)}
-                    >
-                      {t("settings.manage")}
-                    </Button>
-                  </SettingRow>
-                </SettingsCard>
-              </SettingsSection>
-
-              <SettingsSection
-                {...sectionProps("encryption")}
-                aside={appliesImmediately}
-              >
-                <EncryptionSettings
-                  canUseEncryption={canUseEncryption}
-                  hasPassword={hasE2ePassword}
-                  onHasPasswordChange={setHasE2ePassword}
-                />
-              </SettingsSection>
-
-              <SettingsSection {...sectionProps("commercial")}>
-                <SettingsCard>
-                  {plan !== "free" ? (
-                    // A paid plan supersedes the local commercial trial, which
-                    // only gates commercial use until the user subscribes.
-                    // "Trial expired" reads like a billing error to a paying
-                    // customer, so they see their subscription instead.
-                    <SettingRow
-                      label={t("settings.commercial.subscriptionActive", {
-                        plan,
-                      })}
-                      description={t(
-                        "settings.commercial.subscriptionActiveDescription",
-                      )}
-                      icon={
-                        <RowIcon tone="success">
-                          <LuBriefcaseBusiness />
-                        </RowIcon>
-                      }
-                    />
-                  ) : trialStatus?.type === "Active" ? (
-                    <SettingRow
-                      label={t("settings.commercial.trialActive", {
-                        days: trialStatus.days_remaining,
-                        hours: trialStatus.hours_remaining,
-                      })}
-                      description={t(
-                        "settings.commercial.trialActiveDescription",
-                      )}
-                      icon={
-                        <RowIcon tone="primary">
-                          <LuBriefcaseBusiness />
-                        </RowIcon>
-                      }
-                    >
-                      <TrialMeter
-                        remainingSeconds={trialStatus.remaining_seconds}
-                      />
-                    </SettingRow>
-                  ) : (
-                    <SettingRow
-                      label={t("settings.commercial.trialExpired")}
-                      description={t(
-                        "settings.commercial.trialExpiredDescription",
-                      )}
-                      icon={
-                        <RowIcon tone="warning">
-                          <LuBriefcaseBusiness />
-                        </RowIcon>
-                      }
-                    />
-                  )}
-                </SettingsCard>
-              </SettingsSection>
-
               <SettingsSection {...sectionProps("privacy")}>
                 <SettingsCard>
-                  <SwitchRow
-                    id="settings-require-route"
-                    label={t("settings.privacy.requireRoute")}
-                    description={t("settings.privacy.requireRouteDescription")}
-                    changed={isChanged("require_route_for_launch")}
-                    checked={settings.require_route_for_launch ?? false}
-                    onCheckedChange={(v) =>
-                      updateSetting("require_route_for_launch", v)
-                    }
-                  />
-                  <AnimatedDisclosureContent
-                    open={!(settings.require_route_for_launch ?? false)}
-                  >
-                    <SwitchRow
-                      id="settings-ask-route"
-                      label={t("settings.privacy.askRoute")}
-                      description={t("settings.privacy.askRouteDescription")}
-                      changed={isChanged("ask_route_for_launch")}
-                      checked={settings.ask_route_for_launch ?? false}
-                      onCheckedChange={(v) =>
-                        updateSetting("ask_route_for_launch", v)
-                      }
-                    />
-                  </AnimatedDisclosureContent>
-                  <SwitchRow
-                    id="settings-consistency-warning"
-                    label={t("settings.privacy.consistencyWarning")}
-                    description={t(
-                      "settings.privacy.consistencyWarningDescription",
-                    )}
-                    changed={isChanged("fingerprint_gate_disabled")}
-                    checked={!(settings.fingerprint_gate_disabled ?? false)}
-                    onCheckedChange={(v) =>
-                      updateSetting("fingerprint_gate_disabled", !v)
-                    }
-                  />
-                  <SwitchRow
-                    id="settings-vpn-extension-warning"
-                    label={t("settings.privacy.vpnExtensionWarning")}
-                    description={t(
-                      "settings.privacy.vpnExtensionWarningDescription",
-                    )}
-                    changed={isChanged("vpn_extension_warning_disabled")}
-                    checked={
-                      !(settings.vpn_extension_warning_disabled ?? false)
-                    }
-                    onCheckedChange={(v) =>
-                      updateSetting("vpn_extension_warning_disabled", !v)
-                    }
-                  />
                   <SwitchRow
                     id="settings-record-sites"
                     label={t("settings.privacy.recordSites")}
                     description={t("settings.privacy.recordSitesDescription")}
-                    changed={isChanged("record_traffic_domains")}
                     checked={settings.record_traffic_domains ?? true}
                     onCheckedChange={(v) =>
-                      updateSetting("record_traffic_domains", v)
+                      update({ record_traffic_domains: v })
                     }
                   />
                   <SettingRow
                     htmlFor="trash-retention"
                     label={t("settings.trashRetention")}
                     description={t("settings.trashRetentionDescription")}
-                    changed={isChanged("trash_retention_days")}
                   >
                     <SegmentedControl
                       id="trash-retention"
@@ -1749,7 +1115,7 @@ export function SettingsDialog({
                         DEFAULT_TRASH_RETENTION_DAYS
                       }
                       onValueChange={(days) =>
-                        updateSetting("trash_retention_days", days)
+                        update({ trash_retention_days: days })
                       }
                       options={TRASH_RETENTION_DAYS.map((days) => ({
                         value: days,
@@ -1778,6 +1144,17 @@ export function SettingsDialog({
                     </LoadingButton>
                   </SettingRow>
                 </SettingsCard>
+                <div
+                  data-settings-target="encryption"
+                  tabIndex={-1}
+                  className="scroll-mt-3 focus:outline-none"
+                >
+                  <EncryptionSettings
+                    canUseEncryption={canUseEncryption}
+                    hasPassword={hasE2ePassword}
+                    onHasPasswordChange={setHasE2ePassword}
+                  />
+                </div>
               </SettingsSection>
 
               <SettingsSection {...sectionProps("advanced")}>
@@ -1787,10 +1164,9 @@ export function SettingsDialog({
                       id="disable-auto-updates"
                       label={t("settings.disableAutoUpdates")}
                       description={t("settings.disableAutoUpdatesDescription")}
-                      changed={isChanged("disable_auto_updates")}
                       checked={settings.disable_auto_updates ?? false}
                       onCheckedChange={(v) =>
-                        updateSetting("disable_auto_updates", v)
+                        update({ disable_auto_updates: v })
                       }
                     />
                   )}
@@ -1800,10 +1176,9 @@ export function SettingsDialog({
                     description={t(
                       "settings.keepDecryptedProfilesInRamDescription",
                     )}
-                    changed={isChanged("keep_decrypted_profiles_in_ram")}
                     checked={settings.keep_decrypted_profiles_in_ram ?? false}
                     onCheckedChange={(v) =>
-                      updateSetting("keep_decrypted_profiles_in_ram", v)
+                      update({ keep_decrypted_profiles_in_ram: v })
                     }
                   />
                   <SettingRow
@@ -1889,22 +1264,8 @@ export function SettingsDialog({
                   />
                 </div>
               )}
-            </fieldset>
+            </div>
           </div>
-
-          <SettingsSaveBar
-            pendingChanges={changes}
-            isLoading={isLoading}
-            isSaving={isSaving}
-            saved={saved}
-            saveError={saveError}
-            onSave={() => {
-              void handleSave();
-            }}
-            onDiscard={discardChanges}
-            onJump={jump}
-            onCancel={subPage ? undefined : handleClose}
-          />
         </DialogContent>
       </Dialog>
       <DnsBlocklistDialog
@@ -1919,7 +1280,6 @@ function SwitchRow({
   id,
   label,
   description,
-  changed,
   checked,
   onCheckedChange,
   icon,
@@ -1927,7 +1287,6 @@ function SwitchRow({
   id: string;
   label: string;
   description: string;
-  changed: boolean;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   icon?: ReactNode;
@@ -1937,7 +1296,6 @@ function SwitchRow({
       htmlFor={id}
       label={label}
       description={description}
-      changed={changed}
       icon={icon}
     >
       <AnimatedSwitch
@@ -1970,6 +1328,69 @@ function SectionNote({ children }: { children: ReactNode }) {
     <p className="px-1 text-xs leading-relaxed text-pretty text-muted-foreground">
       {children}
     </p>
+  );
+}
+
+/**
+ * The commercial license: a paid plan, the trial and how much of it is left,
+ * or the expired trial.
+ */
+function CommercialRow({
+  plan,
+  trialStatus,
+}: {
+  plan: string;
+  trialStatus: ReturnType<typeof useCommercialTrial>["trialStatus"];
+}) {
+  const { t } = useTranslation();
+  if (plan !== "free") {
+    // A paid plan supersedes the local trial; "Trial expired" reads like a
+    // billing error to a paying customer.
+    return (
+      <SettingRow
+        target="commercial"
+        label={t("settings.commercial.subscriptionActive", {
+          plan: planLabel(t, plan),
+        })}
+        description={t("settings.commercial.subscriptionActiveDescription")}
+        icon={
+          <RowIcon tone="success">
+            <LuBriefcaseBusiness />
+          </RowIcon>
+        }
+      />
+    );
+  }
+  if (trialStatus?.type === "Active") {
+    return (
+      <SettingRow
+        target="commercial"
+        label={t("settings.commercial.trialActive", {
+          days: trialStatus.days_remaining,
+          hours: trialStatus.hours_remaining,
+        })}
+        description={t("settings.commercial.trialActiveDescription")}
+        icon={
+          <RowIcon tone="primary">
+            <LuBriefcaseBusiness />
+          </RowIcon>
+        }
+      >
+        <TrialMeter remainingSeconds={trialStatus.remaining_seconds} />
+      </SettingRow>
+    );
+  }
+  return (
+    <SettingRow
+      target="commercial"
+      label={t("settings.commercial.trialExpired")}
+      description={t("settings.commercial.trialExpiredDescription")}
+      icon={
+        <RowIcon tone="warning">
+          <LuBriefcaseBusiness />
+        </RowIcon>
+      }
+    />
   );
 }
 

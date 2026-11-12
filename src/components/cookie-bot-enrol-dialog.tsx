@@ -1062,14 +1062,14 @@ export function CookieBotEnrolDialog({
             </AutoHeight>
           </Field>
 
-          <div className="rounded-xl bg-foreground/3">
+          <div className="rounded-xl bg-foreground/5">
             <button
               type="button"
               onClick={() => {
                 setAdjustOpen((open) => !open);
               }}
               aria-expanded={adjustOpen}
-              className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-medium text-foreground transition-colors duration-100 hover:bg-foreground/4"
+              className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-medium text-foreground transition-colors duration-100 hover:bg-foreground/5"
             >
               <AnimatedDisclosureChevron open={adjustOpen}>
                 <LuChevronRight className="size-3.5" />
@@ -1080,7 +1080,7 @@ export function CookieBotEnrolDialog({
             <AutoHeight deps={[adjustOpen, presetList.length]}>
               <AnimatedDisclosureContent
                 open={adjustOpen}
-                className="flex flex-col gap-3 border-t border-foreground/6 px-3 py-3"
+                className="flex flex-col gap-3 border-t border-foreground/8 px-3 py-3"
               >
                 <Field label={t("cookieBot.enrol.maxMinutesLabel")}>
                   <Input
@@ -1336,7 +1336,7 @@ function SlotRow({
                 "size-7 cursor-pointer rounded-md text-[11px] font-medium transition-colors duration-100",
                 on
                   ? "bg-foreground text-background"
-                  : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+                  : "bg-foreground/5 text-muted-foreground hover:bg-foreground/12 hover:text-foreground",
               )}
             >
               {day.narrow}
@@ -1384,7 +1384,7 @@ function SlotRow({
           type="button"
           aria-label={t("cookieBot.enrol.removeSlot")}
           onClick={onRemove}
-          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-foreground/6 hover:text-foreground"
+          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-foreground/8 hover:text-foreground"
         >
           <LuX className="size-3.5" />
         </button>
@@ -1410,7 +1410,7 @@ function ShuffleTimeButton({ onShuffle }: { onShuffle: () => void }) {
             setTurns((count) => count + 1);
             onShuffle();
           }}
-          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-foreground/6 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-foreground/8 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
         >
           <motion.span
             aria-hidden="true"
@@ -1597,7 +1597,7 @@ function CuratedPanel({
               "flex w-full cursor-pointer flex-col gap-0.5 rounded-md border px-3 py-2 text-left transition-colors duration-100",
               selected
                 ? "border-primary/50 bg-primary/8"
-                : "border-border hover:bg-foreground/4",
+                : "border-border hover:bg-foreground/5",
             )}
           >
             <span className="flex items-center gap-2">
@@ -1847,7 +1847,7 @@ function SavedPanel({
                     setRenameText(template.name);
                     setRenamingId(template.id);
                   }}
-                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors duration-100 hover:bg-foreground/6 hover:text-foreground"
+                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors duration-100 hover:bg-foreground/8 hover:text-foreground"
                 >
                   <LuPencil className="size-3" />
                 </button>

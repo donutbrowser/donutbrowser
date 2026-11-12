@@ -22,6 +22,7 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   LuArchive,
+  LuBlocks,
   LuChrome,
   LuCircleArrowUp,
   LuExternalLink,
@@ -50,6 +51,7 @@ import {
   RowAction,
   RowActions,
   SyncCell,
+  SyncColumnHeader,
   type SyncStatus,
   TickingCount,
 } from "@/components/entity-page";
@@ -142,7 +144,7 @@ function StagePanel({ slot, children }: { slot: string; children: ReactNode }) {
         transition: { duration: animate ? MOTION_DURATION.fast : 0 },
       }}
       transition={{ duration: MOTION_DURATION.base, ease: MOTION_EASE_OUT }}
-      className="shrink-0 space-y-3 rounded-xl bg-foreground/3 p-3"
+      className="shrink-0 space-y-3 rounded-xl bg-foreground/5 p-3"
     >
       {children}
     </motion.div>
@@ -1139,7 +1141,7 @@ export function ExtensionManagementDialog({
         id: "sync",
         size: 80,
         enableSorting: false,
-        header: () => t("proxies.management.syncCol"),
+        header: () => <SyncColumnHeader />,
         cell: ({ row }) => {
           const ext = row.original;
           return (
@@ -1224,6 +1226,7 @@ export function ExtensionManagementDialog({
     "extensions",
     extensions,
     setExtRowSelection,
+    extensionColumns,
   );
   const extTable = useReactTable({
     data: extTableTools.filters.rows,
@@ -1347,7 +1350,7 @@ export function ExtensionManagementDialog({
         id: "sync",
         size: 80,
         enableSorting: false,
-        header: () => t("proxies.management.syncCol"),
+        header: () => <SyncColumnHeader />,
         cell: ({ row }) => {
           const group = row.original;
           return (
@@ -1411,6 +1414,7 @@ export function ExtensionManagementDialog({
     "extensionGroups",
     extensionGroups,
     setGroupRowSelection,
+    groupColumns,
   );
   const groupTable = useReactTable({
     data: groupTableTools.filters.rows,
@@ -1642,7 +1646,7 @@ export function ExtensionManagementDialog({
                         <div className="flex items-start gap-3">
                           <span
                             aria-hidden="true"
-                            className="grid size-9 shrink-0 place-items-center rounded-lg bg-foreground/6 text-muted-foreground [&_svg]:size-4"
+                            className="grid size-9 shrink-0 place-items-center rounded-lg bg-foreground/8 text-muted-foreground [&_svg]:size-4"
                           >
                             {pendingSource.kind === "folder" ? (
                               <LuFolder />
@@ -1754,7 +1758,7 @@ export function ExtensionManagementDialog({
                       ) : (
                         <EntityEmptyState
                           entity="extensions"
-                          clip="extensionGroups"
+                          icon={LuPuzzle}
                           title={t("entities.empty.extensions.title")}
                           description={t("entities.empty.extensions.body")}
                         >
@@ -1847,7 +1851,7 @@ export function ExtensionManagementDialog({
                       ) : (
                         <EntityEmptyState
                           entity="extensionGroups"
-                          clip="extensionGroups"
+                          icon={LuBlocks}
                           title={t("entities.empty.extensionGroups.title")}
                           description={t("entities.empty.extensionGroups.body")}
                         >
@@ -1959,13 +1963,13 @@ export function ExtensionManagementDialog({
                   </div>
                 )}
                 {extensions.length === 0 ? (
-                  <p className="rounded-xl bg-foreground/3 px-3 py-4 text-center text-sm text-muted-foreground">
+                  <p className="rounded-xl bg-foreground/5 px-3 py-4 text-center text-sm text-muted-foreground">
                     {t("extensions.empty")}
                   </p>
                 ) : (
                   <ul
                     data-slot="extension-group-members"
-                    className="max-h-[min(40vh,320px)] space-y-0.5 overflow-y-auto rounded-xl bg-foreground/3 p-1"
+                    className="max-h-[min(40vh,320px)] space-y-0.5 overflow-y-auto rounded-xl bg-foreground/5 p-1"
                   >
                     {extensions
                       .filter((ext) =>
@@ -2097,7 +2101,7 @@ export function ExtensionManagementDialog({
                     </div>
                   )}
                 {/* Metadata from manifest.json */}
-                <div className="space-y-2 rounded-xl bg-foreground/3 p-3">
+                <div className="space-y-2 rounded-xl bg-foreground/5 p-3">
                   <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     {t("extensions.metadata")}
                   </p>

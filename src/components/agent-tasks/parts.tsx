@@ -515,7 +515,7 @@ export function RunOptions({
           title={t("agent.tasks.options")}
           className={cn(
             "size-8 rounded-xl p-0",
-            tuned && "bg-foreground/6 text-foreground",
+            tuned && "bg-foreground/8 text-foreground",
           )}
         >
           <LuSettings2 className="size-3.5" aria-hidden="true" />

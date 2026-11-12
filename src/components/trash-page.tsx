@@ -41,7 +41,7 @@ import {
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { EntityEmptyState } from "@/components/entity-empty-state";
 import {
-  KindBadge,
+  KindLabel,
   PageAction,
   RowAction,
   RowActions,
@@ -50,6 +50,7 @@ import {
 import {
   ManagedDataTable,
   type useEntityTableTools,
+  useFittedVisibility,
 } from "@/components/managed-data-table";
 import {
   SortableColumnHeader,
@@ -84,11 +85,8 @@ import { formatBytes } from "@/lib/format-bytes";
 import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { proxyProtocolToken } from "@/lib/proxy-string";
 import { canonicalProxyType } from "@/lib/proxy-type";
-import {
-  resolveTableVisibility,
-  type TableFilter,
-  type TableId,
-} from "@/lib/table-tools";
+import type { TableFilter } from "@/lib/table-tools";
+import { contentColumnWidth } from "@/lib/text-width";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type {
@@ -165,7 +163,7 @@ const KIND_TABS: Record<KindFilter, string> = {
   template: "trash.kinds.template",
 };
 
-const TRASH_TABLE: TableId = "trash";
+const TRASH_TABLE = "trash";
 const NO_FILTERS: TableFilter<TrashRow>[] = [];
 const SECONDS_PER_DAY = 24 * 60 * 60;
 
@@ -239,6 +237,7 @@ function useTrashTableTools(
   rows: TrashRow[],
   allRows: TrashRow[],
   setSelection: Dispatch<SetStateAction<RowSelectionState>>,
+  columns: ColumnDef<TrashRow>[],
 ) {
   const { t } = useTranslation();
   const view = useTablePreferences(TRASH_TABLE);
@@ -271,10 +270,11 @@ function useTrashTableTools(
           );
     });
   }, [allRows, setSelection]);
-  const visibility = resolveTableVisibility(
-    { detail: width >= 768, deleted: width >= 640, size: width >= 560 },
-    view.preferences.visibility,
-    ["name", "select", "actions"],
+  const visibility = useFittedVisibility(
+    TRASH_TABLE,
+    width,
+    columns,
+    view.preferences,
   );
   return { view, labels, filters, visibility, setWidth };
 }
@@ -499,6 +499,15 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
     }
   }, [t]);
 
+  const kindWidth = useMemo(
+    () =>
+      contentColumnWidth(
+        [...counts.keys()].map((kind) => t(KIND_LABELS[kind])),
+        { chrome: 20, min: 64, max: 160 },
+      ),
+    [counts, t],
+  );
+
   const columns = useMemo<ColumnDef<TrashRow>[]>(
     () => [
       {
@@ -554,7 +563,7 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
       },
       {
         id: "kind",
-        size: 150,
+        size: kindWidth,
         minSize: 48,
         maxSize: 1600,
         enableSorting: true,
@@ -566,14 +575,14 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
           />
         ),
         cell: ({ row }) => (
-          <KindBadge data-kind={row.original.kind}>
+          <KindLabel data-kind={row.original.kind}>
             {t(KIND_LABELS[row.original.kind])}
-          </KindBadge>
+          </KindLabel>
         ),
       },
       {
         id: "detail",
-        size: 180,
+        size: 140,
         minSize: 48,
         maxSize: 1600,
         enableSorting: true,
@@ -611,7 +620,7 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
       },
       {
         id: "expires",
-        size: 132,
+        size: 112,
         minSize: 48,
         maxSize: 1600,
         enableSorting: true,
@@ -648,7 +657,7 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
       },
       {
         id: "size",
-        size: 96,
+        size: 80,
         minSize: 48,
         maxSize: 1600,
         enableSorting: true,
@@ -702,10 +711,10 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
         },
       },
     ],
-    [t, dateFormatter, nowSeconds, busyIds, restoreRows],
+    [t, dateFormatter, nowSeconds, busyIds, restoreRows, kindWidth],
   );
 
-  const tools = useTrashTableTools(rows, allRows, setRowSelection);
+  const tools = useTrashTableTools(rows, allRows, setRowSelection, columns);
   const table = useReactTable({
     data: tools.filters.rows,
     columns,
@@ -757,7 +766,10 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
               className="flex min-h-0 flex-1 flex-col"
             >
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-                <AnimatedTabsList aria-label={t("trash.columns.kind")}>
+                <AnimatedTabsList
+                  hidden={allRows.length === 0}
+                  aria-label={t("trash.columns.kind")}
+                >
                   {(["all", ...KINDS] as KindFilter[])
                     .filter((kind) => kind === "all" || counts.has(kind))
                     .map((kind) => (
@@ -783,6 +795,7 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
                 </AnimatedTabsList>
                 <PageAction
                   data-slot="trash-empty"
+                  className="ml-auto"
                   icon={<LuTrash2 className="size-4" />}
                   label={t("trash.emptyTrash")}
                   disabled={allRows.length === 0 || isLoading}
@@ -792,7 +805,7 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
                 />
               </div>
 
-              {subPage && (
+              {subPage && allRows.length > 0 && (
                 <p className="mt-2 shrink-0 text-xs text-muted-foreground">
                   {t("trash.description")}
                 </p>
@@ -824,7 +837,7 @@ export function TrashPage({ isOpen, onClose, subPage }: TrashPageProps) {
                     error ? undefined : (
                       <EntityEmptyState
                         entity="trash"
-                        clip="trash"
+                        icon={LuTrash2}
                         title={t("trash.empty")}
                         description={t("trash.emptyHint")}
                       />

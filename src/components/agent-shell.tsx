@@ -234,7 +234,7 @@ export function SearchField({
   return (
     <label
       className={cn(
-        "flex h-8 items-center gap-2 rounded-xl bg-foreground/4 px-2.5 text-muted-foreground transition-colors duration-150 focus-within:bg-foreground/6 focus-within:text-foreground motion-reduce:transition-none",
+        "flex h-8 items-center gap-2 rounded-xl bg-foreground/5 px-2.5 text-muted-foreground transition-colors duration-150 focus-within:bg-foreground/8 focus-within:text-foreground motion-reduce:transition-none",
         className,
       )}
     >
@@ -267,8 +267,8 @@ export function sidebarRow(selected: boolean, className?: string) {
     "flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-xl px-2.5 text-left text-sm transition-colors duration-150 motion-reduce:transition-none",
     FOCUS_RING,
     selected
-      ? "bg-foreground/7 text-foreground"
-      : "text-foreground/85 hover:bg-foreground/4 hover:text-foreground",
+      ? "bg-foreground/8 text-foreground"
+      : "text-foreground/85 hover:bg-foreground/5 hover:text-foreground",
     className,
   );
 }

@@ -123,7 +123,16 @@ pub struct DownloadProgress {
 
 impl DownloadProgress {
   /// The terminal event for a download that stopped, so the UI can show why.
+  /// A reason without a code becomes `BROWSER_DOWNLOAD_FAILED`: the raw text
+  /// (a network library's message) is logged, never shown.
   pub fn failed(browser: &str, version: &str, error: Option<String>) -> Self {
+    let error = error.map(|e| {
+      if e.starts_with('{') {
+        e
+      } else {
+        crate::backend_error("BROWSER_DOWNLOAD_FAILED")
+      }
+    });
     Self {
       browser: browser.to_string(),
       version: version.to_string(),
@@ -1263,6 +1272,23 @@ mod tests {
   use tempfile::TempDir;
   use wiremock::matchers::{method, path};
   use wiremock::{Mock, MockServer, ResponseTemplate};
+
+  #[test]
+  fn a_failed_event_carries_a_code_never_raw_text() {
+    let raw = DownloadProgress::failed(
+      "wayfern",
+      "1",
+      Some("error sending request for url (https://example.test)".into()),
+    );
+    assert_eq!(
+      raw.error.as_deref(),
+      Some(r#"{"code":"BROWSER_DOWNLOAD_FAILED"}"#)
+    );
+    let coded = crate::backend_error("SYSTEM_PROXY_UNREACHABLE");
+    let kept = DownloadProgress::failed("wayfern", "1", Some(coded.clone()));
+    assert_eq!(kept.error, Some(coded));
+    assert_eq!(DownloadProgress::failed("wayfern", "1", None).error, None);
+  }
 
   #[tokio::test]
   async fn a_slow_download_that_keeps_moving_is_not_cut_off() {

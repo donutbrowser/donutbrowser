@@ -63,7 +63,7 @@ function SessionRestoreOption({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="space-y-3 rounded-lg bg-foreground/4 p-4">
+    <div className="space-y-3 rounded-lg bg-foreground/5 p-4">
       <div className="flex items-center gap-x-2">
         <Checkbox
           id="restore-session"
@@ -614,7 +614,7 @@ export function WayfernConfigForm({
       )}
 
       {/* Randomize Fingerprint Option */}
-      <div className="space-y-3 rounded-lg bg-foreground/4 p-4">
+      <div className="space-y-3 rounded-lg bg-foreground/5 p-4">
         <div className="flex items-center gap-x-2">
           <Checkbox
             id="randomize-fingerprint"
@@ -774,7 +774,7 @@ export function WayfernConfigForm({
             data-slot="fingerprint-device-state"
             data-state={deviceError ? "failed" : "loading"}
             role={deviceError ? "alert" : "status"}
-            className="flex items-center gap-3 rounded-lg bg-foreground/4 px-4 py-3 text-sm"
+            className="flex items-center gap-3 rounded-lg bg-foreground/5 px-4 py-3 text-sm"
           >
             {deviceError ? (
               <>
@@ -1772,7 +1772,7 @@ export function WayfernConfigForm({
               </div>
 
               {/* Randomize Fingerprint Option */}
-              <div className="space-y-3 rounded-lg bg-foreground/4 p-4">
+              <div className="space-y-3 rounded-lg bg-foreground/5 p-4">
                 <div className="flex items-center gap-x-2">
                   <Checkbox
                     id="randomize-fingerprint-auto"

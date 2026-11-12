@@ -135,7 +135,7 @@ export function DeleteGroupDialog({
                     count: associatedProfiles.length,
                   })}
                 </Label>
-                <ScrollArea className="max-h-[min(8rem,25vh)] w-full overflow-y-auto rounded-xl bg-foreground/3 p-1">
+                <ScrollArea className="max-h-[min(8rem,25vh)] w-full overflow-y-auto rounded-xl bg-foreground/5 p-1">
                   <ul className="space-y-0.5">
                     {associatedProfiles.map((profile) => (
                       <li
@@ -168,7 +168,7 @@ export function DeleteGroupDialog({
                       className={cn(
                         "flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-normal transition-colors duration-150",
                         deleteAction !== action
-                          ? "bg-foreground/3 hover:bg-foreground/5"
+                          ? "bg-foreground/5 hover:bg-foreground/8"
                           : action === "delete"
                             ? "bg-destructive/10 text-destructive-text"
                             : "bg-primary/10",

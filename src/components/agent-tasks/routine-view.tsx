@@ -139,7 +139,7 @@ function BatchLine({
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex h-8 cursor-pointer items-center gap-3 rounded-lg px-2 text-left text-xs text-muted-foreground transition-colors duration-150 hover:bg-foreground/4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="flex h-8 cursor-pointer items-center gap-3 rounded-lg px-2 text-left text-xs text-muted-foreground transition-colors duration-150 hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <LuChevronRight
           aria-hidden="true"

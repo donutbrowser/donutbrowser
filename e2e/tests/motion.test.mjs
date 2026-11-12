@@ -133,122 +133,35 @@ async function assertContained(app, selector) {
   );
 }
 
-async function exampleStates(app) {
-  return app.execute(`return Object.fromEntries(
-    [...document.querySelectorAll('[data-slot="isolation-example-profile"]')].map((profile) =>
-      [profile.dataset.profileId, { signedIn: profile.dataset.signedIn, route: profile.dataset.route }])
-  );`);
-}
-
-async function assertExamples(app, expected) {
-  await app.waitFor(
-    async () => {
-      const actual = await exampleStates(app);
-      return (
-        Object.keys(actual).length === Object.keys(expected).length &&
-        Object.entries(expected).every(
-          ([id, profile]) =>
-            actual[id]?.signedIn === profile.signedIn &&
-            actual[id]?.route === profile.route,
-        )
-      );
-    },
-    {
-      description: `independent example state ${JSON.stringify(expected)}`,
-    },
-  );
-}
-
-const emptyExamples = {
-  research: { signedIn: "false", route: "direct" },
-  shopping: { signedIn: "false", route: "direct" },
-};
-
-async function exerciseIsolation(app) {
-  await waitForSelector(app, slot("profile-isolation-demo"));
-  const realProfiles = await app.invoke("list_browser_profiles");
-  await assertExamples(app, emptyExamples);
-  await app.clickSelector(slot("isolation-toggle-cookie"));
-  await assertExamples(app, {
-    ...emptyExamples,
-    research: { signedIn: "true", route: "direct" },
-  });
-  await app.clickSelector(slot("isolation-toggle-route"));
-  await assertExamples(app, {
-    ...emptyExamples,
-    research: { signedIn: "true", route: "proxy" },
-  });
-  await app.clickSelector(
-    `${slot("isolation-example-profile")}[data-profile-id="shopping"] ${slot("isolation-select-profile")}`,
-  );
-  await app.clickSelector(slot("isolation-toggle-cookie"));
-  await assertExamples(app, {
-    research: { signedIn: "true", route: "proxy" },
-    shopping: { signedIn: "true", route: "direct" },
-  });
-  await app.clickSelector(slot("isolation-toggle-route"));
-  await app.clickSelector(slot("isolation-toggle-cookie"));
-  await assertExamples(app, {
-    research: { signedIn: "true", route: "proxy" },
-    shopping: { signedIn: "false", route: "proxy" },
-  });
-
-  // Move focus with the real keyboard, then activate the currently focused
-  // route button. The example changes without waiting for a pointer animation.
-  await app.execute(
-    `document.querySelector('[data-slot="isolation-toggle-cookie"]').focus();`,
-  );
-  await tabForward(app);
-  assert.equal(
-    await app.execute(`return document.activeElement?.dataset.slot;`),
-    "isolation-toggle-route",
-  );
-  await activateFocusedByKeyboard(app);
-  await assertExamples(app, {
-    research: { signedIn: "true", route: "proxy" },
-    shopping: { signedIn: "false", route: "direct" },
-  });
-  await app.clickSelector(slot("isolation-reset"));
-  await assertExamples(app, emptyExamples);
-  assert.deepEqual(
-    await app.invoke("list_browser_profiles"),
-    realProfiles,
-    "the demonstration never mutates real profiles",
-  );
-}
-
-test("first-run profile cutaway is interactive, isolated, and readable at both window sizes", async () => {
+test("the welcome shows its recording whole on a tall window and drops it on a short one", async () => {
   await withApp(
     "motion-first-run",
     async (app) => {
       await app.waitForText(en.welcome.title);
       await resize(app, 1080, 900);
-      // The intro lists what the app does under its recording.
-      assert.equal(
-        await app.visibleTextIncludes(en.welcome.features.items.cookies),
-        true,
-      );
-      assert.equal(
-        await app.execute(
-          `return document.querySelector('[data-slot="welcome-clip-panel"] [data-slot="feature-clip"]')?.dataset.clip;`,
-        ),
-        "welcome",
-      );
+      const clip = () =>
+        app.execute(`
+          const panel = document.querySelector('[data-slot="welcome-clip-panel"]');
+          if (!panel?.offsetParent) return null;
+          const rect = panel.getBoundingClientRect();
+          return { id: panel.querySelector('[data-slot="feature-clip"]')?.dataset.clip, ratio: rect.width / rect.height };
+        `);
+      const tall = await clip();
+      assert.equal(tall?.id, "welcome");
+      assert.ok(Math.abs(tall.ratio - 3) < 0.05, `uncropped: ${tall.ratio}`);
       await app.capture("onboarding-intro-wide");
-      await app.clickText(en.welcome.next, { roles: ["button"] });
-      await app.waitForText(en.isolationDemo.title);
-      await exerciseIsolation(app);
-      await app.capture("onboarding-isolation-wide");
-      await resize(app, 640, 480);
-      await assertContained(app, '[role="dialog"]');
-      await app.capture("onboarding-isolation-narrow");
+      for (const [width, height] of [
+        [880, 500],
+        [640, 400],
+      ]) {
+        await resize(app, width, height);
+        assert.equal(await clip(), null, `no clip at ${width}x${height}`);
+        await assertContained(app, '[role="dialog"]');
+      }
+      await app.capture("onboarding-intro-short");
       await app.clickText(en.welcome.next, { roles: ["button"] });
       await app.waitForText(en.welcome.license.title);
-      assert.equal(
-        await app.invoke("get_onboarding_completed"),
-        false,
-        "the example does not complete actual onboarding",
-      );
+      await assertContained(app, '[role="dialog"]');
     },
     { onboardingCompleted: false },
   );
@@ -585,7 +498,7 @@ test("synchronizer rehearsal targets selected profiles and waits for actual comm
       try {
         await app.clickSelector(inspectTrigger(leader.id));
         await app.clickSelector(
-          `${slot("profile-info-section")}[data-section="automation"]`,
+          `${slot("profile-info-section")}[data-section="launch"]`,
         );
         await app.waitFor(
           () =>
@@ -1106,7 +1019,7 @@ test("profile inspector, group gestures, and remote handoff preserve context", a
       await resize(app, 1480, 900);
       await waitForSelector(app, slot("profile-inspector"));
       await app.clickSelector(
-        `${slot("profile-info-section")}[data-section="automation"]`,
+        `${slot("profile-info-section")}[data-section="launch"]`,
       );
       const draft = "https://example.com/inspector-draft";
       await app.fillSelector(slot("profile-launch-hook-input"), draft);
@@ -1117,7 +1030,7 @@ test("profile inspector, group gestures, and remote handoff preserve context", a
       await waitForSelector(app, slot("profile-inspector"), false);
       await waitForSelector(
         app,
-        `${slot("profile-info-content")}[data-profile-id="${second}"][data-section="automation"]`,
+        `${slot("profile-info-content")}[data-profile-id="${second}"][data-section="launch"]`,
       );
       assert.deepEqual(
         await app.execute(`
@@ -1308,7 +1221,7 @@ test("profile inspector, group gestures, and remote handoff preserve context", a
   );
 });
 
-test("settings save a RAM-only edit, preserve location, and expose review and discard", async () => {
+test("settings save a RAM-only edit at once and keep the search", async () => {
   await withApp("motion-settings-feedback", async (app) => {
     await resize(app, 1000, 720);
     await app.clickSelector(`[aria-label="${en.rail.settings}"]`);
@@ -1321,59 +1234,26 @@ test("settings save a RAM-only edit, preserve location, and expose review and di
       ["advanced"],
     );
     const initial = await app.invoke("get_app_settings");
-    const selector = "#keep-decrypted-profiles-in-ram";
-    await app.clickSelector(selector);
-    await app.clickSelector(slot("settings-review"));
-    await app.waitFor(
-      () =>
-        app.execute(
-          `return document.querySelector(arguments[0])?.textContent.includes(arguments[1]);`,
-          [
-            slot("settings-review-list"),
-            en.settings.keepDecryptedProfilesInRam,
-          ],
-        ),
-      { description: "the review list names the RAM change" },
-    );
-    await app.capture("review-ram-change");
-    await app.pressShortcut({ key: "\uE00C" });
-    await waitForSelector(app, slot("settings-review-list"), false);
-    await app.clickSelector(slot("settings-discard"));
-    assert.equal(
-      await app.execute(
-        `return document.querySelector(arguments[0]).getAttribute("data-state") === "checked";`,
-        [selector],
-      ),
-      Boolean(initial.keep_decrypted_profiles_in_ram),
-    );
-    await app.clickSelector(selector);
-    await app.clickText(en.common.buttons.saveSettings, { roles: ["button"] });
+    await app.clickSelector("#keep-decrypted-profiles-in-ram");
     await app.waitFor(
       async () =>
         (await app.invoke("get_app_settings"))
           .keep_decrypted_profiles_in_ram !==
         Boolean(initial.keep_decrypted_profiles_in_ram),
-      { description: "RAM preference persisted" },
+      { description: "RAM preference saved without a save button" },
     );
-    await waitForSelector(app, slot("settings-search"));
     assert.equal(
       await app.execute(`return document.querySelector(arguments[0]).value;`, [
         slot("settings-search"),
       ]),
       "decrypted",
     );
-    await app.waitFor(() => app.visibleTextIncludes(en.common.buttons.saved), {
-      description: "inline save confirmation",
-    });
+    assert.equal(
+      await app.visibleTextIncludes(en.appFeedback.saveFailed),
+      false,
+    );
     await resize(app, 780, 580);
     await app.capture("settings-small-saved");
-    assert.equal(
-      await app.execute(
-        `const el = [...document.querySelectorAll("button")].find(button => button.textContent.trim() === arguments[0]); const r = el.getBoundingClientRect(); return r.bottom <= innerHeight && r.right <= innerWidth && r.top >= 0;`,
-        [en.common.buttons.saveSettings],
-      ),
-      true,
-    );
 
     await app.pressShortcut({ ...modifier, key: "/" });
     await waitForSelector(app, slot("shortcuts-search"));
@@ -1435,8 +1315,13 @@ test("settings save a RAM-only edit, preserve location, and expose review and di
 
 test("settings sections stay on one row that scrolls, drags, and follows the page", async () => {
   await withApp("motion-settings-nav", async (app) => {
-    await resize(app, 780, 580);
+    await resize(app, 640, 580);
     await app.clickSelector(`[aria-label="${en.rail.settings}"]`);
+    // The sections fit the minimum window at 100 %; the largest interface
+    // size makes the row overflow.
+    await app.clickSelector(
+      `${slot("settings-interface-size-option")}[data-value="150"]`,
+    );
     const strip = slot("settings-nav");
     const scroller = slot("settings-scroller");
     await waitForSelector(app, strip);
@@ -1532,7 +1417,7 @@ test("settings sections stay on one row that scrolls, drags, and follows the pag
       description: "the privacy badge is active after a click",
     });
     assert.equal(
-      await app.visibleTextIncludes(en.settings.privacy.requireRoute),
+      await app.visibleTextIncludes(en.settings.privacy.recordSites),
       true,
     );
     await app.capture("settings-privacy");

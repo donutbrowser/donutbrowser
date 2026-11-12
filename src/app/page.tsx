@@ -30,7 +30,7 @@ import { ImportProfileDialog } from "@/components/import-profile-dialog";
 import { IntegrationsDialog } from "@/components/integrations-dialog";
 import { LeavePromptDialog } from "@/components/leave-prompt-dialog";
 import { MoveProfilesDialog } from "@/components/move-profiles-dialog";
-import { OnboardingTour, type TourStep } from "@/components/onboarding-tour";
+import { OnboardingTour } from "@/components/onboarding-tour";
 import { PageTransition } from "@/components/page-transition";
 import { PaidWelcomeDialog } from "@/components/paid-welcome-dialog";
 import { PermissionDialog } from "@/components/permission-dialog";
@@ -59,7 +59,6 @@ import { SyncConfigDialog } from "@/components/sync-config-dialog";
 import { SyncFollowerDialog } from "@/components/sync-follower-dialog";
 import { SynchronizerPanel } from "@/components/synchronizer-panel";
 import { TableFilterControls } from "@/components/table-controls";
-import { ThankYouDialog } from "@/components/thank-you-dialog";
 import { TipCoachMark } from "@/components/tips/tip-coach-mark";
 import { TipsDialog } from "@/components/tips-dialog";
 import { TotpToolDialog } from "@/components/totp-code";
@@ -109,7 +108,6 @@ import {
   isTeamLauncher,
 } from "@/lib/entitlements";
 import { stepInterfaceZoom } from "@/lib/interface-zoom";
-import { setOnboardingActive } from "@/lib/onboarding-signal";
 import { type ProfileSearchContext } from "@/lib/profile-search";
 import { useProxyCountries } from "@/lib/proxy-check-store";
 import { startRemoteSession } from "@/lib/remote-sessions";
@@ -215,14 +213,13 @@ export default function Home() {
   useLaunchNotices(profiles);
   useSiteStorageNotices(profiles);
 
-  // First-run product tour: coach marks on the real controls.
-  const [tour, setTour] = useState<{ open: boolean; step: TourStep }>({
-    open: false,
-    step: 0,
-  });
+  // First-run tour: one coach mark on the first profile's Launch button,
+  // waiting until that profile exists.
+  const [launchTour, setLaunchTour] = useState<"off" | "waiting" | "open">(
+    "off",
+  );
   const onboardingHandledRef = useRef(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
-  const [thankYouOpen, setThankYouOpen] = useState(false);
   // null = onboarding decision pending; false = not a first-run session (run
   // normal permission checks); true = first-run session, so "Not now" really
   // defers the standalone permission dialog until a later launch.
@@ -236,41 +233,9 @@ export default function Home() {
     });
   }, []);
 
-  // Welcome flow finished. Existing-profile users are done after the welcome +
-  // commercial-use steps; users with no profile yet continue into the in-app
-  // product tour that walks them through creating their first profile.
-  const handleWelcomeComplete = useCallback(() => {
-    setWelcomeOpen(false);
-    if (profiles.length === 0) {
-      setTour({ open: true, step: 0 });
-    } else {
-      persistOnboardingComplete();
-    }
-  }, [persistOnboardingComplete, profiles.length]);
-
-  // Finishing or skipping the product tour completes the one-shot
-  // onboarding. Only reaching the end earns the celebration.
-  const skipTour = useCallback(() => {
-    setTour((current) => ({ ...current, open: false }));
-    persistOnboardingComplete();
-  }, [persistOnboardingComplete]);
-  const finishTour = useCallback(() => {
-    setTour((current) => ({ ...current, open: false }));
-    persistOnboardingComplete();
-    setThankYouOpen(true);
-  }, [persistOnboardingComplete]);
-
-  // Suppress the global browser-download toasts while onboarding (welcome or
-  // tour) is active — the welcome dialog shows setup progress itself.
-  useEffect(() => {
-    setOnboardingActive(welcomeOpen || tour.open);
-  }, [welcomeOpen, tour.open]);
-
-  // On the very first launch, always show the welcome + commercial-use steps.
-  // The completion flag is only persisted after the user finishes or skips the
-  // full flow, so an interrupted setup can recover on the next launch.
-  // The welcome dialog itself decides whether to continue into the browser
-  // download + profile-creation flow — only when the user has no profile yet.
+  // On the very first launch, show the welcome. The completion flag is
+  // persisted when the welcome is finished or skipped, so a restart before
+  // that shows it again.
   useEffect(() => {
     if (profilesLoading || onboardingHandledRef.current) return;
     onboardingHandledRef.current = true;
@@ -290,14 +255,10 @@ export default function Home() {
     })();
   }, [profilesLoading]);
 
-  // The "create a profile" step moves on to "DNS blocking" as soon as the
-  // first profile exists. The coach mark finds the new row's DNS control by
-  // itself once the row renders.
+  // The coach mark finds the new row's Launch button once the row renders.
   useEffect(() => {
-    if (tour.open && tour.step === 0 && profiles.length > 0) {
-      setTour({ open: true, step: 1 });
-    }
-  }, [tour.open, tour.step, profiles.length]);
+    if (launchTour === "waiting" && profiles.length > 0) setLaunchTour("open");
+  }, [launchTour, profiles.length]);
 
   const {
     groups: groupsData,
@@ -452,8 +413,7 @@ export default function Home() {
     firstRunOnboarding === false &&
     !profilesLoading &&
     !welcomeOpen &&
-    !thankYouOpen &&
-    !tour.open &&
+    launchTour === "off" &&
     !termsLoading &&
     termsAccepted === true &&
     !commercialTrialModalOpen;
@@ -505,6 +465,18 @@ export default function Home() {
     }
     setCreateProfileDialogOpen(true);
   }, [t]);
+
+  // The welcome is done, finished or skipped. With no profile yet, the
+  // create dialog opens while the browser downloads, and the tour waits for
+  // the profile.
+  const handleWelcomeComplete = useCallback(() => {
+    setWelcomeOpen(false);
+    persistOnboardingComplete();
+    if (profiles.length === 0) {
+      openCreateProfile();
+      setLaunchTour("waiting");
+    }
+  }, [persistOnboardingComplete, profiles.length, openCreateProfile]);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   // A settings section to land on, set by a tip's action for one opening.
   const [settingsInitialSection, setSettingsInitialSection] = useState<
@@ -3370,6 +3342,12 @@ export default function Home() {
                   cloudUser={cloudUser}
                   onOpenProfileSync={handleOpenProfileSyncDialog}
                   onAssignProxy={handleAssignProfilesToProxy}
+                  onOpenSignIn={() => {
+                    closeSubPage(() => {
+                      setCookieBotDialogOpen(false);
+                      setDeviceCodeDialogOpen(true);
+                    });
+                  }}
                 />
               )}
 
@@ -3441,6 +3419,7 @@ export default function Home() {
           onCreateProfile={handleCreateProfile}
           selectedGroupId={selectedGroupId}
           crossOsUnlocked={crossOsUnlocked}
+          profileNames={profiles.map((profile) => profile.name)}
         />
 
         <WhatsNewDialog whatsNew={whatsNew} onClose={() => setWhatsNew(null)} />
@@ -3555,18 +3534,11 @@ export default function Home() {
 
         <WelcomeDialog
           isOpen={welcomeOpen}
-          needsSetup={profiles.length === 0}
           onComplete={handleWelcomeComplete}
         />
         <OnboardingTour
-          open={tour.open}
-          step={tour.step}
-          onSkip={skipTour}
-          onFinish={finishTour}
-        />
-        <ThankYouDialog
-          isOpen={thankYouOpen}
-          onClose={() => setThankYouOpen(false)}
+          open={launchTour === "open"}
+          onDone={() => setLaunchTour("off")}
         />
         <TipsDialog
           key={tipsFlow.dialog.session}

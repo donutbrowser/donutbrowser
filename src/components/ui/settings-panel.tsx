@@ -15,7 +15,7 @@ export function SettingsPanel({
 }: React.ComponentProps<"section">) {
   return (
     <section
-      className={cn("rounded-xl bg-foreground/3 p-4", className)}
+      className={cn("rounded-xl bg-foreground/5 p-4", className)}
       {...props}
     >
       {children}
@@ -76,7 +76,7 @@ export function FeatureIcon({
         "grid size-9 shrink-0 place-items-center rounded-lg transition-colors duration-200 [&_svg]:size-4.5",
         active
           ? "bg-success/12 text-success-text"
-          : "bg-foreground/6 text-muted-foreground",
+          : "bg-foreground/8 text-muted-foreground",
       )}
     >
       {children}

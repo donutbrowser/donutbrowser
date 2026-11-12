@@ -13,7 +13,7 @@ const textareaVariants = cva(
     variants: {
       variant: {
         default: `rounded-md border border-input bg-background ${FOCUS_RING} aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive`,
-        soft: `rounded-lg bg-foreground/5 hover:bg-foreground/7 focus-visible:bg-foreground/7 ${FOCUS_RING} aria-invalid:bg-destructive/10 aria-invalid:ring-2 aria-invalid:ring-destructive/40 aria-invalid:focus-visible:ring-destructive`,
+        soft: `rounded-lg bg-foreground/5 hover:bg-foreground/8 focus-visible:bg-foreground/8 ${FOCUS_RING} aria-invalid:bg-destructive/10 aria-invalid:ring-2 aria-invalid:ring-destructive/40 aria-invalid:focus-visible:ring-destructive`,
       },
     },
     defaultVariants: {

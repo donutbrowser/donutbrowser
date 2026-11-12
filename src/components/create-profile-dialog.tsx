@@ -5,7 +5,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { motion } from "motion/react";
 import type * as React from "react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   LuCheck,
@@ -28,10 +35,13 @@ import {
   LuTriangleAlert,
   LuX,
 } from "react-icons/lu";
+import {
+  nextProfileName,
+  useCreateWhenBrowserReady,
+} from "@/components/create-profile-wait";
 import { DnsServerField } from "@/components/dns-server-field";
 import { EphemeralStorageNotice } from "@/components/ephemeral-storage-notice";
 import { LoadingButton } from "@/components/loading-button";
-import { ProfileGlyph } from "@/components/profile-glyph";
 import { ProxyFormDialog } from "@/components/proxy-form-dialog";
 import {
   AnimatedDisclosureChevron,
@@ -154,6 +164,8 @@ interface CreateProfileDialogProps {
   }) => Promise<void>;
   selectedGroupId?: string;
   crossOsUnlocked?: boolean;
+  /** Names already taken, for the "Profile N" the name field starts with. */
+  profileNames?: readonly string[];
 }
 
 export function CreateProfileDialog({
@@ -162,6 +174,7 @@ export function CreateProfileDialog({
   onCreateProfile,
   selectedGroupId,
   crossOsUnlocked = false,
+  profileNames = [],
 }: CreateProfileDialogProps) {
   const { t } = useTranslation();
   const proxyListboxId = useId();
@@ -175,6 +188,9 @@ export function CreateProfileDialog({
   const groupListboxId = useId();
   const groupValueId = useId();
   const [profileName, setProfileName] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  // The "Profile N" the field started with; a template's name replaces it.
+  const prefilledNameRef = useRef("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedProxyId, setSelectedProxyId] = useState<string>();
   const [proxyPopoverOpen, setProxyPopoverOpen] = useState(false);
@@ -223,6 +239,28 @@ export function CreateProfileDialog({
   useEffect(() => {
     if (isOpen) void loadAllowance();
   }, [isOpen, loadAllowance]);
+
+  // The name starts as the next free "Profile N", selected, so typing
+  // replaces it and Create works at once. It is set while rendering the
+  // opening, so the field has it when it mounts and takes the focus.
+  const [openedFor, setOpenedFor] = useState(false);
+  if (isOpen !== openedFor) {
+    setOpenedFor(isOpen);
+    if (isOpen) {
+      const name = nextProfileName(profileNames, (n) =>
+        t("createProfile.defaultName", { n }),
+      );
+      prefilledNameRef.current = name;
+      setProfileName((current) => current || name);
+    }
+  }
+  const selectPrefilledName = (input: HTMLInputElement | null) => {
+    if (input && input.value === prefilledNameRef.current) input.select();
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: opening is the trigger
+  useLayoutEffect(() => {
+    if (isOpen) selectPrefilledName(nameInputRef.current);
+  }, [isOpen]);
 
   // A browser that starts or stops changes whether a fingerprint can be made.
   useEffect(() => {
@@ -371,10 +409,10 @@ export function CreateProfileDialog({
     allowance !== null &&
     (many || appliedTemplate !== null) &&
     count > allowance.remaining;
+  const browserReady = Boolean(creatableVersion) && !downloading;
   const isCreateDisabled =
     !profileName.trim() ||
-    !creatableVersion ||
-    downloading ||
+    (!creatableVersion && !latestVersion && !downloading) ||
     isCreating ||
     hourlyCapReached ||
     closeABrowser ||
@@ -413,6 +451,7 @@ export function CreateProfileDialog({
 
   const handleClose = () => {
     versionRequestRef.current += 1;
+    browserWait.cancel();
     setProfileName("");
     setAdvancedOpen(false);
     setSelectedProxyId(undefined);
@@ -483,7 +522,8 @@ export function CreateProfileDialog({
     setEphemeral(settings.ephemeral === true);
     if (settings.group_id) setDestinationGroupId(settings.group_id);
     if (settings.ephemeral) clearPassword();
-    if (!profileName.trim()) {
+    const name = profileName.trim();
+    if (!name || name === prefilledNameRef.current) {
       setProfileName(settings.name_prefix ?? template.name);
     }
   };
@@ -593,7 +633,7 @@ export function CreateProfileDialog({
   };
 
   const handleCreate = async () => {
-    if (isCreateDisabled || !creatableVersion) return;
+    if (isCreateDisabled) return;
     if (enablePassword && !ephemeral) {
       if (password.length < PASSWORD_MIN_LEN) {
         setPasswordError(
@@ -607,6 +647,10 @@ export function CreateProfileDialog({
       }
     }
     setPasswordError(null);
+    if (!browserReady || !creatableVersion) {
+      browserWait.request();
+      return;
+    }
     if (many || appliedTemplate) {
       await createFromSettings();
       return;
@@ -648,6 +692,14 @@ export function CreateProfileDialog({
       console.error("Failed to download Wayfern:", error);
     }
   };
+
+  const browserWait = useCreateWhenBrowserReady({
+    ready: browserReady,
+    downloading,
+    startDownload: () => void handleDownload(),
+    recheck: async () => (await loadDownloadedVersions("wayfern")).length,
+    create: () => void handleCreate(),
+  });
 
   const updateWayfernConfig = useCallback(
     (key: keyof WayfernConfig, value: unknown) => {
@@ -717,7 +769,7 @@ export function CreateProfileDialog({
     <LoadingButton
       data-slot="profile-create-submit"
       onClick={handleCreate}
-      isLoading={isCreating}
+      isLoading={isCreating || browserWait.waiting}
       disabled={isCreateDisabled}
       className="h-9 rounded-md px-4 transition-[opacity,box-shadow,transform] duration-200"
     >
@@ -778,22 +830,17 @@ export function CreateProfileDialog({
         >
           <motion.div
             data-slot="profile-name-field"
-            className="flex items-center gap-2 rounded-xl bg-foreground/4 p-2 transition-[background-color,box-shadow] duration-150 focus-within:bg-foreground/6 focus-within:ring-2 focus-within:ring-foreground/10 hover:bg-foreground/5"
+            className="flex items-center gap-2 rounded-xl bg-foreground/5 p-2 transition-[background-color,box-shadow] duration-150 focus-within:bg-foreground/8 focus-within:ring-2 focus-within:ring-foreground/10 hover:bg-foreground/8"
             {...rise(0)}
           >
             <label
               htmlFor="profile-name"
-              className="flex min-w-0 flex-1 cursor-text items-center gap-2.5"
+              className="flex min-w-0 flex-1 cursor-text items-center ps-2"
             >
-              <ProfileGlyph
-                seed={profileName}
-                routed={!!selectedProxyId}
-                locked={enablePassword}
-                ephemeral={ephemeral}
-                busy={isCreating}
-              />
               <span className="sr-only">{t("createProfile.profileName")}</span>
               <Input
+                ref={nameInputRef}
+                onFocus={(event) => selectPrefilledName(event.currentTarget)}
                 id="profile-name"
                 variant="bare"
                 autoFocus
@@ -1268,16 +1315,20 @@ export function CreateProfileDialog({
             </motion.p>
           )}
 
-          {downloading ? (
+          {downloading || browserWait.waiting ? (
             <motion.p role="status" className={STATUS_CLASS} {...reveal}>
               <LuLoaderCircle
                 className="size-3.5 shrink-0 animate-spin"
                 aria-hidden="true"
               />
-              {t("createProfile.version.downloading", {
-                browser: "Wayfern",
-                version: latestVersion,
-              })}
+              {browserWait.waiting
+                ? t("createProfile.version.createWhenReady", {
+                    browser: "Wayfern",
+                  })
+                : t("createProfile.version.downloading", {
+                    browser: "Wayfern",
+                    version: latestVersion,
+                  })}
             </motion.p>
           ) : (
             !creatableVersion &&
@@ -1600,7 +1651,7 @@ export function CreateProfileDialog({
                 <>
                   <span
                     aria-hidden="true"
-                    className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-foreground/10"
+                    className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-foreground/12"
                   >
                     <motion.span
                       className="block h-full rounded-full bg-foreground"
@@ -1853,7 +1904,7 @@ interface ProfileCreationAllowance {
 }
 
 const STATUS_CLASS =
-  "flex items-center gap-2 rounded-lg bg-foreground/4 px-3 py-2 text-xs text-muted-foreground";
+  "flex items-center gap-2 rounded-lg bg-foreground/5 px-3 py-2 text-xs text-muted-foreground";
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
 

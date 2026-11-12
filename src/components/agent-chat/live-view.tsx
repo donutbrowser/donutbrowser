@@ -130,7 +130,7 @@ export function LiveView({
         title={label}
         onClick={show}
         className={cn(
-          "flex w-full shrink-0 cursor-pointer items-center gap-3 rounded-2xl bg-foreground/4 p-1.5 pr-3 text-left transition-colors duration-150 hover:bg-foreground/6 motion-reduce:transition-none",
+          "flex w-full shrink-0 cursor-pointer items-center gap-3 rounded-2xl bg-foreground/5 p-1.5 pr-3 text-left transition-colors duration-150 hover:bg-foreground/8 motion-reduce:transition-none",
           FOCUS_RING,
         )}
       >

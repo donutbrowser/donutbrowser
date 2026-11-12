@@ -208,7 +208,7 @@ function ClearOnCloseToggle({
   };
 
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-foreground/4 px-3 py-2">
+    <div className="flex items-center gap-3 rounded-lg bg-foreground/5 px-3 py-2">
       <LuEraser className="size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-sm font-medium">
@@ -247,7 +247,7 @@ function InfoCard({
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          "min-w-0 rounded-lg bg-foreground/4 px-3 py-2.5 text-left transition-colors hover:bg-foreground/7 disabled:opacity-50",
+          "min-w-0 rounded-lg bg-foreground/5 px-3 py-2.5 text-left transition-colors hover:bg-foreground/8 disabled:opacity-50",
           FOCUS_RING,
         )}
       >
@@ -256,7 +256,7 @@ function InfoCard({
       </button>
     );
   return (
-    <div className="rounded-lg bg-foreground/4 px-3 py-2.5">
+    <div className="rounded-lg bg-foreground/5 px-3 py-2.5">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-0.5 break-words text-sm">{value}</p>
     </div>
@@ -1105,16 +1105,10 @@ type ProfileSection =
   | "overview"
   | "fingerprint"
   | "network"
-  | "startPages"
-  | "cookies"
-  | "extensions"
-  | "sync"
-  | "automation"
-  | "requests"
-  | "logs"
-  | "transfer"
+  | "launch"
+  | "data"
   | "security"
-  | "twoFactor";
+  | "activity";
 
 function ProfileInfoLayout({
   section: requestedSection,
@@ -1211,6 +1205,13 @@ function ProfileInfoLayout({
     };
   }, [profile.id, cookiesSupported, isRunning]);
 
+  const showCookies = !!cookiesAction || (isEphemeral && isWayfernProfile);
+  const showExtensions = !!extensionAction || isEphemeral;
+  const showSync = !!syncAction || isEphemeral;
+  // Nothing to carry: an ephemeral profile keeps no data between launches
+  // and a temporary one is deleted when its browser stops.
+  const showTransfer = !isEphemeral && profile.temporary !== true;
+
   const sidebarItems: {
     id: ProfileSection;
     icon: React.ReactNode;
@@ -1240,60 +1241,24 @@ function ProfileInfoLayout({
       badge: profile.proxy_id || profile.vpn_id ? networkLabel : undefined,
     },
     {
-      id: "startPages",
+      id: "launch",
       icon: <LuHouse className="size-3.5" />,
-      label: t("profileInfo.sections.startPages"),
-      badge: profile.start_urls?.length
-        ? String(profile.start_urls.length)
-        : undefined,
+      label: t("profileInfo.sections.launch"),
+      badge: profile.launch_hook
+        ? t("profileInfo.badges.active")
+        : profile.start_urls?.length
+          ? String(profile.start_urls.length)
+          : (extensionGroupName ?? undefined),
     },
     {
-      id: "cookies",
+      id: "data",
       icon: <LuCookie className="size-3.5" />,
-      label: t("profileInfo.sections.cookies"),
+      label: t("profileInfo.sections.data"),
       badge:
         cookieCount !== null && cookieCount > 0
           ? cookieCount.toLocaleString()
           : undefined,
-      hidden: !cookiesAction && !(isEphemeral && isWayfernProfile),
-    },
-    {
-      id: "extensions",
-      icon: <LuPuzzle className="size-3.5" />,
-      label: t("profileInfo.sections.extensions"),
-      badge: extensionGroupName ?? undefined,
-      hidden: !extensionAction && !isEphemeral,
-    },
-    {
-      id: "sync",
-      icon: <LuRefreshCw className="size-3.5" />,
-      label: t("profileInfo.sections.sync"),
-      hidden: !syncAction && !isEphemeral,
-    },
-    {
-      id: "automation",
-      icon: <LuLink className="size-3.5" />,
-      label: t("profileInfo.sections.launchHook"),
-      badge: profile.launch_hook ? t("profileInfo.badges.active") : undefined,
-    },
-    {
-      id: "requests",
-      icon: <LuActivity className="size-3.5" />,
-      label: t("profileInfo.sections.requests"),
-      hidden: !isWayfernProfile,
-    },
-    {
-      id: "logs",
-      icon: <LuScrollText className="size-3.5" />,
-      label: t("profileInfo.sections.logs"),
-    },
-    {
-      id: "transfer",
-      icon: <LuDownload className="size-3.5" />,
-      label: t("profileInfo.sections.transfer"),
-      // Nothing to carry: an ephemeral profile keeps no data between launches
-      // and a temporary one is deleted when its browser stops.
-      hidden: isEphemeral || profile.temporary === true,
+      hidden: !showCookies && !showSync && !showTransfer,
     },
     {
       id: "security",
@@ -1301,9 +1266,9 @@ function ProfileInfoLayout({
       label: t("profileInfo.sections.security"),
     },
     {
-      id: "twoFactor",
-      icon: <LuKeyRound className="size-3.5" />,
-      label: t("profileInfo.sections.twoFactor"),
+      id: "activity",
+      icon: <LuActivity className="size-3.5" />,
+      label: t("profileInfo.sections.activity"),
     },
   ];
   const section = sidebarItems.some(
@@ -1332,16 +1297,12 @@ function ProfileInfoLayout({
     <SoftFields>
       {/* Top bar */}
       <div className="flex min-h-11 shrink-0 items-center gap-1.5 px-3 py-2">
-        <LuUsers className="size-3.5 shrink-0 text-muted-foreground" />
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs">
-          <span className="font-semibold">
-            {t("profileInfo.breadcrumbRoot")}
-          </span>
-          <span className="text-muted-foreground">/</span>
-          <span className="truncate text-muted-foreground" title={profile.name}>
-            {profile.name}
-          </span>
-        </div>
+        <p
+          className="min-w-0 flex-1 truncate px-1 text-xs font-semibold"
+          title={profile.name}
+        >
+          {profile.name}
+        </p>
         {canRunRemote && <RunInCloudButton profile={profile} />}
         {onToggleRun && (
           <RunToggleButton
@@ -1371,7 +1332,7 @@ function ProfileInfoLayout({
           aria-label={t("profileInfo.aria.close", { name: profile.name })}
           onClick={onClose}
           className={cn(
-            "grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors duration-100 hover:bg-foreground/6 hover:text-foreground",
+            "grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors duration-100 hover:bg-foreground/8 hover:text-foreground",
             FOCUS_RING,
           )}
         >
@@ -1500,7 +1461,7 @@ function ProfileInfoLayout({
                 )}
 
                 {/* ID */}
-                <div className="flex items-center gap-2 rounded-lg bg-foreground/4 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-3 py-2">
                   <span className="shrink-0 text-xs font-medium text-muted-foreground">
                     {t("profiles.table.profileId")}
                   </span>
@@ -1606,7 +1567,7 @@ function ProfileInfoLayout({
                 )}
 
                 {profile.created_by_email && (
-                  <div className="rounded-lg bg-foreground/4 px-3 py-2">
+                  <div className="rounded-lg bg-foreground/5 px-3 py-2">
                     <p className="text-xs font-medium text-muted-foreground">
                       {t("sync.team.title")}
                     </p>
@@ -1639,145 +1600,152 @@ function ProfileInfoLayout({
               />
             )}
 
-            {section === "startPages" && (
-              <StartPagesEditor
-                profile={profile}
-                isDisabled={isDisabled}
-                t={t}
-              />
+            {section === "launch" && (
+              <div className="flex flex-col gap-8">
+                <StartPagesEditor
+                  profile={profile}
+                  isDisabled={isDisabled}
+                  t={t}
+                />
+                {showExtensions &&
+                  (isEphemeral ? (
+                    <EphemeralSectionNotice
+                      title={t("profileInfo.sections.extensions")}
+                      description={t(
+                        "profileInfo.ephemeral.extensionsUnavailable",
+                      )}
+                      t={t}
+                    />
+                  ) : (
+                    <ExtensionsSectionInline
+                      profile={profile}
+                      isDisabled={isDisabled}
+                      t={t}
+                    />
+                  ))}
+                <div className="flex flex-col gap-5">
+                  {isWayfernProfile && (
+                    <DebugEndpointBlock
+                      profile={profile}
+                      isRunning={runningHere}
+                    />
+                  )}
+                  <LaunchHookEditor profile={profile} t={t} />
+                  {synchronizerAction && (
+                    <Button
+                      data-slot="profile-start-synchronizer"
+                      variant="soft"
+                      size="sm"
+                      className="h-auto min-h-8 self-start whitespace-normal"
+                      onClick={synchronizerAction.onClick}
+                      disabled={synchronizerAction.disabled}
+                    >
+                      {synchronizerAction.icon}
+                      {synchronizerAction.label}
+                    </Button>
+                  )}
+                </div>
+              </div>
             )}
 
-            {section === "cookies" &&
-              (isEphemeral ? (
-                <EphemeralSectionNotice
-                  title={t("profileInfo.sections.cookies")}
-                  description={t("profileInfo.ephemeral.cookiesUnavailable")}
-                  t={t}
-                />
-              ) : (
-                <CookiesSectionInline
-                  profile={profile}
-                  isRunning={isRunning}
-                  isDisabled={isDisabled}
-                  onCopyCookies={cookiesCopyAction?.onClick}
-                  onImportCookies={cookiesManageAction?.onClick}
-                  t={t}
-                />
-              ))}
-
-            {section === "extensions" &&
-              (isEphemeral ? (
-                <EphemeralSectionNotice
-                  title={t("profileInfo.sections.extensions")}
-                  description={t("profileInfo.ephemeral.extensionsUnavailable")}
-                  t={t}
-                />
-              ) : (
-                <ExtensionsSectionInline
-                  profile={profile}
-                  isDisabled={isDisabled}
-                  t={t}
-                />
-              ))}
-
-            {section === "sync" &&
-              (isEphemeral ? (
-                <EphemeralSectionNotice
-                  title={t("profileInfo.sections.sync")}
-                  description={t("profileInfo.ephemeral.syncUnavailable")}
-                  t={t}
-                />
-              ) : (
-                <SyncSectionInline
-                  profile={profile}
-                  syncMode={syncMode}
-                  syncStatus={syncStatus}
-                  isDisabled={isDisabled}
-                  t={t}
-                />
-              ))}
-
-            {section === "automation" && (
-              <div className="flex flex-col gap-5">
-                {isWayfernProfile && (
-                  <DebugEndpointBlock
-                    profile={profile}
-                    isRunning={runningHere}
-                  />
+            {section === "data" && (
+              <div className="flex flex-col gap-8">
+                {showCookies &&
+                  (isEphemeral ? (
+                    <EphemeralSectionNotice
+                      title={t("profileInfo.sections.cookies")}
+                      description={t(
+                        "profileInfo.ephemeral.cookiesUnavailable",
+                      )}
+                      t={t}
+                    />
+                  ) : (
+                    <CookiesSectionInline
+                      profile={profile}
+                      isRunning={isRunning}
+                      isDisabled={isDisabled}
+                      onCopyCookies={cookiesCopyAction?.onClick}
+                      onImportCookies={cookiesManageAction?.onClick}
+                      t={t}
+                    />
+                  ))}
+                {showSync &&
+                  (isEphemeral ? (
+                    <EphemeralSectionNotice
+                      title={t("profileInfo.sections.sync")}
+                      description={t("profileInfo.ephemeral.syncUnavailable")}
+                      t={t}
+                    />
+                  ) : (
+                    <SyncSectionInline
+                      profile={profile}
+                      syncMode={syncMode}
+                      syncStatus={syncStatus}
+                      isDisabled={isDisabled}
+                      t={t}
+                    />
+                  ))}
+                {showTransfer && (
+                  <div className="flex flex-col gap-3">
+                    <SectionHeader
+                      icon={<LuDownload className="size-4" />}
+                      title={t("profileInfo.sections.transfer")}
+                    />
+                    <ExportProfileSection
+                      profile={profile}
+                      isRunning={isRunning}
+                    />
+                  </div>
                 )}
-                <LaunchHookEditor profile={profile} t={t} />
-                {synchronizerAction && (
-                  <Button
-                    data-slot="profile-start-synchronizer"
-                    variant="soft"
-                    size="sm"
-                    className="h-auto min-h-8 self-start whitespace-normal"
-                    onClick={synchronizerAction.onClick}
-                    disabled={synchronizerAction.disabled}
-                  >
-                    {synchronizerAction.icon}
-                    {synchronizerAction.label}
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {section === "requests" && (
-              <div className="flex flex-col gap-3">
-                <SectionHeader
-                  icon={<LuActivity className="size-4" />}
-                  title={t("profileInfo.sections.requests")}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("profileInfo.sectionDesc.requests")}
-                </p>
-                <NetworkRequestsPanel
-                  profileId={profile.id}
-                  running={runningHere}
-                />
-              </div>
-            )}
-
-            {section === "logs" && (
-              <div className="flex flex-col gap-3">
-                <SectionHeader
-                  icon={<LuScrollText className="size-4" />}
-                  title={t("profileInfo.sections.logs")}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("profileInfo.sectionDesc.logs")}
-                </p>
-                <LogViewer profileId={profile.id} />
-              </div>
-            )}
-
-            {section === "transfer" && (
-              <div className="flex flex-col gap-3">
-                <SectionHeader
-                  icon={<LuDownload className="size-4" />}
-                  title={t("profileInfo.sections.transfer")}
-                />
-                <ExportProfileSection profile={profile} isRunning={isRunning} />
               </div>
             )}
 
             {section === "security" && (
-              <SecuritySectionInline
-                profile={profile}
-                isRunning={isRunning}
-                canLock={canLock}
-                onLock={() => void lockNow()}
-                t={t}
-              />
+              <div className="flex flex-col gap-8">
+                <SecuritySectionInline
+                  profile={profile}
+                  isRunning={isRunning}
+                  canLock={canLock}
+                  onLock={() => void lockNow()}
+                  t={t}
+                />
+                <div className="flex flex-col gap-3">
+                  <SectionHeader
+                    icon={<LuKeyRound className="size-4" />}
+                    title={t("profileInfo.sections.twoFactor")}
+                  />
+                  <ProfileTotpSection profileId={profile.id} />
+                </div>
+              </div>
             )}
 
-            {section === "twoFactor" && (
-              <div className="flex flex-col gap-3">
-                <SectionHeader
-                  icon={<LuKeyRound className="size-4" />}
-                  title={t("profileInfo.sections.twoFactor")}
-                />
-                <ProfileTotpSection profileId={profile.id} />
+            {section === "activity" && (
+              <div className="flex flex-col gap-8">
+                {isWayfernProfile && (
+                  <div className="flex flex-col gap-3">
+                    <SectionHeader
+                      icon={<LuActivity className="size-4" />}
+                      title={t("profileInfo.sections.requests")}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("profileInfo.sectionDesc.requests")}
+                    </p>
+                    <NetworkRequestsPanel
+                      profileId={profile.id}
+                      running={runningHere}
+                    />
+                  </div>
+                )}
+                <div className="flex flex-col gap-3">
+                  <SectionHeader
+                    icon={<LuScrollText className="size-4" />}
+                    title={t("profileInfo.sections.logs")}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("profileInfo.sectionDesc.logs")}
+                  </p>
+                  <LogViewer profileId={profile.id} />
+                </div>
               </div>
             )}
           </motion.div>
@@ -2057,7 +2025,7 @@ function SyncSectionInline({
         </Select>
       </div>
       {syncStatus && (
-        <div className="rounded-lg bg-foreground/4 px-3 py-2">
+        <div className="rounded-lg bg-foreground/5 px-3 py-2">
           <p className="text-xs font-medium text-muted-foreground">
             {t("profileInfo.fields.syncStatus")}
           </p>
@@ -2335,7 +2303,7 @@ function EphemeralSectionNotice({
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-lg bg-foreground/4 p-6 text-center">
+    <div className="flex flex-col items-center gap-3 rounded-lg bg-foreground/5 p-6 text-center">
       <LuTimer className="size-4 shrink-0 text-muted-foreground" />
       <h3 className="text-sm font-medium text-foreground">{title}</h3>
       <p className="max-w-[48ch] text-sm text-pretty text-muted-foreground">
@@ -2619,14 +2587,14 @@ function CookiesSectionInline({
         {t("profileInfo.sectionDesc.cookies")}
       </p>
       {isRunning ? (
-        <div className="rounded-lg bg-foreground/4 px-3 py-2">
+        <div className="rounded-lg bg-foreground/5 px-3 py-2">
           <p className="text-xs text-muted-foreground">
             {t("profileInfo.cookies.runningNotice")}
           </p>
         </div>
       ) : (
         <>
-          <div className="rounded-lg bg-foreground/4 px-3 py-2">
+          <div className="rounded-lg bg-foreground/5 px-3 py-2">
             <p className="text-xs font-medium text-muted-foreground">
               {t("profileInfo.fields.cookieCount")}
             </p>
@@ -2646,8 +2614,8 @@ function CookiesSectionInline({
             />
           )}
           {domains.length > 0 && (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-foreground/4">
-              <p className="shrink-0 border-b border-foreground/6 px-3 py-2 text-xs font-medium text-muted-foreground">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-foreground/5">
+              <p className="shrink-0 border-b border-foreground/8 px-3 py-2 text-xs font-medium text-muted-foreground">
                 {t("profileInfo.cookies.domainsHeader", {
                   count: domains.length,
                 })}
@@ -2772,7 +2740,7 @@ function StorageStateBlock({
   return (
     <div
       data-slot="profile-storage-state"
-      className="flex items-center justify-between gap-3 rounded-lg bg-foreground/4 px-3 py-2"
+      className="flex items-center justify-between gap-3 rounded-lg bg-foreground/5 px-3 py-2"
     >
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground">
@@ -2948,7 +2916,7 @@ function FingerprintSectionInline({
         />
       ) : (
         <>
-          <div className="flex flex-col items-center gap-3 rounded-lg bg-foreground/4 p-6 text-center">
+          <div className="flex flex-col items-center gap-3 rounded-lg bg-foreground/5 p-6 text-center">
             <LuLock className="size-4 shrink-0 text-muted-foreground" />
             <h3 className="text-sm font-medium text-foreground">
               {t("profileInfo.fingerprint.lockedTitle")}
@@ -3126,7 +3094,7 @@ function SecuritySectionInline({
       {canLock && (
         <div
           data-slot="profile-unlocked"
-          className="flex items-center gap-3 rounded-lg bg-foreground/4 px-3 py-2"
+          className="flex items-center gap-3 rounded-lg bg-foreground/5 px-3 py-2"
         >
           <LuLockOpen className="size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
@@ -3176,7 +3144,7 @@ function SecuritySectionInline({
               "h-8 flex-1 rounded-lg px-2 text-xs transition-colors",
               FOCUS_RING,
               mode === "change"
-                ? "bg-foreground/10 text-foreground"
+                ? "bg-foreground/12 text-foreground"
                 : "bg-foreground/5 text-muted-foreground hover:bg-foreground/8 hover:text-foreground",
             )}
           >

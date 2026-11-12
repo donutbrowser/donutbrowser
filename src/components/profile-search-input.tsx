@@ -823,7 +823,7 @@ export function ProfileSearchInput({
             <span
               aria-hidden="true"
               data-resize-edge="fill"
-              className="pointer-events-none absolute inset-0 origin-left rounded-lg bg-foreground/5 transition-[background-color,box-shadow] duration-200 ease-out group-focus-within/search:bg-foreground/7 group-focus-within/search:ring-2 group-focus-within/search:ring-foreground/15 group-hover/search:bg-foreground/7 motion-reduce:transition-none"
+              className="pointer-events-none absolute inset-0 origin-left rounded-lg bg-foreground/5 transition-[background-color,box-shadow] duration-200 ease-out group-focus-within/search:bg-foreground/8 group-focus-within/search:ring-2 group-focus-within/search:ring-foreground/15 group-hover/search:bg-foreground/8 motion-reduce:transition-none"
             />
             <LuSearch
               data-resize-edge="start"
@@ -918,7 +918,7 @@ export function ProfileSearchInput({
                 data-resize-edge="end"
                 onBlur={(event) => collapseUnlessWithin(event.relatedTarget)}
                 className={cn(
-                  "absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-0.5 transition-colors hover:bg-foreground/10",
+                  "absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-0.5 transition-colors hover:bg-foreground/12",
                   FOCUS_RING,
                 )}
                 aria-label={t("header.clearSearch")}

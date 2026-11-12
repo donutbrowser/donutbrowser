@@ -49,7 +49,7 @@ const STATE_CLASS: Record<AgentProfileState, string> = {
   held: "bg-primary/10 text-primary-text",
   working: "bg-success/10 text-success-text",
   error: "bg-destructive/10 text-destructive-text",
-  idle: "bg-foreground/6 text-muted-foreground",
+  idle: "bg-foreground/8 text-muted-foreground",
 };
 
 export function AgentProfiles({

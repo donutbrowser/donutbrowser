@@ -363,7 +363,7 @@ function RunRow({
             <div id={detailId}>
               <AnimatedDisclosureContent
                 open={expanded}
-                className="mx-2 mb-2 flex flex-col gap-1 rounded-lg bg-foreground/3 px-3 py-2.5 text-xs text-muted-foreground"
+                className="mx-2 mb-2 flex flex-col gap-1 rounded-lg bg-foreground/5 px-3 py-2.5 text-xs text-muted-foreground"
               >
                 {run.outcome_code && (
                   <span className="text-foreground">
@@ -419,7 +419,7 @@ function LiveSessions({
 
   if (live.length === 0) {
     return (
-      <div className="flex shrink-0 items-center gap-2.5 rounded-xl bg-foreground/3 px-4 py-3">
+      <div className="flex shrink-0 items-center gap-2.5 rounded-xl bg-foreground/5 px-4 py-3">
         <StatusDot tone={streamConnected ? "muted" : "warning"} />
         <span className="text-sm text-muted-foreground">
           {streamConnected
@@ -519,11 +519,11 @@ function LiveSessionRow({
   return (
     <div
       data-slot="cookie-bot-live-session"
-      className="flex flex-col gap-2.5 rounded-xl bg-foreground/3 px-4 py-3"
+      className="flex flex-col gap-2.5 rounded-xl bg-foreground/5 px-4 py-3"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <StatusDot tone={tone} pulse={session.state === "provisioning"} />
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-foreground">
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
           {name ?? t("cookieBot.live.unnamedSession")}
         </span>
 

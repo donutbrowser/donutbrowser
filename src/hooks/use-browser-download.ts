@@ -3,9 +3,8 @@ import type { Event as TauriEvent } from "@tauri-apps/api/event";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import i18n from "@/i18n";
-import { translateBackendError } from "@/lib/backend-errors";
+import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
 import { getBrowserDisplayName } from "@/lib/browser-utils";
-import { isOnboardingActive } from "@/lib/onboarding-signal";
 import {
   dismissToast,
   showDownloadToast,
@@ -40,6 +39,41 @@ interface DownloadProgress {
   eta_seconds?: number;
   stage: string;
   error?: string;
+}
+
+/**
+ * A failed download, with Retry. The reason is shown only when the backend
+ * coded it; raw text such as a network library's message never reaches the
+ * person.
+ */
+function showDownloadErrorToast(
+  title: string,
+  error: unknown,
+  fallback: string,
+  id: string,
+  retry: () => void,
+) {
+  showErrorToast(title, {
+    id,
+    description: parseBackendError(error)
+      ? translateBackendError(i18n.t, error)
+      : fallback,
+    duration: 8000,
+    action: {
+      label: i18n.t("common.buttons.retry"),
+      onClick: () => {
+        dismissToast(id);
+        retry();
+      },
+    },
+  });
+}
+
+/** Starts the app's own download of the active browsers again. */
+function retryActiveBrowsers() {
+  invoke("ensure_active_browsers_downloaded").catch((err: unknown) => {
+    console.error("Failed to restart the browser download:", err);
+  });
 }
 
 interface BrowserVersionsResult {
@@ -239,32 +273,28 @@ export function useBrowserDownload() {
       } catch (error) {
         console.error("Failed to download browser:", error);
 
-        if (!suppressNotifications) {
+        // A download already running reports through its own toasts.
+        const inFlight = String(error).includes("is already being downloaded");
+        if (!suppressNotifications && !inFlight) {
           // Dismiss any existing download toast and show error
           dismissToast(`download-${browserStr}-${version}`);
 
-          let errorMessage = i18n.t("common.errors.unknown");
-          if (error instanceof Error) {
-            errorMessage = error.message;
-          } else if (typeof error === "string") {
-            errorMessage = error;
-          } else if (error && typeof error === "object" && "message" in error) {
-            errorMessage = String(error.message);
-          }
-
-          // Ensure the long-running download toast is dismissed, and show a finite error toast
-          dismissToast(`download-${browserStr}-${version}`);
           // Same id as the progress listener's error toast, so the concrete
           // backend message replaces the generic one instead of stacking on it.
-          showErrorToast(
+          showDownloadErrorToast(
             i18n.t("browserDownload.toast.downloadFailed", {
               browser: browserName,
               version,
             }),
-            {
-              id: `download-error-${browserStr}-${version}`,
-              description: errorMessage,
-              duration: 8000,
+            error,
+            i18n.t("browserDownload.toast.downloadFailedDescription"),
+            `download-error-${browserStr}-${version}`,
+            () => {
+              invoke("download_browser", { browserStr, version }).catch(
+                (err: unknown) => {
+                  console.error("Failed to retry the download:", err);
+                },
+              );
             },
           );
         }
@@ -344,46 +374,38 @@ export function useBrowserDownload() {
                 : i18n.t("browserDownload.toast.calculating");
 
               const toastId = `download-${browserName.toLowerCase()}-${progress.version}`;
-              // During first-run onboarding the welcome dialog shows browser
-              // setup progress itself, so suppress the global download toast.
-              if (!isOnboardingActive()) {
-                showDownloadToast(
-                  browserName,
-                  progress.version,
-                  "downloading",
-                  {
-                    percentage: progress.percentage,
-                    speed: speedMBps,
-                    eta: etaText,
+              showDownloadToast(
+                browserName,
+                progress.version,
+                "downloading",
+                {
+                  percentage: progress.percentage,
+                  speed: speedMBps,
+                  eta: etaText,
+                },
+                {
+                  onCancel: () => {
+                    invoke("cancel_download", {
+                      browserStr: progress.browser,
+                      version: progress.version,
+                    }).catch((err) => {
+                      console.error("Failed to cancel download:", err);
+                    });
+                    dismissToast(toastId);
                   },
-                  {
-                    onCancel: () => {
-                      invoke("cancel_download", {
-                        browserStr: progress.browser,
-                        version: progress.version,
-                      }).catch((err) => {
-                        console.error("Failed to cancel download:", err);
-                      });
-                      dismissToast(toastId);
-                    },
-                  },
-                );
-              }
+                },
+              );
             } else if (progress.stage === "extracting") {
-              if (!isOnboardingActive()) {
-                showDownloadToast(
-                  browserName,
-                  progress.version,
-                  "extracting",
-                  progress.percentage > 0
-                    ? { percentage: progress.percentage }
-                    : undefined,
-                );
-              }
+              showDownloadToast(
+                browserName,
+                progress.version,
+                "extracting",
+                progress.percentage > 0
+                  ? { percentage: progress.percentage }
+                  : undefined,
+              );
             } else if (progress.stage === "verifying") {
-              if (!isOnboardingActive()) {
-                showDownloadToast(browserName, progress.version, "verifying");
-              }
+              showDownloadToast(browserName, progress.version, "verifying");
             } else if (progress.stage === "cancelled") {
               setDownloadingBrowsers((prev) => {
                 const next = new Set(prev);
@@ -404,32 +426,26 @@ export function useBrowserDownload() {
                 `download-${browserName.toLowerCase()}-${progress.version}`,
               );
               setDownloadProgress(null);
-              // During first-run onboarding the welcome dialog surfaces a
-              // concrete setup error itself, so suppress the global toast.
-              if (!isOnboardingActive()) {
-                const wasExtracting = interruptedStage === "extracting";
-                showErrorToast(
-                  i18n.t(
-                    wasExtracting
-                      ? "browserDownload.toast.extractionFailed"
-                      : "browserDownload.toast.downloadFailed",
-                    {
-                      browser: browserName,
-                      version: progress.version,
-                    },
-                  ),
+              const wasExtracting = interruptedStage === "extracting";
+              showDownloadErrorToast(
+                i18n.t(
+                  wasExtracting
+                    ? "browserDownload.toast.extractionFailed"
+                    : "browserDownload.toast.downloadFailed",
                   {
-                    id: `download-error-${progress.browser}-${progress.version}`,
-                    description: progress.error
-                      ? translateBackendError(i18n.t, progress.error)
-                      : i18n.t(
-                          wasExtracting
-                            ? "browserDownload.toast.extractionFailedDescription"
-                            : "browserDownload.toast.downloadFailedDescription",
-                        ),
+                    browser: browserName,
+                    version: progress.version,
                   },
-                );
-              }
+                ),
+                progress.error,
+                i18n.t(
+                  wasExtracting
+                    ? "browserDownload.toast.extractionFailedDescription"
+                    : "browserDownload.toast.downloadFailedDescription",
+                ),
+                `download-error-${progress.browser}-${progress.version}`,
+                retryActiveBrowsers,
+              );
             } else if (progress.stage === "completed") {
               setDownloadingBrowsers((prev) => {
                 const next = new Set(prev);
@@ -441,9 +457,7 @@ export function useBrowserDownload() {
               } catch {
                 /* empty */
               }
-              if (!isOnboardingActive()) {
-                showDownloadToast(browserName, progress.version, "completed");
-              }
+              showDownloadToast(browserName, progress.version, "completed");
               setDownloadProgress(null);
             }
           },
