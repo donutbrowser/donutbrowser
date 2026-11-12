@@ -11,6 +11,7 @@ import {
   oversizedExtensionZipBase64,
   writeUnpackedExtension,
 } from "../lib/fixtures.mjs";
+import { mcpClient } from "../lib/mcp.mjs";
 
 const VLESS_URI =
   "vless://6d6e21a1-4829-4d2b-bc7f-1b25707b61e4@127.0.0.1:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.example.com&fp=chrome&pbk=BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc&sid=0123456789abcdef&spx=%2F&type=tcp&headerType=none#MCP";
@@ -780,6 +781,144 @@ test("authenticated REST API serves its complete OpenAPI contract and CRUD lifec
     assert.equal(stoppedDiagnostic.configured, true);
     assert.equal(stoppedDiagnostic.reachable, false);
     assert.equal(stoppedDiagnostic.authorized, null);
+  });
+});
+
+test("MCP tools keep statuses, templates and storage state, and say what cloud sync needs", async () => {
+  await withApp("integrations-mcp-profile-tools", async (app) => {
+    await seedTerms(app);
+    const settings = await app.invoke("get_app_settings");
+    const saved = await app.invoke("save_app_settings", {
+      settings: {
+        ...settings,
+        api_enabled: true,
+        api_port: 0,
+        api_token: null,
+        onboarding_completed: true,
+      },
+    });
+    const port = await app.invoke("start_api_server", { port: 0 });
+    const profile = await app.invoke("create_browser_profile_new", {
+      name: "MCP Tools Profile",
+      browserStr: "wayfern",
+      version: "150.0.7871.100",
+      releaseType: "stable",
+      proxyId: null,
+      vpnId: null,
+      wayfernConfig: { fingerprint: "{}" },
+      groupId: null,
+      ephemeral: false,
+      dnsBlocklist: null,
+      launchHook: null,
+    });
+    const { mcp, tool, toolJson, toolError } = await mcpClient(
+      `http://127.0.0.1:${port}`,
+      saved.api_token,
+      profile.id,
+    );
+    const listed = (await mcp("tools/list", {})).tools.map((t) => t.name);
+    for (const name of [
+      "set_profile_cloud_sync",
+      "create_profile_status",
+      "update_profile_status",
+      "delete_profile_status",
+      "create_profile_template",
+      "update_profile_template",
+      "delete_profile_template",
+      "export_profile_storage_state",
+      "import_profile_storage_state",
+    ]) {
+      assert.ok(listed.includes(name), `${name} is not listed`);
+    }
+
+    const status = await toolJson("create_profile_status", {
+      name: "Warming",
+      color: "#22aa66",
+    });
+    assert.equal(status.name, "Warming");
+    const renamed = await toolJson("update_profile_status", {
+      status_id: status.id,
+      name: "Warm",
+      color: "#22aa66",
+    });
+    assert.equal(renamed.name, "Warm");
+    assert.equal(
+      (
+        await toolError("create_profile_status", {
+          name: "warm",
+          color: "#000000",
+        })
+      ).data.code,
+      "PROFILE_STATUS_EXISTS",
+    );
+    await tool("delete_profile_status", { status_id: status.id });
+    assert.ok(
+      !(await app.invoke("list_profile_statuses")).some(
+        (s) => s.id === status.id,
+      ),
+    );
+
+    const template = await toolJson("create_profile_template", {
+      name: "Shop",
+      settings: { tags: ["shop"], dns_blocklist: "ultimate" },
+    });
+    assert.deepEqual(template.settings.tags, ["shop"]);
+    const replaced = await toolJson("update_profile_template", {
+      template_id: template.id,
+      name: "Shop EU",
+      settings: { tags: ["eu"] },
+    });
+    assert.equal(replaced.name, "Shop EU");
+    assert.deepEqual(replaced.settings.tags, ["eu"]);
+    await tool("delete_profile_template", { template_id: template.id });
+    assert.equal(
+      (await toolError("delete_profile_template", { template_id: template.id }))
+        .data.code,
+      "TEMPLATE_NOT_FOUND",
+    );
+
+    const imported = await toolJson("import_profile_storage_state", {
+      storage_state: {
+        cookies: [],
+        origins: [
+          {
+            origin: "https://shop.example.com",
+            localStorage: [{ name: "cart", value: "3" }],
+          },
+          {
+            origin: "https://other.example.org",
+            localStorage: [{ name: "seen", value: "yes" }],
+          },
+        ],
+      },
+    });
+    assert.equal(imported.items, 2);
+    const exported = await toolJson("export_profile_storage_state", {
+      origins: ["shop.example.com"],
+    });
+    assert.deepEqual(exported.origins, [
+      {
+        origin: "https://shop.example.com",
+        localStorage: [{ name: "cart", value: "3" }],
+      },
+    ]);
+
+    const refused = await toolError("set_profile_cloud_sync", {
+      mode: "Regular",
+    });
+    assert.equal(refused.data.code, "SYNC_NOT_CONFIGURED");
+    const off = await toolJson("set_profile_cloud_sync", { mode: "Disabled" });
+    assert.equal(off.mode, "Disabled");
+    assert.equal(off.remote_launchable, false);
+    assert.equal(off.cookie_bot_ready, false);
+    assert.equal(
+      off.cookie_bot_blocked_reason,
+      "COOKIE_BOT_REQUIRES_CLOUD_SYNC",
+    );
+    assert.equal(
+      (await toolError("set_profile_cloud_sync", { mode: "Sometimes" })).code,
+      -32602,
+    );
   });
 });
 

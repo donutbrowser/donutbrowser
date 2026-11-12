@@ -265,6 +265,7 @@ fn tool_hints(name: &str) -> Option<ToolHints> {
     | "wait_for_human"
     | "list_tabs"
     | "list_downloads"
+    | "export_profile_storage_state"
     | "pick_element" => READS,
     "get_dialog" => READS_PAGE,
     "screenshot"
@@ -283,6 +284,8 @@ fn tool_hints(name: &str) -> Option<ToolHints> {
     | "import_vpn"
     | "add_extension"
     | "create_extension_group"
+    | "create_profile_status"
+    | "create_profile_template"
     | "start_sync_session"
     | "ask_human"
     | "request_human_help"
@@ -300,6 +303,11 @@ fn tool_hints(name: &str) -> Option<ToolHints> {
     | "update_profile_fingerprint"
     | "update_profile_proxy_bypass_rules"
     | "update_profile_dns_blocklist"
+    | "update_profile_status"
+    | "delete_profile_status"
+    | "update_profile_template"
+    | "delete_profile_template"
+    | "import_profile_storage_state"
     | "update_extension"
     | "update_extension_group"
     | "remove_extension_from_group"
@@ -314,6 +322,7 @@ fn tool_hints(name: &str) -> Option<ToolHints> {
     | "close_tab" => CHANGES,
     "distribute_proxies" | "import_profile_cookies" => hints(false, true, false, false),
     "rotate_proxy_ip" => hints(false, true, false, true),
+    "set_profile_cloud_sync" => hints(false, true, true, true),
     "run_actions"
     | "press_key"
     | "evaluate_javascript"
@@ -5133,7 +5142,7 @@ impl McpServer {
   }
 
   pub fn get_tools(&self) -> Vec<McpTool> {
-    vec![
+    let mut tools = vec![
       McpTool {
         name: "list_profiles".to_string(),
         description: "List Wayfern browser profiles as short summaries: id, name, group, tags, status, route (proxy or VPN, with names), running (local, remote or stopped), last launch and note. Filter with query, group, tag and running; page with limit and cursor. Use get_profile for one profile's settings and get_profile_fingerprint for its device.".to_string(),
@@ -6715,7 +6724,7 @@ impl McpServer {
       // GUI — which is no use to an MCP client running on its own.
       McpTool {
         name: "run_profile_remote".to_string(),
-        description: "Start this profile on a remote host (Linux for a Wayfern profile, otherwise the profile's own operating system). The profile must have Regular cloud sync enabled. Returns a session id; poll get_remote_session until state is 'live', then drive it with navigate, screenshot, click_element and the rest exactly as you would a local profile.".to_string(),
+        description: "Start this profile on a remote host (Linux for a Wayfern profile, otherwise the profile's own operating system). The profile must have Regular cloud sync (set_profile_cloud_sync). Returns a session id; poll get_remote_session until state is 'live', then drive it with navigate, screenshot, click_element and the rest exactly as you would a local profile.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -6814,7 +6823,7 @@ impl McpServer {
       },
       McpTool {
         name: "set_cookie_bot_schedule".to_string(),
-        description: "Enrol a profile in the nightly cookie bot, or replace its enrolment. The profile must have cloud sync (not end-to-end encrypted), a recorded Windows, macOS or Linux operating system, and a proxy or VPN".to_string(),
+        description: "Enrol a profile in the nightly cookie bot, or replace its enrolment. The profile must have Regular cloud sync (set_profile_cloud_sync), a recorded Windows, macOS or Linux operating system, a proxy or VPN, and no custom DNS list".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -6941,7 +6950,7 @@ impl McpServer {
       },
       McpTool {
         name: "run_cookie_bot_now".to_string(),
-        description: "Start a cookie-bot run immediately instead of waiting for the schedule. The profile must already be enrolled: the preset and site list live in its schedule. Requires an active Pro subscription and spends the pooled remote-hour budget".to_string(),
+        description: "Start a cookie-bot run immediately instead of waiting for the schedule. The profile must already be enrolled: the preset and site list live in its schedule. Requires a plan with the Cookie Bot and spends the pooled remote-hour budget".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -7451,7 +7460,9 @@ impl McpServer {
           }
         }),
       },
-    ]
+    ];
+    tools.extend(profile_tools::tools());
+    tools
   }
 
   async fn handle_initialize(
@@ -8271,11 +8282,14 @@ impl McpServer {
       "cancel_cookie_bot_run" => Self::handle_cancel_cookie_bot_run(arguments).await,
       "list_cookie_bot_presets" => Self::handle_list_cookie_bot_presets().await,
       "get_cookie_bot_usage" => Self::handle_get_cookie_bot_usage(arguments).await,
-      _ => Err(McpError {
-        code: -32602,
-        message: format!("Unknown tool: {tool_name}"),
-        data: None,
-      }),
+      _ => match self.dispatch_profile_tool(tool_name, arguments).await {
+        Some(result) => result,
+        None => Err(McpError {
+          code: -32602,
+          message: format!("Unknown tool: {tool_name}"),
+          data: None,
+        }),
+      },
     }
   }
 
@@ -14165,6 +14179,9 @@ fn cloud_failure_sentence(code: &str) -> Option<&'static str> {
   }
 }
 
+#[path = "mcp_server_profile_tools.rs"]
+mod profile_tools;
+
 #[cfg(test)]
 #[path = "mcp_server_browser_tests.rs"]
 mod browser_tests;
@@ -14420,7 +14437,7 @@ mod tests {
     // tool was added or removed on purpose.
     assert_eq!(
       tools.len(),
-      119,
+      128,
       "the tool list is a published contract; update this number deliberately"
     );
 

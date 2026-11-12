@@ -135,6 +135,13 @@ const TEAM_DATA_TOOLS: &[&str] = &[
   "delete_extension_group",
   "add_extension_to_group",
   "remove_extension_from_group",
+  "set_profile_cloud_sync",
+  "create_profile_status",
+  "update_profile_status",
+  "delete_profile_status",
+  "create_profile_template",
+  "update_profile_template",
+  "delete_profile_template",
 ];
 
 /// Whether `user` holds a seat that may run the team's profiles but not change

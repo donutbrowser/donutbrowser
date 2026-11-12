@@ -2732,6 +2732,7 @@
     "cookieBotRequiresRemoteExitNode": "Bu profilin proxy'si yalnızca bu bilgisayarda çalışır (örneğin 127.0.0.1 veya yerel ağ adresi). Cookie Bot bizim sunucularımızda çalıştığı için genel bir adrese sahip bir proxy gerekir.",
     "cookieBotExitCheckFailed": "Son kontrol bu profilin proxy'sine veya VPN'ine ulaşamadı. Kontrol edip tekrar deneyin.",
     "cookieBotProxyKindUnsupported": "Bu profil {{kind}} proxy kullanıyor; bunun için sunucularımızda çalışmayan Xray bileşeni gerekiyor. Cookie Bot bizim sunucularımızda çalıştığı için HTTP, HTTPS, SOCKS veya WireGuard çıkışı bağlayın.",
+    "cookieBotCustomDnsUnsupported": "Bu profil yalnızca bu bilgisayarda bulunan özel DNS listesini kullanıyor. Cookie Bot sunucularımızda çalışır; yerleşik bir engelleme listesi düzeyi seçin veya hiçbirini seçmeyin.",
     "unknownCode": "Bir sorun oluştu: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "Bu profil dokunmatik bir cihaz olduğunu bildiriyor ve bot bunu süremez. Masaüstü parmak izi kullanın.",
     "profileRunningRemotely": "Bu profil uzak bir makinede çalışıyor. Önce uzak oturumu durdurun.",

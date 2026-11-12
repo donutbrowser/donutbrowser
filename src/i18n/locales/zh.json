@@ -2732,6 +2732,7 @@
     "cookieBotRequiresRemoteExitNode": "此配置文件的代理仅在本机可用（例如 127.0.0.1 或局域网地址）。Cookie Bot 在我们的主机上运行，因此需要具有公网地址的代理。",
     "cookieBotExitCheckFailed": "上次检查无法连接到此配置文件的代理或 VPN。检查后重试。",
     "cookieBotProxyKindUnsupported": "此配置文件使用 {{kind}} 代理，它需要我们主机未运行的 Xray 组件。Cookie Bot 在我们的主机上运行，改用 HTTP、HTTPS、SOCKS 或 WireGuard 出口。",
+    "cookieBotCustomDnsUnsupported": "此配置文件使用自定义 DNS 列表，该列表仅存在于这台电脑上。Cookie Bot 在我们的主机上运行，请选择内置的拦截列表级别或“无”。",
     "unknownCode": "出现问题: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "该配置文件声称是触摸设备，机器人无法操作。使用桌面端指纹。",
     "profileRunningRemotely": "该配置文件正在远程计算机上运行。先停止远程会话。",

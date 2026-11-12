@@ -274,6 +274,7 @@ export type BackendErrorCode =
   // user is not being asked for a different address, they are being asked for a
   // different kind of exit. `params.kind` names it.
   | "COOKIE_BOT_PROXY_KIND_UNSUPPORTED"
+  | "COOKIE_BOT_CUSTOM_DNS_UNSUPPORTED"
   // The server's own names for two refusals the schedule, profile-state and
   // run-now routes can return. `COOKIE_BOT_REQUIRES_PROXY` is the
   // server-side twin of the local `COOKIE_BOT_REQUIRES_EXIT_NODE` precondition;
@@ -1106,6 +1107,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.cookieBotProxyKindUnsupported", {
         kind: parsed.params?.kind ?? "",
       });
+    case "COOKIE_BOT_CUSTOM_DNS_UNSUPPORTED":
+      return t("backendErrors.cookieBotCustomDnsUnsupported");
     case "COOKIE_BOT_TOUCH_FINGERPRINT_UNSUPPORTED":
       return t("backendErrors.cookieBotTouchFingerprintUnsupported");
     case "RECIPES_NOT_ENTITLED":

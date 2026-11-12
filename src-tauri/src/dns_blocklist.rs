@@ -23,6 +23,12 @@ pub enum BlocklistLevel {
   Custom,
 }
 
+/// Whether a profile's blocklist level is one only this computer can apply:
+/// the custom list is compiled from this device's own sources and domains.
+pub fn is_device_only(level: Option<&str>) -> bool {
+  level.and_then(BlocklistLevel::parse_level) == Some(BlocklistLevel::Custom)
+}
+
 impl BlocklistLevel {
   pub fn parse_level(s: &str) -> Option<Self> {
     match s {

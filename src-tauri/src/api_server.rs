@@ -3811,6 +3811,14 @@ async fn set_profile_cloud_sync(
     }
   };
 
+  if mode != "Disabled" && crate::sync::sync_needs_cloud_backup_plan().await {
+    return Err((
+      StatusCode::PAYMENT_REQUIRED,
+      "an active paid plan with cloud backup is required to sync profiles to Donut cloud"
+        .to_string(),
+    ));
+  }
+
   crate::sync::set_profile_sync_mode(state.app_handle.clone(), id.clone(), mode.clone())
     .await
     .map_err(sync_mode_error_response)?;
@@ -3915,6 +3923,14 @@ pub fn remote_launch_profile_rules(
       "the account's sync password seals the profile's synced settings, its \
        proxy included; a remote host cannot decrypt them. Remove the sync \
        password to run the profile remotely."
+        .to_string(),
+    );
+  }
+  if crate::dns_blocklist::is_device_only(profile.dns_blocklist.as_deref()) {
+    return Err(
+      "profile uses the custom DNS list, which exists only on this computer; a \
+       remote host cannot apply it. Choose a built-in blocklist level, or none, \
+       to run the profile remotely."
         .to_string(),
     );
   }
@@ -6004,6 +6020,17 @@ mod tests {
   // when this machine is the wrong one. The gate is cloud sync: a remote host
   // obtains the profile from donut-sync, so a profile that has never synced
   // would launch an empty browser and push that emptiness over the real one.
+  #[test]
+  fn remote_launch_takes_a_built_in_blocklist_but_not_the_custom_list() {
+    let mut profile = profile_with(SyncMode::Regular, Some("macos"));
+    profile.dns_blocklist = Some("ultimate".to_string());
+    assert!(remote_launch_profile_rules(&profile, false).is_ok());
+    profile.dns_blocklist = Some("custom".to_string());
+    let err = remote_launch_profile_rules(&profile, false)
+      .expect_err("the custom list exists only on this computer");
+    assert!(err.contains("custom DNS list"), "unhelpful message: {err}");
+  }
+
   #[test]
   fn remote_launch_requires_cloud_sync() {
     let err = remote_launch_profile_rules(&profile_with(SyncMode::Disabled, Some("macos")), false)

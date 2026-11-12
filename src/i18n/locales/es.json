@@ -2751,6 +2751,7 @@
     "cookieBotRequiresRemoteExitNode": "El proxy de este perfil solo funciona en este ordenador (por ejemplo 127.0.0.1 o una dirección de red local). Cookie Bot se ejecuta en nuestros servidores, así que necesita un proxy con dirección pública.",
     "cookieBotExitCheckFailed": "La última comprobación no pudo llegar al proxy o la VPN de este perfil. Revísalo e inténtalo de nuevo.",
     "cookieBotProxyKindUnsupported": "Este perfil usa un proxy {{kind}}, que necesita el componente Xray que nuestros servidores no ejecutan. Cookie Bot se ejecuta en nuestros servidores, así que asigna una salida HTTP, HTTPS, SOCKS o WireGuard.",
+    "cookieBotCustomDnsUnsupported": "Este perfil usa la lista DNS personalizada, que solo existe en este equipo. Cookie Bot se ejecuta en nuestros servidores, así que elige un nivel de lista de bloqueo integrado o ninguno.",
     "unknownCode": "Algo salió mal: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "Este perfil declara un dispositivo táctil, que el bot no puede controlar. Usa una huella de escritorio.",
     "profileRunningRemotely": "Este perfil se está ejecutando en una máquina remota. Detén primero la sesión remota.",

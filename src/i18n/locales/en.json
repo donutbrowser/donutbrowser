@@ -2732,6 +2732,7 @@
     "cookieBotRequiresRemoteExitNode": "This profile's proxy only works on this computer (for example 127.0.0.1 or a home network address). Cookie Bot runs on our hosts, so it needs a proxy with a public address.",
     "cookieBotExitCheckFailed": "The last check could not reach this profile's proxy or VPN. Check it, then try again.",
     "cookieBotProxyKindUnsupported": "This profile uses a {{kind}} proxy, which needs the Xray sidecar our hosts do not run. Cookie Bot runs on our hosts, so attach an HTTP, HTTPS, SOCKS or WireGuard exit instead.",
+    "cookieBotCustomDnsUnsupported": "This profile uses the custom DNS list, which exists only on this computer. Cookie Bot runs on our hosts, so choose a built-in blocklist level or none.",
     "unknownCode": "Something went wrong: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "This profile claims a touch device, which the bot cannot drive. Use a desktop fingerprint.",
     "profileRunningRemotely": "This profile is running on a remote machine. Stop the remote session first.",

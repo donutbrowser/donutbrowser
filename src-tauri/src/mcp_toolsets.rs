@@ -87,6 +87,12 @@ pub const TOOLSETS: &[(&str, &[&str])] = &[
       "assign_profiles_to_group",
       "detect_browser_profiles",
       "import_browser_profiles",
+      "create_profile_status",
+      "update_profile_status",
+      "delete_profile_status",
+      "create_profile_template",
+      "update_profile_template",
+      "delete_profile_template",
     ],
   ),
   (
@@ -145,6 +151,8 @@ pub const TOOLSETS: &[(&str, &[&str])] = &[
     "cookies",
     &[
       "import_profile_cookies",
+      "export_profile_storage_state",
+      "import_profile_storage_state",
       "list_cookie_bot_schedules",
       "get_cookie_bot_schedule",
       "set_cookie_bot_schedule",
@@ -160,6 +168,7 @@ pub const TOOLSETS: &[(&str, &[&str])] = &[
   (
     "sync",
     &[
+      "set_profile_cloud_sync",
       "get_team_locks",
       "get_team_lock_status",
       "start_sync_session",

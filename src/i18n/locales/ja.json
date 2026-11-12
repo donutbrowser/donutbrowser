@@ -2732,6 +2732,7 @@
     "cookieBotRequiresRemoteExitNode": "このプロファイルのプロキシはこのコンピューター上でのみ有効です（127.0.0.1 やローカルネットワークのアドレスなど）。Cookie Bot は当社のホスト上で実行されるため、公開アドレスを持つプロキシが必要です。",
     "cookieBotExitCheckFailed": "前回のチェックでこのプロファイルのプロキシまたは VPN に接続できませんでした。確認してからもう一度お試しください。",
     "cookieBotProxyKindUnsupported": "このプロファイルは {{kind}} プロキシを使用していますが、これには当社のホストが実行していない Xray サイドカーが必要です。Cookie Bot は当社のホスト上で実行されるため、HTTP、HTTPS、SOCKS または WireGuard の出口に変更してください。",
+    "cookieBotCustomDnsUnsupported": "このプロファイルはカスタム DNS リストを使っています。このリストはこのコンピューターにしかありません。Cookie Bot は当社のホストで動くため、組み込みのブロックリストレベルか「なし」を選んでください。",
     "unknownCode": "エラーが発生しました: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "このプロファイルはタッチ端末を名乗っており、ボットは操作できません。デスクトップのフィンガープリントをお使いください。",
     "profileRunningRemotely": "このプロファイルはリモートマシンで実行中です。先にリモートセッションを停止してください。",

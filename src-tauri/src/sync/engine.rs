@@ -666,6 +666,13 @@ pub fn is_sync_configured() -> bool {
   false
 }
 
+/// Whether turning sync on would go to Donut cloud on a plan without cloud
+/// backup: signed in, and neither the plan nor a self-hosted server gives
+/// this device a place to sync.
+pub async fn sync_needs_cloud_backup_plan() -> bool {
+  crate::cloud_auth::CLOUD_AUTH.is_logged_in().await && !is_sync_configured()
+}
+
 #[derive(Clone)]
 pub struct SyncEngine {
   pub(super) client: SyncClient,

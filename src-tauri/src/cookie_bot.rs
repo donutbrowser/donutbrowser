@@ -651,6 +651,9 @@ pub fn bot_precondition(
       &[("platform", platform)],
     ));
   }
+  if crate::dns_blocklist::is_device_only(profile.dns_blocklist.as_deref()) {
+    return Err(error("COOKIE_BOT_CUSTOM_DNS_UNSUPPORTED", &[]));
+  }
   if profile.proxy_id.is_none() && profile.vpn_id.is_none() {
     // Without one the run egresses from the remote host's own address instead
     // of the user's exit, which is worse for the profile's identity than not
@@ -1892,6 +1895,22 @@ mod tests {
     let err = bot_precondition(&profile, &ExitReachability::None)
       .expect_err("datacenter egress must be refused for linux as for any OS");
     assert_eq!(code_of(&err), "COOKIE_BOT_REQUIRES_EXIT_NODE");
+  }
+
+  #[test]
+  fn a_built_in_blocklist_runs_remotely_and_the_custom_list_is_refused() {
+    let mut profile = eligible_profile();
+    for level in ["none", "light", "pro_plus", "ultimate"] {
+      profile.dns_blocklist = Some(level.to_string());
+      assert!(
+        bot_precondition(&profile, &ExitReachability::Remote).is_ok(),
+        "{level} is a list a host can fetch"
+      );
+    }
+    profile.dns_blocklist = Some("custom".to_string());
+    let err = bot_precondition(&profile, &ExitReachability::Remote)
+      .expect_err("the custom list exists only on this computer");
+    assert_eq!(code_of(&err), "COOKIE_BOT_CUSTOM_DNS_UNSUPPORTED");
   }
 
   #[test]

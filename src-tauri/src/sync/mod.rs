@@ -28,8 +28,8 @@ pub use engine::{
   pull_profile_after_remote_session, request_profile_sync, resume_profile_sync,
   rollover_encryption_for_all_entities, set_extension_group_sync_enabled,
   set_extension_sync_enabled, set_group_sync_enabled, set_profile_sync_mode,
-  set_proxy_sync_enabled, set_vpn_sync_enabled, sync_profile, trigger_sync_for_profile,
-  ProfileSyncOutcome, SyncEngine,
+  set_proxy_sync_enabled, set_vpn_sync_enabled, sync_needs_cloud_backup_plan, sync_profile,
+  trigger_sync_for_profile, ProfileSyncOutcome, SyncEngine,
 };
 pub use manifest::{
   compute_diff, compute_diff_with_bias, generate_manifest, DiffBias, HashCache, ManifestDiff,

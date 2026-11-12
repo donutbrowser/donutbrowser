@@ -2732,6 +2732,7 @@
     "cookieBotRequiresRemoteExitNode": "Proxy của hồ sơ này chỉ hoạt động trên máy tính này (ví dụ 127.0.0.1 hoặc địa chỉ mạng nội bộ). Cookie Bot chạy trên máy chủ của chúng tôi nên cần proxy có địa chỉ công khai.",
     "cookieBotExitCheckFailed": "Lần kiểm tra gần nhất không kết nối được tới proxy hoặc VPN của hồ sơ này. Hãy kiểm tra rồi thử lại.",
     "cookieBotProxyKindUnsupported": "Hồ sơ này dùng proxy {{kind}}, vốn cần thành phần Xray mà máy chủ của chúng tôi không chạy. Cookie Bot chạy trên máy chủ của chúng tôi nên hãy gắn lối ra HTTP, HTTPS, SOCKS hoặc WireGuard.",
+    "cookieBotCustomDnsUnsupported": "Hồ sơ này dùng danh sách DNS tùy chỉnh, chỉ có trên máy tính này. Cookie Bot chạy trên máy chủ của chúng tôi, nên hãy chọn một mức danh sách chặn có sẵn hoặc không chặn.",
     "unknownCode": "Đã xảy ra lỗi: {{code}}",
     "cookieBotTouchFingerprintUnsupported": "Hồ sơ này khai báo là thiết bị cảm ứng, bot không điều khiển được. Hãy dùng vân tay máy tính để bàn.",
     "profileRunningRemotely": "Hồ sơ này đang chạy trên máy từ xa. Hãy dừng phiên từ xa trước.",
