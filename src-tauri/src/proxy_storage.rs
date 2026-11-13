@@ -272,10 +272,7 @@ pub fn update_proxy_config(config: &ProxyConfig) -> bool {
   let Ok(content) = serde_json::to_string_pretty(config) else {
     return false;
   };
-  if crate::app_dirs::write_owner_only(&file_path, content.as_bytes()).is_err() {
-    return false;
-  }
-  true
+  crate::app_dirs::write_owner_only(&file_path, content.as_bytes()).is_ok()
 }
 
 pub fn generate_proxy_id() -> String {

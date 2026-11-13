@@ -249,12 +249,7 @@ impl SyncScheduler {
     }
     drop(pending_extension_groups);
 
-    let pending_tombstones = self.pending_tombstones.lock().await;
-    if !pending_tombstones.is_empty() {
-      return true;
-    }
-
-    false
+    !self.pending_tombstones.lock().await.is_empty()
   }
 
   pub async fn mark_profile_running(&self, profile_id: &str) {
