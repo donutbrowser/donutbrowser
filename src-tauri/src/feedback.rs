@@ -8,7 +8,7 @@ use crate::cloud_errors;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 pub const MAX_MESSAGE_CHARS: usize = 5000;
@@ -302,13 +302,15 @@ fn endpoint() -> String {
   }
 }
 
-fn http() -> reqwest::Client {
-  static CLIENT: crate::app_proxy::SharedClient = crate::app_proxy::SharedClient::new(|builder| {
-    builder
+fn http() -> &'static reqwest::Client {
+  static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+  CLIENT.get_or_init(|| {
+    reqwest::Client::builder()
       .timeout(REQUEST_TIMEOUT)
       .connect_timeout(CONNECT_TIMEOUT)
-  });
-  CLIENT.get()
+      .build()
+      .unwrap_or_else(|_| reqwest::Client::new())
+  })
 }
 
 async fn post(

@@ -37,7 +37,6 @@ import {
 import { DnsBlocklistDialog } from "@/components/dns-blocklist-dialog";
 import { LoadingButton } from "@/components/loading-button";
 import { LogViewer } from "@/components/log-viewer";
-import { AppProxySettings } from "@/components/settings/app-proxy-settings";
 import { EncryptionSettings } from "@/components/settings/encryption-settings";
 import {
   ChoiceCard,
@@ -1058,7 +1057,6 @@ export function SettingsDialog({
               </SettingsSection>
 
               <SettingsSection {...sectionProps("network")}>
-                <AppProxySettings />
                 <SettingsCard>
                   <SettingRow
                     target="dns"

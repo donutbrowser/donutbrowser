@@ -297,14 +297,7 @@
       "seconds": "{{value}} s"
     },
     "network": {
-      "title": "Network",
-      "appProxy": "Proxy for Donut",
-      "appProxyDescription": "Donut's own connections use this proxy: downloads, update checks, sign-in and sync. Profiles keep their own proxies.",
-      "placeholder": "socks5://user:password@host:1080",
-      "current": "In use: {{proxy}}",
-      "checkNote": "Donut checks that its servers answer through the proxy before it saves it. Schemes: http, https, socks5, socks5h.",
-      "saved": "Donut now connects through {{proxy}}.",
-      "removed": "Donut no longer uses its own proxy."
+      "title": "Network"
     }
   },
   "header": {
@@ -2966,8 +2959,6 @@
     "vpnUnreachable": "The VPN server does not answer.",
     "entityInUse": "In use by {{count}} profiles. Move them to another proxy or VPN first.",
     "syncPasswordBlocksRemoteRun": "The sync encryption password encrypts this profile's synced settings, and a remote host cannot decrypt them. To run it remotely, remove the password in the Sync encryption settings.",
-    "appProxyInvalid": "Enter the proxy as scheme://host:port, with an optional user:password@ before the host. The scheme is http, https, socks5 or socks5h.",
-    "appProxyUnreachable": "Donut could not connect through its proxy {{proxy}}. Check the proxy in Settings, under Network.",
     "agentNotEntitled": "The agent is not available on this account.",
     "noCredits": "No credits are left for the agent.",
     "taskBudget": "The task reached its credit cap.",

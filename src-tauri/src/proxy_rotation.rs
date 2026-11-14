@@ -43,7 +43,7 @@ pub fn checked_rotation_url(value: Option<String>) -> Result<Option<String>, Str
 }
 
 fn client() -> Result<reqwest::Client, String> {
-  crate::app_proxy::client_builder()
+  reqwest::Client::builder()
     .timeout(ROTATION_TIMEOUT)
     .build()
     .map_err(|e| crate::backend_error_with_detail("PROXY_ROTATION_FAILED", e))

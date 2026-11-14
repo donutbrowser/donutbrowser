@@ -66,6 +66,7 @@ Includes comprehensive unit tests for:
 */
 
 use crate::events;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
@@ -171,14 +172,14 @@ impl AppUpdateInfo {
 }
 
 pub struct AppAutoUpdater {
-  client: crate::app_proxy::SharedClient,
+  client: Client,
   extractor: &'static crate::extraction::Extractor,
 }
 
 impl AppAutoUpdater {
   fn new() -> Self {
     Self {
-      client: crate::app_proxy::SharedClient::new(|builder| builder),
+      client: Client::new(),
       extractor: crate::extraction::Extractor::instance(),
     }
   }
@@ -480,7 +481,6 @@ impl AppAutoUpdater {
     };
     let response = self
       .client
-      .get()
       .get(&url)
       .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36")
       .header("Accept", "application/vnd.github+json")
@@ -502,7 +502,6 @@ impl AppAutoUpdater {
   ) -> Result<Vec<AppRelease>, Box<dyn std::error::Error + Send + Sync>> {
     let response = self
       .client
-      .get()
       .get(DONUT_RELEASES_URL)
       .header(
         "User-Agent",
@@ -987,7 +986,6 @@ impl AppAutoUpdater {
 
     let response = match self
       .client
-      .get()
       .get(checksums_url)
       .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36")
       .send()
@@ -1094,7 +1092,6 @@ impl AppAutoUpdater {
 
     let response = self
       .client
-      .get()
       .get(download_url)
       .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36")
       .send()

@@ -83,7 +83,7 @@ pub struct SyncClient {
 impl SyncClient {
   pub fn new(base_url: String, token: String) -> Self {
     Self {
-      client: crate::app_proxy::client_builder()
+      client: Client::builder()
         .connect_timeout(CONNECT_TIMEOUT)
         .read_timeout(READ_TIMEOUT)
         .build()

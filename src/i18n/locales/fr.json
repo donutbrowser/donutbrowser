@@ -298,14 +298,7 @@
       "seconds": "{{value}} s"
     },
     "network": {
-      "title": "Réseau",
-      "appProxy": "Proxy pour Donut",
-      "appProxyDescription": "Les connexions propres à Donut passent par ce proxy : téléchargements, recherche de mises à jour, connexion et synchronisation. Les profils gardent leurs propres proxys.",
-      "placeholder": "socks5://user:password@host:1080",
-      "current": "Utilisé : {{proxy}}",
-      "checkNote": "Donut vérifie que ses serveurs répondent via le proxy avant de l'enregistrer. Schémas : http, https, socks5, socks5h.",
-      "saved": "Donut se connecte maintenant via {{proxy}}.",
-      "removed": "Donut n'utilise plus de proxy propre."
+      "title": "Réseau"
     }
   },
   "header": {
@@ -2986,8 +2979,6 @@
     "vpnUnreachable": "Le serveur VPN ne répond pas.",
     "entityInUse": "Utilisé par {{count}} profils. Attribuez-leur d'abord un autre proxy ou VPN.",
     "syncPasswordBlocksRemoteRun": "Le mot de passe du chiffrement de synchronisation chiffre les réglages synchronisés de ce profil, et un hôte distant ne peut pas les déchiffrer. Pour l'exécuter à distance, supprimez le mot de passe dans les réglages Chiffrement de synchronisation.",
-    "appProxyInvalid": "Saisissez le proxy sous la forme schéma://hôte:port, avec utilisateur:mot_de_passe@ facultatif avant l'hôte. Le schéma est http, https, socks5 ou socks5h.",
-    "appProxyUnreachable": "Donut n'a pas pu se connecter via son proxy {{proxy}}. Vérifiez le proxy dans Paramètres, sous Réseau.",
     "agentNotEntitled": "L’agent n’est pas disponible sur ce compte.",
     "noCredits": "Il ne reste plus de crédits pour l’agent.",
     "taskBudget": "La tâche a atteint son plafond de crédits.",

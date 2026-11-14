@@ -123,9 +123,7 @@ impl SyncSubscription {
     work_tx: mpsc::UnboundedSender<SyncWorkItem>,
   ) -> Self {
     Self {
-      client: crate::app_proxy::client_builder()
-        .build()
-        .unwrap_or_default(),
+      client: Client::new(),
       base_url: base_url.trim_end_matches('/').to_string(),
       token,
       source,

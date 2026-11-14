@@ -169,7 +169,6 @@ mod api_client;
 mod api_server;
 mod app_auto_updater;
 pub mod app_dirs;
-mod app_proxy;
 mod auto_updater;
 mod automation_rate_limiter;
 mod bookmark_import;
@@ -2714,9 +2713,6 @@ pub fn run_with_builder(
         portable_update::clean_up(dir);
       }
 
-      // Before the first request Donut makes.
-      app_proxy::load();
-
       // Recover ephemeral dir mappings from RAM-backed storage (tmpfs/ramdisk)
       ephemeral_dirs::recover_ephemeral_dirs();
 
@@ -3952,8 +3948,6 @@ pub fn run_with_builder(
       lock_profile,
       is_profile_locked,
       ephemeral_dirs::get_ephemeral_storage_status,
-      app_proxy::get_app_proxy,
-      app_proxy::set_app_proxy,
       sync::restore_points::list_restore_points,
       sync::restore_points::create_restore_point,
       sync::restore_points::delete_restore_point,

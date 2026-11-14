@@ -16,6 +16,7 @@ use crate::sync::encryption::{remote_seal, RemoteSeal};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 /// Operating systems a remote run can be scheduled on. Anything else (a mobile
@@ -1502,13 +1503,15 @@ pub async fn remote_hours_quota() -> Result<RemoteHoursQuota, CookieBotError> {
 
 // --- Transport --------------------------------------------------------------
 
-fn http() -> reqwest::Client {
-  static CLIENT: crate::app_proxy::SharedClient = crate::app_proxy::SharedClient::new(|builder| {
-    builder
+fn http() -> &'static reqwest::Client {
+  static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+  CLIENT.get_or_init(|| {
+    reqwest::Client::builder()
       .timeout(REQUEST_TIMEOUT)
       .connect_timeout(CONNECT_TIMEOUT)
-  });
-  CLIENT.get()
+      .build()
+      .unwrap_or_else(|_| reqwest::Client::new())
+  })
 }
 
 /// Append a percent-encoded query string.

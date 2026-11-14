@@ -149,7 +149,7 @@ pub async fn check_extension_updates() -> Result<Vec<ExtensionUpdate>, String> {
       ))
     })
     .collect();
-  let client = crate::app_proxy::client_builder()
+  let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(30))
     .build()
     .map_err(|e| crate::backend_error_with_detail("EXTENSION_UPDATE_CHECK_FAILED", e))?;

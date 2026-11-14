@@ -1,3 +1,4 @@
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -148,7 +149,7 @@ impl DownloadProgress {
 }
 
 pub struct Downloader {
-  client: crate::app_proxy::SharedClient,
+  client: Client,
   api_client: &'static ApiClient,
   registry: &'static crate::downloaded_browsers_registry::DownloadedBrowsersRegistry,
   version_service: &'static crate::browser_version_manager::BrowserVersionManager,
@@ -158,15 +159,15 @@ pub struct Downloader {
 impl Downloader {
   fn new() -> Self {
     Self {
-      client: crate::app_proxy::SharedClient::new(|builder| {
-        builder
-          .connect_timeout(std::time::Duration::from_secs(30))
-          // Per-read idle timeout: if the connection stalls mid-stream with no
-          // bytes for this long, the read fails instead of hanging forever. This
-          // is the transport-level guard; the streaming loop also wraps each read
-          // in an explicit tokio timeout as defense-in-depth.
-          .read_timeout(STREAM_IDLE_TIMEOUT)
-      }),
+      client: Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(30))
+        // Per-read idle timeout: if the connection stalls mid-stream with no bytes
+        // for this long, the read fails instead of hanging forever. This is the
+        // transport-level guard; the streaming loop also wraps each read in an
+        // explicit tokio timeout as defense-in-depth.
+        .read_timeout(STREAM_IDLE_TIMEOUT)
+        .build()
+        .unwrap_or_else(|_| Client::new()),
       api_client: ApiClient::instance(),
       registry: crate::downloaded_browsers_registry::DownloadedBrowsersRegistry::instance(),
       version_service: crate::browser_version_manager::BrowserVersionManager::instance(),
@@ -181,7 +182,7 @@ impl Downloader {
   #[cfg(test)]
   pub fn new_for_test() -> Self {
     Self {
-      client: crate::app_proxy::SharedClient::new(|builder| builder),
+      client: Client::new(),
       api_client: ApiClient::instance(),
       registry: crate::downloaded_browsers_registry::DownloadedBrowsersRegistry::instance(),
       version_service: crate::browser_version_manager::BrowserVersionManager::instance(),
@@ -200,7 +201,6 @@ impl Downloader {
 
     let response = self
       .client
-      .get()
       .get(download_url)
       .header(
         "User-Agent",
@@ -372,7 +372,6 @@ impl Downloader {
     let sidecar_url = checksum_sidecar_url(download_url);
     let response = match self
       .client
-      .get()
       .get(&sidecar_url)
       .header("User-Agent", DOWNLOAD_USER_AGENT)
       .send()
@@ -446,7 +445,6 @@ impl Downloader {
       for attempt in 0..=max_send_retries {
         let mut request = self
           .client
-          .get()
           .get(download_url)
           .header("User-Agent", DOWNLOAD_USER_AGENT);
 

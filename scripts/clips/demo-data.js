@@ -908,7 +908,6 @@
     take_reopen_profiles: [],
     get_window_resize_warning_dismissed: true,
     check_missing_geoip_database: false,
-    get_app_proxy: null,
     read_app_log: "",
     list_mcp_agents: () =>
       [
