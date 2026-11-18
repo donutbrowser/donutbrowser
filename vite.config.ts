@@ -1,10 +1,29 @@
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
+
+/**
+ * The app draws 4:3 flags only (`fi fi-xx`). Dropping flag-icons' square
+ * `.fis` rules keeps its 1x1 SVGs, half of its size, out of the build.
+ */
+function flagsWithoutSquareSet(): Plugin {
+  return {
+    name: "flags-without-square-set",
+    enforce: "pre",
+    transform(code, id) {
+      if (!id.includes("/flag-icons/css/")) return;
+      const css = code.replace(/\.fi(?:-[a-z0-9-]+)?\.fis\{[^}]*\}/g, "");
+      if (css === code) {
+        this.warn("flag-icons has no .fis rules; the 1x1 flags may ship");
+      }
+      return { code: css, map: null };
+    },
+  };
+}
 
 export default defineConfig(({ command }) => ({
-  plugins: [react(), tailwindcss()],
+  plugins: [flagsWithoutSquareSet(), react(), tailwindcss()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },

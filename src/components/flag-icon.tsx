@@ -4,14 +4,9 @@ import { cn } from "@/lib/utils";
 interface FlagIconProps {
   countryCode?: string;
   className?: string;
-  squared?: boolean;
 }
 
-export function FlagIcon({
-  countryCode,
-  className,
-  squared = false,
-}: FlagIconProps) {
+export function FlagIcon({ countryCode, className }: FlagIconProps) {
   if (!countryCode) {
     return null;
   }
@@ -21,5 +16,5 @@ export function FlagIcon({
     return null;
   }
 
-  return <span className={cn(flagClass, squared && "fis", className)} />;
+  return <span className={cn(flagClass, className)} />;
 }
