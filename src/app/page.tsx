@@ -2,21 +2,27 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrent } from "@tauri-apps/plugin-deep-link";
 import { useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { AboutDialog } from "@/components/about-dialog";
-import { AccountPage } from "@/components/account-page";
 import type { ChatSeed } from "@/components/agent-chat/workspace";
 import {
   AgentFirstTask,
   agentFirstTaskDone,
 } from "@/components/agent-first-task";
-import { AgentPage, type AgentView } from "@/components/agent-page";
+import type { AgentView } from "@/components/agent-page";
 import { CloneProfileDialog } from "@/components/clone-profile-dialog";
 import { CloseConfirmDialog } from "@/components/close-confirm-dialog";
 import { CommandPalette } from "@/components/command-palette";
 import { CommercialTrialModal } from "@/components/commercial-trial-modal";
-import { CookieBotPage, type CookieBotTab } from "@/components/cookie-bot-page";
+import type { CookieBotTab } from "@/components/cookie-bot-page";
 import { CookieCopyDialog } from "@/components/cookie-copy-dialog";
 import { CookieManagementDialog } from "@/components/cookie-management-dialog";
 import { CreateProfileDialog } from "@/components/create-profile-dialog";
@@ -117,6 +123,7 @@ import {
   isTeamLauncher,
 } from "@/lib/entitlements";
 import { stepInterfaceZoom } from "@/lib/interface-zoom";
+import { lazyNamed, preloadLazyChunks } from "@/lib/lazy-named";
 import { type ProfileSearchContext } from "@/lib/profile-search";
 import { useProxyCountries } from "@/lib/proxy-check-store";
 import { startRemoteSession } from "@/lib/remote-sessions";
@@ -150,6 +157,19 @@ type GateRequest = {
   profile: BrowserProfile;
   findings: GateFindings;
 };
+
+const AccountPage = lazyNamed(
+  () => import("@/components/account-page"),
+  "AccountPage",
+);
+const AgentPage = lazyNamed(
+  () => import("@/components/agent-page"),
+  "AgentPage",
+);
+const CookieBotPage = lazyNamed(
+  () => import("@/components/cookie-bot-page"),
+  "CookieBotPage",
+);
 
 type LaunchResult = {
   status: "launched" | "cancelled" | "blocked";
@@ -242,6 +262,13 @@ export default function Home() {
     void invoke("complete_onboarding").catch((err: unknown) => {
       console.error("Failed to persist onboarding completion:", err);
     });
+  }, []);
+
+  // Once startup settles, load the split-off chunks so a first open does not
+  // wait for them.
+  useEffect(() => {
+    const timer = window.setTimeout(preloadLazyChunks, 3000);
+    return () => window.clearTimeout(timer);
   }, []);
 
   // On the very first launch, show the welcome. The completion flag is
@@ -3398,64 +3425,70 @@ export default function Home() {
               )}
 
               {cookieBotDialogOpen && (
-                <CookieBotPage
-                  isOpen={cookieBotDialogOpen}
-                  onClose={() => {
-                    closeSubPage(() => setCookieBotDialogOpen(false));
-                  }}
-                  subPage={currentPage === "cookieBot"}
-                  initialTab={cookieBotInitialTab}
-                  profiles={profiles}
-                  cloudUser={cloudUser}
-                  onOpenProfileSync={handleOpenProfileSyncDialog}
-                  onAssignProxy={handleAssignProfilesToProxy}
-                  onOpenSignIn={() => {
-                    closeSubPage(() => {
-                      setCookieBotDialogOpen(false);
-                      setDeviceCodeDialogOpen(true);
-                    });
-                  }}
-                />
+                <Suspense fallback={null}>
+                  <CookieBotPage
+                    isOpen={cookieBotDialogOpen}
+                    onClose={() => {
+                      closeSubPage(() => setCookieBotDialogOpen(false));
+                    }}
+                    subPage={currentPage === "cookieBot"}
+                    initialTab={cookieBotInitialTab}
+                    profiles={profiles}
+                    cloudUser={cloudUser}
+                    onOpenProfileSync={handleOpenProfileSyncDialog}
+                    onAssignProxy={handleAssignProfilesToProxy}
+                    onOpenSignIn={() => {
+                      closeSubPage(() => {
+                        setCookieBotDialogOpen(false);
+                        setDeviceCodeDialogOpen(true);
+                      });
+                    }}
+                  />
+                </Suspense>
               )}
 
               {agentDialogOpen && (
-                <AgentPage
-                  isOpen={agentDialogOpen}
-                  onClose={() => {
-                    closeSubPage(() => setAgentDialogOpen(false));
-                  }}
-                  subPage={currentPage === "agent"}
-                  initialView={agentView}
-                  onViewChange={setAgentView}
-                  profiles={profiles}
-                  cloudUser={cloudUser}
-                  agentConsole={agentConsole}
-                  onConnectAgent={() => {
-                    setIntegrationsInitialTab("remote");
-                    handleRailNavigate("integrations");
-                  }}
-                  onOpenAccount={() => {
-                    handleRailNavigate("account");
-                  }}
-                  agent={agent}
-                  chatSeed={chatSeed}
-                />
+                <Suspense fallback={null}>
+                  <AgentPage
+                    isOpen={agentDialogOpen}
+                    onClose={() => {
+                      closeSubPage(() => setAgentDialogOpen(false));
+                    }}
+                    subPage={currentPage === "agent"}
+                    initialView={agentView}
+                    onViewChange={setAgentView}
+                    profiles={profiles}
+                    cloudUser={cloudUser}
+                    agentConsole={agentConsole}
+                    onConnectAgent={() => {
+                      setIntegrationsInitialTab("remote");
+                      handleRailNavigate("integrations");
+                    }}
+                    onOpenAccount={() => {
+                      handleRailNavigate("account");
+                    }}
+                    agent={agent}
+                    chatSeed={chatSeed}
+                  />
+                </Suspense>
               )}
 
               {accountDialogOpen && (
-                <AccountPage
-                  isOpen={accountDialogOpen}
-                  onClose={() => {
-                    closeSubPage(() => setAccountDialogOpen(false));
-                  }}
-                  subPage={currentPage === "account"}
-                  onOpenSignIn={() => {
-                    closeSubPage(() => {
-                      setAccountDialogOpen(false);
-                      setDeviceCodeDialogOpen(true);
-                    });
-                  }}
-                />
+                <Suspense fallback={null}>
+                  <AccountPage
+                    isOpen={accountDialogOpen}
+                    onClose={() => {
+                      closeSubPage(() => setAccountDialogOpen(false));
+                    }}
+                    subPage={currentPage === "account"}
+                    onOpenSignIn={() => {
+                      closeSubPage(() => {
+                        setAccountDialogOpen(false);
+                        setDeviceCodeDialogOpen(true);
+                      });
+                    }}
+                  />
+                </Suspense>
               )}
 
               {trashPageOpen && (

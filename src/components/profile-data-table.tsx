@@ -190,6 +190,7 @@ import {
 } from "@/lib/dns-blocklist-levels";
 import { canUseCookieBot } from "@/lib/entitlements";
 import { formatRelativeTime } from "@/lib/flag-utils";
+import { lazyNamed } from "@/lib/lazy-named";
 import {
   MOTION_EASE_IN,
   MOTION_EASE_OUT,
@@ -227,9 +228,13 @@ import {
 } from "./data-table-action-bar";
 import MultipleSelector, { type Option } from "./multiple-selector";
 import { ProxyCheckButton } from "./proxy-check-button";
-import { TrafficDetailsDialog } from "./traffic-details-dialog";
 import { Input } from "./ui/input";
 import { Skeleton } from "./ui/skeleton";
+
+const TrafficDetailsDialog = lazyNamed(
+  () => import("./traffic-details-dialog"),
+  "TrafficDetailsDialog",
+);
 
 declare module "@tanstack/table-core" {
   interface ColumnMeta<
@@ -5239,14 +5244,16 @@ export function ProfilesDataTable({
         </DropdownMenu>
       </DataTableActionBar>
       {trafficDialogProfile && (
-        <TrafficDetailsDialog
-          isOpen={trafficDialogProfile !== null}
-          onClose={() => {
-            setTrafficDialogProfile(null);
-          }}
-          profileId={trafficDialogProfile.id}
-          profileName={trafficDialogProfile.name}
-        />
+        <React.Suspense fallback={null}>
+          <TrafficDetailsDialog
+            isOpen={trafficDialogProfile !== null}
+            onClose={() => {
+              setTrafficDialogProfile(null);
+            }}
+            profileId={trafficDialogProfile.id}
+            profileName={trafficDialogProfile.name}
+          />
+        </React.Suspense>
       )}
       <ProfileBypassRulesDialog
         isOpen={bypassRulesProfile !== null}
