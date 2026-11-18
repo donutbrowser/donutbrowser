@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeft, Circle, Eraser, Radio, Square } from "lucide-react";
 import { motion } from "motion/react";
 import {
   useCallback,
@@ -9,6 +8,13 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  LuArrowLeft,
+  LuCircle,
+  LuEraser,
+  LuRadio,
+  LuSquare,
+} from "react-icons/lu";
 import { Button } from "@/components/ui/button";
 import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";
@@ -287,7 +293,7 @@ export function NetworkRequestsPanel({
               setDetail(null);
             }}
           >
-            <ArrowLeft aria-hidden className="size-3.5" />
+            <LuArrowLeft aria-hidden className="size-3.5" />
             {t("networkPanel.backToList")}
           </Button>
         </div>
@@ -356,7 +362,7 @@ export function NetworkRequestsPanel({
             onClick={() => void stop()}
             disabled={busy}
           >
-            <Square aria-hidden className="size-3.5" />
+            <LuSquare aria-hidden className="size-3.5" />
             {t("networkPanel.stop")}
           </Button>
         ) : (
@@ -367,7 +373,7 @@ export function NetworkRequestsPanel({
             onClick={() => void start()}
             disabled={busy || !running}
           >
-            <Circle aria-hidden className="size-3.5" />
+            <LuCircle aria-hidden className="size-3.5" />
             {t("networkPanel.start")}
           </Button>
         )}
@@ -380,11 +386,11 @@ export function NetworkRequestsPanel({
               onClick={clear}
               disabled={requests.length === 0}
             >
-              <Eraser aria-hidden className="size-3.5" />
+              <LuEraser aria-hidden className="size-3.5" />
               {t("common.buttons.clear")}
             </Button>
             <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Radio aria-hidden className="size-3.5 text-success" />
+              <LuRadio aria-hidden className="size-3.5 text-success" />
               {t("networkPanel.capturing", { count: requests.length })}
             </span>
           </>

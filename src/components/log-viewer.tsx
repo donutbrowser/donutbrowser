@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { Copy, Search } from "lucide-react";
 import { motion } from "motion/react";
 import {
   useCallback,
@@ -11,6 +10,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { LuCopy, LuSearch } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
 import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { Input } from "@/components/ui/input";
@@ -210,7 +210,7 @@ export function LogViewer({ profileId }: { profileId?: string }) {
           ))}
         </fieldset>
         <div className="relative min-w-40 flex-1">
-          <Search
+          <LuSearch
             aria-hidden
             className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
           />
@@ -232,7 +232,7 @@ export function LogViewer({ profileId }: { profileId?: string }) {
           disabled={shown.length === 0}
           aria-label={t("logViewer.copyAria", { count: shown.length })}
         >
-          <Copy aria-hidden className="size-3.5" />
+          <LuCopy aria-hidden className="size-3.5" />
           {t("common.buttons.copy")}
         </Button>
       </div>
