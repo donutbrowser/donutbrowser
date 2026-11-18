@@ -41,7 +41,6 @@ import {
   LuShieldCheck,
   LuShuffle,
   LuSlidersHorizontal,
-  LuSparkles,
   LuSquare,
   LuTrash2,
   LuTriangleAlert,
@@ -82,6 +81,12 @@ import {
   ProfileStatusChip,
   ProfileStatusesDialog,
 } from "@/components/profile-statuses-dialog";
+import type {
+  AgentActivityStore,
+  AgentSource,
+} from "@/components/profile-table/agent-activity";
+import { AgentCell } from "@/components/profile-table/agent-cell";
+import { AgentTaskMenu } from "@/components/profile-table/agent-task-menu";
 import {
   type FitColumn,
   fitColumns,
@@ -388,6 +393,11 @@ interface TableMeta {
     | undefined;
   onLaunchWithSync: (profile: BrowserProfile) => void;
 
+  // Agent: set only when the account has the agent.
+  agentActivity: AgentActivityStore | null;
+  onAgentOpen: (source: AgentSource, profile: BrowserProfile) => void;
+  onAgentAsk: (profile: BrowserProfile) => void;
+
   // Cookie Bot
   cookieBotUnlocked: boolean;
   /** Narrow container: the bot column shows its state mark without the label. */
@@ -532,6 +542,7 @@ const FIT_COLUMNS: FitColumn[] = [
   { id: "dns", floor: 95, pct: 0.11 },
   { id: "state", floor: 90, pct: 0.1 },
   { id: "bot", floor: 84, pct: 0.09 },
+  { id: "agent", floor: 140, pct: 0.24 },
   { id: "proxy", floor: 110, pct: 0.13, pinned: true },
 ];
 
@@ -786,6 +797,7 @@ const COLUMN_ANCHORS: Partial<Record<string, CoachAnchorId>> = {
   proxy: "column-proxy",
   ext: "column-ext",
   dns: "column-dns",
+  agent: "column-agent",
 };
 
 function columnAnchor(columnId: string) {
@@ -2247,6 +2259,13 @@ interface ProfilesDataTableProps {
   onRunRemote?: (profile: BrowserProfile) => void;
   /** Opens a chat with the agent on the profile; only with the agent. */
   onAskAgent?: (profile: BrowserProfile) => void;
+  /**
+   * What the agent did in each profile, for the Agent column. Set only when
+   * the account has the agent; without it the column does not exist.
+   */
+  agentActivity?: AgentActivityStore;
+  /** Opens the chat or run a row's Agent cell names. */
+  onOpenAgentSource?: (source: AgentSource) => void;
 }
 
 const EMPTY_LAUNCH_ERRORS: Record<string, string> = {};
@@ -2310,6 +2329,8 @@ export function ProfilesDataTable({
   onLockProfile,
   onRunRemote,
   onAskAgent,
+  agentActivity,
+  onOpenAgentSource,
   onDeleteSelectedProfiles,
   selectedGroupId,
 }: ProfilesDataTableProps) {
@@ -3049,8 +3070,25 @@ export function ProfilesDataTable({
   );
   // Callbacks in the meta that read props through a ref: a parent that
   // passes a new function on each render must not re-render every row.
-  const latestRef = React.useRef({ profiles, onLaunchWithSync });
-  latestRef.current = { profiles, onLaunchWithSync };
+  const latestRef = React.useRef({
+    profiles,
+    onLaunchWithSync,
+    onAskAgent,
+    onOpenAgentSource,
+  });
+  latestRef.current = {
+    profiles,
+    onLaunchWithSync,
+    onAskAgent,
+    onOpenAgentSource,
+  };
+  const agentOpen = React.useCallback((source: AgentSource) => {
+    latestRef.current.onOpenAgentSource?.(source);
+  }, []);
+  const agentAsk = React.useCallback((profile: BrowserProfile) => {
+    latestRef.current.onAskAgent?.(profile);
+  }, []);
+  const agentEnabled = Boolean(agentActivity);
   const openTrafficDialog = React.useCallback((profileId: string) => {
     const profile = latestRef.current.profiles.find((p) => p.id === profileId);
     setTrafficDialogProfile({ id: profileId, name: profile?.name });
@@ -3177,6 +3215,10 @@ export function ProfilesDataTable({
       cookieBotCompact,
       getProfileBotState,
       botPendingProfiles,
+      agentActivity: agentActivity ?? null,
+      onAgentOpen: agentOpen,
+      onAgentAsk: agentAsk,
+
       syncPasswordSet,
       onBotEnrol: handleBotEnrol,
       onBotEdit: handleBotEdit,
@@ -3261,6 +3303,9 @@ export function ProfilesDataTable({
       handleBotViewActivity,
       botFixHandler,
       profileStatuses,
+      agentActivity,
+      agentOpen,
+      agentAsk,
     ],
   );
 
@@ -3878,6 +3923,34 @@ export function ProfilesDataTable({
         },
       },
       {
+        id: "agent",
+        size: 150,
+        enableSorting: false,
+        header: ({ table }) => {
+          const meta = table.options.meta as TableMeta;
+          return meta.t("profileTable.agent.header");
+        },
+        cell: ({ row, table }) => {
+          const meta = table.options.meta as TableMeta;
+          const profile = row.original;
+          if (
+            !meta.agentActivity ||
+            profile.browser !== "wayfern" ||
+            isCrossOsProfile(profile)
+          ) {
+            return null;
+          }
+          return (
+            <AgentCell
+              profile={profile}
+              store={meta.agentActivity}
+              onOpen={meta.onAgentOpen}
+              onAsk={meta.onAgentAsk}
+            />
+          );
+        },
+      },
+      {
         id: "sync",
         header: "",
         size: 28,
@@ -4062,6 +4135,7 @@ export function ProfilesDataTable({
     const candidates: FitColumn[] = [];
     for (const column of FIT_COLUMNS) {
       if (column.id === "bot" && !cookieBotUnlocked) continue;
+      if (column.id === "agent" && !agentEnabled) continue;
       if (choices[column.id] === false) continue;
       // The bot column has two shapes: a labelled state at full width, a
       // bare 28px mark when the table is narrow.
@@ -4089,6 +4163,7 @@ export function ProfilesDataTable({
   }, [
     containerWidth,
     cookieBotUnlocked,
+    agentEnabled,
     contentWants,
     view.preferences.visibility,
     view.preferences.sizing,
@@ -4096,7 +4171,9 @@ export function ProfilesDataTable({
   const columnVisibility = React.useMemo<VisibilityState>(
     () => ({
       created_at: false,
-      ...(columnFit ? columnFit.visible : { bot: false, profileId: false }),
+      ...(columnFit
+        ? columnFit.visible
+        : { bot: false, agent: false, profileId: false }),
     }),
     [columnFit],
   );
@@ -4116,8 +4193,11 @@ export function ProfilesDataTable({
       ...(cookieBotUnlocked
         ? [{ id: "bot", label: t("profiles.table.bot") }]
         : []),
+      ...(agentEnabled
+        ? [{ id: "agent", label: t("profileTable.agent.header") }]
+        : []),
     ],
-    [t, cookieBotUnlocked],
+    [t, cookieBotUnlocked, agentEnabled],
   );
   const configuredColumns = React.useMemo<ColumnDef<BrowserProfile>[]>(
     () =>
@@ -4194,7 +4274,11 @@ export function ProfilesDataTable({
         columnVisibility,
         view.preferences.visibility,
         ["select", "actions", "name", "settings"],
-        cookieBotUnlocked ? ["created_at"] : ["created_at", "bot"],
+        [
+          "created_at",
+          ...(cookieBotUnlocked ? [] : ["bot"]),
+          ...(agentEnabled ? [] : ["agent"]),
+        ],
       ),
       columnSizing: view.preferences.sizing,
     },
@@ -5055,13 +5139,11 @@ export function ProfilesDataTable({
           </span>
         )}
         {onRunAgentTask && (
-          <DataTableActionBarAction
-            data-bulk-action="agent-task"
-            tooltip={t("profiles.actionBar.runTask")}
-            onClick={onRunAgentTask}
-          >
-            <LuSparkles />
-          </DataTableActionBarAction>
+          <AgentTaskMenu
+            profileIds={selectedProfiles}
+            onNewTask={onRunAgentTask}
+            onOpen={onOpenAgentSource}
+          />
         )}
         <DataTableActionBarAction
           tooltip={t("bulkEdit.action")}

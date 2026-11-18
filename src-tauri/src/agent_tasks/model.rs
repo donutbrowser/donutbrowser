@@ -10,6 +10,9 @@ use std::collections::VecDeque;
 pub const MAX_STEPS: usize = 300;
 /// The longest step, question or result text kept.
 pub const MAX_TEXT_CHARS: usize = 4_000;
+/// The longest answer read from the engine, before the blocks Donut takes
+/// out of its end and the cut to `MAX_TEXT_CHARS`.
+const MAX_ANSWER_CHARS: usize = 64_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -96,23 +99,34 @@ pub enum EngineEvent {
   Approval(Approval),
   Finished {
     status: TaskStatus,
+    /// The whole answer, until the task takes it.
     result: Option<String>,
     error: Option<String>,
     credits_used: u64,
+    /// What the answer found, by the columns the task asked for.
+    data: Option<Value>,
   },
   Credits(u64),
 }
 
-fn text(params: &Value, key: &str) -> Option<String> {
+fn text_up_to(params: &Value, key: &str, max: usize) -> Option<String> {
   params
     .get(key)
     .and_then(Value::as_str)
-    .map(|value| value.chars().take(MAX_TEXT_CHARS).collect())
+    .map(|value| value.chars().take(max).collect())
+}
+
+fn text(params: &Value, key: &str) -> Option<String> {
+  text_up_to(params, key, MAX_TEXT_CHARS)
 }
 
 /// An engine error that is a bare code (`AGENT_ENGINE_RESTARTED`) becomes the
 /// app's JSON error, so the interface translates it; prose stays as it is.
 fn coded_error(error: String) -> String {
+  // The gateway's daily cap, as the app names it.
+  if error == "ACTION_CAP" {
+    return crate::backend_error("AGENT_ACTION_CAP");
+  }
   let is_code = !error.is_empty()
     && error
       .chars()
@@ -158,9 +172,10 @@ impl EngineEvent {
       }),
       "Wayfern.agentFinished" => Self::Finished {
         status: TaskStatus::from_finished(params.get("status").and_then(Value::as_str)?),
-        result: text(params, "result"),
+        result: text_up_to(params, "result", MAX_ANSWER_CHARS),
         error: text(params, "error").map(coded_error),
         credits_used: credits(params),
+        data: None,
       },
       "Wayfern.agentCredits" => Self::Credits(credits(params)),
       _ => return None,
@@ -184,6 +199,9 @@ pub struct Task {
   pub result: Option<String>,
   /// A backend error code, or the engine's own words when it failed.
   pub error: Option<String>,
+  /// What the answer found, by the routine's columns.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub data: Option<Value>,
   /// Credits of this attempt, as the engine reports them.
   pub credits_used: u64,
   /// Credits of the earlier attempts: a retry spends them again, never back.
@@ -210,6 +228,7 @@ impl Task {
       approval: None,
       result: None,
       error: None,
+      data: None,
       credits_used: 0,
       credits_before: 0,
       started_at: None,
@@ -291,10 +310,12 @@ impl Task {
         result,
         error,
         credits_used,
+        data,
       } => {
         self.status = status;
-        self.result = result;
+        self.result = result.map(|text| text.chars().take(MAX_TEXT_CHARS).collect());
         self.error = error;
+        self.data = data;
         self.credits_used = self.credits_used.max(credits_used);
         self.approval = None;
         self.finished_at = Some(now_ms);
@@ -492,6 +513,28 @@ mod tests {
     assert_eq!(task.steps.front().unwrap().index, Some(5));
     assert_eq!(
       task.steps.back().unwrap().text.chars().count(),
+      MAX_TEXT_CHARS
+    );
+  }
+
+  #[test]
+  fn a_long_answer_reaches_its_owner_whole_and_is_cut_when_kept() {
+    let long = format!("{}```memory\nfact\n```", "x".repeat(MAX_TEXT_CHARS * 2));
+    let finished = event(
+      "Wayfern.agentFinished",
+      json!({"taskId": "t1", "status": "done", "result": long}),
+    );
+    let EngineEvent::Finished { result, .. } = &finished else {
+      panic!("finished");
+    };
+    assert!(
+      result.as_deref().unwrap().ends_with("```"),
+      "the end is read"
+    );
+    let mut task = running();
+    task.apply(finished, 2);
+    assert_eq!(
+      task.result.as_deref().unwrap().chars().count(),
       MAX_TEXT_CHARS
     );
   }

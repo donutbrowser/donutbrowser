@@ -46,6 +46,7 @@ function columns(shown, { sortByName = false } = {}) {
         "ext",
         "dns",
         "bot",
+        "agent",
         "sync",
       ].map((id) => [id, shown.includes(id)]),
     ),
@@ -1117,6 +1118,216 @@ export const CLIPS = {
       await take.click(page.getByPlaceholder(/Write a note/), { dur: 700 });
       await take.type("Skip order 1043 for now.", { cps: 18 });
       await take.press("Enter", { after: 1300 });
+      await take.move(take.state.rest, { dur: 700, hover: false });
+    },
+  },
+  "agent-table": {
+    length: 6400,
+    fps: 18,
+    fade: 500,
+    poster: 0.3,
+    viewport: { width: 900, height: 560 },
+    demo: {
+      agentPlan: true,
+      tablePrefs: { ...columns(["agent"]), sizing: { agent: 260 } },
+    },
+    async setup(take) {
+      const { page } = take;
+      const agentCell = (name) =>
+        row(page, name).locator('[data-slot="profile-agent-cell"]');
+      await agentCell("Social · Main").waitFor();
+      await page.waitForTimeout(600);
+      const peek = await measure(
+        page,
+        () => agentCell("Social · Main").click(),
+        () => page.locator('[data-slot="profile-agent-peek"]'),
+      );
+      await page.evaluate(() => document.activeElement?.blur());
+      await take.camera(
+        union(
+          await nameCell(page, "Shop · US").boundingBox(),
+          await page.locator('[data-tip-anchor="column-agent"]').boundingBox(),
+          await agentCell("Forum").boundingBox(),
+          peek,
+        ),
+        { dur: 0, pad: 12 },
+      );
+      const box = await agentCell("Shop · UK").boundingBox();
+      take.state.rest = { x: box.x - 60, y: box.y + 10 };
+      await take.place(take.state.rest);
+    },
+    async run(take) {
+      const { page } = take;
+      await page.evaluate(() => window.__agentDemo.play({ every: 850 }));
+      await take.wait(1300);
+      await take.click(
+        row(page, "Social · Main").locator('[data-slot="profile-agent-cell"]'),
+        { dur: 700, at: [0.3, 0.5] },
+      );
+      await take.wait(2300);
+      // A click outside closes it without a focus ring on the cell.
+      await take.click(page.getByText(/of \d+ rows/).first(), {
+        dur: 700,
+      });
+      await take.wait(300);
+      await take.move(take.state.rest, { dur: 600, hover: false });
+    },
+  },
+  "agent-chat": {
+    length: 7000,
+    fps: 18,
+    fade: 600,
+    poster: 0.55,
+    viewport: { width: 1280, height: 640 },
+    demo: { agentPlan: true },
+    async setup(take) {
+      const { page } = take;
+      await page.keyboard.press("Meta+j");
+      await page
+        .locator('[data-slot="chat-list-item"][data-chat-id="chat-comments"]')
+        .click();
+      await page.locator('[data-slot="agent-live-view"]').waitFor();
+      await page.waitForTimeout(900);
+      await take.camera(topOfWindow(take), { dur: 0, pad: 0 });
+      const live = await page
+        .locator('[data-slot="agent-live-view"]')
+        .boundingBox();
+      take.state.rest = { x: live.x - 90, y: live.y + live.height * 0.75 };
+      await take.place(take.state.rest);
+    },
+    async run(take) {
+      const { page } = take;
+      await page.evaluate(() =>
+        window.__agentDemo.play({ every: 950, run: false }),
+      );
+      await take.wait(2400);
+      await take.move(page.locator('[data-slot="agent-live-view"]'), {
+        dur: 800,
+        at: [0.5, 0.45],
+      });
+      await take.wait(2600);
+      await take.move(take.state.rest, { dur: 700, hover: false });
+    },
+  },
+  "agent-run": {
+    length: 6400,
+    fps: 18,
+    fade: 500,
+    poster: 0.5,
+    viewport: { width: 1180, height: 640 },
+    demo: { agentPlan: true },
+    async setup(take) {
+      const { page } = take;
+      await page.keyboard.press("Meta+j");
+      await page
+        .locator('[data-slot="agent-run-item"][data-batch-id="run-warmup"]')
+        .click();
+      await page.locator('[data-slot="agent-run-pane"]').waitFor();
+      await page.waitForTimeout(900);
+      await take.camera(page.locator('[data-slot="agent-run-pane"]'), {
+        dur: 0,
+        pad: 8,
+      });
+      const pane = await page
+        .locator('[data-slot="agent-run-pane"]')
+        .boundingBox();
+      take.state.rest = {
+        x: pane.x + pane.width * 0.8,
+        y: pane.y + pane.height * 0.85,
+      };
+      await take.place(take.state.rest);
+    },
+    async run(take) {
+      const { page } = take;
+      await page.evaluate(() =>
+        window.__agentDemo.play({ every: 800, chat: false }),
+      );
+      await take.wait(1800);
+      await take.move(page.locator('[data-slot="agent-batch-tile"]').nth(3), {
+        dur: 800,
+      });
+      await take.wait(2400);
+      await take.move(take.state.rest, { dur: 700, hover: false });
+    },
+  },
+  "agent-routine": {
+    length: 5600,
+    fps: 18,
+    fade: 500,
+    poster: 0.6,
+    viewport: { width: 1180, height: 640 },
+    demo: { agentPlan: true },
+    async setup(take) {
+      const { page } = take;
+      await page.keyboard.press("Meta+j");
+      await page
+        .locator(
+          '[data-slot="agent-routine-item"][data-routine-id="routine-daily"]',
+        )
+        .click();
+      await page.locator('[data-slot="agent-routine-batch"]').nth(2).waitFor();
+      await page.waitForTimeout(900);
+      await take.camera(page.locator('[data-slot="agent-routine"]'), {
+        dur: 0,
+        pad: 8,
+      });
+      const box = await page
+        .locator('[data-slot="agent-routine-batch"] > button')
+        .nth(2)
+        .boundingBox();
+      take.state.rest = { x: box.x + box.width * 0.6, y: box.y + 90 };
+      await take.place(take.state.rest);
+    },
+    async run(take) {
+      const { page } = take;
+      // The newest run is open; the one with a failure opens and closes.
+      const toggle = page
+        .locator('[data-slot="agent-routine-batch"] > button')
+        .nth(2);
+      await take.wait(500);
+      await take.click(toggle, { dur: 650, at: [0.2, 0.5] });
+      await take.wait(2600);
+      await take.click(toggle, { dur: 400, at: [0.2, 0.5] });
+      await take.wait(500);
+      await take.move(take.state.rest, { dur: 700, hover: false });
+    },
+  },
+  "agent-templates": {
+    length: 6000,
+    fps: 18,
+    fade: 500,
+    poster: 0.25,
+    viewport: { width: 1180, height: 640 },
+    demo: { agentPlan: true },
+    async setup(take) {
+      const { page } = take;
+      await page.keyboard.press("Meta+j");
+      await page.locator('[data-slot="agent-templates-open"]').click();
+      await page.locator('[data-slot="agent-templates"]').waitFor();
+      await page.waitForTimeout(900);
+      await take.camera(page.locator('[data-slot="agent-templates"]'), {
+        dur: 0,
+        pad: 8,
+      });
+      const search = await page
+        .locator('[data-slot="agent-templates-search"]')
+        .boundingBox();
+      take.state.rest = { x: search.x + search.width * 0.7, y: search.y + 90 };
+      await take.place(take.state.rest);
+    },
+    async run(take) {
+      const { page } = take;
+      const category = (name) =>
+        page.locator(
+          `[data-slot="agent-templates-category"][data-category="${name}"]`,
+        );
+      await take.wait(500);
+      await take.click(category("health"), { dur: 700 });
+      await take.wait(1300);
+      await take.click(category("monitoring"), { dur: 500 });
+      await take.wait(1300);
+      await take.click(category("all"), { dur: 600 });
+      await take.wait(500);
       await take.move(take.state.rest, { dur: 700, hover: false });
     },
   },

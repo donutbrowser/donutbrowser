@@ -21,7 +21,10 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { SoftFields } from "@/components/ui/field-variant";
 import type { AgentConsole } from "@/hooks/use-agent-console";
 import type { AgentAvailability } from "@/hooks/use-agent-tasks";
-import { canUseScheduledAutomation } from "@/lib/entitlements";
+import {
+  canUseScheduledAutomation,
+  hasAgentIntegrations,
+} from "@/lib/entitlements";
 import type { BrowserProfile, CloudUser } from "@/types";
 
 export type { AgentView };
@@ -121,6 +124,7 @@ export function AgentPage({
           agentConsole={agentConsole}
           consoleState={consoleState}
           canSchedule={canUseScheduledAutomation(cloudUser)}
+          integrations={hasAgentIntegrations(cloudUser)}
           seed={chatSeed}
           onConnectAgent={onConnectAgent}
           onOpenAccount={onOpenAccount}

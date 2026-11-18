@@ -18,13 +18,16 @@ import {
   LuLink,
   LuLock,
   LuMessageSquare,
+  LuMessagesSquare,
   LuMonitor,
   LuMousePointerClick,
   LuPuzzle,
   LuRadioTower,
+  LuRepeat,
   LuServer,
   LuShield,
   LuShieldBan,
+  LuSparkles,
   LuTag,
   LuTerminal,
   LuTextSearch,
@@ -35,6 +38,10 @@ import {
 import type { TipId } from "@/lib/tips";
 
 const ICONS: Record<TipId, IconType> = {
+  agentChat: LuMessagesSquare,
+  agentRun: LuSparkles,
+  agentRoutine: LuRepeat,
+  agentTemplates: LuLayoutTemplate,
   commandPalette: LuCommand,
   searchSyntax: LuTextSearch,
   shortcuts: LuKeyboard,

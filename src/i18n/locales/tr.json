@@ -2490,7 +2490,16 @@
       "stopping": "Durduruluyor…",
       "singleInstance": "Bu tarayıcının aynı anda yalnızca bir örneği çalışabilir. Önce çalışanı durdurun."
     },
-    "pinned": "Sabitlendi"
+    "pinned": "Sabitlendi",
+    "agent": {
+      "header": "Ajan",
+      "ask": "Sor",
+      "aria": "{{name}} içindeki ajan: {{status}}",
+      "openChat": "Sohbeti aç",
+      "openRun": "Çalıştırmayı aç",
+      "loadingRoutines": "Rutinler yükleniyor…",
+      "noRoutines": "Henüz rutin yok"
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}} seçildi",
@@ -2998,7 +3007,27 @@
     "desktopOffline": "Donut planlanan saatte açık değildi.",
     "desktopRefused": "Donut bu çalıştırmayı başlatamadı.",
     "runLost": "Donut bu çalıştırma hakkında bilgi göndermeyi bıraktı.",
-    "freeCreditsPending": "Ücretsiz kredileriniz henüz hazır değil. Yeni hesaplar bunları kısa bir kontrolden sonra alır."
+    "freeCreditsPending": "Ücretsiz kredileriniz henüz hazır değil. Yeni hesaplar bunları kısa bir kontrolden sonra alır.",
+    "agentColumnDuplicate": "Her sütunun kendi adı olmalı.",
+    "agentExportFailed": "Dosya kaydedilemedi.",
+    "agentSettingsNotSaved": "Görev başlamadı: sınırları kaydedilemedi.",
+    "agentMemoryUnreadable": "Ajanın bu profile ait notları okunamıyor.",
+    "agentNoteNotFound": "Bu not artık yok.",
+    "agentPlaybookInvalid": "Kılavuzun adını, talimatlarını ve sitelerini kontrol edin.",
+    "agentPlaybookReadOnly": "Bu kılavuzu yalnızca yazarı veya bir ekip yöneticisi değiştirebilir.",
+    "agentPlaybookNotFound": "Bu kılavuz artık yok.",
+    "agentPlaybookLimit": "İzin verilen en fazla kılavuz sayısına ulaştınız.",
+    "agentPlaybookSiteInvalid": "Site, shop.example.com gibi bir alan adı olmalı.",
+    "agentSubscriptionInvalid": "Adresi ve olayı kontrol edin.",
+    "agentSubscriptionUrlInvalid": "Bir https adresi kullanın.",
+    "agentSubscriptionNotFound": "Bu teslimat artık yok.",
+    "agentSubscriptionLimit": "İzin verilen en fazla teslimat sayısına ulaştınız.",
+    "agentIntegrationsNotEntitled": "Bu hesapta webhook’lar ve teslimatlar açık değil.",
+    "agentFieldInvalid": "Bir alan geçersiz.",
+    "agentHookNotFound": "Bu rutinin webhook’u yok.",
+    "agentHookBusy": "Bu rutini bekleyen çok fazla webhook çağrısı var.",
+    "agentRoutineDisabled": "Rutin kapalı.",
+    "agentActionCap": "Günlük eylem sınırına ulaşıldı."
   },
   "rail": {
     "profiles": "Profiller",
@@ -4604,6 +4633,126 @@
           "prompt": "Bu profilde bir DNS sızıntı testi sayfası açın ve standart testini çalıştırın. Her DNS sunucusunu ülkesi ve sahibiyle not edin. Sonra bir WebRTC sızıntı testi sayfası açın ve bulduğu her IP adresini not edin. Şu sütunlarla tek bir satır verin: proxy IP, DNS ülkeleri, WebRTC IP'leri, sızıntı (evet veya hayır). Sızıntı, proxy ülkesi dışındaki bir DNS sunucusu veya IP adresidir."
         }
       }
+    },
+    "options": {
+      "effort": "Çaba",
+      "efforts": {
+        "fast": "Hızlı",
+        "standard": "Standart",
+        "thorough": "Kapsamlı"
+      },
+      "humanPace": "İnsan hızı",
+      "capDay": "Günlük eylem",
+      "capSite": "Site başına günlük"
+    },
+    "output": {
+      "add": "Sütun ekle",
+      "hint": "Her çalıştırma bu değerlerle biter.",
+      "name": "Sütun adı",
+      "namePlaceholder": "Sütun",
+      "type": "Tür",
+      "types": {
+        "text": "Metin",
+        "number": "Sayı",
+        "bool": "Evet veya hayır",
+        "url": "Bağlantı"
+      },
+      "remove": "Sütunu kaldır",
+      "copy": "Kopyala",
+      "copied": "Tablo kopyalandı",
+      "export": "CSV",
+      "exported_one": "{{count}} satır kaydedildi",
+      "exported_other": "{{count}} satır kaydedildi",
+      "profile": "Profil",
+      "result": "Sonuç",
+      "yes": "Evet",
+      "no": "Hayır"
+    },
+    "playbooks": {
+      "title": "Kılavuzlar",
+      "new": "Yeni kılavuz",
+      "pick": "Kılavuzlar",
+      "count_one": "{{count}} kılavuz",
+      "count_other": "{{count}} kılavuz",
+      "search": "Kılavuz ara",
+      "none": "Henüz kılavuz yok.",
+      "noMatch": "Eşleşen kılavuz yok.",
+      "bySite": "Rutinin sitesine ait kılavuzlar kendiliğinden eklenir.",
+      "saved": "Kılavuz kaydedildi",
+      "name": "Ad",
+      "namePlaceholder": "Kılavuz adı",
+      "instructions": "Talimatlar",
+      "instructionsPlaceholder": "Sitede nasıl çalışılır: neyin nerede olduğu, neyin kontrol edileceği, nelerden kaçınılacağı",
+      "sites": "Siteler",
+      "shared": "Ekiple paylaş",
+      "deleteTitle": "{{name}} silinsin mi?",
+      "deleteDescription": "Görevler artık bu kılavuzu almaz.",
+      "empty": "Bir sitede nasıl çalışılacağını bir kez yazın. Oradaki her görev onu alır.",
+      "anySite": "Her site",
+      "team": "Ekip"
+    },
+    "triggers": {
+      "webhook": "Webhook",
+      "hookHint": "Bir webhook’a yapılan POST, gövdeyi girdi olarak alıp bu rutini çalıştırır.",
+      "hookCreate": "Webhook oluştur",
+      "hookUse": "Bu adrese yapılan POST rutini çalıştırır. Gövde, rutinin girdisidir.",
+      "hookRotate": "Yeni adres",
+      "hookDelete": "Webhook’u sil",
+      "copy": "Kopyala",
+      "copied": "Kopyalandı",
+      "sendTo": "Sonuçları gönder",
+      "events": {
+        "run": {
+          "finished": "Çalıştırma bitti",
+          "needs_you": "Çalıştırma sizi bekliyor"
+        },
+        "batch": {
+          "finished": "Tüm çalıştırmalar bitti"
+        }
+      },
+      "slack": "Slack",
+      "failed": "Teslim edilemedi",
+      "test": "Dene",
+      "testSent": "Deneme teslim edildi",
+      "testFailed": "Deneme teslim edilemedi: {{error}}",
+      "remove": "Kaldır",
+      "url": "Slack veya webhook URL’si",
+      "urlPlaceholder": "https://hooks.slack.com/…",
+      "event": "Olay",
+      "add": "Ekle",
+      "secret": "İmza anahtarı, bir kez gösterilir:"
+    },
+    "inbox": {
+      "title": "Gelen kutusu",
+      "empty": "Sizi bekleyen bir şey yok.",
+      "notifyQuestion": "{{name}} sizi bekliyor",
+      "notifyChange": "{{name}} uygulamada değişiklik istiyor",
+      "changes": {
+        "routines": {
+          "save": "{{name}} rutinini kaydet",
+          "run": "{{name}} rutinini çalıştır",
+          "delete": "{{name}} rutinini sil"
+        },
+        "tasks": {
+          "run": "{{name}} görevini diğer profillerde çalıştır"
+        }
+      }
+    },
+    "memory": {
+      "title": "Bellek",
+      "choose": "Bir profil seçin.",
+      "notes": "Ajanın bildikleri",
+      "note": "Not",
+      "notePlaceholder": "Sonraki görevler için bir bilgi ekleyin",
+      "add": "Ekle",
+      "edit": "Düzenle",
+      "delete": "Notu sil",
+      "empty": "Henüz not yok. Görevler öğrendiklerini ekler.",
+      "useHistory": "Bu profilin geçmişini kullan",
+      "historyHint": "Görevler, bu profilin son 14 günde en çok ziyaret ettiği siteleri görür. Bu bilgi bu cihazda kalır.",
+      "historySites": "Görevlerin gördükleri: {{sites}}",
+      "actionsToday_one": "Bugün {{n}} eylem",
+      "actionsToday_other": "Bugün {{n}} eylem"
     }
   },
   "proxyDistribution": {
@@ -4831,6 +4980,30 @@
         "title": "Birçok profili aynı anda yönetin",
         "body": "Bir profilin menüsünden Eşitleyici ile Başlat'ı seçin ve takipçileri belirleyin. Liderdeki her tıklama ve tuş vuruşu her takipçide tekrarlanır.",
         "action": "Profilleri aç"
+      },
+      "agentChat": {
+        "label": "Profilde sohbet",
+        "title": "Ajana bir profilde iş verin",
+        "body": "İhtiyacınızı kendi sözlerinizle yazın. Ajan profilin tarayıcısında çalışır, siz canlı izlersiniz; önemli adımlardan önce sorar.",
+        "action": "Ajanı aç"
+      },
+      "agentRun": {
+        "label": "Tek görev, çok profil",
+        "title": "Bir görevi birçok profilde çalıştırın",
+        "body": "Profilleri seçin, ardından tablonun altındaki çubukta Ajan'ı seçin. Her satırın görevinin gidişatı Ajan sütununda görünür.",
+        "action": "Profilleri aç"
+      },
+      "agentRoutine": {
+        "label": "Rutinler",
+        "title": "Bir görevi rutinle tekrarlayın",
+        "body": "Bir görevi rutin olarak kaydedin, sonra elle ya da zamanlamayla çalıştırın. Her çalıştırma her profil için sonucunu saklar.",
+        "action": "Ajanı aç"
+      },
+      "agentTemplates": {
+        "label": "Şablonlar",
+        "title": "Bir şablonla başlayın",
+        "body": "Hesaplar, mağazalar, reklamlar, araştırma ve profil sağlığı için hazır görevler. Birini seçip boşlukları doldurun.",
+        "action": "Şablonlara göz atın"
       }
     },
     "sections": {
@@ -4838,7 +5011,8 @@
       "network": "Ağ",
       "privacy": "Gizlilik ve veriler",
       "connect": "Bağlantılar",
-      "plan": "Planınıza dahil"
+      "plan": "Planınıza dahil",
+      "agent": "Ajan"
     },
     "progress": "{{total}} ipucundan {{read}} tanesi okundu",
     "unread": "Henüz okunmadı",
@@ -5268,5 +5442,31 @@
     "description": "Donut'un bu bölümü bir hata nedeniyle durdu. Devam etmek için yeniden yükleyin. Hata günlükte.",
     "reload": "Yeniden yükle",
     "copyDetails": "Ayrıntıları kopyala"
+  },
+  "agentIntro": {
+    "notNow": "Şimdi değil",
+    "hide": "Gizle",
+    "done": "Tamam",
+    "offer": {
+      "title": "Ajanınızı deneyin",
+      "body": "Bu profilin kendi tarayıcısında bir insan gibi çalışır. Gerçek bir görev çalıştırın: proxy ile parmak izinin uyuştuğunu kontrol edin.",
+      "start": "Çalıştır"
+    },
+    "working": {
+      "title": "Ajan çalışıyor",
+      "body": "Bu, canlı penceresidir. Çalışmaya devam edebilirsiniz: Ajan sütunu gidişatı gösterir."
+    },
+    "result": {
+      "title": "Bulduğu sonuç",
+      "body": "İstediğiniz profillerde yeniden ya da bir zamanlamayla çalıştırmak için rutin olarak kaydedin."
+    },
+    "ended": {
+      "title": "Görev tamamlanmadı"
+    },
+    "saved": {
+      "title": "Rutin kaydedildi",
+      "body": "Tabloda profilleri seçip Ajan menüsünden çalıştırın ya da Ajan sayfasında bir zamanlama verin.",
+      "open": "Rutini aç"
+    }
   }
 }

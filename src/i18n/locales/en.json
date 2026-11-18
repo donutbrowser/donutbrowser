@@ -2490,7 +2490,16 @@
       "stopping": "Stopping…",
       "singleInstance": "Only one instance of this browser can run at a time. Stop the running one first."
     },
-    "pinned": "Pinned"
+    "pinned": "Pinned",
+    "agent": {
+      "header": "Agent",
+      "ask": "Ask",
+      "aria": "Agent in {{name}}: {{status}}",
+      "openChat": "Open chat",
+      "openRun": "Open run",
+      "loadingRoutines": "Loading routines…",
+      "noRoutines": "No routines yet"
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}} selected",
@@ -2998,7 +3007,27 @@
     "desktopOffline": "Donut was not open at the scheduled time.",
     "desktopRefused": "Donut could not start this run.",
     "runLost": "Donut stopped reporting on this run.",
-    "freeCreditsPending": "Your free credits are not ready yet. New accounts get them after a short check."
+    "freeCreditsPending": "Your free credits are not ready yet. New accounts get them after a short check.",
+    "agentColumnDuplicate": "Each column needs its own name.",
+    "agentExportFailed": "The file could not be saved.",
+    "agentSettingsNotSaved": "The task did not start: its caps could not be saved.",
+    "agentMemoryUnreadable": "The agent's notes for this profile cannot be read.",
+    "agentNoteNotFound": "That note is gone.",
+    "agentPlaybookInvalid": "Check the playbook's name, instructions and sites.",
+    "agentPlaybookReadOnly": "Only its author or a team admin can change this playbook.",
+    "agentPlaybookNotFound": "That playbook is gone.",
+    "agentPlaybookLimit": "You have the most playbooks allowed.",
+    "agentPlaybookSiteInvalid": "A site must be a domain, such as shop.example.com.",
+    "agentSubscriptionInvalid": "Check the address and the event.",
+    "agentSubscriptionUrlInvalid": "Use an https address.",
+    "agentSubscriptionNotFound": "That delivery is gone.",
+    "agentSubscriptionLimit": "You have the most deliveries allowed.",
+    "agentIntegrationsNotEntitled": "Webhooks and deliveries are not on for this account.",
+    "agentFieldInvalid": "A field is not valid.",
+    "agentHookNotFound": "This routine has no webhook.",
+    "agentHookBusy": "Too many webhook calls wait for this routine.",
+    "agentRoutineDisabled": "The routine is off.",
+    "agentActionCap": "The daily action cap was reached."
   },
   "rail": {
     "profiles": "Profiles",
@@ -4604,6 +4633,126 @@
           "prompt": "Open a DNS leak test page in this profile and run its standard test. Note each DNS server with its country and owner. Then open a WebRTC leak test page and note each IP address it finds. Give one row with these columns: proxy IP, DNS countries, WebRTC IPs, leak (yes or no). A leak is a DNS server or IP address outside the proxy's country."
         }
       }
+    },
+    "options": {
+      "effort": "Effort",
+      "efforts": {
+        "fast": "Fast",
+        "standard": "Standard",
+        "thorough": "Thorough"
+      },
+      "humanPace": "Human pace",
+      "capDay": "Actions a day",
+      "capSite": "Per site a day"
+    },
+    "output": {
+      "add": "Add columns",
+      "hint": "Each run ends with these values.",
+      "name": "Column name",
+      "namePlaceholder": "Column",
+      "type": "Type",
+      "types": {
+        "text": "Text",
+        "number": "Number",
+        "bool": "Yes or no",
+        "url": "Link"
+      },
+      "remove": "Remove column",
+      "copy": "Copy",
+      "copied": "Table copied",
+      "export": "CSV",
+      "exported_one": "Saved {{count}} row",
+      "exported_other": "Saved {{count}} rows",
+      "profile": "Profile",
+      "result": "Result",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "playbooks": {
+      "title": "Playbooks",
+      "new": "New playbook",
+      "pick": "Playbooks",
+      "count_one": "{{count}} playbook",
+      "count_other": "{{count}} playbooks",
+      "search": "Search playbooks",
+      "none": "No playbooks yet.",
+      "noMatch": "No playbook matches.",
+      "bySite": "Playbooks for the routine's site are added on their own.",
+      "saved": "Playbook saved",
+      "name": "Name",
+      "namePlaceholder": "Playbook name",
+      "instructions": "Instructions",
+      "instructionsPlaceholder": "How to work on the site: where things are, what to check, what to avoid",
+      "sites": "Sites",
+      "shared": "Share with the team",
+      "deleteTitle": "Delete {{name}}?",
+      "deleteDescription": "Tasks stop getting this playbook.",
+      "empty": "Write how to work on a site once. Every task there gets it.",
+      "anySite": "Any site",
+      "team": "Team"
+    },
+    "triggers": {
+      "webhook": "Webhook",
+      "hookHint": "A POST to a webhook runs this routine with the body as its input.",
+      "hookCreate": "Make a webhook",
+      "hookUse": "A POST to this address runs the routine. The body is its input.",
+      "hookRotate": "New address",
+      "hookDelete": "Delete webhook",
+      "copy": "Copy",
+      "copied": "Copied",
+      "sendTo": "Send results to",
+      "events": {
+        "run": {
+          "finished": "Run finished",
+          "needs_you": "Run needs you"
+        },
+        "batch": {
+          "finished": "All runs finished"
+        }
+      },
+      "slack": "Slack",
+      "failed": "Delivery failed",
+      "test": "Test",
+      "testSent": "Test delivered",
+      "testFailed": "Test not delivered: {{error}}",
+      "remove": "Remove",
+      "url": "Slack or webhook URL",
+      "urlPlaceholder": "https://hooks.slack.com/…",
+      "event": "Event",
+      "add": "Add",
+      "secret": "Signing secret, shown once:"
+    },
+    "inbox": {
+      "title": "Inbox",
+      "empty": "Nothing waits for you.",
+      "notifyQuestion": "{{name}} needs you",
+      "notifyChange": "{{name}} asks to change the app",
+      "changes": {
+        "routines": {
+          "save": "Save routine {{name}}",
+          "run": "Run routine {{name}}",
+          "delete": "Delete routine {{name}}"
+        },
+        "tasks": {
+          "run": "Run {{name}} in other profiles"
+        }
+      }
+    },
+    "memory": {
+      "title": "Memory",
+      "choose": "Choose a profile.",
+      "notes": "What the agent knows",
+      "note": "Note",
+      "notePlaceholder": "Add a fact for later tasks",
+      "add": "Add",
+      "edit": "Edit",
+      "delete": "Delete note",
+      "empty": "No notes yet. Tasks add what they learn.",
+      "useHistory": "Use this profile's history",
+      "historyHint": "Tasks see the sites this profile visited most in the last 14 days. It stays on this device.",
+      "historySites": "Tasks see: {{sites}}",
+      "actionsToday_one": "{{n}} action today",
+      "actionsToday_other": "{{n}} actions today"
     }
   },
   "proxyDistribution": {
@@ -4831,6 +4980,30 @@
         "title": "Drive many profiles at once",
         "body": "Choose Launch with Synchronizer in a profile's menu and pick the followers. Every click and keystroke in the leader repeats in each follower.",
         "action": "Open Profiles"
+      },
+      "agentChat": {
+        "label": "Chat in a profile",
+        "title": "Ask the agent to work in a profile",
+        "body": "Write what you need in your own words. The agent works in the profile's browser while you watch it live, and asks before important steps.",
+        "action": "Open Agent"
+      },
+      "agentRun": {
+        "label": "One task, many profiles",
+        "title": "Run one task on many profiles",
+        "body": "Select profiles, then choose Agent in the bar below the table. Each row shows how its task goes in the Agent column.",
+        "action": "Open Profiles"
+      },
+      "agentRoutine": {
+        "label": "Routines",
+        "title": "Repeat a task with a routine",
+        "body": "Save a task as a routine, then run it by hand or on a schedule. Each run keeps its result for every profile.",
+        "action": "Open Agent"
+      },
+      "agentTemplates": {
+        "label": "Templates",
+        "title": "Start from a template",
+        "body": "Ready-made tasks for accounts, shops, ads, research and profile health. Pick one and fill in the blanks.",
+        "action": "Browse templates"
       }
     },
     "sections": {
@@ -4838,7 +5011,8 @@
       "network": "Network",
       "privacy": "Privacy and data",
       "connect": "Connect",
-      "plan": "Included in your plan"
+      "plan": "Included in your plan",
+      "agent": "Agent"
     },
     "progress": "{{read}} of {{total}} read",
     "unread": "Not read yet",
@@ -5268,5 +5442,31 @@
     "description": "This part of Donut stopped because of an error. Reload to continue. The error is in the log.",
     "reload": "Reload",
     "copyDetails": "Copy details"
+  },
+  "agentIntro": {
+    "notNow": "Not now",
+    "hide": "Hide",
+    "done": "Done",
+    "offer": {
+      "title": "Try your agent",
+      "body": "It works in this profile's own browser, as a person would. Run one real task: check that the proxy and the fingerprint match.",
+      "start": "Run it"
+    },
+    "working": {
+      "title": "The agent is at work",
+      "body": "This is its window, live. You can keep working: the Agent column shows how it goes."
+    },
+    "result": {
+      "title": "Here is what it found",
+      "body": "Save it as a routine to run it again on any profiles, or on a schedule."
+    },
+    "ended": {
+      "title": "The task did not finish"
+    },
+    "saved": {
+      "title": "Routine saved",
+      "body": "Select profiles in the table and run it from the Agent menu, or give it a schedule on the Agent page.",
+      "open": "Open routine"
+    }
   }
 }

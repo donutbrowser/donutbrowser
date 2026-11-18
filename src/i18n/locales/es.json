@@ -2509,7 +2509,16 @@
       "stopping": "Deteniendo…",
       "singleInstance": "Solo puede ejecutarse una instancia de este navegador a la vez. Detén primero la que está abierta."
     },
-    "pinned": "Fijado"
+    "pinned": "Fijado",
+    "agent": {
+      "header": "Agente",
+      "ask": "Preguntar",
+      "aria": "Agente en {{name}}: {{status}}",
+      "openChat": "Abrir chat",
+      "openRun": "Abrir ejecución",
+      "loadingRoutines": "Cargando rutinas…",
+      "noRoutines": "Aún no hay rutinas"
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}} seleccionados",
@@ -3018,7 +3027,27 @@
     "desktopOffline": "Donut no estaba abierto a la hora programada.",
     "desktopRefused": "Donut no pudo iniciar esta ejecución.",
     "runLost": "Donut dejó de informar sobre esta ejecución.",
-    "freeCreditsPending": "Tus créditos gratuitos aún no están listos. Las cuentas nuevas los reciben tras una breve verificación."
+    "freeCreditsPending": "Tus créditos gratuitos aún no están listos. Las cuentas nuevas los reciben tras una breve verificación.",
+    "agentColumnDuplicate": "Cada columna necesita su propio nombre.",
+    "agentExportFailed": "No se pudo guardar el archivo.",
+    "agentSettingsNotSaved": "La tarea no empezó: no se pudieron guardar sus límites.",
+    "agentMemoryUnreadable": "No se pueden leer las notas del agente de este perfil.",
+    "agentNoteNotFound": "Esa nota ya no existe.",
+    "agentPlaybookInvalid": "Revisa el nombre, las instrucciones y los sitios de la guía.",
+    "agentPlaybookReadOnly": "Solo su autor o un administrador del equipo puede cambiar esta guía.",
+    "agentPlaybookNotFound": "Esa guía ya no existe.",
+    "agentPlaybookLimit": "Tienes el máximo de guías permitido.",
+    "agentPlaybookSiteInvalid": "Un sitio debe ser un dominio, como shop.example.com.",
+    "agentSubscriptionInvalid": "Revisa la dirección y el evento.",
+    "agentSubscriptionUrlInvalid": "Usa una dirección https.",
+    "agentSubscriptionNotFound": "Esa entrega ya no existe.",
+    "agentSubscriptionLimit": "Tienes el máximo de entregas permitido.",
+    "agentIntegrationsNotEntitled": "Los webhooks y las entregas no están activos en esta cuenta.",
+    "agentFieldInvalid": "Un campo no es válido.",
+    "agentHookNotFound": "Esta rutina no tiene webhook.",
+    "agentHookBusy": "Demasiadas llamadas de webhook esperan a esta rutina.",
+    "agentRoutineDisabled": "La rutina está desactivada.",
+    "agentActionCap": "Se alcanzó el límite diario de acciones."
   },
   "rail": {
     "profiles": "Perfiles",
@@ -4657,6 +4686,126 @@
           "prompt": "Abre en este perfil una página de prueba de fugas de DNS y ejecuta su prueba estándar. Anota cada servidor DNS con su país y propietario. Luego abre una página de prueba de fugas de WebRTC y anota cada dirección IP que encuentre. Da una fila con estas columnas: IP del proxy, países de DNS, IP de WebRTC, fuga (sí o no). Una fuga es un servidor DNS o una dirección IP fuera del país del proxy."
         }
       }
+    },
+    "options": {
+      "effort": "Esfuerzo",
+      "efforts": {
+        "fast": "Rápido",
+        "standard": "Estándar",
+        "thorough": "Minucioso"
+      },
+      "humanPace": "Ritmo humano",
+      "capDay": "Acciones al día",
+      "capSite": "Por sitio al día"
+    },
+    "output": {
+      "add": "Añadir columnas",
+      "hint": "Cada ejecución termina con estos valores.",
+      "name": "Nombre de la columna",
+      "namePlaceholder": "Columna",
+      "type": "Tipo",
+      "types": {
+        "text": "Texto",
+        "number": "Número",
+        "bool": "Sí o no",
+        "url": "Enlace"
+      },
+      "remove": "Quitar columna",
+      "copy": "Copiar",
+      "copied": "Tabla copiada",
+      "export": "CSV",
+      "exported_one": "{{count}} fila guardada",
+      "exported_other": "{{count}} filas guardadas",
+      "profile": "Perfil",
+      "result": "Resultado",
+      "yes": "Sí",
+      "no": "No"
+    },
+    "playbooks": {
+      "title": "Guías",
+      "new": "Nueva guía",
+      "pick": "Guías",
+      "count_one": "{{count}} guía",
+      "count_other": "{{count}} guías",
+      "search": "Buscar guías",
+      "none": "Aún no hay guías.",
+      "noMatch": "Ninguna guía coincide.",
+      "bySite": "Las guías del sitio de la rutina se añaden solas.",
+      "saved": "Guía guardada",
+      "name": "Nombre",
+      "namePlaceholder": "Nombre de la guía",
+      "instructions": "Instrucciones",
+      "instructionsPlaceholder": "Cómo trabajar en el sitio: dónde está cada cosa, qué comprobar y qué evitar",
+      "sites": "Sitios",
+      "shared": "Compartir con el equipo",
+      "deleteTitle": "¿Eliminar {{name}}?",
+      "deleteDescription": "Las tareas dejan de recibir esta guía.",
+      "empty": "Escribe una vez cómo trabajar en un sitio. Cada tarea allí la recibe.",
+      "anySite": "Cualquier sitio",
+      "team": "Equipo"
+    },
+    "triggers": {
+      "webhook": "Webhook",
+      "hookHint": "Un POST a un webhook ejecuta esta rutina con el cuerpo como entrada.",
+      "hookCreate": "Crear un webhook",
+      "hookUse": "Un POST a esta dirección ejecuta la rutina. El cuerpo es su entrada.",
+      "hookRotate": "Nueva dirección",
+      "hookDelete": "Eliminar webhook",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "sendTo": "Enviar resultados a",
+      "events": {
+        "run": {
+          "finished": "Ejecución terminada",
+          "needs_you": "La ejecución te necesita"
+        },
+        "batch": {
+          "finished": "Todas las ejecuciones terminaron"
+        }
+      },
+      "slack": "Slack",
+      "failed": "Entrega fallida",
+      "test": "Probar",
+      "testSent": "Prueba entregada",
+      "testFailed": "Prueba no entregada: {{error}}",
+      "remove": "Quitar",
+      "url": "URL de Slack o webhook",
+      "urlPlaceholder": "https://hooks.slack.com/…",
+      "event": "Evento",
+      "add": "Añadir",
+      "secret": "Secreto de firma, se muestra una vez:"
+    },
+    "inbox": {
+      "title": "Bandeja",
+      "empty": "Nada te espera.",
+      "notifyQuestion": "{{name}} te necesita",
+      "notifyChange": "{{name}} pide cambiar la app",
+      "changes": {
+        "routines": {
+          "save": "Guardar la rutina {{name}}",
+          "run": "Ejecutar la rutina {{name}}",
+          "delete": "Eliminar la rutina {{name}}"
+        },
+        "tasks": {
+          "run": "Ejecutar {{name}} en otros perfiles"
+        }
+      }
+    },
+    "memory": {
+      "title": "Memoria",
+      "choose": "Elige un perfil.",
+      "notes": "Lo que sabe el agente",
+      "note": "Nota",
+      "notePlaceholder": "Añade un dato para tareas posteriores",
+      "add": "Añadir",
+      "edit": "Editar",
+      "delete": "Eliminar nota",
+      "empty": "Aún no hay notas. Las tareas añaden lo que aprenden.",
+      "useHistory": "Usar el historial de este perfil",
+      "historyHint": "Las tareas ven los sitios que este perfil visitó más en los últimos 14 días. Esto queda en este dispositivo.",
+      "historySites": "Las tareas ven: {{sites}}",
+      "actionsToday_one": "{{n}} acción hoy",
+      "actionsToday_other": "{{n}} acciones hoy"
     }
   },
   "proxyDistribution": {
@@ -4884,6 +5033,30 @@
         "title": "Controla muchos perfiles a la vez",
         "body": "Elige Lanzar con Sincronizador en el menú de un perfil y escoge los seguidores. Cada clic y cada tecla del líder se repite en cada seguidor.",
         "action": "Abrir Perfiles"
+      },
+      "agentChat": {
+        "label": "Chat en un perfil",
+        "title": "Pide al agente que trabaje en un perfil",
+        "body": "Escribe lo que necesitas con tus palabras. El agente trabaja en el navegador del perfil mientras lo ves en directo, y pregunta antes de los pasos importantes.",
+        "action": "Abrir Agente"
+      },
+      "agentRun": {
+        "label": "Una tarea, muchos perfiles",
+        "title": "Ejecuta una tarea en muchos perfiles",
+        "body": "Selecciona perfiles y elige Agente en la barra bajo la tabla. Cada fila muestra en la columna Agente cómo va su tarea.",
+        "action": "Abrir Perfiles"
+      },
+      "agentRoutine": {
+        "label": "Rutinas",
+        "title": "Repite una tarea con una rutina",
+        "body": "Guarda una tarea como rutina y ejecútala a mano o con un horario. Cada ejecución guarda su resultado para cada perfil.",
+        "action": "Abrir Agente"
+      },
+      "agentTemplates": {
+        "label": "Plantillas",
+        "title": "Empieza con una plantilla",
+        "body": "Tareas listas para cuentas, tiendas, anuncios, investigación y salud del perfil. Elige una y completa los huecos.",
+        "action": "Ver plantillas"
       }
     },
     "sections": {
@@ -4891,7 +5064,8 @@
       "network": "Red",
       "privacy": "Privacidad y datos",
       "connect": "Conectar",
-      "plan": "Incluido en tu plan"
+      "plan": "Incluido en tu plan",
+      "agent": "Agente"
     },
     "progress": "{{read}} de {{total}} leídos",
     "unread": "Sin leer",
@@ -5324,5 +5498,31 @@
     "description": "Esta parte de Donut se detuvo por un error. Recarga para continuar. El error está en el registro.",
     "reload": "Recargar",
     "copyDetails": "Copiar detalles"
+  },
+  "agentIntro": {
+    "notNow": "Ahora no",
+    "hide": "Ocultar",
+    "done": "Listo",
+    "offer": {
+      "title": "Prueba tu agente",
+      "body": "Trabaja en el navegador de este perfil, como lo haría una persona. Ejecuta una tarea real: comprueba que el proxy y la huella coinciden.",
+      "start": "Ejecutar"
+    },
+    "working": {
+      "title": "El agente está trabajando",
+      "body": "Esta es su ventana, en directo. Puedes seguir trabajando: la columna Agente muestra cómo va."
+    },
+    "result": {
+      "title": "Esto es lo que encontró",
+      "body": "Guárdala como rutina para volver a ejecutarla en cualquier perfil o con un horario."
+    },
+    "ended": {
+      "title": "La tarea no terminó"
+    },
+    "saved": {
+      "title": "Rutina guardada",
+      "body": "Selecciona perfiles en la tabla y ejecútala desde el menú Agente, o prográmala en la página Agente.",
+      "open": "Abrir rutina"
+    }
   }
 }

@@ -327,6 +327,26 @@ export type BackendErrorCode =
   | "AGENT_BATCH_NOT_FOUND"
   | "AGENT_ACTION_INVALID"
   | "AGENT_CHAT_NOT_FOUND"
+  | "AGENT_COLUMN_DUPLICATE"
+  | "AGENT_EXPORT_FAILED"
+  | "AGENT_SETTINGS_NOT_SAVED"
+  | "AGENT_MEMORY_UNREADABLE"
+  | "AGENT_NOTE_NOT_FOUND"
+  | "AGENT_PLAYBOOK_INVALID"
+  | "AGENT_PLAYBOOK_READ_ONLY"
+  | "AGENT_PLAYBOOK_NOT_FOUND"
+  | "AGENT_PLAYBOOK_LIMIT"
+  | "AGENT_PLAYBOOK_SITE_INVALID"
+  | "AGENT_SUBSCRIPTION_INVALID"
+  | "AGENT_SUBSCRIPTION_URL_INVALID"
+  | "AGENT_SUBSCRIPTION_NOT_FOUND"
+  | "AGENT_SUBSCRIPTION_LIMIT"
+  | "AGENT_INTEGRATIONS_NOT_ENTITLED"
+  | "AGENT_FIELD_INVALID"
+  | "AGENT_HOOK_NOT_FOUND"
+  | "AGENT_HOOK_BUSY"
+  | "AGENT_ROUTINE_DISABLED"
+  | "AGENT_ACTION_CAP"
   | "FEEDBACK_MESSAGE_EMPTY"
   | "FEEDBACK_MESSAGE_TOO_LONG"
   | "FEEDBACK_EMAIL_INVALID"
@@ -1211,6 +1231,46 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.agentActionInvalid");
     case "AGENT_CHAT_NOT_FOUND":
       return t("backendErrors.agentChatNotFound");
+    case "AGENT_COLUMN_DUPLICATE":
+      return t("backendErrors.agentColumnDuplicate");
+    case "AGENT_EXPORT_FAILED":
+      return t("backendErrors.agentExportFailed");
+    case "AGENT_SETTINGS_NOT_SAVED":
+      return t("backendErrors.agentSettingsNotSaved");
+    case "AGENT_MEMORY_UNREADABLE":
+      return t("backendErrors.agentMemoryUnreadable");
+    case "AGENT_NOTE_NOT_FOUND":
+      return t("backendErrors.agentNoteNotFound");
+    case "AGENT_PLAYBOOK_INVALID":
+      return t("backendErrors.agentPlaybookInvalid");
+    case "AGENT_PLAYBOOK_READ_ONLY":
+      return t("backendErrors.agentPlaybookReadOnly");
+    case "AGENT_PLAYBOOK_NOT_FOUND":
+      return t("backendErrors.agentPlaybookNotFound");
+    case "AGENT_PLAYBOOK_LIMIT":
+      return t("backendErrors.agentPlaybookLimit");
+    case "AGENT_PLAYBOOK_SITE_INVALID":
+      return t("backendErrors.agentPlaybookSiteInvalid");
+    case "AGENT_SUBSCRIPTION_INVALID":
+      return t("backendErrors.agentSubscriptionInvalid");
+    case "AGENT_SUBSCRIPTION_URL_INVALID":
+      return t("backendErrors.agentSubscriptionUrlInvalid");
+    case "AGENT_SUBSCRIPTION_NOT_FOUND":
+      return t("backendErrors.agentSubscriptionNotFound");
+    case "AGENT_SUBSCRIPTION_LIMIT":
+      return t("backendErrors.agentSubscriptionLimit");
+    case "AGENT_INTEGRATIONS_NOT_ENTITLED":
+      return t("backendErrors.agentIntegrationsNotEntitled");
+    case "AGENT_FIELD_INVALID":
+      return t("backendErrors.agentFieldInvalid");
+    case "AGENT_HOOK_NOT_FOUND":
+      return t("backendErrors.agentHookNotFound");
+    case "AGENT_HOOK_BUSY":
+      return t("backendErrors.agentHookBusy");
+    case "AGENT_ROUTINE_DISABLED":
+      return t("backendErrors.agentRoutineDisabled");
+    case "AGENT_ACTION_CAP":
+      return t("backendErrors.agentActionCap");
     case "FEEDBACK_MESSAGE_EMPTY":
       return t("backendErrors.feedbackMessageEmpty");
     case "FEEDBACK_MESSAGE_TOO_LONG":

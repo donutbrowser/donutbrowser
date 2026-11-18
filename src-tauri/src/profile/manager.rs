@@ -1073,6 +1073,8 @@ impl ProfileManager {
     crate::traffic_stats::delete_traffic_stats(profile_id);
     // Device-only 2FA keys for the profile's accounts.
     crate::profile_totp::forget_profile(profile_id);
+    // What the agent learnt about the profile, sealed on this device.
+    crate::agent_tasks::memory::forget_profile(profile_id);
     crate::profile::activity::forget(profile_id);
   }
 

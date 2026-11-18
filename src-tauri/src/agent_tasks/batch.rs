@@ -34,6 +34,7 @@ pub struct Order {
   pub autonomy: Autonomy,
   pub max_credits: Option<u64>,
   pub headless: bool,
+  pub brief: super::briefing::Brief,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -231,6 +232,7 @@ mod tests {
         autonomy: Autonomy::Ask,
         max_credits: None,
         headless: true,
+        brief: Default::default(),
       },
       (0..profiles).map(|i| format!("p{i}")).collect(),
       concurrency,

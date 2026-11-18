@@ -21,6 +21,8 @@ export const COACH_ANCHORS = [
   "column-proxy",
   "column-ext",
   "column-dns",
+  "column-agent",
+  "agent-intro",
   "row-dns",
   "row-inspect",
   "row-launch",

@@ -53,7 +53,7 @@ fn lanes() -> MutexGuard<'static, Lanes> {
 pub async fn running(run_id: &str, credits_used: u64) {
   send(
     run_id,
-    cloud::run_patch("running", None, credits_used, None),
+    cloud::run_patch("running", None, credits_used, None, None),
     false,
   )
   .await;
@@ -67,7 +67,7 @@ pub async fn finished(run_id: &str, patch: Value) {
 /// Runs the cloud holds for a batch that did not start end as failed, with
 /// the reason.
 pub async fn fail_runs(run_ids: impl IntoIterator<Item = String>, error: &str) {
-  let patch = cloud::run_patch("failed", None, 0, Some(error));
+  let patch = cloud::run_patch("failed", None, 0, Some(error), None);
   let reports: Vec<_> = run_ids
     .into_iter()
     .map(|run_id| {

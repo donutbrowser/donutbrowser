@@ -187,6 +187,15 @@ export function hasAgentAccess(user: CloudUser | null | undefined): boolean {
   return getEntitlements(user).agent;
 }
 
+/** Agent webhooks and result subscriptions: a rollout flag on top of the agent. */
+export function hasAgentIntegrations(
+  user: CloudUser | null | undefined,
+): boolean {
+  if (!user) return false;
+  const entitlements = getEntitlements(user);
+  return entitlements.agent && entitlements.agentIntegrations === true;
+}
+
 export function canUseCookieBot(user: CloudUser | null | undefined): boolean {
   const entitlements = getEntitlements(user);
   return entitlements.active && entitlements.cookieBot;

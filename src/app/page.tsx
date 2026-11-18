@@ -9,6 +9,10 @@ import { useTranslation } from "react-i18next";
 import { AboutDialog } from "@/components/about-dialog";
 import { AccountPage } from "@/components/account-page";
 import type { ChatSeed } from "@/components/agent-chat/workspace";
+import {
+  AgentFirstTask,
+  agentFirstTaskDone,
+} from "@/components/agent-first-task";
 import { AgentPage, type AgentView } from "@/components/agent-page";
 import { CloneProfileDialog } from "@/components/clone-profile-dialog";
 import { CloseConfirmDialog } from "@/components/close-confirm-dialog";
@@ -48,6 +52,10 @@ import {
 import { ProfilePreviewsPage } from "@/components/profile-previews-page";
 import { ProfileSelectorDialog } from "@/components/profile-selector-dialog";
 import { ProfileSyncDialog } from "@/components/profile-sync-dialog";
+import {
+  useAgentActivity,
+  useAgentSummary,
+} from "@/components/profile-table/use-agent-activity";
 import { ProxyAssignmentDialog } from "@/components/proxy-assignment-dialog";
 import { ProxyDistributionDialog } from "@/components/proxy-distribution-dialog";
 import { ProxyManagementDialog } from "@/components/proxy-management-dialog";
@@ -70,6 +78,7 @@ import { WelcomeDialog } from "@/components/welcome-dialog";
 import { type WhatsNew, WhatsNewDialog } from "@/components/whats-new-dialog";
 import { WindowResizeWarningDialog } from "@/components/window-resize-warning-dialog";
 import { useAgentConsole } from "@/hooks/use-agent-console";
+import { useAgentInbox } from "@/hooks/use-agent-inbox";
 import { useAgentAvailability } from "@/hooks/use-agent-tasks";
 import { useAppUpdateNotifications } from "@/hooks/use-app-update-notifications";
 import { useCloudAuth } from "@/hooks/use-cloud-auth";
@@ -95,11 +104,13 @@ import { useVersionUpdater } from "@/hooks/use-version-updater";
 import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { useWayfernTerms } from "@/hooks/use-wayfern-terms";
 import { showProfileWindow } from "@/lib/agent-console";
+import { requestAgentFocus } from "@/lib/agent-inbox";
 import {
   leaseExpiryTime,
   parseBackendError,
   translateBackendError,
 } from "@/lib/backend-errors";
+import { isCrossOsProfile } from "@/lib/browser-utils";
 import { fireSprinkleConfetti } from "@/lib/confetti";
 import {
   canUseCookieBot,
@@ -218,6 +229,8 @@ export default function Home() {
   const [launchTour, setLaunchTour] = useState<"off" | "waiting" | "open">(
     "off",
   );
+  // The agent's first task is on screen, so the day's tip waits.
+  const [agentIntroActive, setAgentIntroActive] = useState(false);
   const onboardingHandledRef = useRef(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   // null = onboarding decision pending; false = not a first-run session (run
@@ -409,14 +422,6 @@ export default function Home() {
       storedProxies,
     ],
   );
-  const settledLaunch =
-    firstRunOnboarding === false &&
-    !profilesLoading &&
-    !welcomeOpen &&
-    launchTour === "off" &&
-    !termsLoading &&
-    termsAccepted === true &&
-    !commercialTrialModalOpen;
 
   const [currentPage, setCurrentPage] = useState<AppPage>("profiles");
   const currentPageRef = useRef(currentPage);
@@ -451,6 +456,18 @@ export default function Home() {
   // Null until a view is asked for: chats lead when the agent is on.
   const [agentView, setAgentView] = useState<AgentView | null>(null);
   const agent = useAgentAvailability(cloudUser);
+  const agentActivity = useAgentActivity(agent.entitled);
+  const agentSummary = useAgentSummary(agentActivity);
+  // The profile the agent's first task works in: the one used last.
+  const agentIntroProfile = useMemo(() => {
+    let best: BrowserProfile | null = null;
+    for (const profile of profiles) {
+      if (profile.browser !== "wayfern" || isCrossOsProfile(profile)) continue;
+      const at = profile.last_launch ?? 0;
+      if (!best || at > (best.last_launch ?? 0)) best = profile;
+    }
+    return best?.id ?? null;
+  }, [profiles]);
   const [chatSeed, setChatSeed] = useState<ChatSeed | null>(null);
   const [createProfileDialogOpen, setCreateProfileDialogOpen] = useState(false);
   const teamReadOnly = isTeamLauncher(cloudUser);
@@ -730,6 +747,19 @@ export default function Home() {
     [guardLeave],
   );
 
+  // A chat, run or routine on the agent page, or its templates gallery.
+  const openAgentPane = useCallback(
+    (select: NonNullable<ChatSeed["select"]>) => {
+      setChatSeed((current) => ({
+        profileIds: [],
+        nonce: (current?.nonce ?? 0) + 1,
+        select,
+      }));
+      setAgentView("chat");
+      handleRailNavigate("agent");
+    },
+    [handleRailNavigate],
+  );
   const openAgentConversation = useCallback(() => {
     setAgentView("conversation");
     handleRailNavigate("agent");
@@ -738,12 +768,43 @@ export default function Home() {
     onOpenPage: openAgentConversation,
     pageVisible: currentPage === "agent",
   });
+  // Questions and changes of agent runs and chats: one notification each,
+  // and a toast that opens the chat or run.
+  const agentInbox = useAgentInbox({
+    enabled: agent.entitled,
+    notify: true,
+    pageVisible: currentPage === "agent",
+    nameOf: (profileId) =>
+      profiles.find((profile) => profile.id === profileId)?.name ??
+      t("agent.tasks.unknownProfile"),
+    onOpen: (focus) => {
+      requestAgentFocus(focus);
+      setAgentView("chat");
+      handleRailNavigate("agent");
+    },
+  });
 
+  // The agent's first task comes before the day's tip, which waits for it.
+  const agentIntroDue =
+    agent.entitled &&
+    agentSummary.loaded &&
+    !agentSummary.used &&
+    agentIntroProfile !== null &&
+    !agentFirstTaskDone();
+  const settledLaunch =
+    firstRunOnboarding === false &&
+    !profilesLoading &&
+    !welcomeOpen &&
+    launchTour === "off" &&
+    !termsLoading &&
+    termsAccepted === true &&
+    !commercialTrialModalOpen;
   const tipsFlow = useTips({
     cloudUser,
     accountLoading: cloudAuthLoading,
     loggedInAt: cloudLoggedInAt,
     ready: settledLaunch,
+    inlineHeld: agentIntroDue || agentIntroActive,
     usage: tipUsage,
     activity: {
       page: currentPage,
@@ -794,10 +855,14 @@ export default function Home() {
         case "totp":
           setTotpToolOpen(true);
           break;
+        case "agent":
+          openAgentPane({ kind: action.pane });
+          break;
       }
     },
     [
       closeTips,
+      openAgentPane,
       handleRailNavigate,
       navigateNow,
       guardLeave,
@@ -3118,7 +3183,9 @@ export default function Home() {
               setFeedbackDialogOpen(true);
             }}
             cookieBotRunning={Object.keys(cookieBotLiveSessions).length > 0}
-            agentRequests={agentConsole.openRequests.length}
+            agentRequests={
+              agentConsole.openRequests.length + agentInbox.waits.length
+            }
           />
           <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
             <PageTransition
@@ -3230,6 +3297,8 @@ export default function Home() {
                           }
                         : undefined
                     }
+                    agentActivity={agent.entitled ? agentActivity : undefined}
+                    onOpenAgentSource={openAgentPane}
                   />
                   <TipCoachMark
                     flow={tipsFlow}
@@ -3540,6 +3609,31 @@ export default function Home() {
           open={launchTour === "open"}
           onDone={() => setLaunchTour("off")}
         />
+        {agent.entitled && (
+          <AgentFirstTask
+            eligible={
+              agentIntroDue &&
+              tipsFlow.autoShow &&
+              currentPage === "profiles" &&
+              !profilesLoading &&
+              !welcomeOpen &&
+              launchTour === "off" &&
+              termsAccepted === true &&
+              !commercialTrialModalOpen &&
+              tipsFlow.pageTip === null
+            }
+            visible={currentPage === "profiles"}
+            profileId={agentIntroProfile}
+            store={agentActivity}
+            onActiveChange={setAgentIntroActive}
+            onOpenChat={(id) => {
+              openAgentPane({ kind: "chat", id });
+            }}
+            onOpenRoutine={(id) => {
+              openAgentPane({ kind: "routine", id });
+            }}
+          />
+        )}
         <TipsDialog
           key={tipsFlow.dialog.session}
           open={tipsFlow.dialog.open}

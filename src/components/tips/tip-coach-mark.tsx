@@ -23,7 +23,12 @@ import {
 import type { TipsFlow } from "@/hooks/use-tips";
 import { isMacOS } from "@/lib/platform";
 import { formatShortcut, SHORTCUTS } from "@/lib/shortcuts";
-import { actionStaysOn, type TipAction, tipTextKeys } from "@/lib/tips";
+import {
+  actionStaysOn,
+  type TipAction,
+  tipClip,
+  tipTextKeys,
+} from "@/lib/tips";
 import { showSuccessToast } from "@/lib/toast-utils";
 
 /** Tips introduced this session; coming back to the page does not replay the entrance. */
@@ -83,9 +88,9 @@ export function TipCoachMark({
       data-tip-id={tip.id}
       data-preview={preview}
     >
-      <CoachMarkClip aspect={clipAspect(tip.id)}>
+      <CoachMarkClip aspect={clipAspect(tipClip(tip))}>
         <RestingClip
-          id={tip.id}
+          id={tipClip(tip)}
           autoplay={!settled}
           paused={leaving}
           className="absolute inset-0 rounded-[inherit]"

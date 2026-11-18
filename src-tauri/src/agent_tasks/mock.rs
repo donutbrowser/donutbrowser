@@ -25,9 +25,23 @@
 //! `save` proposes a weekday routine on the first two profiles; `edit` turns
 //! the first routine off; `run` and `delete` act on the first routine;
 //! `tasks` runs a task in every profile. Without `host` the marker is text.
+//!
+//! Agentic v2: `[echo]` answers with the prompt the engine got (its fences
+//! as `~~~`), the settings the cloud had for the task before it started, and
+//! the logins it carried (origin host and user, never a password);
+//! `[remember]` ends the answer with a ```memory``` fact and `[json]` with a
+//! ```json``` object (`Orders` 3, `Status` "shipped"). A webhook made on a
+//! routine with `[hooked]` in its prompt is called at once with
+//! "order 42 shipped" (a new address for it is not). What the cloud was
+//! told (task settings, events) is in `agent_mock.json` in the data folder,
+//! for the suites to read.
 
 use super::cloud::{Credits, Routine, RoutineDraft, RoutineRun, StartedBatch, StartedRun};
 use super::engine::{EngineError, EngineLink, Request};
+use super::integrations::{Hook, Subscription, SubscriptionDraft};
+use super::options::{ActionUsage, SiteActions};
+use super::output::{Table, TableRow};
+use super::playbooks::{Playbook, PlaybookDraft};
 use super::token::AgentToken;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -53,6 +67,235 @@ static RUNS: Mutex<Vec<(String, RoutineRun)>> = Mutex::new(Vec::new());
 static HOST_WAITS: Mutex<Option<HashMap<String, oneshot::Sender<Value>>>> = Mutex::new(None);
 /// How many `[mixed]` tasks started, so each one gets its own script.
 static MIXED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static PLAYBOOKS: Mutex<Vec<Playbook>> = Mutex::new(Vec::new());
+static SUBSCRIPTIONS: Mutex<Vec<Subscription>> = Mutex::new(Vec::new());
+/// Webhook calls no desktop claimed yet: routine and input.
+static HOOK_FIRES: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
+/// One entry per action: profile and site.
+static ACTIONS: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
+
+/// What the cloud was told, as the suites read it back.
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Told {
+  #[serde(default)]
+  settings: serde_json::Map<String, Value>,
+  #[serde(default)]
+  events: Vec<Value>,
+}
+
+static TOLD: Mutex<Option<Told>> = Mutex::new(None);
+
+fn told(change: impl FnOnce(&mut Told)) {
+  let mut guard = TOLD.lock().unwrap_or_else(|p| p.into_inner());
+  let told = guard.get_or_insert_with(Told::default);
+  change(told);
+  let path = crate::app_dirs::data_dir().join("agent_mock.json");
+  if let Ok(json) = serde_json::to_vec_pretty(told) {
+    let _ = std::fs::write(path, json);
+  }
+}
+
+pub fn task_settings(task_id: &str, body: Value) {
+  told(|told| {
+    told.settings.insert(task_id.to_string(), body);
+  });
+}
+
+fn settings_of(task_id: &str) -> Option<Value> {
+  TOLD
+    .lock()
+    .ok()
+    .and_then(|told| told.as_ref()?.settings.get(task_id).cloned())
+}
+
+pub fn event(body: Value) {
+  told(|told| told.events.push(body));
+}
+
+pub fn integrations() -> bool {
+  true
+}
+
+pub fn usage(profile_id: &str) -> ActionUsage {
+  let actions = ACTIONS.lock().map(|list| list.clone()).unwrap_or_default();
+  let mine: Vec<&String> = actions
+    .iter()
+    .filter(|(profile, _)| profile == profile_id)
+    .map(|(_, host)| host)
+    .collect();
+  let mut sites: Vec<SiteActions> = Vec::new();
+  for host in mine.iter().filter(|host| !host.is_empty()) {
+    match sites.iter_mut().find(|site| &site.host == *host) {
+      Some(site) => site.actions += 1,
+      None => sites.push(SiteActions {
+        host: host.to_string(),
+        actions: 1,
+      }),
+    }
+  }
+  ActionUsage {
+    day: chrono::Utc::now().format("%Y-%m-%d").to_string(),
+    actions: mine.len() as u64,
+    sites,
+  }
+}
+
+pub fn playbooks() -> Vec<Playbook> {
+  PLAYBOOKS
+    .lock()
+    .map(|list| list.clone())
+    .unwrap_or_default()
+}
+
+pub fn save_playbook(id: Option<String>, draft: PlaybookDraft) -> Result<Playbook, String> {
+  let mut list = PLAYBOOKS.lock().unwrap_or_else(|p| p.into_inner());
+  let saved = Playbook {
+    id: id
+      .clone()
+      .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+    name: draft.name,
+    instructions: draft.instructions,
+    sites: draft.sites,
+    shared: draft.shared,
+    updated_at: Some(chrono::Utc::now().to_rfc3339()),
+    editable: true,
+  };
+  match id {
+    Some(id) => {
+      let known = list
+        .iter_mut()
+        .find(|playbook| playbook.id == id)
+        .ok_or_else(|| crate::backend_error("AGENT_PLAYBOOK_NOT_FOUND"))?;
+      *known = saved.clone();
+    }
+    None => list.insert(0, saved.clone()),
+  }
+  Ok(saved)
+}
+
+pub fn delete_playbook(id: &str) -> Result<(), String> {
+  let mut list = PLAYBOOKS.lock().unwrap_or_else(|p| p.into_inner());
+  let before = list.len();
+  list.retain(|playbook| playbook.id != id);
+  if list.len() == before {
+    return Err(crate::backend_error("AGENT_PLAYBOOK_NOT_FOUND"));
+  }
+  Ok(())
+}
+
+pub fn set_hook(routine_id: &str) -> Result<Hook, String> {
+  let mut list = ROUTINES.lock().unwrap_or_else(|p| p.into_inner());
+  let routine = list
+    .iter_mut()
+    .find(|routine| routine.id == routine_id)
+    .ok_or_else(|| crate::backend_error("AGENT_ROUTINE_NOT_FOUND"))?;
+  let hook = Hook {
+    url: format!(
+      "https://api.donutbrowser.com/hooks/agent/{}",
+      uuid::Uuid::new_v4().simple()
+    ),
+  };
+  let first = routine.hook.replace(hook.clone()).is_none();
+  if first && routine.prompt.contains("[hooked]") {
+    HOOK_FIRES
+      .lock()
+      .unwrap_or_else(|p| p.into_inner())
+      .push((routine.id.clone(), "order 42 shipped".to_string()));
+  }
+  Ok(hook)
+}
+
+pub fn delete_hook(routine_id: &str) -> Result<(), String> {
+  let mut list = ROUTINES.lock().unwrap_or_else(|p| p.into_inner());
+  let routine = list
+    .iter_mut()
+    .find(|routine| routine.id == routine_id)
+    .ok_or_else(|| crate::backend_error("AGENT_ROUTINE_NOT_FOUND"))?;
+  routine.hook = None;
+  Ok(())
+}
+
+pub fn subscriptions() -> Vec<Subscription> {
+  SUBSCRIPTIONS
+    .lock()
+    .map(|list| list.clone())
+    .unwrap_or_default()
+}
+
+pub fn add_subscription(draft: SubscriptionDraft) -> Result<Subscription, String> {
+  let mut list = SUBSCRIPTIONS.lock().unwrap_or_else(|p| p.into_inner());
+  if list.len() >= 20 {
+    return Err(crate::backend_error("AGENT_SUBSCRIPTION_LIMIT"));
+  }
+  let slack = draft.url.starts_with("https://hooks.slack.com/");
+  let saved = Subscription {
+    id: uuid::Uuid::new_v4().to_string(),
+    event: draft.event,
+    url: draft.url,
+    routine_id: draft.routine_id,
+    created_at: Some(chrono::Utc::now().to_rfc3339()),
+    last_error: None,
+    last_delivered_at: None,
+    secret: None,
+  };
+  list.push(saved.clone());
+  Ok(Subscription {
+    secret: (!slack).then(|| "whsec_e2e_secret".to_string()),
+    ..saved
+  })
+}
+
+/// A sample delivery: a Slack address takes it, any other answers 410.
+pub fn test_subscription(id: &str) -> Result<Subscription, String> {
+  let mut list = SUBSCRIPTIONS.lock().unwrap_or_else(|p| p.into_inner());
+  let known = list
+    .iter_mut()
+    .find(|subscription| subscription.id == id)
+    .ok_or_else(|| crate::backend_error("AGENT_SUBSCRIPTION_NOT_FOUND"))?;
+  let now = chrono::Utc::now().to_rfc3339();
+  if known.url.starts_with("https://hooks.slack.com/") {
+    known.last_delivered_at = Some(now);
+    known.last_error = None;
+  } else {
+    known.last_error = Some("HTTP 410".to_string());
+  }
+  Ok(known.clone())
+}
+
+pub fn delete_subscription(id: &str) -> Result<(), String> {
+  let mut list = SUBSCRIPTIONS.lock().unwrap_or_else(|p| p.into_inner());
+  let before = list.len();
+  list.retain(|subscription| subscription.id != id);
+  if list.len() == before {
+    return Err(crate::backend_error("AGENT_SUBSCRIPTION_NOT_FOUND"));
+  }
+  Ok(())
+}
+
+/// A batch's runs and their data, the newest batch when none is named.
+pub fn table(routine_id: &str, batch_id: Option<&str>) -> Result<Table, String> {
+  let routine = routine(routine_id)?;
+  let runs = runs(routine_id);
+  let batch = batch_id
+    .map(str::to_string)
+    .or_else(|| runs.first().and_then(|run| run.batch_id.clone()));
+  Ok(Table {
+    batch_id: batch.clone(),
+    columns: routine.columns(),
+    rows: runs
+      .into_iter()
+      .filter(|run| run.batch_id == batch)
+      .map(|run| TableRow {
+        run_id: run.run_id,
+        profile_id: run.profile_id,
+        status: run.status,
+        finished_at: run.finished_at,
+        data: run.data.unwrap_or_default(),
+      })
+      .collect(),
+  })
+}
 
 const ALLOWANCE: i64 = 10_000;
 const ALREADY_USED: i64 = 1_250;
@@ -100,6 +343,7 @@ pub fn save_routine(id: Option<String>, draft: RoutineDraft) -> Routine {
     .as_deref()
     .and_then(|id| list.iter().position(|r| r.id == id));
   let next_run_at = next_fire(&draft.prompt, draft.enabled && draft.schedule.is_some());
+  let hook = existing.and_then(|index| list[index].hook.clone());
   let routine = Routine {
     id: id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
     name: draft.name,
@@ -110,6 +354,12 @@ pub fn save_routine(id: Option<String>, draft: RoutineDraft) -> Routine {
     max_credits_per_run: draft.max_credits_per_run,
     concurrency: draft.concurrency,
     enabled: draft.enabled,
+    effort: draft.effort,
+    pace: draft.pace,
+    caps: draft.caps,
+    output: draft.output,
+    playbook_ids: draft.playbook_ids,
+    hook,
     next_run_at,
     created_at: existing
       .and_then(|index| list[index].created_at.clone())
@@ -172,13 +422,29 @@ pub fn claim_fires() -> Vec<super::cloud::Fire> {
       })
       .collect()
   };
-  due
+  let hooked: Vec<(String, String)> =
+    std::mem::take(&mut *HOOK_FIRES.lock().unwrap_or_else(|p| p.into_inner()));
+  let mut fires: Vec<super::cloud::Fire> = due
     .iter()
     .map(|routine| super::cloud::Fire {
       routine_id: routine.id.clone(),
       batch_id: start_runs(&routine.id, &routine.profile_ids, None).batch_id,
+      trigger: Some("schedule".to_string()),
+      input: None,
     })
-    .collect()
+    .collect();
+  for (routine_id, input) in hooked {
+    let Ok(routine) = routine(&routine_id) else {
+      continue;
+    };
+    fires.push(super::cloud::Fire {
+      routine_id: routine.id.clone(),
+      batch_id: start_runs(&routine.id, &routine.profile_ids, None).batch_id,
+      trigger: Some("webhook".to_string()),
+      input: Some(input),
+    });
+  }
+  fires
 }
 
 pub fn delete_routine(id: &str) -> Result<(), String> {
@@ -250,6 +516,7 @@ pub fn start_runs(
           error: None,
           created_at: Some(now.clone()),
           finished_at: None,
+          data: None,
         },
       ));
       StartedRun {
@@ -298,6 +565,9 @@ pub fn report_run(run_id: &str, patch: Value) {
       .get("creditsUsed")
       .and_then(Value::as_u64)
       .or(run.credits_used);
+    if let Some(data) = patch.get("data").and_then(Value::as_object) {
+      run.data = Some(data.clone());
+    }
   }
 }
 
@@ -342,7 +612,10 @@ async fn pump(profile_id: String, mut rx: mpsc::Receiver<Request>) {
           param("taskId"),
           request.params.get("host").cloned().unwrap_or(Value::Null),
         );
-        tokio::spawn(script(profile_id.clone(), request.params.clone(), rx));
+        // What the cloud had for the task when the engine got it.
+        let mut params = request.params.clone();
+        params["e2eSettings"] = settings_of(&param("taskId")).unwrap_or(Value::Null);
+        tokio::spawn(script(profile_id.clone(), params, rx));
         Ok(json!({ "taskId": request.params.get("taskId").cloned().unwrap_or(Value::Null) }))
       }
       "Wayfern.agentMessage" if param("text").contains("[old]") => Err(EngineError::Unsupported),
@@ -472,6 +745,10 @@ async fn script(profile_id: String, params: Value, mut control: mpsc::UnboundedR
     .map_or(full, |(_, text)| text)
     .to_string();
   let start_url = params.get("startUrl").cloned().unwrap_or(Value::Null);
+  let site = start_url
+    .as_str()
+    .and_then(super::logins::host_of)
+    .unwrap_or_default();
   let mixed = prompt
     .contains("[mixed]")
     .then(|| MIXED.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
@@ -484,13 +761,25 @@ async fn script(profile_id: String, params: Value, mut control: mpsc::UnboundedR
   let asks = prompt.contains("[approval]") || mixed.is_some_and(|nth| nth % 9 == 2);
   let follow_up = params.get("followUp").and_then(Value::as_bool) == Some(true);
   let script: &[(&str, &str)] = if follow_up { &FOLLOW_UP } else { &SCRIPT };
-  let answer = if follow_up {
+  let base = if follow_up {
     FOLLOW_UP_RESULT
   } else if prompt.contains("[markdown]") {
     MARKDOWN_RESULT
   } else {
     "Three results found; the cheapest is listed first."
   };
+  let mut answer = if prompt.contains("[echo]") && !follow_up {
+    echo(full, &params)
+  } else {
+    base.to_string()
+  };
+  if prompt.contains("[json]") && !follow_up {
+    answer.push_str("\n\n```json\n{\"Orders\": 3, \"Status\": \"shipped\"}\n```");
+  }
+  if prompt.contains("[remember]") && !follow_up {
+    answer.push_str("\n\n```memory\nThe store account is alice\n```");
+  }
+  let answer = answer.as_str();
   let emit = |method: &str, mut payload: Value| {
     payload["taskId"] = Value::from(task_id.as_str());
     super::on_engine_event(&profile_id, method, &payload);
@@ -552,6 +841,12 @@ async fn script(profile_id: String, params: Value, mut control: mpsc::UnboundedR
       step["tool"] = Value::from("navigate");
     }
     emit("Wayfern.agentStep", step);
+    if *kind == "act" {
+      ACTIONS
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .push((profile_id.clone(), site.clone()));
+    }
     index += 1;
     credits += 7;
     emit("Wayfern.agentCredits", json!({ "creditsUsed": credits }));
@@ -575,6 +870,72 @@ async fn script(profile_id: String, params: Value, mut control: mpsc::UnboundedR
     }
   }
   finish("done", credits, Some(answer), None);
+}
+
+/// What the engine got: the prompt, the settings the cloud had for the task
+/// before it started, and who the logins sign in as.
+fn echo(prompt: &str, params: &Value) -> String {
+  let count = |value: &Value| value.as_u64().map_or("-".to_string(), |n| n.to_string());
+  let settings = params
+    .get("e2eSettings")
+    .filter(|body| body.is_object())
+    .cloned()
+    .map_or_else(
+      || "none".to_string(),
+      |body| {
+        let caps = body.get("caps").map_or_else(
+          || "none".to_string(),
+          |caps| {
+            format!(
+              "{}/{}",
+              count(&caps["actionsPerDay"]),
+              count(&caps["actionsPerSitePerDay"])
+            )
+          },
+        );
+        format!(
+          "effort={} pace={} caps={caps}",
+          body["effort"].as_str().unwrap_or_default(),
+          body["pace"].as_str().unwrap_or_default()
+        )
+      },
+    );
+  let logins: Vec<String> = params
+    .get("logins")
+    .and_then(Value::as_array)
+    .map(|logins| {
+      logins
+        .iter()
+        .map(|login| {
+          let host = login["origin"]
+            .as_str()
+            .and_then(super::logins::host_of)
+            .unwrap_or_default();
+          let user = login["username"].as_str().unwrap_or("-");
+          let password = if login["password"].is_string() {
+            " password"
+          } else {
+            ""
+          };
+          let totp = if login["totp"]["secret"].is_string() {
+            " totp"
+          } else {
+            ""
+          };
+          format!("{user}@{host}{password}{totp}")
+        })
+        .collect()
+    })
+    .unwrap_or_default();
+  let logins = if logins.is_empty() {
+    "none".to_string()
+  } else {
+    logins.join(", ")
+  };
+  format!(
+    "{}\n\nsettings: {settings}\nlogins: {logins}",
+    prompt.replace("```", "~~~")
+  )
 }
 
 const HOST_SCENARIOS: [&str; 6] = ["list", "save", "edit", "run", "delete", "tasks"];

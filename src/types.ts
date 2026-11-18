@@ -163,6 +163,8 @@ export interface Entitlements {
    * rollout flag the cloud sets per account, on any plan. Missing = false.
    */
   agent: boolean;
+  /** Agent webhooks and result subscriptions; a second rollout flag. */
+  agentIntegrations?: boolean;
   profileLimit: number;
   requestsPerHour: number;
   /**

@@ -2490,7 +2490,16 @@
       "stopping": "正在停止…",
       "singleInstance": "此浏览器同一时间只能运行一个实例。先停止正在运行的实例。"
     },
-    "pinned": "已置顶"
+    "pinned": "已置顶",
+    "agent": {
+      "header": "智能体",
+      "ask": "询问",
+      "aria": "{{name}} 中的智能体：{{status}}",
+      "openChat": "打开对话",
+      "openRun": "打开运行",
+      "loadingRoutines": "正在加载例程…",
+      "noRoutines": "还没有例程"
+    }
   },
   "dataTableActionBar": {
     "selected": "已选择 {{count}}",
@@ -2998,7 +3007,27 @@
     "desktopOffline": "计划时间 Donut 未打开。",
     "desktopRefused": "Donut 无法开始此次运行。",
     "runLost": "Donut 已停止报告此次运行。",
-    "freeCreditsPending": "您的免费点数尚未就绪。新账户需经过简短检查后才能获得。"
+    "freeCreditsPending": "您的免费点数尚未就绪。新账户需经过简短检查后才能获得。",
+    "agentColumnDuplicate": "每一列都需要不同的名称。",
+    "agentExportFailed": "无法保存文件。",
+    "agentSettingsNotSaved": "任务未开始：无法保存其上限。",
+    "agentMemoryUnreadable": "无法读取智能体关于此配置文件的备注。",
+    "agentNoteNotFound": "该备注已不存在。",
+    "agentPlaybookInvalid": "请检查操作手册的名称、说明和网站。",
+    "agentPlaybookReadOnly": "只有作者或团队管理员可以修改这本操作手册。",
+    "agentPlaybookNotFound": "该操作手册已不存在。",
+    "agentPlaybookLimit": "操作手册数量已达上限。",
+    "agentPlaybookSiteInvalid": "网站必须是域名，例如 shop.example.com。",
+    "agentSubscriptionInvalid": "请检查地址和事件。",
+    "agentSubscriptionUrlInvalid": "请使用 https 地址。",
+    "agentSubscriptionNotFound": "该投递目标已不存在。",
+    "agentSubscriptionLimit": "投递目标数量已达上限。",
+    "agentIntegrationsNotEntitled": "此账户未开启 Webhook 和结果投递。",
+    "agentFieldInvalid": "有一个字段无效。",
+    "agentHookNotFound": "此例程没有 Webhook。",
+    "agentHookBusy": "等待此例程的 Webhook 调用过多。",
+    "agentRoutineDisabled": "例程已关闭。",
+    "agentActionCap": "已达到每日操作上限。"
   },
   "rail": {
     "profiles": "配置文件",
@@ -4604,6 +4633,126 @@
           "prompt": "在此配置文件中打开一个 DNS 泄漏测试页面，运行它的标准测试。记下每个 DNS 服务器及其国家和所有者。然后打开一个 WebRTC 泄漏测试页面，记下它找到的每个 IP 地址。给出一行，包含以下列：代理 IP、DNS 国家、WebRTC IP、是否泄漏（是或否）。泄漏指代理所在国家以外的 DNS 服务器或 IP 地址。"
         }
       }
+    },
+    "options": {
+      "effort": "投入程度",
+      "efforts": {
+        "fast": "快速",
+        "standard": "标准",
+        "thorough": "细致"
+      },
+      "humanPace": "真人节奏",
+      "capDay": "每日操作数",
+      "capSite": "每个网站每日上限"
+    },
+    "output": {
+      "add": "添加列",
+      "hint": "每次运行都以这些值结束。",
+      "name": "列名",
+      "namePlaceholder": "列",
+      "type": "类型",
+      "types": {
+        "text": "文本",
+        "number": "数字",
+        "bool": "是或否",
+        "url": "链接"
+      },
+      "remove": "删除列",
+      "copy": "复制",
+      "copied": "已复制表格",
+      "export": "CSV",
+      "exported_one": "已保存 {{count}} 行",
+      "exported_other": "已保存 {{count}} 行",
+      "profile": "配置文件",
+      "result": "结果",
+      "yes": "是",
+      "no": "否"
+    },
+    "playbooks": {
+      "title": "操作手册",
+      "new": "新建操作手册",
+      "pick": "操作手册",
+      "count_one": "{{count}} 本操作手册",
+      "count_other": "{{count}} 本操作手册",
+      "search": "搜索操作手册",
+      "none": "还没有操作手册。",
+      "noMatch": "没有匹配的操作手册。",
+      "bySite": "适用于例程所在网站的操作手册会自动加入。",
+      "saved": "已保存操作手册",
+      "name": "名称",
+      "namePlaceholder": "操作手册名称",
+      "instructions": "说明",
+      "instructionsPlaceholder": "如何在网站上操作：东西在哪里、要检查什么、要避免什么",
+      "sites": "网站",
+      "shared": "与团队共享",
+      "deleteTitle": "删除 {{name}}？",
+      "deleteDescription": "任务将不再获得这本操作手册。",
+      "empty": "只需写一次如何在某个网站上操作，该网站上的每个任务都会获得它。",
+      "anySite": "任意网站",
+      "team": "团队"
+    },
+    "triggers": {
+      "webhook": "Webhook",
+      "hookHint": "向 Webhook 发送 POST 会以请求正文为输入运行此例程。",
+      "hookCreate": "创建 Webhook",
+      "hookUse": "向此地址发送 POST 会运行例程，请求正文即为输入。",
+      "hookRotate": "新地址",
+      "hookDelete": "删除 Webhook",
+      "copy": "复制",
+      "copied": "已复制",
+      "sendTo": "结果发送到",
+      "events": {
+        "run": {
+          "finished": "运行结束",
+          "needs_you": "运行需要你处理"
+        },
+        "batch": {
+          "finished": "全部运行结束"
+        }
+      },
+      "slack": "Slack",
+      "failed": "投递失败",
+      "test": "测试",
+      "testSent": "测试已送达",
+      "testFailed": "测试未送达：{{error}}",
+      "remove": "移除",
+      "url": "Slack 或 Webhook 地址",
+      "urlPlaceholder": "https://hooks.slack.com/…",
+      "event": "事件",
+      "add": "添加",
+      "secret": "签名密钥，仅显示一次："
+    },
+    "inbox": {
+      "title": "收件箱",
+      "empty": "没有等待你处理的事项。",
+      "notifyQuestion": "{{name}} 需要你处理",
+      "notifyChange": "{{name}} 请求修改应用",
+      "changes": {
+        "routines": {
+          "save": "保存例程 {{name}}",
+          "run": "运行例程 {{name}}",
+          "delete": "删除例程 {{name}}"
+        },
+        "tasks": {
+          "run": "在其他配置文件中运行 {{name}}"
+        }
+      }
+    },
+    "memory": {
+      "title": "记忆",
+      "choose": "请选择一个配置文件。",
+      "notes": "智能体知道的内容",
+      "note": "备注",
+      "notePlaceholder": "为后续任务添加一条信息",
+      "add": "添加",
+      "edit": "编辑",
+      "delete": "删除备注",
+      "empty": "还没有备注。任务会添加它们学到的内容。",
+      "useHistory": "使用此配置文件的浏览记录",
+      "historyHint": "任务可以看到此配置文件过去 14 天访问最多的网站。这些信息保留在本设备上。",
+      "historySites": "任务可以看到：{{sites}}",
+      "actionsToday_one": "今天 {{n}} 次操作",
+      "actionsToday_other": "今天 {{n}} 次操作"
     }
   },
   "proxyDistribution": {
@@ -4831,6 +4980,30 @@
         "title": "同时操作多个配置文件",
         "body": "在配置文件菜单中选择“使用同步器启动”，再选择跟随者。领导者中的每次点击和按键都会在每个跟随者中重复。",
         "action": "打开配置文件"
+      },
+      "agentChat": {
+        "label": "在配置文件中对话",
+        "title": "让智能体在配置文件中工作",
+        "body": "用您自己的话写下需求。智能体在配置文件的浏览器中工作，您可以实时观看，重要步骤前它会先询问。",
+        "action": "打开智能体"
+      },
+      "agentRun": {
+        "label": "一个任务，多个配置文件",
+        "title": "在多个配置文件上运行一个任务",
+        "body": "选择配置文件，然后在表格下方的栏中选择智能体。每一行的任务进展显示在智能体列中。",
+        "action": "打开配置文件"
+      },
+      "agentRoutine": {
+        "label": "例程",
+        "title": "用例程重复任务",
+        "body": "将任务保存为例程，然后手动或按计划运行。每次运行都会保留每个配置文件的结果。",
+        "action": "打开智能体"
+      },
+      "agentTemplates": {
+        "label": "模板",
+        "title": "从模板开始",
+        "body": "为账户、店铺、广告、研究和配置文件健康准备好的任务。选一个并填写空白处。",
+        "action": "浏览模板"
       }
     },
     "sections": {
@@ -4838,7 +5011,8 @@
       "network": "网络",
       "privacy": "隐私与数据",
       "connect": "连接",
-      "plan": "您的套餐已包含"
+      "plan": "您的套餐已包含",
+      "agent": "智能体"
     },
     "progress": "已读 {{read}} / {{total}}",
     "unread": "未读",
@@ -5268,5 +5442,31 @@
     "description": "Donut 的这一部分因错误而停止。重新加载以继续。错误已记录在日志中。",
     "reload": "重新加载",
     "copyDetails": "复制详细信息"
+  },
+  "agentIntro": {
+    "notNow": "以后再说",
+    "hide": "隐藏",
+    "done": "完成",
+    "offer": {
+      "title": "试试您的智能体",
+      "body": "它像真人一样在此配置文件自己的浏览器中工作。运行一个真实任务：检查代理与指纹是否一致。",
+      "start": "运行"
+    },
+    "working": {
+      "title": "智能体正在工作",
+      "body": "这是它的实时窗口。您可以继续工作：智能体列会显示进展。"
+    },
+    "result": {
+      "title": "这是它的发现",
+      "body": "保存为例程，即可在任意配置文件上再次运行，或按计划运行。"
+    },
+    "ended": {
+      "title": "任务未完成"
+    },
+    "saved": {
+      "title": "例程已保存",
+      "body": "在表格中选择配置文件，从智能体菜单运行，或在智能体页面设置计划。",
+      "open": "打开例程"
+    }
   }
 }

@@ -3,6 +3,9 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  LuBookOpen,
+  LuBrain,
+  LuInbox,
   LuLayoutGrid,
   LuLayoutTemplate,
   LuMessageSquare,
@@ -47,8 +50,11 @@ import { cn } from "@/lib/utils";
 export type PaneSelection =
   | { kind: "new" }
   | { kind: "templates" }
+  | { kind: "inbox" }
+  | { kind: "playbooks" }
+  | { kind: "memory"; profileId: string | null }
   | { kind: "chat"; id: string }
-  | { kind: "run"; id: string }
+  | { kind: "run"; id: string; profileId?: string }
   | { kind: "routine"; id: string }
   | { kind: "draft"; draft: AgentRoutineDraft; nonce: number };
 
@@ -324,6 +330,7 @@ export function AgentSidebar({
   profileNames,
   credits,
   needsYou,
+  waiting,
   onSelect,
   onOpenConsole,
 }: {
@@ -335,6 +342,8 @@ export function AgentSidebar({
   credits: AgentCredits | null;
   /** Requests of connected agents that wait for the person. */
   needsYou: number;
+  /** Questions and changes of runs and chats that wait for the person. */
+  waiting: number;
   onSelect: (selection: PaneSelection) => void;
   onOpenConsole: () => void;
 }) {
@@ -435,6 +444,61 @@ export function AgentSidebar({
             aria-hidden="true"
           />
           {t("agent.templates.title")}
+        </button>
+        <button
+          type="button"
+          data-slot="agent-inbox-open"
+          aria-current={selected.kind === "inbox" ? "true" : undefined}
+          onClick={() => {
+            choose({ kind: "inbox" });
+          }}
+          className={sidebarRow(selected.kind === "inbox", "h-9")}
+        >
+          <LuInbox
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1 truncate">
+            {t("agent.inbox.title")}
+          </span>
+          {waiting > 0 && (
+            <span
+              data-slot="agent-inbox-count"
+              className="rounded-full bg-warning/15 px-1.5 text-xs tabular-nums text-warning-text"
+            >
+              {waiting}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          data-slot="agent-playbooks-open"
+          aria-current={selected.kind === "playbooks" ? "true" : undefined}
+          onClick={() => {
+            choose({ kind: "playbooks" });
+          }}
+          className={sidebarRow(selected.kind === "playbooks", "h-9")}
+        >
+          <LuBookOpen
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          {t("agent.playbooks.title")}
+        </button>
+        <button
+          type="button"
+          data-slot="agent-memory-open"
+          aria-current={selected.kind === "memory" ? "true" : undefined}
+          onClick={() => {
+            choose({ kind: "memory", profileId: null });
+          }}
+          className={sidebarRow(selected.kind === "memory", "h-9")}
+        >
+          <LuBrain
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          {t("agent.memory.title")}
         </button>
         <SearchField
           value={query}

@@ -2,6 +2,8 @@
 //! their runs. Storage, schedules and the plan checks live in the cloud; this
 //! side checks the shape before sending and turns failures into codes.
 
+use super::options::{Caps, Effort, Pace, RunOptions};
+use super::output::Output;
 use super::token::AgentToken;
 use crate::cloud_errors::{BackendFailure, FailureCodes};
 use serde::de::DeserializeOwned;
@@ -74,6 +76,20 @@ pub struct Routine {
   pub concurrency: Option<usize>,
   #[serde(default = "enabled_by_default")]
   pub enabled: bool,
+  #[serde(default)]
+  pub effort: Option<Effort>,
+  #[serde(default)]
+  pub pace: Option<Pace>,
+  #[serde(default)]
+  pub caps: Option<Caps>,
+  /// The columns each run reports, or none.
+  #[serde(default)]
+  pub output: Option<Output>,
+  #[serde(default)]
+  pub playbook_ids: Vec<String>,
+  /// The webhook that fires the routine, with the `agentIntegrations` flag.
+  #[serde(default)]
+  pub hook: Option<super::integrations::Hook>,
   /// The next scheduled fire, as the cloud keeps it. None when the routine
   /// has no schedule, is off, or was paused because its plan lapsed.
   #[serde(default)]
@@ -86,6 +102,25 @@ pub struct Routine {
 
 fn enabled_by_default() -> bool {
   true
+}
+
+impl Routine {
+  pub fn options(&self) -> RunOptions {
+    RunOptions {
+      effort: self.effort.unwrap_or_default(),
+      pace: self.pace.unwrap_or_default(),
+      caps: self.caps,
+    }
+    .checked()
+  }
+
+  pub fn columns(&self) -> Vec<super::output::Column> {
+    self
+      .output
+      .as_ref()
+      .map(|output| output.columns.clone())
+      .unwrap_or_default()
+  }
 }
 
 /// A routine as the app sends it.
@@ -106,6 +141,16 @@ pub struct RoutineDraft {
   pub concurrency: Option<usize>,
   #[serde(default = "enabled_by_default")]
   pub enabled: bool,
+  #[serde(default)]
+  pub effort: Option<Effort>,
+  #[serde(default)]
+  pub pace: Option<Pace>,
+  #[serde(default)]
+  pub caps: Option<Caps>,
+  #[serde(default)]
+  pub output: Option<Output>,
+  #[serde(default)]
+  pub playbook_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -129,6 +174,9 @@ pub struct RoutineRun {
   pub created_at: Option<String>,
   #[serde(default)]
   pub finished_at: Option<String>,
+  /// What the run found, by the routine's columns.
+  #[serde(default)]
+  pub data: Option<serde_json::Map<String, Value>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -149,12 +197,17 @@ impl<T> Listed<T> {
   }
 }
 
-/// A scheduled fire this desktop claimed: the cloud made its batch.
+/// A fire this desktop claimed: the cloud made its batch. `trigger` says
+/// what fired it, and `input` is the webhook's body or the event's words.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Fire {
   pub routine_id: String,
   pub batch_id: String,
+  #[serde(default)]
+  pub trigger: Option<String>,
+  #[serde(default)]
+  pub input: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -178,11 +231,11 @@ pub struct StartedBatch {
   pub runs: Vec<StartedRun>,
 }
 
-fn base() -> String {
+pub(super) fn base() -> String {
   format!("{}/api/agent", crate::cloud_auth::CLOUD_API_URL)
 }
 
-fn segment(id: &str, missing: &str) -> Result<String, String> {
+pub(super) fn segment(id: &str, missing: &str) -> Result<String, String> {
   let id = id.trim();
   if id.is_empty() || id.len() > MAX_ID_CHARS {
     return Err(crate::backend_error(missing));
@@ -196,10 +249,24 @@ fn app_code(code: &str) -> &str {
     "ROUTINE_NOT_FOUND" => "AGENT_ROUTINE_NOT_FOUND",
     "ROUTINE_LIMIT" => "AGENT_ROUTINE_LIMIT",
     "ROUTINE_FIELD_INVALID" => "AGENT_ROUTINE_INVALID",
+    "FIELD_INVALID" => "AGENT_FIELD_INVALID",
+    "HOOK_NOT_FOUND" => "AGENT_HOOK_NOT_FOUND",
+    "HOOK_BUSY" => "AGENT_HOOK_BUSY",
+    "ROUTINE_DISABLED" => "AGENT_ROUTINE_DISABLED",
+    "ACTION_CAP" => "AGENT_ACTION_CAP",
     "SCHEDULE_INVALID" => "AGENT_SCHEDULE_INVALID",
     "SCHEDULE_TOO_OFTEN" => "AGENT_SCHEDULE_TOO_OFTEN",
     "AGENT_NOT_ENABLED" => "AGENT_NOT_ENTITLED",
     "RUN_NOT_FOUND" | "RUN_FINISHED" => "AGENT_TASK_NOT_FOUND",
+    "PLAYBOOK_NOT_FOUND" => "AGENT_PLAYBOOK_NOT_FOUND",
+    "PLAYBOOK_LIMIT" => "AGENT_PLAYBOOK_LIMIT",
+    "PLAYBOOK_READ_ONLY" => "AGENT_PLAYBOOK_READ_ONLY",
+    "SUBSCRIPTION_NOT_FOUND" => "AGENT_SUBSCRIPTION_NOT_FOUND",
+    "SUBSCRIPTION_LIMIT" => "AGENT_SUBSCRIPTION_LIMIT",
+    "SUBSCRIPTION_URL_INVALID" => "AGENT_SUBSCRIPTION_URL_INVALID",
+    "AGENT_INTEGRATIONS_NOT_ENABLED" | "INTEGRATIONS_NOT_ENABLED" => {
+      "AGENT_INTEGRATIONS_NOT_ENTITLED"
+    }
     other => other,
   }
 }
@@ -216,13 +283,24 @@ fn failure(action: &str, mut err: BackendFailure) -> String {
   err.to_error_json()
 }
 
-async fn call<T: DeserializeOwned>(
+pub(super) async fn call<T: DeserializeOwned>(
   action: &str,
   method: reqwest::Method,
   url: String,
   body: Option<Value>,
 ) -> Result<T, String> {
-  crate::cloud_api::call(method, url, body, AGENT_CODES)
+  call_with(action, method, url, body, AGENT_CODES).await
+}
+
+/// `call` with the codes a route's statuses mean.
+pub(super) async fn call_with<T: DeserializeOwned>(
+  action: &str,
+  method: reqwest::Method,
+  url: String,
+  body: Option<Value>,
+  codes: FailureCodes,
+) -> Result<T, String> {
+  crate::cloud_api::call(method, url, body, codes)
     .await
     .map_err(|e| failure(action, e))
 }
@@ -289,6 +367,20 @@ pub fn checked_draft(draft: RoutineDraft) -> Result<RoutineDraft, String> {
   if draft.max_credits_per_run == Some(0) {
     return Err(crate::backend_error("AGENT_ROUTINE_INVALID"));
   }
+  let mut playbook_ids: Vec<String> = Vec::new();
+  for id in &draft.playbook_ids {
+    let id = id.trim();
+    if id.is_empty() || id.len() > MAX_ID_CHARS {
+      return Err(crate::backend_error("AGENT_ROUTINE_INVALID"));
+    }
+    if !playbook_ids.iter().any(|seen| seen == id) {
+      playbook_ids.push(id.to_string());
+    }
+  }
+  if playbook_ids.len() > super::playbooks::MAX_PICKED {
+    return Err(crate::backend_error("AGENT_ROUTINE_INVALID"));
+  }
+  let output = super::output::checked(draft.output.clone())?;
   Ok(RoutineDraft {
     name,
     prompt,
@@ -297,6 +389,9 @@ pub fn checked_draft(draft: RoutineDraft) -> Result<RoutineDraft, String> {
     concurrency: draft
       .concurrency
       .map(|n| n.clamp(1, super::batch::MAX_CONCURRENCY)),
+    caps: draft.caps.and_then(Caps::checked),
+    output,
+    playbook_ids,
     ..draft
   })
 }
@@ -471,6 +566,7 @@ pub fn run_patch(
   summary: Option<&str>,
   credits_used: u64,
   error: Option<&str>,
+  data: Option<&Value>,
 ) -> Value {
   const MAX_SUMMARY_CHARS: usize = 10_000;
   const MAX_ERROR_CHARS: usize = 2_000;
@@ -481,6 +577,9 @@ pub fn run_patch(
   }
   if let Some(error) = error {
     body["error"] = Value::from(cut(error, MAX_ERROR_CHARS));
+  }
+  if let Some(data) = data.filter(|data| data.is_object()) {
+    body["data"] = data.clone();
   }
   body
 }
@@ -519,6 +618,11 @@ mod tests {
       max_credits_per_run: Some(500),
       concurrency: Some(80),
       enabled: true,
+      effort: None,
+      pace: None,
+      caps: None,
+      output: None,
+      playbook_ids: Vec::new(),
     }
   }
 
@@ -626,8 +730,21 @@ mod tests {
     .unwrap();
     assert_eq!(pending.free_grant.as_deref(), Some("pending"));
     let fires: Fires =
-      serde_json::from_str(r#"{"fires":[{"routineId":"r","batchId":"b"}]}"#).unwrap();
+      serde_json::from_str(r#"{"fires":[{"routineId":"r","batchId":"b"},{"routineId":"r","batchId":"c","trigger":"webhook","input":"order 42"}]}"#).unwrap();
     assert_eq!(fires.fires[0].batch_id, "b");
+    assert_eq!(fires.fires[0].input, None);
+    assert_eq!(fires.fires[1].trigger.as_deref(), Some("webhook"));
+    assert_eq!(fires.fires[1].input.as_deref(), Some("order 42"));
+    let routine: Routine = serde_json::from_str(
+      r#"{"id":"r","effort":"thorough","caps":{"actionsPerDay":300},"output":{"columns":[{"name":"Orders","type":"number"}]},"playbookIds":["pb"],"hook":{"url":"https://api.donutbrowser.com/hooks/agent/s"}}"#,
+    )
+    .unwrap();
+    let options = routine.options();
+    assert_eq!(options.effort, Effort::Thorough);
+    assert_eq!(options.pace, Pace::Human, "null is the default");
+    assert_eq!(options.caps.unwrap().actions_per_day, Some(300));
+    assert_eq!(routine.columns()[0].name, "Orders");
+    assert!(routine.hook.is_some());
     let routine: Routine =
       serde_json::from_str(r#"{"id":"r","nextRunAt":"2026-11-19T09:00:00.000Z"}"#).unwrap();
     assert_eq!(
@@ -638,13 +755,15 @@ mod tests {
 
   #[test]
   fn a_run_report_carries_only_what_is_known() {
-    let patch = run_patch("done", Some("Ordered"), 40, None);
+    let patch = run_patch("done", Some("Ordered"), 40, None, None);
     assert_eq!(
       patch,
       json!({"status": "done", "summary": "Ordered", "creditsUsed": 40})
     );
-    assert!(run_patch("failed", None, 0, Some("AGENT_BUSY"))
+    assert!(run_patch("failed", None, 0, Some("AGENT_BUSY"), None)
       .get("summary")
       .is_none());
+    let data = json!({ "Orders": 3 });
+    assert_eq!(run_patch("done", None, 1, None, Some(&data))["data"], data);
   }
 }

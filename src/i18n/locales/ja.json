@@ -2490,7 +2490,16 @@
       "stopping": "停止中…",
       "singleInstance": "このブラウザーは一度に 1 つしか実行できません。先に実行中のものを停止してください。"
     },
-    "pinned": "ピン留め済み"
+    "pinned": "ピン留め済み",
+    "agent": {
+      "header": "エージェント",
+      "ask": "依頼",
+      "aria": "{{name}} のエージェント: {{status}}",
+      "openChat": "チャットを開く",
+      "openRun": "実行を開く",
+      "loadingRoutines": "ルーティンを読み込み中…",
+      "noRoutines": "ルーティンはまだありません"
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}} 件選択",
@@ -2998,7 +3007,27 @@
     "desktopOffline": "予定時刻に Donut が起動していませんでした。",
     "desktopRefused": "Donut はこの実行を開始できませんでした。",
     "runLost": "この実行について Donut からの報告が途絶えました。",
-    "freeCreditsPending": "無料クレジットはまだ準備できていません。新しいアカウントには短い確認の後で付与されます。"
+    "freeCreditsPending": "無料クレジットはまだ準備できていません。新しいアカウントには短い確認の後で付与されます。",
+    "agentColumnDuplicate": "列にはそれぞれ別の名前が必要です。",
+    "agentExportFailed": "ファイルを保存できませんでした。",
+    "agentSettingsNotSaved": "上限を保存できなかったため、タスクは開始しませんでした。",
+    "agentMemoryUnreadable": "このプロファイルのエージェントのメモを読み込めません。",
+    "agentNoteNotFound": "そのメモはもうありません。",
+    "agentPlaybookInvalid": "プレイブックの名前、手順、サイトを確認してください。",
+    "agentPlaybookReadOnly": "このプレイブックを変更できるのは作成者かチーム管理者だけです。",
+    "agentPlaybookNotFound": "そのプレイブックはもうありません。",
+    "agentPlaybookLimit": "プレイブックが上限に達しています。",
+    "agentPlaybookSiteInvalid": "サイトは shop.example.com のようなドメインで指定してください。",
+    "agentSubscriptionInvalid": "アドレスとイベントを確認してください。",
+    "agentSubscriptionUrlInvalid": "https のアドレスを使ってください。",
+    "agentSubscriptionNotFound": "その配信先はもうありません。",
+    "agentSubscriptionLimit": "配信先が上限に達しています。",
+    "agentIntegrationsNotEntitled": "このアカウントでは Webhook と配信が有効になっていません。",
+    "agentFieldInvalid": "無効な項目があります。",
+    "agentHookNotFound": "このルーティンには Webhook がありません。",
+    "agentHookBusy": "このルーティンを待つ Webhook 呼び出しが多すぎます。",
+    "agentRoutineDisabled": "ルーティンはオフです。",
+    "agentActionCap": "1日のアクション上限に達しました。"
   },
   "rail": {
     "profiles": "プロファイル",
@@ -4604,6 +4633,126 @@
           "prompt": "このプロファイルで DNS 漏れテストのページを開き、標準のテストを実行してください。各 DNS サーバーを国と所有者とともに記録してください。次に WebRTC 漏れテストのページを開き、見つかった IP アドレスをすべて記録してください。次の列で 1 行を示してください: プロキシの IP、DNS の国、WebRTC の IP、漏れ(はい/いいえ)。漏れとは、プロキシの国の外にある DNS サーバーや IP アドレスのことです。"
         }
       }
+    },
+    "options": {
+      "effort": "精度",
+      "efforts": {
+        "fast": "速さ重視",
+        "standard": "標準",
+        "thorough": "丁寧"
+      },
+      "humanPace": "人間のペース",
+      "capDay": "1日のアクション数",
+      "capSite": "サイトごとの1日の上限"
+    },
+    "output": {
+      "add": "列を追加",
+      "hint": "各実行はこれらの値で終わります。",
+      "name": "列名",
+      "namePlaceholder": "列",
+      "type": "種類",
+      "types": {
+        "text": "テキスト",
+        "number": "数値",
+        "bool": "はい／いいえ",
+        "url": "リンク"
+      },
+      "remove": "列を削除",
+      "copy": "コピー",
+      "copied": "表をコピーしました",
+      "export": "CSV",
+      "exported_one": "{{count}} 行を保存しました",
+      "exported_other": "{{count}} 行を保存しました",
+      "profile": "プロファイル",
+      "result": "結果",
+      "yes": "はい",
+      "no": "いいえ"
+    },
+    "playbooks": {
+      "title": "プレイブック",
+      "new": "新しいプレイブック",
+      "pick": "プレイブック",
+      "count_one": "{{count}} 件のプレイブック",
+      "count_other": "{{count}} 件のプレイブック",
+      "search": "プレイブックを検索",
+      "none": "プレイブックはまだありません。",
+      "noMatch": "一致するプレイブックはありません。",
+      "bySite": "ルーティンのサイト用のプレイブックは自動で追加されます。",
+      "saved": "プレイブックを保存しました",
+      "name": "名前",
+      "namePlaceholder": "プレイブック名",
+      "instructions": "手順",
+      "instructionsPlaceholder": "サイトでの作業方法：どこに何があるか、何を確認し、何を避けるか",
+      "sites": "サイト",
+      "shared": "チームと共有",
+      "deleteTitle": "{{name}} を削除しますか？",
+      "deleteDescription": "タスクはこのプレイブックを受け取らなくなります。",
+      "empty": "サイトでの作業方法を一度書いておけば、そのサイトのすべてのタスクが受け取ります。",
+      "anySite": "すべてのサイト",
+      "team": "チーム"
+    },
+    "triggers": {
+      "webhook": "Webhook",
+      "hookHint": "Webhook への POST で、本文を入力としてこのルーティンを実行します。",
+      "hookCreate": "Webhook を作成",
+      "hookUse": "このアドレスへの POST でルーティンを実行します。本文が入力になります。",
+      "hookRotate": "新しいアドレス",
+      "hookDelete": "Webhook を削除",
+      "copy": "コピー",
+      "copied": "コピーしました",
+      "sendTo": "結果の送信先",
+      "events": {
+        "run": {
+          "finished": "実行が完了",
+          "needs_you": "実行が対応を待っています"
+        },
+        "batch": {
+          "finished": "すべての実行が完了"
+        }
+      },
+      "slack": "Slack",
+      "failed": "配信に失敗しました",
+      "test": "テスト",
+      "testSent": "テストを配信しました",
+      "testFailed": "テストを配信できませんでした：{{error}}",
+      "remove": "削除",
+      "url": "Slack または Webhook の URL",
+      "urlPlaceholder": "https://hooks.slack.com/…",
+      "event": "イベント",
+      "add": "追加",
+      "secret": "署名シークレット（一度だけ表示）："
+    },
+    "inbox": {
+      "title": "受信トレイ",
+      "empty": "待っているものはありません。",
+      "notifyQuestion": "{{name}} が対応を待っています",
+      "notifyChange": "{{name}} がアプリの変更を求めています",
+      "changes": {
+        "routines": {
+          "save": "ルーティン {{name}} を保存",
+          "run": "ルーティン {{name}} を実行",
+          "delete": "ルーティン {{name}} を削除"
+        },
+        "tasks": {
+          "run": "{{name}} を他のプロファイルで実行"
+        }
+      }
+    },
+    "memory": {
+      "title": "メモリー",
+      "choose": "プロファイルを選択してください。",
+      "notes": "エージェントが知っていること",
+      "note": "メモ",
+      "notePlaceholder": "今後のタスク用に事実を追加",
+      "add": "追加",
+      "edit": "編集",
+      "delete": "メモを削除",
+      "empty": "メモはまだありません。タスクが学んだことを追加します。",
+      "useHistory": "このプロファイルの履歴を使う",
+      "historyHint": "タスクは、このプロファイルが過去 14 日間に最も訪れたサイトを見ます。この情報はこのデバイスに残ります。",
+      "historySites": "タスクが見るサイト：{{sites}}",
+      "actionsToday_one": "今日のアクション {{n}} 件",
+      "actionsToday_other": "今日のアクション {{n}} 件"
     }
   },
   "proxyDistribution": {
@@ -4831,6 +4980,30 @@
         "title": "複数のプロファイルを同時に操作",
         "body": "プロファイルのメニューで「シンクロナイザーで起動」を選び、フォロワーを選びます。リーダーでのクリックや入力が各フォロワーで繰り返されます。",
         "action": "プロファイルを開く"
+      },
+      "agentChat": {
+        "label": "プロファイルでチャット",
+        "title": "プロファイルでの作業をエージェントに依頼",
+        "body": "必要なことを自分の言葉で書いてください。エージェントはプロファイルのブラウザで作業し、その様子をライブで見られます。重要な操作の前には確認します。",
+        "action": "エージェントを開く"
+      },
+      "agentRun": {
+        "label": "1つのタスクを複数のプロファイルで",
+        "title": "1つのタスクを複数のプロファイルで実行",
+        "body": "プロファイルを選択し、表の下のバーでエージェントを選びます。各行のタスクの進み具合はエージェント列に表示されます。",
+        "action": "プロファイルを開く"
+      },
+      "agentRoutine": {
+        "label": "ルーティン",
+        "title": "ルーティンでタスクを繰り返す",
+        "body": "タスクをルーティンとして保存し、手動またはスケジュールで実行します。各実行の結果はプロファイルごとに残ります。",
+        "action": "エージェントを開く"
+      },
+      "agentTemplates": {
+        "label": "テンプレート",
+        "title": "テンプレートから始める",
+        "body": "アカウント、ショップ、広告、リサーチ、プロファイルの健全性のための既製タスクです。1つ選んで空欄を埋めてください。",
+        "action": "テンプレートを見る"
       }
     },
     "sections": {
@@ -4838,7 +5011,8 @@
       "network": "ネットワーク",
       "privacy": "プライバシーとデータ",
       "connect": "連携",
-      "plan": "プランに含まれる機能"
+      "plan": "プランに含まれる機能",
+      "agent": "エージェント"
     },
     "progress": "{{total}} 件中 {{read}} 件既読",
     "unread": "未読",
@@ -5268,5 +5442,31 @@
     "description": "エラーのため Donut のこの部分が停止しました。続けるには再読み込みしてください。エラーはログに記録されています。",
     "reload": "再読み込み",
     "copyDetails": "詳細をコピー"
+  },
+  "agentIntro": {
+    "notNow": "後で",
+    "hide": "閉じる",
+    "done": "完了",
+    "offer": {
+      "title": "エージェントを試す",
+      "body": "このプロファイル自身のブラウザで、人と同じように作業します。実際のタスクを1つ実行しましょう: プロキシとフィンガープリントが一致しているか確認します。",
+      "start": "実行"
+    },
+    "working": {
+      "title": "エージェントが作業中です",
+      "body": "これはライブのウィンドウです。作業を続けられます。進み具合はエージェント列に表示されます。"
+    },
+    "result": {
+      "title": "結果はこちらです",
+      "body": "ルーティンとして保存すると、任意のプロファイルで再実行したり、スケジュールで実行したりできます。"
+    },
+    "ended": {
+      "title": "タスクは完了しませんでした"
+    },
+    "saved": {
+      "title": "ルーティンを保存しました",
+      "body": "表でプロファイルを選び、エージェントメニューから実行するか、エージェントページでスケジュールを設定します。",
+      "open": "ルーティンを開く"
+    }
   }
 }

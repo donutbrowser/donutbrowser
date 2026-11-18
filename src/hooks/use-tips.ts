@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppPage } from "@/components/rail-nav";
+import { listAgentChats } from "@/lib/agent-chat";
 import { getAgentConsole } from "@/lib/agent-console";
+import { listAgentBatches, listAgentRoutines } from "@/lib/agent-tasks";
 import { COACH_MARK_EXIT_MS } from "@/lib/coach-mark";
 import {
   effectivePlanOf,
@@ -150,6 +152,9 @@ async function loadFeatureUsage(
     trashUsed,
     templatesSaved,
     agentUsed,
+    agentChats,
+    agentRuns,
+    agentRoutines,
   ] = await Promise.all([
     wants(
       "localApi",
@@ -184,6 +189,15 @@ async function loadFeatureUsage(
           getAgentConsole().then((snapshot) => snapshot.sessions.length > 0),
         )
       : undefined,
+    wants("agentChat")
+      ? known(listAgentChats().then((chats) => chats.length > 0))
+      : undefined,
+    wants("agentRun")
+      ? known(listAgentBatches().then((batches) => batches.length > 0))
+      : undefined,
+    wants("agentRoutine", "agentTemplates")
+      ? known(listAgentRoutines().then((routines) => routines.length > 0))
+      : undefined,
   ]);
   return {
     ...live,
@@ -196,6 +210,9 @@ async function loadFeatureUsage(
     trashUsed,
     templatesSaved,
     agentUsed,
+    agentChats,
+    agentRuns,
+    agentRoutines,
     feedbackSent:
       settings === undefined ? undefined : settings.feedback_sent_at != null,
   };
@@ -254,6 +271,8 @@ interface UseTipsOptions {
    * session, terms accepted, nothing else blocking.
    */
   ready: boolean;
+  /** Another coach mark comes first (the agent's first task): the day's tip waits. */
+  inlineHeld?: boolean;
   /** Read when the inline tip is chosen, to skip features already in use. */
   usage: TipUsageSource;
   activity: TipActivity;
@@ -270,6 +289,7 @@ export function useTips({
   accountLoading,
   loggedInAt,
   ready,
+  inlineHeld = false,
   usage,
   activity,
 }: UseTipsOptions) {
@@ -452,7 +472,7 @@ export function useTips({
   // is picked at most once a day. Both wait until the Profiles page has sat
   // quiet for a moment with nothing modal on it.
   useEffect(() => {
-    if (!ready || accountLoading || !usage.loaded) return;
+    if (!ready || inlineHeld || accountLoading || !usage.loaded) return;
     if (!state?.auto_show || inline) return;
     if (!onProfiles || dialog.open || welcomeBusy || preview) return;
     if (!pinned && !due) return;
@@ -538,6 +558,7 @@ export function useTips({
     };
   }, [
     ready,
+    inlineHeld,
     accountLoading,
     usage.loaded,
     state?.auto_show,

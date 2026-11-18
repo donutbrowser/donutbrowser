@@ -2509,7 +2509,16 @@
       "stopping": "Arrêt…",
       "singleInstance": "Une seule instance de ce navigateur peut tourner à la fois. Arrêtez d'abord celle qui tourne."
     },
-    "pinned": "Épinglé"
+    "pinned": "Épinglé",
+    "agent": {
+      "header": "Agent",
+      "ask": "Demander",
+      "aria": "Agent dans {{name}} : {{status}}",
+      "openChat": "Ouvrir la discussion",
+      "openRun": "Ouvrir l’exécution",
+      "loadingRoutines": "Chargement des routines…",
+      "noRoutines": "Aucune routine pour l’instant"
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}} sélectionné(s)",
@@ -3018,7 +3027,27 @@
     "desktopOffline": "Donut n'était pas ouvert à l'heure prévue.",
     "desktopRefused": "Donut n'a pas pu lancer cette exécution.",
     "runLost": "Donut a cessé de rendre compte de cette exécution.",
-    "freeCreditsPending": "Vos crédits gratuits ne sont pas encore prêts. Les nouveaux comptes les reçoivent après une courte vérification."
+    "freeCreditsPending": "Vos crédits gratuits ne sont pas encore prêts. Les nouveaux comptes les reçoivent après une courte vérification.",
+    "agentColumnDuplicate": "Chaque colonne doit avoir son propre nom.",
+    "agentExportFailed": "Le fichier n’a pas pu être enregistré.",
+    "agentSettingsNotSaved": "La tâche n’a pas démarré : ses limites n’ont pas pu être enregistrées.",
+    "agentMemoryUnreadable": "Les notes de l’agent pour ce profil sont illisibles.",
+    "agentNoteNotFound": "Cette note n’existe plus.",
+    "agentPlaybookInvalid": "Vérifiez le nom, les instructions et les sites du guide.",
+    "agentPlaybookReadOnly": "Seul son auteur ou un admin de l’équipe peut modifier ce guide.",
+    "agentPlaybookNotFound": "Ce guide n’existe plus.",
+    "agentPlaybookLimit": "Vous avez le nombre maximal de guides.",
+    "agentPlaybookSiteInvalid": "Un site doit être un domaine, comme shop.example.com.",
+    "agentSubscriptionInvalid": "Vérifiez l’adresse et l’événement.",
+    "agentSubscriptionUrlInvalid": "Utilisez une adresse https.",
+    "agentSubscriptionNotFound": "Cette livraison n’existe plus.",
+    "agentSubscriptionLimit": "Vous avez le nombre maximal de livraisons.",
+    "agentIntegrationsNotEntitled": "Les webhooks et les livraisons ne sont pas actifs pour ce compte.",
+    "agentFieldInvalid": "Un champ n’est pas valide.",
+    "agentHookNotFound": "Cette routine n’a pas de webhook.",
+    "agentHookBusy": "Trop d’appels de webhook attendent cette routine.",
+    "agentRoutineDisabled": "La routine est désactivée.",
+    "agentActionCap": "La limite quotidienne d’actions est atteinte."
   },
   "rail": {
     "profiles": "Profils",
@@ -4657,6 +4686,126 @@
           "prompt": "Ouvrez dans ce profil une page de test de fuites DNS et lancez son test standard. Notez chaque serveur DNS avec son pays et son propriétaire. Ouvrez ensuite une page de test de fuites WebRTC et notez chaque adresse IP qu’elle trouve. Donnez une ligne avec ces colonnes : IP du proxy, pays DNS, IP WebRTC, fuite (oui ou non). Une fuite est un serveur DNS ou une adresse IP hors du pays du proxy."
         }
       }
+    },
+    "options": {
+      "effort": "Effort",
+      "efforts": {
+        "fast": "Rapide",
+        "standard": "Standard",
+        "thorough": "Approfondi"
+      },
+      "humanPace": "Rythme humain",
+      "capDay": "Actions par jour",
+      "capSite": "Par site et par jour"
+    },
+    "output": {
+      "add": "Ajouter des colonnes",
+      "hint": "Chaque exécution se termine par ces valeurs.",
+      "name": "Nom de la colonne",
+      "namePlaceholder": "Colonne",
+      "type": "Type",
+      "types": {
+        "text": "Texte",
+        "number": "Nombre",
+        "bool": "Oui ou non",
+        "url": "Lien"
+      },
+      "remove": "Retirer la colonne",
+      "copy": "Copier",
+      "copied": "Tableau copié",
+      "export": "CSV",
+      "exported_one": "{{count}} ligne enregistrée",
+      "exported_other": "{{count}} lignes enregistrées",
+      "profile": "Profil",
+      "result": "Résultat",
+      "yes": "Oui",
+      "no": "Non"
+    },
+    "playbooks": {
+      "title": "Guides",
+      "new": "Nouveau guide",
+      "pick": "Guides",
+      "count_one": "{{count}} guide",
+      "count_other": "{{count}} guides",
+      "search": "Rechercher des guides",
+      "none": "Aucun guide pour l’instant.",
+      "noMatch": "Aucun guide ne correspond.",
+      "bySite": "Les guides du site de la routine s’ajoutent seuls.",
+      "saved": "Guide enregistré",
+      "name": "Nom",
+      "namePlaceholder": "Nom du guide",
+      "instructions": "Instructions",
+      "instructionsPlaceholder": "Comment travailler sur le site : où sont les choses, quoi vérifier, quoi éviter",
+      "sites": "Sites",
+      "shared": "Partager avec l’équipe",
+      "deleteTitle": "Supprimer {{name}} ?",
+      "deleteDescription": "Les tâches ne reçoivent plus ce guide.",
+      "empty": "Écrivez une fois comment travailler sur un site. Chaque tâche sur ce site le reçoit.",
+      "anySite": "Tout site",
+      "team": "Équipe"
+    },
+    "triggers": {
+      "webhook": "Webhook",
+      "hookHint": "Un POST vers un webhook lance cette routine avec le corps comme entrée.",
+      "hookCreate": "Créer un webhook",
+      "hookUse": "Un POST vers cette adresse lance la routine. Le corps est son entrée.",
+      "hookRotate": "Nouvelle adresse",
+      "hookDelete": "Supprimer le webhook",
+      "copy": "Copier",
+      "copied": "Copié",
+      "sendTo": "Envoyer les résultats à",
+      "events": {
+        "run": {
+          "finished": "Exécution terminée",
+          "needs_you": "L’exécution a besoin de vous"
+        },
+        "batch": {
+          "finished": "Toutes les exécutions terminées"
+        }
+      },
+      "slack": "Slack",
+      "failed": "Échec de la livraison",
+      "test": "Tester",
+      "testSent": "Test livré",
+      "testFailed": "Test non livré : {{error}}",
+      "remove": "Retirer",
+      "url": "URL Slack ou webhook",
+      "urlPlaceholder": "https://hooks.slack.com/…",
+      "event": "Événement",
+      "add": "Ajouter",
+      "secret": "Secret de signature, affiché une fois :"
+    },
+    "inbox": {
+      "title": "Boîte de réception",
+      "empty": "Rien ne vous attend.",
+      "notifyQuestion": "{{name}} a besoin de vous",
+      "notifyChange": "{{name}} demande à modifier l’app",
+      "changes": {
+        "routines": {
+          "save": "Enregistrer la routine {{name}}",
+          "run": "Lancer la routine {{name}}",
+          "delete": "Supprimer la routine {{name}}"
+        },
+        "tasks": {
+          "run": "Lancer {{name}} dans d’autres profils"
+        }
+      }
+    },
+    "memory": {
+      "title": "Mémoire",
+      "choose": "Choisissez un profil.",
+      "notes": "Ce que l’agent sait",
+      "note": "Note",
+      "notePlaceholder": "Ajoutez un fait pour les tâches suivantes",
+      "add": "Ajouter",
+      "edit": "Modifier",
+      "delete": "Supprimer la note",
+      "empty": "Aucune note pour l’instant. Les tâches ajoutent ce qu’elles apprennent.",
+      "useHistory": "Utiliser l’historique de ce profil",
+      "historyHint": "Les tâches voient les sites que ce profil a le plus visités ces 14 derniers jours. Cela reste sur cet appareil.",
+      "historySites": "Les tâches voient : {{sites}}",
+      "actionsToday_one": "{{n}} action aujourd’hui",
+      "actionsToday_other": "{{n}} actions aujourd’hui"
     }
   },
   "proxyDistribution": {
@@ -4884,6 +5033,30 @@
         "title": "Piloter plusieurs profils à la fois",
         "body": "Choisissez Lancer avec le synchroniseur dans le menu d'un profil, puis les suiveurs. Chaque clic et chaque frappe du meneur se répète dans chaque suiveur.",
         "action": "Ouvrir Profils"
+      },
+      "agentChat": {
+        "label": "Discussion dans un profil",
+        "title": "Confiez une tâche à l’agent dans un profil",
+        "body": "Écrivez ce dont vous avez besoin avec vos mots. L’agent travaille dans le navigateur du profil, vous le voyez en direct, et il demande avant les étapes importantes.",
+        "action": "Ouvrir l’agent"
+      },
+      "agentRun": {
+        "label": "Une tâche, plusieurs profils",
+        "title": "Lancez une tâche sur plusieurs profils",
+        "body": "Sélectionnez des profils, puis choisissez Agent dans la barre sous le tableau. Chaque ligne montre l’avancée de sa tâche dans la colonne Agent.",
+        "action": "Ouvrir Profils"
+      },
+      "agentRoutine": {
+        "label": "Routines",
+        "title": "Répétez une tâche avec une routine",
+        "body": "Enregistrez une tâche comme routine, puis lancez-la à la main ou selon un horaire. Chaque exécution garde son résultat pour chaque profil.",
+        "action": "Ouvrir l’agent"
+      },
+      "agentTemplates": {
+        "label": "Modèles",
+        "title": "Partez d’un modèle",
+        "body": "Des tâches prêtes pour les comptes, boutiques, publicités, recherches et la santé des profils. Choisissez-en une et complétez les blancs.",
+        "action": "Voir les modèles"
       }
     },
     "sections": {
@@ -4891,7 +5064,8 @@
       "network": "Réseau",
       "privacy": "Confidentialité et données",
       "connect": "Connecter",
-      "plan": "Inclus dans votre offre"
+      "plan": "Inclus dans votre offre",
+      "agent": "Agent"
     },
     "progress": "{{read}} sur {{total}} lues",
     "unread": "Pas encore lue",
@@ -5324,5 +5498,31 @@
     "description": "Cette partie de Donut s'est arrêtée à cause d'une erreur. Rechargez pour continuer. L'erreur figure dans le journal.",
     "reload": "Recharger",
     "copyDetails": "Copier les détails"
+  },
+  "agentIntro": {
+    "notNow": "Pas maintenant",
+    "hide": "Masquer",
+    "done": "Terminé",
+    "offer": {
+      "title": "Essayez votre agent",
+      "body": "Il travaille dans le navigateur de ce profil, comme une personne. Lancez une vraie tâche : vérifier que le proxy et l’empreinte concordent.",
+      "start": "Lancer"
+    },
+    "working": {
+      "title": "L’agent travaille",
+      "body": "Voici sa fenêtre, en direct. Vous pouvez continuer : la colonne Agent montre où il en est."
+    },
+    "result": {
+      "title": "Voici ce qu’il a trouvé",
+      "body": "Enregistrez-la comme routine pour la relancer sur d’autres profils ou selon un horaire."
+    },
+    "ended": {
+      "title": "La tâche n’est pas terminée"
+    },
+    "saved": {
+      "title": "Routine enregistrée",
+      "body": "Sélectionnez des profils dans le tableau et lancez-la depuis le menu Agent, ou planifiez-la sur la page Agent.",
+      "open": "Ouvrir la routine"
+    }
   }
 }

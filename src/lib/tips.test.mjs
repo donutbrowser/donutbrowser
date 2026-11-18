@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -13,11 +13,13 @@ import {
   pinnedTipFate,
   TIP_SECTIONS,
   TIPS,
+  tipClip,
   tipsFor,
 } from "./tips.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LOCALES = path.join(HERE, "..", "i18n", "locales");
+const CLIPS = path.join(HERE, "..", "..", "public", "clips");
 
 /** An install that uses nothing a tip talks about. */
 const IDLE = {
@@ -91,7 +93,25 @@ test("a free install is offered every essential and no plan tip", () => {
   const offered = tipsFor(NONE);
   assert.ok(offered.length > 0);
   assert.ok(offered.every((tip) => !isPlanTip(tip)));
-  assert.equal(offered.length, TIPS.filter((tip) => !isPlanTip(tip)).length);
+  assert.equal(
+    offered.length,
+    TIPS.filter((tip) => !isPlanTip(tip) && !tip.agent).length,
+  );
+});
+
+test("agent tips are offered only with the agent, on any plan", () => {
+  const agentIds = ids(TIPS.filter((tip) => tip.agent));
+  assert.ok(agentIds.length > 0);
+  for (const plan of [NONE, ALL_PLAN]) {
+    const without = ids(tipsFor(plan));
+    assert.ok(agentIds.every((id) => !without.includes(id)));
+    const withAgent = ids(tipsFor({ ...plan, agent: true }));
+    assert.ok(agentIds.every((id) => withAgent.includes(id)));
+  }
+  for (const tip of TIPS.filter((item) => item.agent)) {
+    assert.equal(tip.section, "agent", `${tip.id} is in the agent section`);
+    assert.ok(tip.clip?.startsWith("agent-"), `${tip.id} shows an agent clip`);
+  }
 });
 
 test("a plan tip needs an active plan with that capability", () => {
@@ -343,4 +363,15 @@ test("every tip points somewhere, and its last anchor is always on the Profiles 
     ["column-dns", "rail-settings"],
     "a feature on the page is pointed at before the page that holds its settings",
   );
+});
+
+test("every tip has its recording in both themes, with a still", () => {
+  for (const tip of TIPS) {
+    for (const theme of ["light", "dark"]) {
+      for (const suffix of ["", "-still"]) {
+        const file = `${tipClip(tip)}-${theme}${suffix}.webp`;
+        assert.ok(existsSync(path.join(CLIPS, file)), `${tip.id}: ${file}`);
+      }
+    }
+  }
 });

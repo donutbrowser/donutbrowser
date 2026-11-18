@@ -20,17 +20,20 @@ const MAX_LIVE_TILES = 12;
  */
 export function RunPane({
   batch,
+  focusProfileId = null,
   nameOf,
   onSaveRoutine,
   onDismissed,
 }: {
   batch: AgentBatch;
+  /** A profile to open at once, as the inbox asks. */
+  focusProfileId?: string | null;
   nameOf: (profileId: string) => string;
   onSaveRoutine: () => void;
   onDismissed: (batchId: string) => void;
 }) {
   const { t } = useTranslation();
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(focusProfileId);
   const task = openId
     ? batch.tasks.find((item) => item.profileId === openId)
     : undefined;

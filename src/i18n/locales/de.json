@@ -2490,7 +2490,16 @@
       "stopping": "Wird beendet…",
       "singleInstance": "Von diesem Browser kann nur eine Instanz gleichzeitig laufen. Beende zuerst die laufende."
     },
-    "pinned": "Angeheftet"
+    "pinned": "Angeheftet",
+    "agent": {
+      "header": "Agent",
+      "ask": "Fragen",
+      "aria": "Agent in {{name}}: {{status}}",
+      "openChat": "Chat öffnen",
+      "openRun": "Lauf öffnen",
+      "loadingRoutines": "Routinen werden geladen…",
+      "noRoutines": "Noch keine Routinen"
+    }
   },
   "dataTableActionBar": {
     "selected": "{{count}} ausgewählt",
@@ -2998,7 +3007,27 @@
     "desktopOffline": "Donut war zur geplanten Zeit nicht geöffnet.",
     "desktopRefused": "Donut konnte diesen Lauf nicht starten.",
     "runLost": "Donut hat zu diesem Lauf nichts mehr gemeldet.",
-    "freeCreditsPending": "Ihre kostenlosen Credits sind noch nicht bereit. Neue Konten erhalten sie nach einer kurzen Prüfung."
+    "freeCreditsPending": "Ihre kostenlosen Credits sind noch nicht bereit. Neue Konten erhalten sie nach einer kurzen Prüfung.",
+    "agentColumnDuplicate": "Jede Spalte braucht einen eigenen Namen.",
+    "agentExportFailed": "Die Datei konnte nicht gespeichert werden.",
+    "agentSettingsNotSaved": "Die Aufgabe startete nicht: Ihre Limits konnten nicht gespeichert werden.",
+    "agentMemoryUnreadable": "Die Notizen des Agenten zu diesem Profil sind nicht lesbar.",
+    "agentNoteNotFound": "Diese Notiz gibt es nicht mehr.",
+    "agentPlaybookInvalid": "Prüfe Name, Anweisungen und Websites des Playbooks.",
+    "agentPlaybookReadOnly": "Nur die Person, die es geschrieben hat, oder ein Team-Admin kann dieses Playbook ändern.",
+    "agentPlaybookNotFound": "Dieses Playbook gibt es nicht mehr.",
+    "agentPlaybookLimit": "Du hast die höchste erlaubte Zahl an Playbooks.",
+    "agentPlaybookSiteInvalid": "Eine Website muss eine Domain sein, etwa shop.example.com.",
+    "agentSubscriptionInvalid": "Prüfe die Adresse und das Ereignis.",
+    "agentSubscriptionUrlInvalid": "Nutze eine https-Adresse.",
+    "agentSubscriptionNotFound": "Diese Zustellung gibt es nicht mehr.",
+    "agentSubscriptionLimit": "Du hast die höchste erlaubte Zahl an Zustellungen.",
+    "agentIntegrationsNotEntitled": "Webhooks und Zustellungen sind für dieses Konto nicht aktiv.",
+    "agentFieldInvalid": "Ein Feld ist ungültig.",
+    "agentHookNotFound": "Diese Routine hat keinen Webhook.",
+    "agentHookBusy": "Zu viele Webhook-Aufrufe warten auf diese Routine.",
+    "agentRoutineDisabled": "Die Routine ist aus.",
+    "agentActionCap": "Das tägliche Aktionslimit ist erreicht."
   },
   "rail": {
     "profiles": "Profile",
@@ -4604,6 +4633,126 @@
           "prompt": "Öffnen Sie in diesem Profil eine Seite für DNS-Leak-Tests und starten Sie den Standardtest. Notieren Sie jeden DNS-Server mit Land und Betreiber. Öffnen Sie dann eine Seite für WebRTC-Leak-Tests und notieren Sie jede gefundene IP-Adresse. Geben Sie eine Zeile mit diesen Spalten an: Proxy-IP, DNS-Länder, WebRTC-IPs, Leck (ja oder nein). Ein Leck ist ein DNS-Server oder eine IP-Adresse außerhalb des Landes des Proxys."
         }
       }
+    },
+    "options": {
+      "effort": "Aufwand",
+      "efforts": {
+        "fast": "Schnell",
+        "standard": "Standard",
+        "thorough": "Gründlich"
+      },
+      "humanPace": "Menschliches Tempo",
+      "capDay": "Aktionen pro Tag",
+      "capSite": "Pro Website am Tag"
+    },
+    "output": {
+      "add": "Spalten hinzufügen",
+      "hint": "Jeder Lauf endet mit diesen Werten.",
+      "name": "Spaltenname",
+      "namePlaceholder": "Spalte",
+      "type": "Typ",
+      "types": {
+        "text": "Text",
+        "number": "Zahl",
+        "bool": "Ja oder nein",
+        "url": "Link"
+      },
+      "remove": "Spalte entfernen",
+      "copy": "Kopieren",
+      "copied": "Tabelle kopiert",
+      "export": "CSV",
+      "exported_one": "{{count}} Zeile gespeichert",
+      "exported_other": "{{count}} Zeilen gespeichert",
+      "profile": "Profil",
+      "result": "Ergebnis",
+      "yes": "Ja",
+      "no": "Nein"
+    },
+    "playbooks": {
+      "title": "Playbooks",
+      "new": "Neues Playbook",
+      "pick": "Playbooks",
+      "count_one": "{{count}} Playbook",
+      "count_other": "{{count}} Playbooks",
+      "search": "Playbooks suchen",
+      "none": "Noch keine Playbooks.",
+      "noMatch": "Kein Playbook passt.",
+      "bySite": "Playbooks für die Website der Routine kommen von selbst dazu.",
+      "saved": "Playbook gespeichert",
+      "name": "Name",
+      "namePlaceholder": "Name des Playbooks",
+      "instructions": "Anweisungen",
+      "instructionsPlaceholder": "Wie man auf der Website arbeitet: wo was ist, was zu prüfen und was zu meiden ist",
+      "sites": "Websites",
+      "shared": "Mit dem Team teilen",
+      "deleteTitle": "{{name}} löschen?",
+      "deleteDescription": "Aufgaben bekommen dieses Playbook nicht mehr.",
+      "empty": "Schreib einmal auf, wie man auf einer Website arbeitet. Jede Aufgabe dort bekommt es.",
+      "anySite": "Jede Website",
+      "team": "Team"
+    },
+    "triggers": {
+      "webhook": "Webhook",
+      "hookHint": "Ein POST an einen Webhook startet diese Routine mit dem Body als Eingabe.",
+      "hookCreate": "Webhook erstellen",
+      "hookUse": "Ein POST an diese Adresse startet die Routine. Der Body ist ihre Eingabe.",
+      "hookRotate": "Neue Adresse",
+      "hookDelete": "Webhook löschen",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "sendTo": "Ergebnisse senden an",
+      "events": {
+        "run": {
+          "finished": "Lauf beendet",
+          "needs_you": "Lauf braucht dich"
+        },
+        "batch": {
+          "finished": "Alle Läufe beendet"
+        }
+      },
+      "slack": "Slack",
+      "failed": "Zustellung fehlgeschlagen",
+      "test": "Testen",
+      "testSent": "Test zugestellt",
+      "testFailed": "Test nicht zugestellt: {{error}}",
+      "remove": "Entfernen",
+      "url": "Slack- oder Webhook-URL",
+      "urlPlaceholder": "https://hooks.slack.com/…",
+      "event": "Ereignis",
+      "add": "Hinzufügen",
+      "secret": "Signaturschlüssel, nur einmal angezeigt:"
+    },
+    "inbox": {
+      "title": "Eingang",
+      "empty": "Nichts wartet auf dich.",
+      "notifyQuestion": "{{name}} braucht dich",
+      "notifyChange": "{{name}} möchte die App ändern",
+      "changes": {
+        "routines": {
+          "save": "Routine {{name}} speichern",
+          "run": "Routine {{name}} starten",
+          "delete": "Routine {{name}} löschen"
+        },
+        "tasks": {
+          "run": "{{name}} in anderen Profilen ausführen"
+        }
+      }
+    },
+    "memory": {
+      "title": "Gedächtnis",
+      "choose": "Wähle ein Profil.",
+      "notes": "Was der Agent weiß",
+      "note": "Notiz",
+      "notePlaceholder": "Fakt für spätere Aufgaben hinzufügen",
+      "add": "Hinzufügen",
+      "edit": "Bearbeiten",
+      "delete": "Notiz löschen",
+      "empty": "Noch keine Notizen. Aufgaben fügen hinzu, was sie lernen.",
+      "useHistory": "Verlauf dieses Profils nutzen",
+      "historyHint": "Aufgaben sehen die Websites, die dieses Profil in den letzten 14 Tagen am meisten besucht hat. Das bleibt auf diesem Gerät.",
+      "historySites": "Aufgaben sehen: {{sites}}",
+      "actionsToday_one": "Heute {{n}} Aktion",
+      "actionsToday_other": "Heute {{n}} Aktionen"
     }
   },
   "proxyDistribution": {
@@ -4831,6 +4980,30 @@
         "title": "Viele Profile gleichzeitig steuern",
         "body": "Wählen Sie „Mit Synchronizer starten“ im Menü eines Profils und dann die Follower. Jeder Klick und jede Eingabe im Leader wiederholt sich in jedem Follower.",
         "action": "Profile öffnen"
+      },
+      "agentChat": {
+        "label": "Chat in einem Profil",
+        "title": "Lassen Sie den Agenten in einem Profil arbeiten",
+        "body": "Schreiben Sie in eigenen Worten, was Sie brauchen. Der Agent arbeitet im Browser des Profils, Sie sehen live zu, und er fragt vor wichtigen Schritten.",
+        "action": "Agent öffnen"
+      },
+      "agentRun": {
+        "label": "Eine Aufgabe, viele Profile",
+        "title": "Eine Aufgabe auf vielen Profilen ausführen",
+        "body": "Wählen Sie Profile aus und dann Agent in der Leiste unter der Tabelle. Jede Zeile zeigt in der Spalte Agent, wie ihre Aufgabe läuft.",
+        "action": "Profile öffnen"
+      },
+      "agentRoutine": {
+        "label": "Routinen",
+        "title": "Eine Aufgabe als Routine wiederholen",
+        "body": "Speichern Sie eine Aufgabe als Routine und führen Sie sie von Hand oder nach Zeitplan aus. Jeder Lauf behält sein Ergebnis für jedes Profil.",
+        "action": "Agent öffnen"
+      },
+      "agentTemplates": {
+        "label": "Vorlagen",
+        "title": "Mit einer Vorlage beginnen",
+        "body": "Fertige Aufgaben für Konten, Shops, Anzeigen, Recherche und Profilzustand. Wählen Sie eine aus und füllen Sie die Lücken.",
+        "action": "Vorlagen ansehen"
       }
     },
     "sections": {
@@ -4838,7 +5011,8 @@
       "network": "Netzwerk",
       "privacy": "Datenschutz und Daten",
       "connect": "Verbinden",
-      "plan": "In Ihrem Tarif enthalten"
+      "plan": "In Ihrem Tarif enthalten",
+      "agent": "Agent"
     },
     "progress": "{{read}} von {{total}} gelesen",
     "unread": "Noch nicht gelesen",
@@ -5268,5 +5442,31 @@
     "description": "Dieser Teil von Donut wurde wegen eines Fehlers angehalten. Laden Sie neu, um fortzufahren. Der Fehler steht im Protokoll.",
     "reload": "Neu laden",
     "copyDetails": "Details kopieren"
+  },
+  "agentIntro": {
+    "notNow": "Nicht jetzt",
+    "hide": "Ausblenden",
+    "done": "Fertig",
+    "offer": {
+      "title": "Probieren Sie Ihren Agenten aus",
+      "body": "Er arbeitet im eigenen Browser dieses Profils, wie ein Mensch. Führen Sie eine echte Aufgabe aus: Prüfen Sie, ob Proxy und Fingerprint zusammenpassen.",
+      "start": "Ausführen"
+    },
+    "working": {
+      "title": "Der Agent arbeitet",
+      "body": "Das ist sein Fenster, live. Sie können weiterarbeiten: Die Spalte Agent zeigt den Fortschritt."
+    },
+    "result": {
+      "title": "Das hat er gefunden",
+      "body": "Speichern Sie es als Routine, um es erneut für beliebige Profile oder nach Zeitplan auszuführen."
+    },
+    "ended": {
+      "title": "Die Aufgabe wurde nicht beendet"
+    },
+    "saved": {
+      "title": "Routine gespeichert",
+      "body": "Wählen Sie Profile in der Tabelle aus und führen Sie sie über das Menü Agent aus, oder planen Sie sie auf der Seite Agent.",
+      "open": "Routine öffnen"
+    }
   }
 }

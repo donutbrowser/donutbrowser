@@ -23,6 +23,54 @@ export const TASK_STATUSES = [
 export type AgentTaskStatus = (typeof TASK_STATUSES)[number];
 
 export type AgentAutonomy = "ask" | "auto";
+/** Which model the gateway picks: cheaper and quicker, or stronger. */
+export type AgentEffort = "fast" | "standard" | "thorough";
+/** "human" pauses between steps as a person would. */
+export type AgentPace = "human" | "fast";
+export const AGENT_EFFORTS: readonly AgentEffort[] = [
+  "fast",
+  "standard",
+  "thorough",
+];
+
+/** The most actions a day: in a profile, and in a profile on one site. */
+export interface AgentCaps {
+  actionsPerDay?: number | null;
+  actionsPerSitePerDay?: number | null;
+}
+
+/** Mirrors `RunOptions` in `src-tauri/src/agent_tasks/options.rs`. */
+export interface AgentRunOptions {
+  effort: AgentEffort;
+  pace: AgentPace;
+  caps: AgentCaps | null;
+}
+
+export const DEFAULT_RUN_OPTIONS: AgentRunOptions = {
+  effort: "standard",
+  pace: "human",
+  caps: null,
+};
+
+export type AgentColumnType = "text" | "number" | "bool" | "url";
+export const AGENT_COLUMN_TYPES: readonly AgentColumnType[] = [
+  "text",
+  "number",
+  "bool",
+  "url",
+];
+export const MAX_COLUMNS = 20;
+
+export interface AgentColumn {
+  name: string;
+  type: AgentColumnType;
+}
+
+export interface AgentOutput {
+  columns: AgentColumn[];
+}
+
+export type AgentData = Record<string, string | number | boolean | null>;
 export type AgentStepKind = "think" | "act" | "observe";
 export type AgentControl = "pause" | "resume" | "stop" | "steer";
 
@@ -50,6 +98,8 @@ export interface AgentTask {
   approval: AgentApproval | null;
   result: string | null;
   error: string | null;
+  /** What the answer found, by the routine's columns. */
+  data: AgentData | null;
   creditsUsed: number;
   startedAt: number | null;
   finishedAt: number | null;
@@ -78,6 +128,10 @@ export interface AgentBatch {
   finished: boolean;
   tasks: AgentTask[];
   tally: AgentTally;
+  options: AgentRunOptions;
+  /** What a webhook or an event sent with the routine's fire. */
+  input: string | null;
+  columns: AgentColumn[];
 }
 
 export interface AgentCredits {
@@ -108,10 +162,22 @@ export interface AgentRoutineDraft {
   maxCreditsPerRun: number | null;
   concurrency: number | null;
   enabled: boolean;
+  /** Null is the default: standard effort, a human's pace, no caps. */
+  effort: AgentEffort | null;
+  pace: AgentPace | null;
+  caps: AgentCaps | null;
+  output: AgentOutput | null;
+  playbookIds: string[];
+}
+
+export interface AgentRoutineHook {
+  url: string;
 }
 
 export interface AgentRoutine extends AgentRoutineDraft {
   id: string;
+  /** The webhook that fires it, with the integrations flag. */
+  hook: AgentRoutineHook | null;
   /** The next fire, as the cloud keeps it; null when none is planned. */
   nextRunAt: string | null;
   createdAt: string | null;
@@ -128,6 +194,7 @@ export interface AgentRoutineRun {
   error: string | null;
   createdAt: string | null;
   finishedAt: string | null;
+  data?: AgentData | null;
 }
 
 export interface AgentTaskRequest {
@@ -137,6 +204,25 @@ export interface AgentTaskRequest {
   autonomy: AgentAutonomy;
   maxCredits: number | null;
   concurrency: number | null;
+  effort: AgentEffort;
+  pace: AgentPace;
+  caps: AgentCaps | null;
+}
+
+/** A batch's rows, by the routine's columns. */
+export interface AgentTableRow {
+  runId: string;
+  profileId: string | null;
+  status: string;
+  finishedAt: string | null;
+  data: AgentData;
+}
+
+export interface AgentTable {
+  /** The batch the rows are of; null when the routine has not run. */
+  batchId: string | null;
+  columns: AgentColumn[];
+  rows: AgentTableRow[];
 }
 
 export const MAX_PROMPT_CHARS = 8000;
@@ -196,6 +282,43 @@ export const runAgentRoutine = (id: string, profileIds?: string[]) =>
     id,
     profileIds: profileIds ?? null,
   });
+export const getAgentRoutineTable = (id: string, batchId: string | null) =>
+  invoke<AgentTable>("get_agent_routine_table", { id, batchId });
+export const exportAgentRoutineTable = (
+  id: string,
+  batchId: string | null,
+  path: string,
+) => invoke<number>("export_agent_routine_table", { id, batchId, path });
+
+/** One cell as text, for the table and a copy. */
+export function cellText(value: AgentData[string] | undefined): string {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+/** A table as tab-separated lines, as a spreadsheet takes a paste. */
+export function tableTsv(
+  table: AgentTable,
+  profileName: (profileId: string | null) => string,
+): string {
+  const clean = (text: string) => text.replace(/[\t\r\n]+/g, " ");
+  const head = ["", ...table.columns.map((column) => clean(column.name))];
+  const rows = table.rows.map((row) => [
+    clean(profileName(row.profileId)),
+    ...table.columns.map((column) => clean(cellText(row.data[column.name]))),
+  ]);
+  return [head, ...rows].map((cells) => cells.join("\t")).join("\n");
+}
+
+/** Whether the options differ from the defaults, for a quiet hint. */
+export function optionsTuned(options: AgentRunOptions): boolean {
+  return (
+    options.effort !== "standard" ||
+    options.pace !== "human" ||
+    Boolean(options.caps?.actionsPerDay) ||
+    Boolean(options.caps?.actionsPerSitePerDay)
+  );
+}
 
 const ACTIVE: ReadonlySet<AgentTaskStatus> = new Set([
   "launching",
@@ -567,6 +690,37 @@ export function repeatCron(parts: RepeatParts): string {
 
 const ROUTINE_NAME_CHARS = 60;
 
+/** A new routine's options, output and playbooks before any are chosen. */
+const DEFAULT_ROUTINE_EXTRAS = {
+  effort: null,
+  pace: null,
+  caps: null,
+  output: null,
+  playbookIds: [],
+} satisfies Partial<AgentRoutineDraft>;
+
+/** The draft of a saved routine, without what only the cloud sets. */
+export function routineDraft(routine: AgentRoutine): AgentRoutineDraft {
+  const {
+    id: _id,
+    createdAt: _created,
+    updatedAt: _updated,
+    nextRunAt: _next,
+    hook: _hook,
+    ...draft
+  } = routine;
+  return draft;
+}
+
+/** A routine's options, its nulls read as the defaults. */
+export function routineOptions(routine: AgentRoutineDraft): AgentRunOptions {
+  return {
+    effort: routine.effort ?? "standard",
+    pace: routine.pace ?? "human",
+    caps: routine.caps ?? null,
+  };
+}
+
 /**
  * A routine that repeats a chat turn: its words since the task began, its
  * profile, and the first page it opened.
@@ -592,6 +746,8 @@ export function routineFromTurn(
     maxCreditsPerRun: null,
     concurrency: null,
     enabled: true,
+    ...DEFAULT_ROUTINE_EXTRAS,
+    ...chat.options,
   };
 }
 
@@ -606,6 +762,8 @@ export function routineFromBatch(batch: AgentBatch): AgentRoutineDraft {
     maxCreditsPerRun: batch.maxCredits,
     concurrency: null,
     enabled: true,
+    ...DEFAULT_ROUTINE_EXTRAS,
+    ...batch.options,
   };
 }
 
@@ -624,6 +782,7 @@ export function routineFromPrompt(
     maxCreditsPerRun: null,
     concurrency: null,
     enabled: true,
+    ...DEFAULT_ROUTINE_EXTRAS,
   };
 }
 

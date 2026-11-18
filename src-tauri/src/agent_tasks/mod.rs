@@ -2,27 +2,39 @@
 //! in a profile's browser. Donut is the interface only. It mints the agent
 //! token, launches the profiles, starts, steers and stops tasks over CDP,
 //! records what the engine reports, and tells the cloud how each routine run
-//! ended. No model is called here, and nothing is added to a prompt except a
-//! chat's earlier turns when its engine task was lost.
+//! ended. No model is called here. A prompt carries what Donut knows that the
+//! task needs (`briefing`): playbooks, the profile's notes and recent sites,
+//! the input that fired a routine, and how to end the answer.
 //!
 //! Everything is behind the `agent` entitlement, a rollout flag the cloud sets
 //! per account on any plan. Signed out, or without it, every command refuses
 //! with `AGENT_NOT_ENTITLED` and nothing reaches the cloud agent routes.
 
 mod batch;
+mod briefing;
 pub mod chat;
 pub mod chat_sync;
 mod cloud;
 mod engine;
+mod history;
 pub mod host;
+pub mod inbox;
+pub mod integrations;
+mod logins;
+pub mod memory;
 #[cfg(feature = "e2e")]
 mod mock;
 mod model;
+pub mod options;
+pub mod output;
+pub mod playbooks;
+mod prompt;
 mod reports;
 mod schedule;
 mod token;
 
 use batch::{Autonomy, Batch, Order, Tally};
+use briefing::Brief;
 use engine::{EngineError, EngineLink};
 use model::{Approval, EngineEvent, Step, Task, TaskStatus};
 use serde::{Deserialize, Serialize};
@@ -130,6 +142,7 @@ pub struct TaskView {
   approval: Option<Approval>,
   result: Option<String>,
   error: Option<String>,
+  data: Option<Value>,
   credits_used: u64,
   started_at: Option<u64>,
   finished_at: Option<u64>,
@@ -151,6 +164,9 @@ pub struct BatchView {
   finished: bool,
   tasks: Vec<TaskView>,
   tally: Tally,
+  options: options::RunOptions,
+  input: Option<String>,
+  columns: Vec<output::Column>,
 }
 
 impl From<&Task> for TaskView {
@@ -165,6 +181,7 @@ impl From<&Task> for TaskView {
       approval: task.approval.clone(),
       result: task.result.clone(),
       error: task.error.clone(),
+      data: task.data.clone(),
       credits_used: task.total_credits(),
       started_at: task.started_at,
       finished_at: task.finished_at,
@@ -188,6 +205,9 @@ impl From<&Batch> for BatchView {
       finished: batch.is_finished(),
       tasks: batch.tasks.iter().map(TaskView::from).collect(),
       tally: batch.tally(),
+      options: batch.order.brief.options,
+      input: batch.order.brief.input.clone(),
+      columns: batch.order.brief.columns.clone(),
     }
   }
 }
@@ -307,6 +327,55 @@ pub(crate) fn working_in(profile_id: &str) -> bool {
   store().busy(profile_id, None) || chat::busy(profile_id, None)
 }
 
+/// The facts an answer ends with, taken out of the text it shows.
+fn take_facts(event: EngineEvent) -> (EngineEvent, Vec<String>) {
+  match event {
+    EngineEvent::Finished {
+      status,
+      result: Some(result),
+      error,
+      credits_used,
+      data,
+    } => {
+      let (shown, facts) = prompt::take_memory(&result);
+      (
+        EngineEvent::Finished {
+          status,
+          result: Some(shown),
+          error,
+          credits_used,
+          data,
+        },
+        facts,
+      )
+    }
+    other => (other, Vec::new()),
+  }
+}
+
+/// The object an answer ends with, when the task asked for columns.
+fn take_data(event: EngineEvent, columns: &[output::Column]) -> EngineEvent {
+  match event {
+    EngineEvent::Finished {
+      status,
+      result: Some(result),
+      error,
+      credits_used,
+      data: None,
+    } if !columns.is_empty() => {
+      let (shown, data) = prompt::take_data(&result, columns);
+      EngineEvent::Finished {
+        status,
+        result: Some(shown),
+        error,
+        credits_used,
+        data: data.map(Value::Object),
+      }
+    }
+    other => other,
+  }
+}
+
 pub(crate) fn on_engine_event(profile_id: &str, method: &str, params: &Value) {
   if method == "Wayfern.agentHostCall" {
     host::on_call(profile_id, params);
@@ -315,11 +384,16 @@ pub(crate) fn on_engine_event(profile_id: &str, method: &str, params: &Value) {
   let Some((task_id, event)) = EngineEvent::parse(method, params, now_ms()) else {
     return;
   };
+  let (event, facts) = take_facts(event);
   let step = match &event {
     EngineEvent::Step(step) => Some(step.clone()),
     _ => None,
   };
-  let finished = {
+  let question = match &event {
+    EngineEvent::Approval(approval) => Some(approval.question.clone()),
+    _ => None,
+  };
+  let (finished, waits) = {
     let mut store = store();
     let Some(batch) = store
       .batches
@@ -327,17 +401,22 @@ pub(crate) fn on_engine_event(profile_id: &str, method: &str, params: &Value) {
       .find(|batch| batch.task_index(&task_id).is_some())
     else {
       drop(store);
-      chat::on_engine_event(profile_id, &task_id, event);
+      if chat::on_engine_event(profile_id, &task_id, event) {
+        memory::learn(profile_id, facts);
+      }
       return;
     };
     let Some(index) = batch.task_index(&task_id) else {
       return;
     };
+    let event = take_data(event, &batch.order.brief.columns);
+    let routine_id = batch.routine_id.clone();
     let task = &mut batch.tasks[index];
     if task.profile_id != profile_id || !task.apply(event, now_ms()) {
       return;
     }
     let done = task.status.is_final();
+    let waits = routine_id.zip(task.run_id.clone()).zip(question);
     publish(batch);
     if let Some(step) = step {
       let _ = crate::events::emit(
@@ -345,8 +424,12 @@ pub(crate) fn on_engine_event(profile_id: &str, method: &str, params: &Value) {
         json!({ "batchId": batch.id, "profileId": profile_id, "taskId": task_id, "step": step }),
       );
     }
-    done.then(|| (batch.id.clone(), index))
+    (done.then(|| (batch.id.clone(), index)), waits)
   };
+  memory::learn(profile_id, facts);
+  if let Some(((routine_id, run_id), question)) = waits {
+    integrations::report_needs_you(routine_id, run_id, profile_id.to_string(), question);
+  }
   if let Some((batch_id, index)) = finished {
     finalize(&batch_id, index);
   }
@@ -442,6 +525,7 @@ fn final_report(task: &Task) -> Value {
     task.result.as_deref(),
     task.credits_used,
     task.error.as_deref(),
+    task.data.as_ref(),
   )
 }
 
@@ -533,10 +617,11 @@ async fn attach(
   Ok((link, !running))
 }
 
-fn start_params(task_id: &str, order: &Order) -> Value {
+/// `logins` goes only when the profile has some for the task's site.
+fn start_params(task_id: &str, order: &Order, start: &briefing::Start) -> Value {
   let mut params = json!({
     "taskId": task_id,
-    "prompt": order.prompt,
+    "prompt": start.prompt,
     "autonomy": order.autonomy.wire(),
   });
   if let Some(url) = &order.start_url {
@@ -544,6 +629,9 @@ fn start_params(task_id: &str, order: &Order) -> Value {
   }
   if let Some(max) = order.max_credits {
     params["maxCredits"] = Value::from(max);
+  }
+  if !start.logins.is_empty() {
+    params["logins"] = serde_json::to_value(&start.logins).unwrap_or(Value::Null);
   }
   params
 }
@@ -575,8 +663,16 @@ async fn start_task(batch_id: String, index: usize, profile_id: String, order: O
       task.task_id = Some(task_id.clone());
       task.started_at = Some(now_ms());
     }
+    let start = briefing::prepare(
+      &task_id,
+      &profile,
+      &order.prompt,
+      order.start_url.as_deref(),
+      &order.brief,
+    )
+    .await?;
     match link
-      .call("Wayfern.agentStart", start_params(&task_id, &order))
+      .call("Wayfern.agentStart", start_params(&task_id, &order, &start))
       .await
     {
       Ok(_) => Ok(Some(task_id)),
@@ -880,12 +976,22 @@ async fn run_routine(
   routine: Routine,
   profile_ids: Option<Vec<String>>,
   cloud_batch_id: Option<&str>,
+  input: Option<&str>,
 ) -> Result<BatchView, String> {
   let profile_ids = checked_profiles(profile_ids.unwrap_or_else(|| routine.profile_ids.clone()))?;
   let (prompt, start_url) = cloud::checked_order(&routine.prompt, routine.start_url.as_deref())?;
   let started = cloud::start_runs(&routine.id, &profile_ids, cloud_batch_id).await?;
   let batch_id = started.batch_id.clone();
   let runs = run_ids(started);
+  let brief = Brief {
+    options: routine.options(),
+    input: input
+      .map(str::trim)
+      .filter(|input| !input.is_empty())
+      .map(str::to_string),
+    columns: routine.columns(),
+    playbook_ids: routine.playbook_ids.clone(),
+  };
   let view = start_batch(BatchSpec {
     order: Order {
       prompt,
@@ -893,6 +999,7 @@ async fn run_routine(
       autonomy: Autonomy::Auto,
       max_credits: routine.max_credits_per_run,
       headless: true,
+      brief,
     },
     profile_ids,
     concurrency: routine.concurrency,
@@ -906,15 +1013,22 @@ async fn run_routine(
   view
 }
 
-/// One scheduled fire of a routine: the cloud made batch `batch_id` with a
-/// run for each profile. A fire that cannot run ends those runs as failed,
-/// with the reason.
-pub(crate) async fn run_scheduled_fire(routine_id: &str, batch_id: &str) -> Result<Value, String> {
+/// One fire of a routine: the cloud made batch `batch_id` with a run for
+/// each profile. `input` is what a webhook or an event sent with it. A fire
+/// that cannot run ends those runs as failed, with the reason.
+pub(crate) async fn run_scheduled_fire(
+  routine_id: &str,
+  batch_id: &str,
+  input: Option<&str>,
+) -> Result<Value, String> {
   let outcome = async {
     ensure_entitled().await?;
     let routine = cloud::get_routine(routine_id).await?;
-    log::info!("Agent routine fired routine={routine_id} batch={batch_id}");
-    run_routine(routine, None, Some(batch_id)).await
+    log::info!(
+      "Agent routine fired routine={routine_id} batch={batch_id} input={}",
+      input.is_some()
+    );
+    run_routine(routine, None, Some(batch_id), input).await
   }
   .await;
   match outcome {
@@ -938,7 +1052,7 @@ pub(crate) async fn run_routine_from_cloud(params: &Value) -> Result<Value, Stri
   let routine_id =
     field("routineId").ok_or_else(|| crate::backend_error("AGENT_ROUTINE_NOT_FOUND"))?;
   let batch_id = field("batchId").ok_or_else(|| crate::backend_error("AGENT_BATCH_NOT_FOUND"))?;
-  run_scheduled_fire(routine_id, batch_id).await
+  run_scheduled_fire(routine_id, batch_id, field("input")).await
 }
 
 // ---- Commands ----
@@ -962,6 +1076,12 @@ pub struct TaskRequest {
   max_credits: Option<u64>,
   #[serde(default)]
   concurrency: Option<usize>,
+  #[serde(default)]
+  effort: Option<options::Effort>,
+  #[serde(default)]
+  pace: Option<options::Pace>,
+  #[serde(default)]
+  caps: Option<options::Caps>,
 }
 
 #[tauri::command]
@@ -971,6 +1091,12 @@ pub async fn start_agent_batch(request: TaskRequest) -> Result<BatchView, String
   if request.max_credits == Some(0) {
     return Err(crate::backend_error("AGENT_ROUTINE_INVALID"));
   }
+  let options = options::RunOptions {
+    effort: request.effort.unwrap_or_default(),
+    pace: request.pace.unwrap_or_default(),
+    caps: request.caps,
+  }
+  .checked();
   start_batch(BatchSpec::one_off(
     Order {
       prompt,
@@ -978,6 +1104,10 @@ pub async fn start_agent_batch(request: TaskRequest) -> Result<BatchView, String
       autonomy: request.autonomy,
       max_credits: request.max_credits,
       headless: false,
+      brief: Brief {
+        options,
+        ..Brief::default()
+      },
     },
     request.profile_ids,
     request.concurrency,
@@ -1287,7 +1417,7 @@ pub async fn run_agent_routine(
 ) -> Result<BatchView, String> {
   ensure_entitled().await?;
   let routine = cloud::get_routine(&id).await?;
-  run_routine(routine, profile_ids, None).await
+  run_routine(routine, profile_ids, None, None).await
 }
 
 /// The app quits: every task ends as stopped, its engine is told to stop
@@ -1401,12 +1531,17 @@ mod tests {
       autonomy: Autonomy::Auto,
       max_credits: Some(300),
       headless: true,
+      brief: Brief::default(),
+    };
+    let start = briefing::Start {
+      prompt: "Task:\nFind the cheapest flight".into(),
+      logins: Vec::new(),
     };
     assert_eq!(
-      start_params("t1", &order),
+      start_params("t1", &order, &start),
       json!({
         "taskId": "t1",
-        "prompt": "Find the cheapest flight",
+        "prompt": "Task:\nFind the cheapest flight",
         "autonomy": "auto",
         "startUrl": "https://example.com",
         "maxCredits": 300,
@@ -1418,9 +1553,53 @@ mod tests {
       autonomy: Autonomy::Ask,
       ..order
     };
-    let params = start_params("t2", &bare);
+    let params = start_params("t2", &bare, &start);
     assert!(params.get("startUrl").is_none() && params.get("maxCredits").is_none());
+    assert!(params.get("logins").is_none(), "no logins, no field");
     assert_eq!(params["autonomy"], "ask");
+    let signed = briefing::Start {
+      prompt: "p".into(),
+      logins: vec![logins::Login {
+        origin: "https://example.com".into(),
+        username: Some("alice".into()),
+        password: Some("pw".into()),
+        totp: None,
+      }],
+    };
+    let params = start_params("t3", &bare, &signed);
+    assert_eq!(params["logins"][0]["username"], "alice");
+    assert!(
+      !params["prompt"].as_str().unwrap().contains("pw"),
+      "a secret never goes in the prompt"
+    );
+  }
+
+  #[test]
+  fn an_answer_gives_its_facts_and_its_data_and_shows_the_rest() {
+    let columns = vec![output::Column {
+      name: "Orders".into(),
+      kind: output::ColumnKind::Number,
+    }];
+    let finished = EngineEvent::Finished {
+      status: TaskStatus::Done,
+      result: Some(
+        "Three orders.\n```json\n{\"Orders\": 3}\n```\n```memory\nUses the EU store\n```".into(),
+      ),
+      error: None,
+      credits_used: 5,
+      data: None,
+    };
+    let (event, facts) = take_facts(finished);
+    assert_eq!(facts, vec!["Uses the EU store".to_string()]);
+    let EngineEvent::Finished { result, data, .. } = take_data(event.clone(), &columns) else {
+      panic!("finished");
+    };
+    assert_eq!(result.as_deref(), Some("Three orders."));
+    assert_eq!(data, Some(json!({ "Orders": 3 })));
+    let EngineEvent::Finished { data, .. } = take_data(event, &[]) else {
+      panic!("finished");
+    };
+    assert!(data.is_none(), "no columns, no data");
   }
 
   #[test]
@@ -1466,6 +1645,7 @@ mod tests {
         autonomy: Autonomy::Ask,
         max_credits: None,
         headless: false,
+        brief: Brief::default(),
       },
       vec!["p1".into(), "p2".into()],
       2,

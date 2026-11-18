@@ -259,18 +259,17 @@ export function Composer({
     <>
       {!chat && (
         <>
-          {target !== "chat" && (
-            <RunOptions
-              value={settings}
-              onChange={setSettings}
-              autonomy={target === "run"}
-              creditCapLabel={
-                target === "routine"
-                  ? t("agent.routines.creditCap")
-                  : t("agent.tasks.creditCap")
-              }
-            />
-          )}
+          <RunOptions
+            value={settings}
+            onChange={setSettings}
+            autonomy={target === "run"}
+            paceOnly={target === "chat"}
+            creditCapLabel={
+              target === "routine"
+                ? t("agent.routines.creditCap")
+                : t("agent.tasks.creditCap")
+            }
+          />
           <RepeatPicker
             key={filled ?? "typed"}
             value={repeat}

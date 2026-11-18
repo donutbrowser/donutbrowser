@@ -2,13 +2,16 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type { TipId } from "@/lib/tips";
+import type { AgentClipId, TipId } from "@/lib/tips";
 import { cn } from "@/lib/utils";
 
-/** A recording of the app at work: one per tip, and two for the first run. */
-export type ClipId = TipId | "welcome" | "newProfile";
+/**
+ * A recording of the app at work: one per tip, two for the first run, and
+ * the agent's, which the website shows too.
+ */
+export type ClipId = TipId | AgentClipId | "welcome" | "newProfile";
 
-/** Width over height of each recording; every tip clip is 2:1. */
+/** Width over height of each recording; every tip and agent clip is 2:1. */
 export function clipAspect(id: ClipId): number {
   return id === "welcome" || id === "newProfile" ? 3 : 2;
 }

@@ -10,7 +10,10 @@ import {
   type ComposerSend,
 } from "@/components/agent-chat/composer";
 import type { HostContext } from "@/components/agent-chat/host-call";
+import { InboxPane } from "@/components/agent-chat/inbox";
 import { LiveView } from "@/components/agent-chat/live-view";
+import { PlaybooksPane } from "@/components/agent-chat/playbooks";
+import { ProfileMemoryPane } from "@/components/agent-chat/profile-memory";
 import {
   AgentSidebar,
   type PaneSelection,
@@ -26,6 +29,7 @@ import {
   ProfilePicker,
   positiveInt,
   StateDot,
+  settingsOptions,
   statusLabelKey,
 } from "@/components/agent-tasks/parts";
 import { scheduleOf } from "@/components/agent-tasks/repeat-picker";
@@ -41,6 +45,7 @@ import {
 import { FadingScrollArea } from "@/components/ui/fading-scroll-area";
 import { useAgentChat, useAgentChats } from "@/hooks/use-agent-chat";
 import type { AgentConsole } from "@/hooks/use-agent-console";
+import { useAgentInbox } from "@/hooks/use-agent-inbox";
 import {
   useAgentBatches,
   useAgentCredits,
@@ -57,6 +62,7 @@ import {
   isTurnActive,
   sendAgentChatMessage,
 } from "@/lib/agent-chat";
+import { type AgentFocus, onAgentFocus } from "@/lib/agent-inbox";
 import {
   type AgentCredits,
   type AgentRoutine,
@@ -79,6 +85,8 @@ export type AgentView = "chat" | ConsoleTab;
 export interface ChatSeed {
   profileIds: string[];
   nonce: number;
+  /** What the pane shows; a new chat when none is named. */
+  select?: PaneSelection;
 }
 
 function upsertRoutine(list: AgentRoutine[], routine: AgentRoutine) {
@@ -96,6 +104,7 @@ function ChatView({
   composer,
   onOpenAccount,
   onSaveRoutine,
+  onOpenMemory,
 }: {
   chat: AgentChat;
   credits: AgentCredits | null;
@@ -104,6 +113,8 @@ function ChatView({
   composer: ReactNode;
   onOpenAccount: () => void;
   onSaveRoutine: (turnIndex: number) => void;
+  /** Opens what the agent knows about the chat's profile. */
+  onOpenMemory: () => void;
 }) {
   const { t } = useTranslation();
   const animate = useMotionAllowed();
@@ -148,13 +159,16 @@ function ChatView({
       className="@container flex min-h-0 min-w-0 flex-1 flex-col gap-2"
     >
       <PaneHeader lead={<SidebarToggle />} title={chat.title}>
-        <span
+        <button
+          type="button"
           data-slot="chat-profile"
-          className="flex max-w-48 shrink-0 items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 py-1 text-xs text-muted-foreground"
+          title={t("agent.memory.title")}
+          onClick={onOpenMemory}
+          className="flex max-w-48 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:bg-foreground/8 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none motion-reduce:transition-none"
         >
           {last && isTurnActive(last) && <StateDot status={last.status} />}
           <span className="truncate">{nameOf(chat.profileId)}</span>
-        </span>
+        </button>
       </PaneHeader>
       <div className="flex min-h-0 flex-1 gap-5">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
@@ -217,6 +231,7 @@ export function AgentWorkspace({
   agentConsole,
   consoleState,
   canSchedule,
+  integrations,
   seed,
   onConnectAgent,
   onOpenAccount,
@@ -229,6 +244,8 @@ export function AgentWorkspace({
   agentConsole: AgentConsole;
   consoleState: ConnectedAgentsState;
   canSchedule: boolean;
+  /** Routine webhooks and result deliveries. */
+  integrations: boolean;
   seed: ChatSeed | null;
   onConnectAgent: () => void;
   onOpenAccount: () => void;
@@ -242,6 +259,7 @@ export function AgentWorkspace({
     agentChats.ended,
   );
   const { routines, adopt: adoptRoutines } = useAgentRoutines(enabled);
+  const inbox = useAgentInbox({ enabled });
   const { groups } = useGroupEvents();
   const { batches } = agentBatches;
   const chats = agentChats.chats;
@@ -281,6 +299,39 @@ export function AgentWorkspace({
     }
   };
 
+  // A notification, a toast or the profile table asks to show a wait.
+  const showFocus = useRef<(focus: AgentFocus) => void>(() => undefined);
+  showFocus.current = (focus: AgentFocus) => {
+    select(
+      focus.kind === "run"
+        ? { kind: "run", id: focus.id, profileId: focus.profileId }
+        : focus,
+    );
+  };
+  useEffect(
+    () =>
+      onAgentFocus((focus) => {
+        showFocus.current(focus);
+      }),
+    [],
+  );
+  // Opened while something waits, a new chat gives way to the inbox.
+  const landed = useRef(false);
+  const waitingNow = inbox.waits.length;
+  useEffect(() => {
+    if (!enabled) {
+      landed.current = false;
+      return;
+    }
+    if (landed.current || !inbox.loaded) return;
+    landed.current = true;
+    if (waitingNow > 0) {
+      setSelection((current) =>
+        current.kind === "new" ? { kind: "inbox" } : current,
+      );
+    }
+  }, [enabled, inbox.loaded, waitingNow]);
+
   const pickTemplate = (template: AgentTemplate) => {
     select({ kind: "new" });
     setFill({
@@ -294,15 +345,20 @@ export function AgentWorkspace({
   const [seenSeed, setSeenSeed] = useState<number | null>(null);
   if (seed && seed.nonce !== seenSeed) {
     setSeenSeed(seed.nonce);
-    setSelection({ kind: "new" });
+    setSelection(seed.select ?? { kind: "new" });
     if (seed.profileIds.length > 0) setDraftProfiles(seed.profileIds);
     setFocusKey(`seed:${seed.nonce}`);
   }
 
   const shown = chatId && chat?.id === chatId ? chat : null;
   // Deleted on another device while open here.
+  // Only a loaded list can say a chat is gone; a page that opens on a chat
+  // has none yet.
   const gone =
-    chatId !== null && chat === null && !chats.some((c) => c.id === chatId);
+    agentChats.loaded &&
+    chatId !== null &&
+    chat === null &&
+    !chats.some((c) => c.id === chatId);
   useEffect(() => {
     if (gone) setSelection({ kind: "new" });
   }, [gone]);
@@ -328,6 +384,7 @@ export function AgentWorkspace({
     const startUrl = settings.startUrl.trim() || null;
     const maxCredits = positiveInt(settings.maxCredits);
     const concurrency = positiveInt(settings.concurrency, MAX_CONCURRENCY);
+    const options = settingsOptions(settings);
     try {
       if (shown) {
         const next = await sendAgentChatMessage(shown.id, text);
@@ -345,6 +402,7 @@ export function AgentWorkspace({
           schedule: scheduleOf(repeat),
           maxCreditsPerRun: maxCredits,
           concurrency,
+          ...options,
         });
         adoptRoutines((current) => upsertRoutine(current, routine));
         showSuccessToast(t("agent.routines.created"));
@@ -357,6 +415,7 @@ export function AgentWorkspace({
           autonomy: settings.autonomy,
           maxCredits,
           concurrency,
+          ...options,
         });
         agentBatches.adopt((current) =>
           current.some((item) => item.id === batch.id)
@@ -366,7 +425,7 @@ export function AgentWorkspace({
         select({ kind: "run", id: batch.id });
       } else {
         if (chosen.length === 0) return false;
-        const created = await createAgentChat(chosen[0], text);
+        const created = await createAgentChat(chosen[0], text, options);
         setSelection({ kind: "chat", id: created.id });
         adopt(created);
       }
@@ -452,8 +511,11 @@ export function AgentWorkspace({
     if (batch) {
       return (
         <RunPane
-          key={batch.id}
+          key={`${batch.id}:${selection.kind === "run" ? (selection.profileId ?? "") : ""}`}
           batch={batch}
+          focusProfileId={
+            selection.kind === "run" ? (selection.profileId ?? null) : null
+          }
           nameOf={nameOf}
           onSaveRoutine={() => {
             select({
@@ -478,6 +540,7 @@ export function AgentWorkspace({
           profiles={usable}
           groups={groups}
           canSchedule={canSchedule}
+          integrations={integrations}
           onUpgrade={onOpenAccount}
           finishedRuns={finishedRuns}
           onSaved={(saved) => {
@@ -536,6 +599,30 @@ export function AgentWorkspace({
     if (selection.kind === "templates") {
       return <TemplateGallery onPick={pickTemplate} />;
     }
+    if (selection.kind === "inbox") {
+      return (
+        <InboxPane
+          waits={inbox.waits}
+          nameOf={nameOf}
+          onOpen={(focus) => {
+            showFocus.current(focus);
+          }}
+        />
+      );
+    }
+    if (selection.kind === "playbooks") return <PlaybooksPane />;
+    if (selection.kind === "memory") {
+      return (
+        <ProfileMemoryPane
+          profileId={selection.profileId ?? fallback}
+          profiles={usable}
+          groups={groups}
+          onProfile={(profileId) => {
+            setSelection({ kind: "memory", profileId });
+          }}
+        />
+      );
+    }
     if (shown) {
       return (
         <ChatView
@@ -551,6 +638,9 @@ export function AgentWorkspace({
               draft: routineFromTurn(shown, index),
               nonce: Date.now(),
             });
+          }}
+          onOpenMemory={() => {
+            select({ kind: "memory", profileId: shown.profileId });
           }}
         />
       );
@@ -607,6 +697,7 @@ export function AgentWorkspace({
             profileNames={profileNames}
             credits={credits}
             needsYou={agentConsole.openRequests.length}
+            waiting={inbox.waits.length}
             onSelect={select}
             onOpenConsole={() => {
               onViewChange("conversation");

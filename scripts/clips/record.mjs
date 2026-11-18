@@ -279,6 +279,7 @@ async function record(clip, name, theme) {
     content: `window.__CLIP_DEMO__ = ${JSON.stringify(demo)};`,
   });
   await context.addInitScript({ path: path.join(HERE, "demo-data.js") });
+  await context.addInitScript({ path: path.join(HERE, "agent-demo.js") });
   await context.addInitScript({ path: path.join(HERE, "page-init.js") });
   const page = await context.newPage();
   const errors = [];

@@ -26,10 +26,16 @@ export type TipAction =
   /** Puts an example query in the profile search box. */
   | { kind: "search"; query: string }
   | { kind: "createProfile" }
-  | { kind: "totp" };
+  | { kind: "totp" }
+  /** The agent page, on a new chat or on the templates gallery. */
+  | { kind: "agent"; pane: "new" | "templates" };
 
-/** The catalog groups tips by these; `plan` holds every tip a plan unlocks. */
+/**
+ * The catalog groups tips by these; `plan` holds every tip a plan unlocks,
+ * `agent` the tips shown only to an account with the agent.
+ */
 export type TipSection =
+  | "agent"
   | "everyday"
   | "network"
   | "privacy"
@@ -37,6 +43,7 @@ export type TipSection =
   | "plan";
 
 export const TIP_SECTIONS: readonly TipSection[] = [
+  "agent",
   "everyday",
   "network",
   "privacy",
@@ -45,6 +52,10 @@ export const TIP_SECTIONS: readonly TipSection[] = [
 ];
 
 export type TipId =
+  | "agentChat"
+  | "agentRun"
+  | "agentRoutine"
+  | "agentTemplates"
   | "commandPalette"
   | "searchSyntax"
   | "shortcuts"
@@ -134,7 +145,24 @@ export interface FeatureUsage {
   agentUsed?: boolean;
   /** The person has sent feedback from the app. */
   feedbackSent?: boolean;
+  /** This device has an agent chat. */
+  agentChats?: boolean;
+  /** This session ran the agent on several profiles. */
+  agentRuns?: boolean;
+  /** The account has a saved agent routine. */
+  agentRoutines?: boolean;
 }
+
+/**
+ * The agent's recordings, named for the website as well as for their tips:
+ * `public/clips/agent-<name>-<light|dark>.webp`.
+ */
+export type AgentClipId =
+  | "agent-chat"
+  | "agent-run"
+  | "agent-routine"
+  | "agent-templates"
+  | "agent-table";
 
 export interface TipDefinition {
   id: TipId;
@@ -147,6 +175,10 @@ export interface TipDefinition {
    */
   anchors: readonly CoachAnchorId[];
   requires?: TipRequirement;
+  /** Offered only to an account with the agent, on any plan. */
+  agent?: true;
+  /** The recording, when it is not named after the tip. */
+  clip?: AgentClipId;
   /**
    * The feature changes team data, which a launcher seat may not do, so the
    * tip is not offered there.
@@ -187,6 +219,42 @@ function noted(feature: NotedFeature) {
  * `body` and `action`. `src/lib/tips.test.mjs` checks that no tip is missing its text.
  */
 export const TIPS: readonly TipDefinition[] = [
+  {
+    id: "agentChat",
+    section: "agent",
+    agent: true,
+    clip: "agent-chat",
+    action: { kind: "agent", pane: "new" },
+    anchors: ["column-agent", "rail-agent"],
+    inUse: (usage) => usage.agentChats === true,
+  },
+  {
+    id: "agentRun",
+    section: "agent",
+    agent: true,
+    clip: "agent-run",
+    action: { kind: "page", page: "profiles" },
+    anchors: ["column-agent", "rail-agent"],
+    inUse: (usage) => usage.agentRuns === true,
+  },
+  {
+    id: "agentRoutine",
+    section: "agent",
+    agent: true,
+    clip: "agent-routine",
+    action: { kind: "agent", pane: "new" },
+    anchors: ["column-agent", "rail-agent"],
+    inUse: (usage) => usage.agentRoutines === true,
+  },
+  {
+    id: "agentTemplates",
+    section: "agent",
+    agent: true,
+    clip: "agent-templates",
+    action: { kind: "agent", pane: "templates" },
+    anchors: ["rail-agent"],
+    inUse: (usage) => usage.agentRoutines === true,
+  },
   {
     id: "commandPalette",
     section: "everyday",
@@ -442,15 +510,22 @@ export function isPlanTip(tip: TipDefinition): boolean {
  * unlocks, without the ones that change team data on a launcher seat.
  */
 export function tipsFor(
-  entitlements: Pick<Entitlements, "active" | TipRequirement>,
+  entitlements: Pick<Entitlements, "active" | TipRequirement> &
+    Partial<Pick<Entitlements, "agent">>,
   launcher = false,
 ): TipDefinition[] {
   return TIPS.filter(
     (tip) =>
       (tip.requires === undefined ||
         (entitlements.active && entitlements[tip.requires])) &&
+      (!tip.agent || entitlements.agent === true) &&
       !(launcher && tip.editsTeamData),
   );
+}
+
+/** The recording a tip shows. */
+export function tipClip(tip: Pick<TipDefinition, "id" | "clip">) {
+  return tip.clip ?? tip.id;
 }
 
 export function isKnownTip(id: string): id is TipId {

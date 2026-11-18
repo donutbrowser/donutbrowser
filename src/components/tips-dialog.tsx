@@ -36,6 +36,7 @@ import {
   type TipAction,
   type TipDefinition,
   type TipId,
+  tipClip,
   tipTextKeys,
 } from "@/lib/tips";
 import { cn } from "@/lib/utils";
@@ -342,7 +343,10 @@ export function TipsDialog({
                         : { duration: 0 }
                     }
                   >
-                    <FeatureClip id={tip.id} className="size-full rounded-xl" />
+                    <FeatureClip
+                      id={tipClip(tip)}
+                      className="size-full rounded-xl"
+                    />
                   </motion.div>
                 </AnimatePresence>
                 <DialogClose

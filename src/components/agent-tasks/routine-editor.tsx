@@ -3,12 +3,19 @@
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  columnsInvalid,
+  OutputColumns,
+} from "@/components/agent-tasks/output-columns";
+import {
+  optionsSettings,
   ProfilePicker,
   positiveInt,
   RunOptions,
   type RunSettings,
+  settingsOptions,
   startUrlInvalid,
 } from "@/components/agent-tasks/parts";
+import { PlaybookPicker } from "@/components/agent-tasks/playbook-picker";
 import {
   type Repeat,
   RepeatPicker,
@@ -22,11 +29,13 @@ import { Label } from "@/components/ui/label";
 import { RippleButton } from "@/components/ui/ripple";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  type AgentColumn,
   type AgentRoutine,
   type AgentRoutineDraft,
   createAgentRoutine,
   MAX_CONCURRENCY,
   MAX_PROMPT_CHARS,
+  routineOptions,
   updateAgentRoutine,
 } from "@/lib/agent-tasks";
 import { translateBackendError } from "@/lib/backend-errors";
@@ -68,7 +77,14 @@ export function RoutineEditor({
       ? String(initial.maxCreditsPerRun)
       : "",
     concurrency: initial.concurrency ? String(initial.concurrency) : "",
+    ...optionsSettings(routineOptions(initial)),
   });
+  const [columns, setColumns] = useState<AgentColumn[]>(
+    initial.output?.columns ?? [],
+  );
+  const [playbookIds, setPlaybookIds] = useState<string[]>(
+    initial.playbookIds ?? [],
+  );
   const [saving, setSaving] = useState(false);
 
   const canSave =
@@ -77,6 +93,7 @@ export function RoutineEditor({
     profileIds.length > 0 &&
     !startUrlInvalid(settings) &&
     !repeatInvalid(repeat) &&
+    !columnsInvalid(columns) &&
     !saving;
 
   const save = async () => {
@@ -91,6 +108,17 @@ export function RoutineEditor({
       maxCreditsPerRun: positiveInt(settings.maxCredits),
       concurrency: positiveInt(settings.concurrency, MAX_CONCURRENCY),
       enabled: initial.enabled,
+      ...settingsOptions(settings),
+      output:
+        columns.length > 0
+          ? {
+              columns: columns.map((column) => ({
+                ...column,
+                name: column.name.trim(),
+              })),
+            }
+          : null,
+      playbookIds,
     };
     try {
       const saved = id
@@ -147,6 +175,7 @@ export function RoutineEditor({
           setPrompt(event.target.value);
         }}
       />
+      <OutputColumns columns={columns} onChange={setColumns} />
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor={`${formId}-profiles`} className="sr-only">
           {t("agent.routines.profiles")}
@@ -166,6 +195,7 @@ export function RoutineEditor({
           canSchedule={canSchedule}
           onUpgrade={onUpgrade}
         />
+        <PlaybookPicker selected={playbookIds} onChange={setPlaybookIds} />
         <RunOptions
           value={settings}
           onChange={setSettings}

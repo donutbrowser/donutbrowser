@@ -150,6 +150,10 @@ pub struct Entitlements {
   /// Never derived from the plan: a backend that omits it means `false`.
   #[serde(default)]
   pub agent: bool,
+  /// Agent triggers and subscriptions (webhooks, Slack). A second rollout
+  /// flag, never derived from the plan.
+  #[serde(rename = "agentIntegrations", default)]
+  pub agent_integrations: bool,
   #[serde(rename = "profileLimit", default)]
   pub profile_limit: i64,
   #[serde(rename = "requestsPerHour", default)]
@@ -182,6 +186,7 @@ fn derive_entitlements(
       remote_control: false,
       scheduled_automation: false,
       agent: false,
+      agent_integrations: false,
       profile_limit: 0,
       requests_per_hour: 0,
       remote_browser_hours: 0,
@@ -227,6 +232,7 @@ fn derive_entitlements(
     // Every plan that is sold with it; an unknown one waits for the server.
     scheduled_automation: matches!(plan, "solo" | "pro" | "team" | "enterprise"),
     agent: false,
+    agent_integrations: false,
     profile_limit,
     requests_per_hour: if browser_automation {
       DEFAULT_REQUESTS_PER_HOUR

@@ -8557,6 +8557,7 @@ test("the chat runs a task in many profiles, saves it as a routine, schedules, r
       );
       await captureSettled(app, "agent-action-bar");
       await app.clickSelector('[data-bulk-action="agent-task"]');
+      await app.clickSelector('[data-slot="agent-task-new"]');
       await app.waitFor(
         () =>
           app.execute(
@@ -8811,6 +8812,7 @@ test("a run that asks waits for an answer in the run, and a free plan sees the w
       await app.waitForText("Borealis");
       await app.clickSelector(`[aria-label="${en.common.aria.selectAll}"]`);
       await app.clickSelector('[data-bulk-action="agent-task"]');
+      await app.clickSelector('[data-slot="agent-task-new"]');
       await app.waitFor(
         () =>
           app.execute(
@@ -9814,6 +9816,220 @@ test("a chat asks the app to save, change, run and delete routines and to run in
   );
 });
 
+test("agentic v2 in the agent page: playbooks, memory, the inbox, a routine's table and its triggers", async () => {
+  await withApp(
+    "ui-agent-v2",
+    async (app) => {
+      const shop = await createUiProfile(app, "Shop EU");
+      const other = await createUiProfile(app, "Shop US");
+      const user = agentUser(true);
+      user.user.entitlements.agentIntegrations = true;
+      await signInWithAgent(app, user);
+      await app.waitForText("Shop US");
+      await app.clickSelector(`[aria-label="${en.rail.agent}"]`);
+      const shows = (selector, description = selector) =>
+        app.waitFor(
+          () =>
+            app.execute(
+              `return Boolean(document.querySelector(arguments[0]));`,
+              [selector],
+            ),
+          { timeoutMs: 20_000, description },
+        );
+      const count = (selector) =>
+        app.execute(`return document.querySelectorAll(arguments[0]).length;`, [
+          selector,
+        ]);
+      await shows('[data-slot="agent-inbox-open"]', "the inbox in the sidebar");
+
+      // A chat has the effort, pace and caps; a run adds its limits.
+      await app.clickSelector('[data-slot="agent-run-options"]');
+      await shows('[data-slot="agent-run-effort"]', "the effort");
+      assert.equal(
+        await count('[data-slot="agent-run-url"]'),
+        0,
+        "a chat has no start page here",
+      );
+      await app.execute(
+        `document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));`,
+      );
+
+      // Playbooks: written once, listed with their sites.
+      await openSidebarItem(app, '[data-slot="agent-playbooks-open"]');
+      await shows('[data-slot="agent-playbooks"]');
+      await app.clickSelector('[data-slot="agent-playbook-new"]');
+      await app.fillSelector(
+        '[data-slot="agent-playbook-name"]',
+        "Shop sign-in",
+      );
+      await app.fillSelector(
+        '[data-slot="agent-playbook-instructions"]',
+        "Orders are under Account > Orders. Never change the address.",
+      );
+      await app.fillSelector(
+        '[data-slot="agent-playbook-sites"]',
+        "shop.example",
+      );
+      await app.clickSelector('[data-slot="agent-playbook-save"]');
+      await app.waitFor(
+        async () => (await count('[data-slot="agent-playbook-item"]')) === 1,
+        { description: "the saved playbook" },
+      );
+      const [saved] = await app.invoke("list_agent_playbooks");
+      assert.deepEqual(saved.sites, ["shop.example"]);
+      await captureBothThemes(app, "agent-v2-playbooks");
+
+      // Memory: the profile's notes, edited here, and the history switch.
+      await app.invoke("save_agent_memory_note", {
+        profileId: shop.id,
+        noteId: null,
+        text: "Ships to Tirana",
+      });
+      await openSidebarItem(app, '[data-slot="agent-memory-open"]');
+      await app.clickSelector(
+        '[data-slot="agent-memory"] [data-slot="agent-profile-picker"]',
+      );
+      await app.clickSelector(
+        `[data-slot="agent-profile-option"][data-profile-id="${shop.id}"]`,
+      );
+      await shows(
+        `[data-slot="agent-memory"][data-profile-id="${shop.id}"] [data-slot="agent-note"]`,
+        "the profile's note",
+      );
+      await app.fillSelector(
+        '[data-slot="agent-note-input"]',
+        "Prefers the EU store",
+      );
+      await app.clickSelector('[data-slot="agent-note-add"]');
+      await app.waitFor(
+        async () => (await count('[data-slot="agent-note"]')) === 2,
+        { description: "the added note" },
+      );
+      await app.clickSelector('[data-slot="agent-history-switch"]');
+      await app.waitFor(
+        async () =>
+          !(
+            await app.invoke("get_agent_profile_memory", { profileId: shop.id })
+          ).useHistory,
+        { description: "history off" },
+      );
+      await app.clickSelector('[data-slot="agent-history-switch"]');
+      await captureBothThemes(app, "agent-v2-memory");
+
+      // A question in a run reaches the inbox, the sidebar count and the rail.
+      const asking = await app.invoke("start_agent_batch", {
+        request: {
+          profileIds: [other.id],
+          prompt: "[approval] [slow] Submit the order",
+          startUrl: "https://shop.example",
+          autonomy: "ask",
+          effort: "thorough",
+        },
+      });
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-inbox-count"]')?.textContent.trim() === "1" &&
+              document.querySelector('[data-testid="agent-rail-badge"]')?.textContent.trim() === "1";`,
+          ),
+        { timeoutMs: 30_000, description: "one wait counted" },
+      );
+      await openSidebarItem(app, '[data-slot="agent-inbox-open"]');
+      await shows(
+        `[data-slot="agent-inbox-item"][data-batch-id="${asking.id}"]`,
+        "the wait in the inbox",
+      );
+      await captureBothThemes(app, "agent-v2-inbox");
+      await app.clickSelector(
+        `[data-slot="agent-inbox-item"][data-batch-id="${asking.id}"]`,
+      );
+      await shows(
+        `[data-slot="agent-run-pane"][data-batch-id="${asking.id}"] [data-slot="agent-approval"]`,
+        "the run's question, open",
+      );
+      await app.clickSelector('[data-slot="agent-approval-approve"]');
+      await app.waitFor(
+        async () => (await app.invoke("list_agent_inbox")).length === 0,
+        { description: "an empty inbox" },
+      );
+      await app.waitFor(
+        async () =>
+          (await app.invoke("list_agent_batches")).find(
+            (batch) => batch.id === asking.id,
+          )?.finished,
+        { timeoutMs: 30_000, description: "the answered run, done" },
+      );
+
+      // A routine with columns reads back as a table; its webhook and
+      // deliveries sit under it.
+      const routine = await app.invoke("create_agent_routine", {
+        routine: {
+          name: "Order count",
+          prompt: "[json] Count the open orders",
+          startUrl: "https://shop.example/orders",
+          profileIds: [shop.id, other.id],
+          output: {
+            columns: [
+              { name: "Orders", type: "number" },
+              { name: "Status", type: "text" },
+            ],
+          },
+        },
+      });
+      await openSidebarItem(
+        app,
+        `[data-slot="agent-routine-item"][data-routine-id="${routine.id}"]`,
+      );
+      await shows('[data-slot="agent-routine-triggers"]', "the triggers");
+      await app.clickSelector('[data-slot="agent-hook-create"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-hook-url"]')?.textContent.startsWith("https://api.donutbrowser.com/hooks/agent/");`,
+          ),
+        { description: "the webhook address" },
+      );
+      await app.fillSelector(
+        '[data-slot="agent-subscription-url"]',
+        "https://hooks.slack.com/services/T/B/x",
+      );
+      await app.clickSelector('[data-slot="agent-subscription-add"]');
+      await shows('[data-slot="agent-subscription"]', "the delivery");
+      const run = await app.invoke("run_agent_routine", { id: routine.id });
+      await app.waitFor(
+        async () =>
+          (await app.invoke("list_agent_batches")).find(
+            (batch) => batch.id === run.id,
+          )?.finished,
+        { timeoutMs: 30_000, description: "the routine's run" },
+      );
+      await openSidebarItem(
+        app,
+        `[data-slot="agent-routine-item"][data-routine-id="${routine.id}"]`,
+      );
+      await app.waitFor(
+        async () =>
+          app.execute(
+            `const cells = [...document.querySelectorAll('[data-slot="agent-table-row"] [data-column="Orders"]')];
+             return cells.length === 2 && cells.every((cell) => cell.textContent.trim() === "3");`,
+          ),
+        { timeoutMs: 20_000, description: "the table of the run" },
+      );
+      await captureBothThemes(app, "agent-v2-routine");
+
+      // The editor keeps the columns.
+      await app.clickSelector('[data-slot="agent-routine-menu"]');
+      await app.clickSelector('[data-slot="agent-routine-edit"]');
+      await app.waitFor(
+        async () => (await count('[data-slot="agent-column-name"]')) === 2,
+        { description: "the columns in the editor" },
+      );
+      await captureBothThemes(app, "agent-v2-routine-editor");
+    },
+    { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
+  );
+});
+
 test("a computer without the chat key keeps its chats, says so in one line, and erasing syncs them sealed", async () => {
   const app = appFromEnvironment("ui-agent-chat-sync", {
     extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" },
@@ -9942,6 +10158,335 @@ const PREVIEW_IMAGE = `data:image/svg+xml;base64,${Buffer.from(
      <rect x="40" y="148" width="640" height="220" rx="12" fill="#d4d4d8"/>
    </svg>`,
 ).toString("base64")}`;
+
+/** Tips on, with the day's tip already spent, so only the agent's first task shows. */
+const QUIET_TIPS = {
+  tips_auto_show: true,
+  tips_next_auto_show_at: Math.floor(Date.now() / 1000) + 2 * 86_400,
+};
+
+/** One profile's Agent cell, as the row shows it. */
+async function agentCell(app, profileId) {
+  return app.execute(
+    `const cell = document.querySelector('[data-table-row="' + arguments[0] + '"] [data-slot="profile-agent-cell"]');
+     return cell ? { state: cell.dataset.state, status: cell.dataset.status ?? null, text: cell.innerText.trim() } : null;`,
+    [profileId],
+  );
+}
+
+async function waitAgentCell(app, profileId, predicate, description) {
+  let last = null;
+  try {
+    await app.waitFor(
+      async () => {
+        last = await agentCell(app, profileId);
+        return last !== null && predicate(last);
+      },
+      { timeoutMs: 45_000, description },
+    );
+  } catch (error) {
+    throw new Error(`${error.message}; last cell ${JSON.stringify(last)}`);
+  }
+  return last;
+}
+
+async function agentIntroStep(app) {
+  return app.execute(
+    `return document.querySelector('[data-slot="agent-intro"]')?.dataset.step ?? null;`,
+  );
+}
+
+async function waitAgentIntro(app, step, timeoutMs = 45_000) {
+  await app.waitFor(async () => (await agentIntroStep(app)) === step, {
+    timeoutMs,
+    description: `the first task at ${step}`,
+  });
+}
+
+test("with the agent, each row shows its agent live and its last answer, and the selection runs a saved routine", async () => {
+  await withApp(
+    "ui-agent-table",
+    async (app) => {
+      await app.session.command("POST", "/window/rect", {
+        width: 1180,
+        height: 720,
+      });
+      const atlas = await createUiProfile(app, "Atlas");
+      const borealis = await createUiProfile(app, "Borealis");
+      const cirrus = await createUiProfile(app, "Cirrus");
+      await signInWithAgent(app, agentUser(true));
+      await app.waitForText("Cirrus");
+
+      // A quiet column: an empty cell offers to ask, only on hover.
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="profile-agent-cell"][data-state="none"]').length === 3 &&
+               document.querySelector('[data-tip-anchor="column-agent"]')?.innerText.trim() === arguments[0];`,
+            [en.profileTable.agent.header],
+          ),
+        { description: "the Agent column with three empty cells" },
+      );
+      assert.equal(
+        await app.execute(
+          `return getComputedStyle(document.querySelector('[data-slot="profile-agent-cell"][data-state="none"]')).opacity;`,
+        ),
+        "0",
+        "an empty cell waits for the pointer",
+      );
+
+      // A chat in Atlas: its row shows the live step, then the answer.
+      const chat = await app.invoke("create_agent_chat", {
+        profileId: atlas.id,
+        text: "[slow] Check the proxy",
+      });
+      const live = await waitAgentCell(
+        app,
+        atlas.id,
+        (cell) => cell.state === "working" && cell.text.length > 0,
+        "the live row",
+      );
+      assert.notEqual(live.text, en.profileTable.agent.ask);
+      await captureBothThemes(app, "agent-table-working");
+      await app.clickSelector(
+        `[data-table-row="${atlas.id}"] [data-slot="profile-agent-cell"]`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `const peek = document.querySelector('[data-slot="profile-agent-peek"]');
+             return Boolean(peek) && peek.innerText.includes(arguments[0]);`,
+            [en.profileTable.agent.openChat],
+          ),
+        { description: "the live peek" },
+      );
+      await captureSettled(app, "agent-table-peek-live");
+      await dismissSurface(app);
+      const done = await waitAgentCell(
+        app,
+        atlas.id,
+        (cell) => cell.state === "done",
+        "the answer in the row",
+      );
+      assert.equal(
+        done.text,
+        "Three results found; the cheapest is listed first.",
+      );
+      assert.equal(
+        (await agentCell(app, borealis.id)).state,
+        "none",
+        "a step tells only its own row",
+      );
+      await captureBothThemes(app, "agent-table-done");
+
+      // The cell opens the chat it names.
+      await app.clickSelector(
+        `[data-table-row="${atlas.id}"] [data-slot="profile-agent-cell"]`,
+      );
+      await app.clickSelector('[data-slot="profile-agent-open"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="chat-conversation"][data-chat-id="' + arguments[0] + '"]'));`,
+            [chat.id],
+          ),
+        { description: "the chat of the row" },
+      );
+      await app.clickSelector(`[aria-label="${en.rail.profiles}"]`);
+      await app.waitForText("Cirrus");
+
+      // The selection runs a saved routine; each row follows its run.
+      const routine = await app.invoke("create_agent_routine", {
+        routine: {
+          name: "Morning check",
+          prompt: "Check the inbox",
+          startUrl: null,
+          profileIds: [atlas.id],
+          schedule: null,
+          maxCreditsPerRun: null,
+          concurrency: null,
+          enabled: true,
+        },
+      });
+      for (const profile of [borealis, cirrus]) {
+        await app.clickSelector(
+          `[data-table-row="${profile.id}"] [role="checkbox"]`,
+        );
+      }
+      await app.clickSelector('[data-bulk-action="agent-task"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-task-routine"][data-routine-id="' + arguments[0] + '"]'));`,
+            [routine.id],
+          ),
+        { description: "the routine in the agent menu" },
+      );
+      await captureSettled(app, "agent-table-menu");
+      await app.clickSelector(
+        `[data-slot="agent-task-routine"][data-routine-id="${routine.id}"]`,
+      );
+      for (const profile of [borealis, cirrus]) {
+        await waitAgentCell(
+          app,
+          profile.id,
+          (cell) => cell.state === "done",
+          `the run in ${profile.name}`,
+        );
+      }
+      await app.clickSelector(
+        `[data-table-row="${borealis.id}"] [data-slot="profile-agent-cell"]`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="profile-agent-open"]')?.innerText.trim() === arguments[0];`,
+            [en.profileTable.agent.openRun],
+          ),
+        { description: "the row names its run" },
+      );
+      await captureSettled(app, "agent-table-run");
+      await app.clickSelector('[data-slot="profile-agent-open"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-run-pane"]').length === 1;`,
+          ),
+        { description: "the run of the row" },
+      );
+    },
+    { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
+  );
+});
+
+test("an account with the agent is led through one real first task, sees it live, and keeps it as a routine", async () => {
+  await withApp(
+    "ui-agent-first-task",
+    async (app) => {
+      await app.session.command("POST", "/window/rect", {
+        width: 1180,
+        height: 720,
+      });
+      const atlas = await createUiProfile(app, "Atlas");
+      await signInWithAgent(app, agentUser(true));
+      await app.waitForText("Atlas");
+
+      // The offer points at the profile's Agent cell and takes no focus.
+      await waitAgentIntro(app, "offer", 20_000);
+      const offer = await app.execute(
+        `const mark = document.querySelector('[data-slot="agent-intro"]');
+         return {
+           anchor: mark.dataset.anchor,
+           focused: mark.contains(document.activeElement),
+           tip: Boolean(document.querySelector('[data-slot="tip-coach-mark"]')),
+           cell: document.querySelector('[data-tip-anchor="agent-intro"]')?.closest("[data-table-row]")?.dataset.tableRow ?? null,
+         };`,
+      );
+      assert.deepEqual(offer, {
+        anchor: "agent-intro",
+        focused: false,
+        tip: false,
+        cell: atlas.id,
+      });
+      await captureBothThemes(app, "agent-intro-offer");
+
+      await app.clickSelector('[data-slot="agent-intro-start"]');
+      await waitAgentIntro(app, "working");
+      await waitAgentCell(
+        app,
+        atlas.id,
+        (cell) => cell.state === "working" || cell.state === "done",
+        "the row follows the first task",
+      );
+      await captureBothThemes(app, "agent-intro-working");
+      await waitAgentIntro(app, "result");
+      assert.match(
+        await app.execute(
+          `return document.querySelector('[data-slot="agent-intro-result"]').innerText;`,
+        ),
+        /Three results found/,
+      );
+      const [chat] = await app.invoke("list_agent_chats");
+      const sent = await app.invoke("get_agent_chat", { chatId: chat.id });
+      assert.equal(sent.profileId, atlas.id);
+      assert.equal(
+        sent.turns[0].text,
+        en.agent.templates.items.proxyMatch.prompt,
+      );
+      await captureBothThemes(app, "agent-intro-result");
+
+      await app.clickSelector('[data-slot="agent-intro-save"]');
+      await waitAgentIntro(app, "saved");
+      const routines = await app.invoke("list_agent_routines");
+      assert.equal(routines.length, 1);
+      assert.equal(routines[0].name, en.agent.templates.items.proxyMatch.title);
+      assert.deepEqual(routines[0].profileIds, [atlas.id]);
+      await captureSettled(app, "agent-intro-saved");
+      await app.clickSelector('[data-slot="agent-intro-routine"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-routine"][data-routine-id="' + arguments[0] + '"]'));`,
+            [routines[0].id],
+          ),
+        { description: "the saved routine on the agent page" },
+      );
+
+      // Done once: it never comes back.
+      await app.restart();
+      await signInWithAgent(app, agentUser(true));
+      await app.waitForText("Atlas");
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      assert.equal(await agentIntroStep(app), null);
+    },
+    {
+      extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" },
+      settings: QUIET_TIPS,
+    },
+  );
+});
+
+test("the first task is skippable, never shows without the agent, and the table stays as it was", async () => {
+  await withApp(
+    "ui-agent-first-task-skip",
+    async (app) => {
+      await createUiProfile(app, "Atlas");
+      await signInWithAgent(app, agentUser(false));
+      await app.waitForText("Atlas");
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      assert.deepEqual(
+        await app.execute(
+          `return {
+             intro: Boolean(document.querySelector('[data-slot="agent-intro"]')),
+             column: Boolean(document.querySelector('[data-tip-anchor="column-agent"]')),
+             cells: document.querySelectorAll('[data-slot="profile-agent-cell"]').length,
+           };`,
+        ),
+        { intro: false, column: false, cells: 0 },
+      );
+
+      await signInWithAgent(app, agentUser(true));
+      await waitAgentIntro(app, "offer", 20_000);
+      await app.clickSelector('[data-slot="agent-intro-skip"]');
+      await app.waitFor(async () => (await agentIntroStep(app)) === null, {
+        description: "the offer gone",
+      });
+      assert.equal(
+        await app.execute(
+          `return localStorage.getItem("donut.agentFirstTask");`,
+        ),
+        "done",
+      );
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      assert.equal(await agentIntroStep(app), null, "skipped stays skipped");
+      assert.deepEqual(await app.invoke("list_agent_chats"), []);
+    },
+    {
+      extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" },
+      settings: QUIET_TIPS,
+    },
+  );
+});
 
 test("a running row's eye brings its window forward, and live previews fill their tiles", async () => {
   await withApp(

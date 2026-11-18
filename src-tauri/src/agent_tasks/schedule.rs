@@ -1,6 +1,8 @@
 //! Runs the account's scheduled routines while the app is open. The cloud
 //! keeps each routine's next fire; at that time this desktop claims the due
 //! fires and runs them. A fire no desktop claims is recorded as missed.
+//! While a routine has a webhook, whose fires come at no set time, this
+//! desktop also claims every `HOOK_POLL`.
 
 use super::cloud::{self, Routine};
 use std::sync::{LazyLock, Mutex};
@@ -16,6 +18,8 @@ const FRESH_FOR: Duration = Duration::from_secs(60);
 const CLAIM_DELAY: Duration = Duration::from_secs(2);
 /// The wait after a claim, while the cloud moves the routine's next fire.
 const AFTER_CLAIM: Duration = Duration::from_secs(15);
+/// How often a desktop claims while a routine has a webhook.
+const HOOK_POLL: Duration = Duration::from_secs(30);
 
 static WAKE: LazyLock<Notify> = LazyLock::new(Notify::new);
 static KNOWN: Mutex<Option<(Instant, Vec<Routine>)>> = Mutex::new(None);
@@ -88,9 +92,21 @@ async fn routines() -> Result<Vec<Routine>, String> {
   Ok(routines)
 }
 
+/// Whether an enabled routine has a webhook.
+pub fn hooked(routines: &[Routine]) -> bool {
+  routines
+    .iter()
+    .any(|routine| routine.enabled && routine.hook.is_some())
+}
+
 /// One pass: claim what is due, and say how long to sleep.
 async fn step() -> Duration {
-  if super::ensure_entitled().await.is_err() || !super::can_schedule().await {
+  if super::ensure_entitled().await.is_err() {
+    return REREAD_EVERY;
+  }
+  let scheduling = super::can_schedule().await;
+  let hooks = super::integrations::entitled().await;
+  if !scheduling && !hooks {
     return REREAD_EVERY;
   }
   let routines = match routines().await {
@@ -101,28 +117,44 @@ async fn step() -> Duration {
     }
   };
   let now = crate::proxy_manager::now_secs() as i64;
-  let wait = wait_for(earliest_fire(&routines), now);
-  if !wait.is_zero() {
+  let wait = if scheduling {
+    wait_for(earliest_fire(&routines), now)
+  } else {
+    REREAD_EVERY
+  };
+  let polling = hooks && hooked(&routines);
+  if !wait.is_zero() && !polling {
     return wait;
   }
+  let mut claimed = false;
   match cloud::claim_fires().await {
     Ok(fires) => {
       CLAIMS.succeeded();
+      claimed = !fires.is_empty();
       for fire in fires {
         log::info!(
-          "Agent routine fire claimed routine={} batch={}",
+          "Agent routine fire claimed routine={} batch={} trigger={}",
           fire.routine_id,
-          fire.batch_id
+          fire.batch_id,
+          fire.trigger.as_deref().unwrap_or("schedule")
         );
         tokio::spawn(async move {
-          let _ = super::run_scheduled_fire(&fire.routine_id, &fire.batch_id).await;
+          let _ =
+            super::run_scheduled_fire(&fire.routine_id, &fire.batch_id, fire.input.as_deref())
+              .await;
         });
       }
     }
     Err(e) => CLAIMS.failed(e),
   }
-  changed();
-  AFTER_CLAIM
+  if wait.is_zero() || claimed {
+    changed();
+  }
+  if wait.is_zero() {
+    AFTER_CLAIM
+  } else {
+    wait.min(HOOK_POLL)
+  }
 }
 
 #[cfg(test)]
@@ -144,6 +176,12 @@ mod tests {
       max_credits_per_run: None,
       concurrency: None,
       enabled,
+      effort: None,
+      pace: None,
+      caps: None,
+      output: None,
+      playbook_ids: Vec::new(),
+      hook: None,
       next_run_at: next.map(str::to_string),
       created_at: None,
       updated_at: None,

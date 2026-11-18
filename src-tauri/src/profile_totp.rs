@@ -166,6 +166,18 @@ pub fn codes(profile_id: &str) -> Result<Vec<TotpEntryCode>, String> {
   )
 }
 
+/// The labels and keys, for an agent task that signs in to an account in the
+/// same profile. Only `agent_tasks::logins` reads them, and only into that
+/// profile's own browser.
+pub(crate) fn keys(profile_id: &str) -> Result<Vec<(String, TotpKey)>, String> {
+  Ok(
+    read(profile_id)?
+      .into_iter()
+      .map(|entry| (entry.label, entry.key))
+      .collect(),
+  )
+}
+
 /// With the profile itself: its accounts' keys must not outlive it.
 pub fn forget_profile(profile_id: &str) {
   if let Ok(file) = file_for(profile_id) {

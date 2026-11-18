@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentApproval,
   AgentRoutineDraft,
+  AgentRunOptions,
   AgentStep,
   AgentTaskStatus,
 } from "@/lib/agent-tasks";
@@ -72,6 +73,8 @@ export interface AgentChat {
   profileName?: string;
   createdAt: number;
   updatedAt: number;
+  /** The effort, pace and caps of every turn. */
+  options?: AgentRunOptions;
   turns: ChatTurn[];
 }
 
@@ -105,8 +108,11 @@ export const listAgentChats = () =>
   invoke<AgentChatSummary[]>("list_agent_chats");
 export const getAgentChat = (chatId: string) =>
   invoke<AgentChat>("get_agent_chat", { chatId });
-export const createAgentChat = (profileId: string, text: string) =>
-  invoke<AgentChat>("create_agent_chat", { profileId, text });
+export const createAgentChat = (
+  profileId: string,
+  text: string,
+  options: AgentRunOptions | null = null,
+) => invoke<AgentChat>("create_agent_chat", { profileId, text, options });
 export const sendAgentChatMessage = (chatId: string, text: string) =>
   invoke<AgentChat>("send_agent_chat_message", { chatId, text });
 export const controlAgentChat = (chatId: string, action: ChatControl) =>

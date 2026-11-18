@@ -8,9 +8,11 @@
 //! sealed to the account's other devices (`chat_sync`). Their words never
 //! reach the log.
 
+use super::briefing::{self, Brief};
 use super::engine::{EngineError, EngineLink};
 use super::host::{self, HostCall};
 use super::model::{EngineEvent, Task, TaskStatus};
+use super::options::RunOptions;
 use super::{attach, ensure_entitled, error_code, load_profile, now_ms, stop_engine_task};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -82,6 +84,9 @@ pub struct Chat {
   /// Credits the engine counts for the current task, all turns together.
   #[serde(default)]
   pub task_credits: u64,
+  /// The effort, pace and caps of every turn.
+  #[serde(default)]
+  pub options: RunOptions,
   pub turns: Vec<Turn>,
 }
 
@@ -145,6 +150,7 @@ impl Chat {
       created_at: now,
       updated_at: now,
       task_credits: 0,
+      options: RunOptions::default(),
       turns: vec![Turn::new(profile_id, text, TurnKind::Start, 0, now)],
     }
   }
@@ -215,11 +221,13 @@ impl Chat {
         result,
         error,
         credits_used,
+        data,
       } => EngineEvent::Finished {
         status,
         result,
         error,
         credits_used: turn_credits(credits_used, base),
+        data,
       },
       other => other,
     };
@@ -490,7 +498,8 @@ pub(super) fn busy(profile_id: &str, except: Option<&str>) -> bool {
   })
 }
 
-pub(super) fn on_engine_event(profile_id: &str, task_id: &str, event: EngineEvent) {
+/// Returns whether a chat here took the event.
+pub(super) fn on_engine_event(profile_id: &str, task_id: &str, event: EngineEvent) -> bool {
   let mut store = chats();
   let now = now_ms();
   let step_only = matches!(event, EngineEvent::Step(_) | EngineEvent::Credits(_));
@@ -499,10 +508,10 @@ pub(super) fn on_engine_event(profile_id: &str, task_id: &str, event: EngineEven
     .values_mut()
     .find(|chat| chat.profile_id == profile_id && chat.task_id().as_deref() == Some(task_id))
   else {
-    return;
+    return false;
   };
   if !chat.apply(task_id, event, now) {
-    return;
+    return false;
   }
   let id = chat.id.clone();
   let ended = chat
@@ -514,6 +523,7 @@ pub(super) fn on_engine_event(profile_id: &str, task_id: &str, event: EngineEven
   if let Some(task) = ended {
     log_end(&id, &task);
   }
+  true
 }
 
 pub(super) fn on_link_closed(profile_id: &str) {
@@ -621,7 +631,10 @@ fn mark_running(chat_id: &str, turn_id: &str) -> Vec<String> {
   waiting
 }
 
-async fn link_for(profile_id: &str, chat_id: &str) -> Result<EngineLink, String> {
+async fn link_for(
+  profile_id: &str,
+  chat_id: &str,
+) -> Result<(crate::profile::BrowserProfile, EngineLink), String> {
   let profile = load_profile(profile_id)?;
   if profile.browser != "wayfern" {
     return Err(crate::backend_error("AGENT_UNSUPPORTED"));
@@ -631,17 +644,23 @@ async fn link_for(profile_id: &str, chat_id: &str) -> Result<EngineLink, String>
     return Err(crate::backend_error("AGENT_BUSY"));
   }
   let (link, _) = attach(&profile, false).await?;
-  Ok(link)
+  Ok((profile, link))
 }
 
 /// A chat task may ask the app to act; a routine or batch task never does.
-fn start_params(task_id: &str, text: &str) -> Value {
-  json!({ "taskId": task_id, "prompt": text, "autonomy": "ask", "host": host::METHODS })
+/// `logins` goes only when the profile has some for the chat's site.
+fn start_params(task_id: &str, start: &briefing::Start) -> Value {
+  let mut params =
+    json!({ "taskId": task_id, "prompt": start.prompt, "autonomy": "ask", "host": host::METHODS });
+  if !start.logins.is_empty() {
+    params["logins"] = serde_json::to_value(&start.logins).unwrap_or(Value::Null);
+  }
+  params
 }
 
 /// Start or continue the engine task for the current turn.
 async fn run_turn(chat_id: String, turn_id: String) {
-  let (profile_id, text, prior, history) = {
+  let (profile_id, text, prior, history, options) = {
     let store = chats();
     let Ok(chat) = store.get(&chat_id) else {
       return;
@@ -655,12 +674,20 @@ async fn run_turn(chat_id: String, turn_id: String) {
       .rev()
       .find_map(|turn| turn.task.task_id.clone());
     let history = prior.as_ref().map(|_| transcript(earlier));
-    (chat.profile_id.clone(), turn.text.clone(), prior, history)
+    (
+      chat.profile_id.clone(),
+      turn.text.clone(),
+      prior,
+      history,
+      chat.options,
+    )
   };
   let outcome: Result<(TurnKind, EngineLink, String), String> = async {
-    let link = link_for(&profile_id, &chat_id).await?;
+    let (profile, link) = link_for(&profile_id, &chat_id).await?;
     if let Some(task_id) = &prior {
       bind_task(&chat_id, &turn_id, task_id, TurnKind::FollowUp)?;
+      // The cloud keeps a task's settings for a day; a chat may outlast it.
+      super::options::send(task_id, &profile_id, &options).await?;
       let reply = link
         .call(
           "Wayfern.agentMessage",
@@ -680,9 +707,15 @@ async fn run_turn(chat_id: String, turn_id: String) {
     };
     let task_id = uuid::Uuid::new_v4().to_string();
     bind_task(&chat_id, &turn_id, &task_id, kind)?;
-    let prompt = with_history(history.as_deref().unwrap_or_default(), &text);
+    let words = with_history(history.as_deref().unwrap_or_default(), &text);
+    let site = super::prompt::first_url(&text);
+    let brief = Brief {
+      options,
+      ..Brief::default()
+    };
+    let start = briefing::prepare(&task_id, &profile, &words, site.as_deref(), &brief).await?;
     if let Err(e) = link
-      .call("Wayfern.agentStart", start_params(&task_id, &prompt))
+      .call("Wayfern.agentStart", start_params(&task_id, &start))
       .await
     {
       // No answer is not a no: the engine may have the task.
@@ -840,11 +873,16 @@ pub async fn get_agent_chat(chat_id: String) -> Result<Chat, String> {
 /// A new chat on a profile, with its first message. The browser launches
 /// when it is not running.
 #[tauri::command]
-pub async fn create_agent_chat(profile_id: String, text: String) -> Result<Chat, String> {
+pub async fn create_agent_chat(
+  profile_id: String,
+  text: String,
+  options: Option<RunOptions>,
+) -> Result<Chat, String> {
   ensure_entitled().await?;
   let text = checked_text(&text)?;
   load_profile(&profile_id)?;
-  let chat = Chat::new(&profile_id, text, now_ms());
+  let mut chat = Chat::new(&profile_id, text, now_ms());
+  chat.options = options.unwrap_or_default().checked();
   let turn_id = chat.turns[0].id.clone();
   let id = chat.id.clone();
   {
@@ -1064,6 +1102,32 @@ pub(super) fn stop_running() -> Vec<(EngineLink, String)> {
   engines
 }
 
+/// The chats whose current turn waits for the person: a question, or a
+/// change it asked to make in the app.
+pub(super) fn waiting() -> Vec<(String, String, String, Turn)> {
+  chats()
+    .chats
+    .values()
+    .filter(|chat| super::chat_sync::runs_here(chat))
+    .filter_map(|chat| {
+      let turn = chat.current()?;
+      let waits = turn.task.approval.is_some()
+        || turn
+          .host_calls
+          .iter()
+          .any(|call| call.state == host::CallState::Pending);
+      waits.then(|| {
+        (
+          chat.id.clone(),
+          chat.title.clone(),
+          chat.profile_id.clone(),
+          turn.clone(),
+        )
+      })
+    })
+    .collect()
+}
+
 /// Each chat's id, last change and whether a turn runs.
 pub(super) fn stamps() -> Vec<(String, u64, bool)> {
   chats()
@@ -1112,6 +1176,7 @@ mod tests {
       result: Some("**Done**".into()),
       error: None,
       credits_used,
+      data: None,
     }
   }
 
@@ -1258,9 +1323,22 @@ mod tests {
 
   #[test]
   fn a_chat_task_is_offered_the_host_calls() {
-    let params = start_params("t1", "Save it as a routine");
+    let start = briefing::Start {
+      prompt: "Save it as a routine".into(),
+      logins: Vec::new(),
+    };
+    let params = start_params("t1", &start);
     assert_eq!(params["autonomy"], "ask");
     assert_eq!(params["host"], json!(host::METHODS));
+    assert!(params.get("logins").is_none());
+  }
+
+  #[test]
+  fn a_chat_from_before_options_reads_with_the_defaults() {
+    let mut wire = serde_json::to_value(started("Find flights")).unwrap();
+    wire.as_object_mut().unwrap().remove("options");
+    let chat: Chat = serde_json::from_value(wire).unwrap();
+    assert_eq!(chat.options, RunOptions::default());
   }
 
   #[test]
@@ -1302,6 +1380,7 @@ mod tests {
         result: Some("TAP at 9:40, 120 EUR".into()),
         error: None,
         credits_used: 3,
+        data: None,
       },
       2,
     );

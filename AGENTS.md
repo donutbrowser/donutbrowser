@@ -39,7 +39,7 @@ donutbrowser/
 │   │   ├── entity-page.tsx            # Proxy/VPN/group/extension page parts: page and row actions, kind badges, sync and check cells
 │   │   ├── entity-empty-state.tsx     # Empty states of those pages, with their scenes
 │   │   ├── profile-search-input.tsx   # Profile search with ghost-text completion and suggestions
-│   │   ├── profile-table/            # Profile table parts: launch control, traffic cell and snapshots, row menu, column fit
+│   │   ├── profile-table/            # Profile table parts: launch control, traffic cell and snapshots, row menu, column fit, Agent column and its activity store
 │   │   ├── settings/                 # Settings page parts: rows, choice cards, theme previews, sounds, autosave
 │   │   ├── feature-clip.tsx          # Recordings of the app (public/clips) for tips and onboarding
 │   │   ├── agent-chat/               # Agent page: chats, composer, sidebar, templates gallery (catalog in lib/agent-templates.ts)
@@ -331,7 +331,8 @@ feature. The catalog is
 `src/lib/tips.ts` (ids, sections, deep-link actions, the anchors a tip points
 at, the plan capability a tip needs, the `inUse` relevance check); the
 recordings are `public/clips/<id>-<light|dark>.webp` with a `-still.webp`
-frame, shown by `src/components/feature-clip.tsx`; icons are
+frame (agent tips name theirs in `clip`: `agent-<name>`, which the website
+shows too), shown by `src/components/feature-clip.tsx`; icons are
 in `src/components/tips/tip-icon.tsx`; the catalog dialog is `src/components/tips-dialog.tsx`; the
 day's tip on the Profiles page is `src/components/tips/tip-coach-mark.tsx`; the
 flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
@@ -411,7 +412,9 @@ flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
 - `pnpm clips [ids] [--theme=dark|light]` records the clips again after a UI
   change: a static build of the working tree (in the system temp folder, never
   the checkout's `dist`) runs in Chrome with a mocked backend and invented
-  demo data (`scripts/clips/demo-data.js`), slowed down so every frame is
+  demo data (`scripts/clips/demo-data.js`; the agent's chats, runs, routines
+  and page pictures in `scripts/clips/agent-demo.js`, on for `agentPlan`),
+  slowed down so every frame is
   captured, then encoded as near-lossless animated WebP (`img2webp`). Each
   clip holds one frame (no camera moves: a pan rewrites every pixel of every
   frame) and loops cleanly: it ends where it started, or crossfades back.
@@ -440,6 +443,15 @@ disk waits for the download and the Wayfern terms, then creates
 `src/components/onboarding-tour.tsx` shows one coach mark with `spotlight` on
 its Launch button (`row-launch`). The dim takes no clicks. "Got it", Escape or
 a launch closes it.
+
+An account with the agent that has no chat or run on this device gets the
+agent's first task (`src/components/agent-first-task.tsx`), once the page
+is quiet and nothing modal is open: one coach mark on a profile's Agent cell
+(`agent-intro`) offers the "Proxy and fingerprint match" template, then shows
+the live window while it works, the answer, and an offer to save it as a
+routine. Every step can be skipped; skipping or starting it is remembered on
+this device (`localStorage` `donut.agentFirstTask`). It follows the "Show
+tips on the Profiles page" switch, and the day's tip waits behind it.
 
 ## Timelines (`OperationFlow`)
 

@@ -3,6 +3,7 @@
 import { type ReactNode, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuCheck, LuChevronsUpDown, LuSettings2 } from "react-icons/lu";
+import { AnimatedSwitch } from "@/components/ui/animated-switch";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -21,10 +22,13 @@ import {
 } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
+  AGENT_EFFORTS,
   type AgentAutonomy,
   type AgentCredits,
+  type AgentEffort,
   type AgentRoutine,
   type AgentRoutineSchedule,
+  type AgentRunOptions,
   type AgentTaskStatus,
   creditsLeft,
   cronWords,
@@ -475,6 +479,11 @@ export interface RunSettings {
   autonomy: AgentAutonomy;
   maxCredits: string;
   concurrency: string;
+  effort: AgentEffort;
+  humanPace: boolean;
+  /** Actions a day per profile, and per profile on one site. */
+  capDay: string;
+  capSite: string;
 }
 
 export const DEFAULT_RUN_SETTINGS: RunSettings = {
@@ -482,12 +491,46 @@ export const DEFAULT_RUN_SETTINGS: RunSettings = {
   autonomy: "ask",
   maxCredits: "",
   concurrency: "",
+  effort: "standard",
+  humanPace: true,
+  capDay: "",
+  capSite: "",
 };
 
 export function positiveInt(value: string, max?: number): number | null {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 1) return null;
   return max ? Math.min(parsed, max) : parsed;
+}
+
+/** The effort, pace and caps the settings choose. */
+export function settingsOptions(settings: RunSettings): AgentRunOptions {
+  const actionsPerDay = positiveInt(settings.capDay);
+  const actionsPerSitePerDay = positiveInt(settings.capSite);
+  return {
+    effort: settings.effort,
+    pace: settings.humanPace ? "human" : "fast",
+    caps:
+      actionsPerDay || actionsPerSitePerDay
+        ? { actionsPerDay, actionsPerSitePerDay }
+        : null,
+  };
+}
+
+/** Settings that show `options`. */
+export function optionsSettings(
+  options: AgentRunOptions,
+): Pick<RunSettings, "effort" | "humanPace" | "capDay" | "capSite"> {
+  return {
+    effort: options.effort,
+    humanPace: options.pace !== "fast",
+    capDay: options.caps?.actionsPerDay
+      ? String(options.caps.actionsPerDay)
+      : "",
+    capSite: options.caps?.actionsPerSitePerDay
+      ? String(options.caps.actionsPerSitePerDay)
+      : "",
+  };
 }
 
 export function startUrlInvalid(settings: RunSettings): boolean {
@@ -498,19 +541,117 @@ export function startUrlInvalid(settings: RunSettings): boolean {
 const OPTION_LABEL = "text-xs font-medium text-muted-foreground";
 
 /**
- * The start page, credit cap and how many at once, behind one button.
- * `autonomy` adds the choice to ask first; a routine always acts on its own.
+ * The effort, a human's pace and the daily action caps. A chat has only
+ * these; a run and a routine have them under the start page and limits.
+ */
+function PaceOptions({
+  value,
+  set,
+}: {
+  value: RunSettings;
+  set: (patch: Partial<RunSettings>) => void;
+}) {
+  const { t } = useTranslation();
+  const formId = useId();
+  return (
+    <>
+      <div className="flex flex-col gap-2">
+        <span className={OPTION_LABEL}>{t("agent.options.effort")}</span>
+        <RadioGroup
+          value={value.effort}
+          onValueChange={(next) => {
+            set({ effort: next as AgentEffort });
+          }}
+          className="gap-2"
+          data-slot="agent-run-effort"
+        >
+          {AGENT_EFFORTS.map((option) => (
+            <div key={option} className="flex items-center gap-2">
+              <RadioGroupItem
+                id={`${formId}-effort-${option}`}
+                value={option}
+                data-effort={option}
+              />
+              <Label
+                htmlFor={`${formId}-effort-${option}`}
+                className="text-sm font-normal"
+              >
+                {t(`agent.options.efforts.${option}`)}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={`${formId}-pace`} className="text-sm font-normal">
+          {t("agent.options.humanPace")}
+        </Label>
+        <AnimatedSwitch
+          id={`${formId}-pace`}
+          checked={value.humanPace}
+          data-slot="agent-run-pace"
+          onCheckedChange={(checked) => {
+            set({ humanPace: checked });
+          }}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${formId}-cap-day`} className={OPTION_LABEL}>
+            {t("agent.options.capDay")}
+          </Label>
+          <Input
+            id={`${formId}-cap-day`}
+            type="number"
+            min={1}
+            value={value.capDay}
+            placeholder={t("agent.tasks.noCap")}
+            data-slot="agent-run-cap-day"
+            className="h-8 text-xs md:text-xs"
+            onChange={(event) => {
+              set({ capDay: event.target.value });
+            }}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${formId}-cap-site`} className={OPTION_LABEL}>
+            {t("agent.options.capSite")}
+          </Label>
+          <Input
+            id={`${formId}-cap-site`}
+            type="number"
+            min={1}
+            value={value.capSite}
+            placeholder={t("agent.tasks.noCap")}
+            data-slot="agent-run-cap-site"
+            className="h-8 text-xs md:text-xs"
+            onChange={(event) => {
+              set({ capSite: event.target.value });
+            }}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * The start page, credit cap, how many at once, effort, pace and caps,
+ * behind one button. `autonomy` adds the choice to ask first; a routine
+ * always acts on its own. A chat (`paceOnly`) has the effort, pace and caps.
  */
 export function RunOptions({
   value,
   onChange,
   autonomy = false,
+  paceOnly = false,
   creditCapLabel,
   align = "end",
 }: {
   value: RunSettings;
   onChange: (next: RunSettings) => void;
   autonomy?: boolean;
+  paceOnly?: boolean;
   creditCapLabel: string;
   align?: "start" | "end";
 }) {
@@ -519,11 +660,18 @@ export function RunOptions({
   const set = (patch: Partial<RunSettings>) => {
     onChange({ ...value, ...patch });
   };
+  const paceTuned =
+    value.effort !== "standard" ||
+    !value.humanPace ||
+    value.capDay.trim() !== "" ||
+    value.capSite.trim() !== "";
   const tuned =
-    value.startUrl.trim() !== "" ||
-    (autonomy && value.autonomy === "auto") ||
-    value.maxCredits.trim() !== "" ||
-    value.concurrency.trim() !== "";
+    paceTuned ||
+    (!paceOnly &&
+      (value.startUrl.trim() !== "" ||
+        (autonomy && value.autonomy === "auto") ||
+        value.maxCredits.trim() !== "" ||
+        value.concurrency.trim() !== ""));
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -542,88 +690,123 @@ export function RunOptions({
           <LuSettings2 className="size-3.5" aria-hidden="true" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align={align} className="flex w-72 flex-col gap-3 p-3">
+      <PopoverContent
+        align={align}
+        className="flex max-h-[min(36rem,var(--radix-popover-content-available-height))] w-72 flex-col gap-3 overflow-y-auto p-3"
+      >
+        {paceOnly ? (
+          <PaceOptions value={value} set={set} />
+        ) : (
+          <RunLimits
+            value={value}
+            set={set}
+            formId={formId}
+            autonomy={autonomy}
+            creditCapLabel={creditCapLabel}
+          />
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function RunLimits({
+  value,
+  set,
+  formId,
+  autonomy,
+  creditCapLabel,
+}: {
+  value: RunSettings;
+  set: (patch: Partial<RunSettings>) => void;
+  formId: string;
+  autonomy: boolean;
+  creditCapLabel: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${formId}-url`} className={OPTION_LABEL}>
+          {t("agent.tasks.startUrl")}
+        </Label>
+        <Input
+          id={`${formId}-url`}
+          value={value.startUrl}
+          inputMode="url"
+          placeholder="https://"
+          aria-invalid={startUrlInvalid(value)}
+          data-slot="agent-run-url"
+          className="h-8 text-xs md:text-xs"
+          onChange={(event) => {
+            set({ startUrl: event.target.value });
+          }}
+        />
+      </div>
+      {autonomy && (
+        <div className="flex flex-col gap-2">
+          <span className={OPTION_LABEL}>{t("agent.tasks.autonomy")}</span>
+          <RadioGroup
+            value={value.autonomy}
+            onValueChange={(next) => {
+              set({ autonomy: next as AgentAutonomy });
+            }}
+            className="gap-2"
+          >
+            {(["ask", "auto"] as const).map((option) => (
+              <div key={option} className="flex items-center gap-2">
+                <RadioGroupItem
+                  id={`${formId}-autonomy-${option}`}
+                  value={option}
+                />
+                <Label
+                  htmlFor={`${formId}-autonomy-${option}`}
+                  className="text-sm font-normal"
+                >
+                  {t(`agent.tasks.autonomyOptions.${option}`)}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${formId}-url`} className={OPTION_LABEL}>
-            {t("agent.tasks.startUrl")}
+          <Label htmlFor={`${formId}-credits`} className={OPTION_LABEL}>
+            {creditCapLabel}
           </Label>
           <Input
-            id={`${formId}-url`}
-            value={value.startUrl}
-            inputMode="url"
-            placeholder="https://"
-            aria-invalid={startUrlInvalid(value)}
-            data-slot="agent-run-url"
+            id={`${formId}-credits`}
+            type="number"
+            min={1}
+            value={value.maxCredits}
+            placeholder={t("agent.tasks.noCap")}
             className="h-8 text-xs md:text-xs"
             onChange={(event) => {
-              set({ startUrl: event.target.value });
+              set({ maxCredits: event.target.value });
             }}
           />
         </div>
-        {autonomy && (
-          <div className="flex flex-col gap-2">
-            <span className={OPTION_LABEL}>{t("agent.tasks.autonomy")}</span>
-            <RadioGroup
-              value={value.autonomy}
-              onValueChange={(next) => {
-                set({ autonomy: next as AgentAutonomy });
-              }}
-              className="gap-2"
-            >
-              {(["ask", "auto"] as const).map((option) => (
-                <div key={option} className="flex items-center gap-2">
-                  <RadioGroupItem
-                    id={`${formId}-autonomy-${option}`}
-                    value={option}
-                  />
-                  <Label
-                    htmlFor={`${formId}-autonomy-${option}`}
-                    className="text-sm font-normal"
-                  >
-                    {t(`agent.tasks.autonomyOptions.${option}`)}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${formId}-credits`} className={OPTION_LABEL}>
-              {creditCapLabel}
-            </Label>
-            <Input
-              id={`${formId}-credits`}
-              type="number"
-              min={1}
-              value={value.maxCredits}
-              placeholder={t("agent.tasks.noCap")}
-              className="h-8 text-xs md:text-xs"
-              onChange={(event) => {
-                set({ maxCredits: event.target.value });
-              }}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${formId}-concurrency`} className={OPTION_LABEL}>
-              {t("agent.tasks.concurrency")}
-            </Label>
-            <Input
-              id={`${formId}-concurrency`}
-              type="number"
-              min={1}
-              max={MAX_CONCURRENCY}
-              value={value.concurrency}
-              placeholder={t("agent.tasks.concurrencyDefault")}
-              className="h-8 text-xs md:text-xs"
-              onChange={(event) => {
-                set({ concurrency: event.target.value });
-              }}
-            />
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${formId}-concurrency`} className={OPTION_LABEL}>
+            {t("agent.tasks.concurrency")}
+          </Label>
+          <Input
+            id={`${formId}-concurrency`}
+            type="number"
+            min={1}
+            max={MAX_CONCURRENCY}
+            value={value.concurrency}
+            placeholder={t("agent.tasks.concurrencyDefault")}
+            className="h-8 text-xs md:text-xs"
+            onChange={(event) => {
+              set({ concurrency: event.target.value });
+            }}
+          />
         </div>
-      </PopoverContent>
-    </Popover>
+      </div>
+      <PaceOptions value={value} set={set} />
+    </>
   );
 }
 

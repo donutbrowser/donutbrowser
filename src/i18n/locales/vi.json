@@ -2490,7 +2490,16 @@
       "stopping": "Đang dừng…",
       "singleInstance": "Trình duyệt này chỉ chạy được một phiên bản cùng lúc. Hãy dừng phiên bản đang chạy trước."
     },
-    "pinned": "Đã ghim"
+    "pinned": "Đã ghim",
+    "agent": {
+      "header": "Tác tử",
+      "ask": "Hỏi",
+      "aria": "Tác tử trong {{name}}: {{status}}",
+      "openChat": "Mở cuộc trò chuyện",
+      "openRun": "Mở lượt chạy",
+      "loadingRoutines": "Đang tải quy trình…",
+      "noRoutines": "Chưa có quy trình"
+    }
   },
   "dataTableActionBar": {
     "selected": "Đã chọn {{count}}",
@@ -2998,7 +3007,27 @@
     "desktopOffline": "Donut không mở vào thời điểm đã lên lịch.",
     "desktopRefused": "Donut không thể bắt đầu lần chạy này.",
     "runLost": "Donut đã ngừng báo cáo về lần chạy này.",
-    "freeCreditsPending": "Tín dụng miễn phí của bạn chưa sẵn sàng. Tài khoản mới sẽ nhận sau một bước kiểm tra ngắn."
+    "freeCreditsPending": "Tín dụng miễn phí của bạn chưa sẵn sàng. Tài khoản mới sẽ nhận sau một bước kiểm tra ngắn.",
+    "agentColumnDuplicate": "Mỗi cột cần một tên riêng.",
+    "agentExportFailed": "Không lưu được tệp.",
+    "agentSettingsNotSaved": "Tác vụ chưa bắt đầu: không lưu được giới hạn của nó.",
+    "agentMemoryUnreadable": "Không đọc được ghi chú của tác tử cho hồ sơ này.",
+    "agentNoteNotFound": "Ghi chú đó không còn nữa.",
+    "agentPlaybookInvalid": "Kiểm tra tên, chỉ dẫn và các trang của hướng dẫn.",
+    "agentPlaybookReadOnly": "Chỉ tác giả hoặc quản trị viên nhóm mới sửa được hướng dẫn này.",
+    "agentPlaybookNotFound": "Hướng dẫn đó không còn nữa.",
+    "agentPlaybookLimit": "Bạn đã đạt số hướng dẫn tối đa.",
+    "agentPlaybookSiteInvalid": "Trang phải là một tên miền, như shop.example.com.",
+    "agentSubscriptionInvalid": "Kiểm tra địa chỉ và sự kiện.",
+    "agentSubscriptionUrlInvalid": "Dùng một địa chỉ https.",
+    "agentSubscriptionNotFound": "Nơi nhận đó không còn nữa.",
+    "agentSubscriptionLimit": "Bạn đã đạt số nơi nhận tối đa.",
+    "agentIntegrationsNotEntitled": "Webhook và gửi kết quả chưa bật cho tài khoản này.",
+    "agentFieldInvalid": "Có một trường không hợp lệ.",
+    "agentHookNotFound": "Quy trình này không có webhook.",
+    "agentHookBusy": "Có quá nhiều lệnh gọi webhook đang chờ quy trình này.",
+    "agentRoutineDisabled": "Quy trình đang tắt.",
+    "agentActionCap": "Đã đạt giới hạn thao tác hằng ngày."
   },
   "rail": {
     "profiles": "Profile",
@@ -4604,6 +4633,126 @@
           "prompt": "Mở một trang kiểm tra rò rỉ DNS trong hồ sơ này và chạy bài kiểm tra tiêu chuẩn. Ghi từng máy chủ DNS kèm quốc gia và chủ sở hữu. Sau đó mở một trang kiểm tra rò rỉ WebRTC và ghi mọi địa chỉ IP nó tìm thấy. Cho một dòng với các cột: IP proxy, quốc gia DNS, IP WebRTC, rò rỉ (có hoặc không). Rò rỉ là máy chủ DNS hoặc địa chỉ IP nằm ngoài quốc gia của proxy."
         }
       }
+    },
+    "options": {
+      "effort": "Mức công sức",
+      "efforts": {
+        "fast": "Nhanh",
+        "standard": "Tiêu chuẩn",
+        "thorough": "Kỹ lưỡng"
+      },
+      "humanPace": "Nhịp độ như người",
+      "capDay": "Thao tác mỗi ngày",
+      "capSite": "Mỗi trang mỗi ngày"
+    },
+    "output": {
+      "add": "Thêm cột",
+      "hint": "Mỗi lần chạy kết thúc bằng các giá trị này.",
+      "name": "Tên cột",
+      "namePlaceholder": "Cột",
+      "type": "Kiểu",
+      "types": {
+        "text": "Văn bản",
+        "number": "Số",
+        "bool": "Có hoặc không",
+        "url": "Liên kết"
+      },
+      "remove": "Xóa cột",
+      "copy": "Sao chép",
+      "copied": "Đã sao chép bảng",
+      "export": "CSV",
+      "exported_one": "Đã lưu {{count}} hàng",
+      "exported_other": "Đã lưu {{count}} hàng",
+      "profile": "Hồ sơ",
+      "result": "Kết quả",
+      "yes": "Có",
+      "no": "Không"
+    },
+    "playbooks": {
+      "title": "Hướng dẫn",
+      "new": "Hướng dẫn mới",
+      "pick": "Hướng dẫn",
+      "count_one": "{{count}} hướng dẫn",
+      "count_other": "{{count}} hướng dẫn",
+      "search": "Tìm hướng dẫn",
+      "none": "Chưa có hướng dẫn nào.",
+      "noMatch": "Không có hướng dẫn phù hợp.",
+      "bySite": "Hướng dẫn cho trang của quy trình được tự thêm vào.",
+      "saved": "Đã lưu hướng dẫn",
+      "name": "Tên",
+      "namePlaceholder": "Tên hướng dẫn",
+      "instructions": "Chỉ dẫn",
+      "instructionsPlaceholder": "Cách làm việc trên trang: thứ gì ở đâu, cần kiểm tra gì, cần tránh gì",
+      "sites": "Trang",
+      "shared": "Chia sẻ với nhóm",
+      "deleteTitle": "Xóa {{name}}?",
+      "deleteDescription": "Các tác vụ sẽ không nhận hướng dẫn này nữa.",
+      "empty": "Viết một lần cách làm việc trên một trang. Mọi tác vụ ở đó đều nhận được.",
+      "anySite": "Mọi trang",
+      "team": "Nhóm"
+    },
+    "triggers": {
+      "webhook": "Webhook",
+      "hookHint": "Một yêu cầu POST tới webhook sẽ chạy quy trình này với nội dung làm đầu vào.",
+      "hookCreate": "Tạo webhook",
+      "hookUse": "Một yêu cầu POST tới địa chỉ này sẽ chạy quy trình. Nội dung là đầu vào của nó.",
+      "hookRotate": "Địa chỉ mới",
+      "hookDelete": "Xóa webhook",
+      "copy": "Sao chép",
+      "copied": "Đã sao chép",
+      "sendTo": "Gửi kết quả tới",
+      "events": {
+        "run": {
+          "finished": "Lần chạy đã xong",
+          "needs_you": "Lần chạy cần bạn"
+        },
+        "batch": {
+          "finished": "Mọi lần chạy đã xong"
+        }
+      },
+      "slack": "Slack",
+      "failed": "Gửi thất bại",
+      "test": "Thử",
+      "testSent": "Đã gửi bản thử",
+      "testFailed": "Không gửi được bản thử: {{error}}",
+      "remove": "Xóa",
+      "url": "URL Slack hoặc webhook",
+      "urlPlaceholder": "https://hooks.slack.com/…",
+      "event": "Sự kiện",
+      "add": "Thêm",
+      "secret": "Khóa ký, chỉ hiện một lần:"
+    },
+    "inbox": {
+      "title": "Hộp thư",
+      "empty": "Không có gì đang chờ bạn.",
+      "notifyQuestion": "{{name}} cần bạn",
+      "notifyChange": "{{name}} muốn thay đổi ứng dụng",
+      "changes": {
+        "routines": {
+          "save": "Lưu quy trình {{name}}",
+          "run": "Chạy quy trình {{name}}",
+          "delete": "Xóa quy trình {{name}}"
+        },
+        "tasks": {
+          "run": "Chạy {{name}} trong các hồ sơ khác"
+        }
+      }
+    },
+    "memory": {
+      "title": "Bộ nhớ",
+      "choose": "Chọn một hồ sơ.",
+      "notes": "Những gì tác tử biết",
+      "note": "Ghi chú",
+      "notePlaceholder": "Thêm một thông tin cho các tác vụ sau",
+      "add": "Thêm",
+      "edit": "Sửa",
+      "delete": "Xóa ghi chú",
+      "empty": "Chưa có ghi chú. Các tác vụ sẽ thêm những gì chúng học được.",
+      "useHistory": "Dùng lịch sử của hồ sơ này",
+      "historyHint": "Các tác vụ thấy những trang hồ sơ này truy cập nhiều nhất trong 14 ngày qua. Thông tin này ở lại trên thiết bị này.",
+      "historySites": "Các tác vụ thấy: {{sites}}",
+      "actionsToday_one": "{{n}} thao tác hôm nay",
+      "actionsToday_other": "{{n}} thao tác hôm nay"
     }
   },
   "proxyDistribution": {
@@ -4831,6 +4980,30 @@
         "title": "Điều khiển nhiều profile cùng lúc",
         "body": "Chọn Khởi chạy với trình đồng bộ trong menu của profile và chọn các profile theo sau. Mỗi cú nhấp và phím gõ ở profile dẫn đầu được lặp lại ở từng profile theo sau.",
         "action": "Mở Hồ sơ"
+      },
+      "agentChat": {
+        "label": "Trò chuyện trong hồ sơ",
+        "title": "Giao việc cho tác tử trong một hồ sơ",
+        "body": "Viết điều bạn cần bằng lời của bạn. Tác tử làm việc trong trình duyệt của hồ sơ, bạn xem trực tiếp, và tác tử hỏi trước các bước quan trọng.",
+        "action": "Mở Tác tử"
+      },
+      "agentRun": {
+        "label": "Một tác vụ, nhiều hồ sơ",
+        "title": "Chạy một tác vụ trên nhiều hồ sơ",
+        "body": "Chọn hồ sơ, rồi chọn Tác tử trên thanh bên dưới bảng. Mỗi hàng cho thấy tiến độ tác vụ trong cột Tác tử.",
+        "action": "Mở Hồ sơ"
+      },
+      "agentRoutine": {
+        "label": "Quy trình",
+        "title": "Lặp lại tác vụ bằng quy trình",
+        "body": "Lưu tác vụ thành quy trình, rồi chạy thủ công hoặc theo lịch. Mỗi lượt chạy giữ kết quả cho từng hồ sơ.",
+        "action": "Mở Tác tử"
+      },
+      "agentTemplates": {
+        "label": "Mẫu",
+        "title": "Bắt đầu từ một mẫu",
+        "body": "Tác vụ có sẵn cho tài khoản, cửa hàng, quảng cáo, nghiên cứu và tình trạng hồ sơ. Chọn một mẫu và điền vào chỗ trống.",
+        "action": "Xem mẫu"
       }
     },
     "sections": {
@@ -4838,7 +5011,8 @@
       "network": "Mạng",
       "privacy": "Quyền riêng tư và dữ liệu",
       "connect": "Kết nối",
-      "plan": "Có trong gói của bạn"
+      "plan": "Có trong gói của bạn",
+      "agent": "Tác tử"
     },
     "progress": "Đã đọc {{read}}/{{total}}",
     "unread": "Chưa đọc",
@@ -5268,5 +5442,31 @@
     "description": "Phần này của Donut đã dừng do lỗi. Tải lại để tiếp tục. Lỗi đã được ghi vào nhật ký.",
     "reload": "Tải lại",
     "copyDetails": "Sao chép chi tiết"
+  },
+  "agentIntro": {
+    "notNow": "Để sau",
+    "hide": "Ẩn",
+    "done": "Xong",
+    "offer": {
+      "title": "Dùng thử tác tử",
+      "body": "Tác tử làm việc trong trình duyệt của hồ sơ này như một người dùng. Hãy chạy một tác vụ thật: kiểm tra proxy và vân tay có khớp nhau không.",
+      "start": "Chạy"
+    },
+    "working": {
+      "title": "Tác tử đang làm việc",
+      "body": "Đây là cửa sổ của tác tử, trực tiếp. Bạn có thể tiếp tục làm việc: cột Tác tử cho thấy tiến độ."
+    },
+    "result": {
+      "title": "Đây là kết quả",
+      "body": "Lưu thành quy trình để chạy lại trên bất kỳ hồ sơ nào, hoặc theo lịch."
+    },
+    "ended": {
+      "title": "Tác vụ chưa hoàn tất"
+    },
+    "saved": {
+      "title": "Đã lưu quy trình",
+      "body": "Chọn hồ sơ trong bảng và chạy từ menu Tác tử, hoặc đặt lịch trên trang Tác tử.",
+      "open": "Mở quy trình"
+    }
   }
 }

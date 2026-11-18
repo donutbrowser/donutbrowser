@@ -69,7 +69,7 @@ pub enum HostRequest {
 }
 
 impl HostRequest {
-  fn method(&self) -> &'static str {
+  pub(super) fn method(&self) -> &'static str {
     match self {
       Self::SaveRoutine { .. } => "routines.save",
       Self::RunRoutine { .. } => "routines.run",
@@ -267,7 +267,7 @@ async fn arrive(profile_id: String, call: Incoming) {
     Ok(Prepared::Ask(request)) => {
       let card = HostCall {
         call_id: call.call_id.clone(),
-        request,
+        request: *request,
         state: CallState::Pending,
         outcome: None,
         at: now_ms(),
@@ -287,7 +287,7 @@ async fn arrive(profile_id: String, call: Incoming) {
 
 enum Prepared {
   Answer(Value),
-  Ask(HostRequest),
+  Ask(Box<HostRequest>),
 }
 
 async fn prepare(method: &str, params: &Value) -> Result<Prepared, Refusal> {
@@ -318,7 +318,7 @@ async fn prepare(method: &str, params: &Value) -> Result<Prepared, Refusal> {
         Some(id) => Some(routine(&id).await?),
         None => None,
       };
-      save_request(params, current.as_ref(), &known_profiles()?).map(Prepared::Ask)
+      save_request(params, current.as_ref(), &known_profiles()?).map(|r| Prepared::Ask(Box::new(r)))
     }
     "routines.run" => {
       let found = routine(&optional_text(params, "id")?.ok_or(INVALID)?).await?;
@@ -327,20 +327,20 @@ async fn prepare(method: &str, params: &Value) -> Result<Prepared, Refusal> {
       if profile_ids.is_empty() {
         return Err(INVALID);
       }
-      Ok(Prepared::Ask(HostRequest::RunRoutine {
+      Ok(Prepared::Ask(Box::new(HostRequest::RunRoutine {
         id: found.id,
         name: found.name,
         profile_ids,
-      }))
+      })))
     }
     "routines.delete" => {
       let found = routine(&optional_text(params, "id")?.ok_or(INVALID)?).await?;
-      Ok(Prepared::Ask(HostRequest::DeleteRoutine {
+      Ok(Prepared::Ask(Box::new(HostRequest::DeleteRoutine {
         id: found.id,
         name: found.name,
-      }))
+      })))
     }
-    "tasks.run" => task_request(params, &known_profiles()?).map(Prepared::Ask),
+    "tasks.run" => task_request(params, &known_profiles()?).map(|r| Prepared::Ask(Box::new(r))),
     _ => Err(INVALID),
   }
 }
@@ -549,6 +549,13 @@ fn save_request(
     max_credits_per_run: current.and_then(|routine| routine.max_credits_per_run),
     concurrency: current.and_then(|routine| routine.concurrency),
     enabled,
+    effort: current.and_then(|routine| routine.effort),
+    pace: current.and_then(|routine| routine.pace),
+    caps: current.and_then(|routine| routine.caps),
+    output: current.and_then(|routine| routine.output.clone()),
+    playbook_ids: current
+      .map(|routine| routine.playbook_ids.clone())
+      .unwrap_or_default(),
   })
   .map_err(|_| INVALID)?;
   Ok(HostRequest::SaveRoutine {
@@ -605,7 +612,7 @@ async fn execute(request: &HostRequest) -> Result<(Value, Outcome), String> {
       id, profile_ids, ..
     } => {
       let routine = cloud::get_routine(id).await?;
-      let view = super::run_routine(routine, Some(profile_ids.clone()), None).await?;
+      let view = super::run_routine(routine, Some(profile_ids.clone()), None, None).await?;
       Ok(started(&view))
     }
     HostRequest::DeleteRoutine { id, .. } => {
@@ -630,6 +637,7 @@ async fn execute(request: &HostRequest) -> Result<(Value, Outcome), String> {
         autonomy: Autonomy::Ask,
         max_credits: None,
         headless: false,
+        brief: super::briefing::Brief::default(),
       };
       let view = super::start_batch(BatchSpec::one_off(order, profile_ids.clone(), None))?;
       Ok(started(&view))

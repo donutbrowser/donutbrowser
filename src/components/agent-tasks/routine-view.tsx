@@ -19,6 +19,8 @@ import {
   useScheduleWords,
 } from "@/components/agent-tasks/parts";
 import { RoutineEditor } from "@/components/agent-tasks/routine-editor";
+import { RoutineTable } from "@/components/agent-tasks/routine-table";
+import { RoutineTriggers } from "@/components/agent-tasks/routine-triggers";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { AnimatedSwitch } from "@/components/ui/animated-switch";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,7 @@ import {
   groupRoutineRuns,
   hostOf,
   listAgentRoutineRuns,
+  routineDraft,
   routinePaused,
   runAgentRoutine,
   stateCounts,
@@ -180,12 +183,17 @@ function RunLine({
 
 function BatchLine({
   batch,
+  routineId,
+  tabled,
   profileNames,
   open,
   onToggle,
   now,
 }: {
   batch: AgentRoutineBatch;
+  routineId: string;
+  /** The routine has columns: its runs read as a table. */
+  tabled: boolean;
   profileNames: Map<string, string>;
   open: boolean;
   onToggle: () => void;
@@ -222,13 +230,23 @@ function BatchLine({
           )}
         </span>
       </button>
-      {open && (
-        <ul className="flex flex-col pb-1 pl-8">
-          {batch.runs.map((run) => (
-            <RunLine key={run.runId} run={run} profileNames={profileNames} />
-          ))}
-        </ul>
-      )}
+      {open &&
+        (tabled ? (
+          <div className="pt-1 pb-2 pl-8">
+            <RoutineTable
+              routineId={routineId}
+              batchId={batch.batchId}
+              runs={batch.runs}
+              profileNames={profileNames}
+            />
+          </div>
+        ) : (
+          <ul className="flex flex-col pb-1 pl-8">
+            {batch.runs.map((run) => (
+              <RunLine key={run.runId} run={run} profileNames={profileNames} />
+            ))}
+          </ul>
+        ))}
     </li>
   );
 }
@@ -236,10 +254,14 @@ function BatchLine({
 function RunHistory({
   batches,
   error,
+  routineId,
+  tabled,
   profileNames,
 }: {
   batches: AgentRoutineBatch[] | null;
   error: unknown;
+  routineId: string;
+  tabled: boolean;
   profileNames: Map<string, string>;
 }) {
   const { t } = useTranslation();
@@ -269,6 +291,8 @@ function RunHistory({
           <BatchLine
             key={batch.batchId}
             batch={batch}
+            routineId={routineId}
+            tabled={tabled}
             profileNames={profileNames}
             open={open}
             now={now}
@@ -289,6 +313,7 @@ export function RoutineView({
   profiles,
   groups,
   canSchedule,
+  integrations,
   onUpgrade,
   finishedRuns,
   onSaved,
@@ -300,6 +325,8 @@ export function RoutineView({
   profiles: BrowserProfile[];
   groups: GroupWithCount[];
   canSchedule: boolean;
+  /** Webhooks and result deliveries, with the integrations flag. */
+  integrations: boolean;
   onUpgrade: () => void;
   /** Moves when a run finishes, so the history is read again. */
   finishedRuns: number;
@@ -330,14 +357,12 @@ export function RoutineView({
 
   const setEnabled = (enabled: boolean) =>
     act(async () => {
-      const {
-        id: _id,
-        createdAt: _c,
-        updatedAt: _u,
-        nextRunAt: _n,
-        ...draft
-      } = routine;
-      onSaved(await updateAgentRoutine(routine.id, { ...draft, enabled }));
+      onSaved(
+        await updateAgentRoutine(routine.id, {
+          ...routineDraft(routine),
+          enabled,
+        }),
+      );
     });
 
   return (
@@ -456,6 +481,12 @@ export function RoutineView({
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>{scheduleWords(routine.schedule)}</span>
+                {routine.effort && routine.effort !== "standard" && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{t(`agent.options.efforts.${routine.effort}`)}</span>
+                  </>
+                )}
                 {host && (
                   <>
                     <span aria-hidden="true">·</span>
@@ -498,6 +529,14 @@ export function RoutineView({
               )}
             </div>
           )}
+          {integrations && !editing && (
+            <RoutineTriggers
+              routine={routine}
+              onHook={(hook) => {
+                onSaved({ ...routine, hook });
+              }}
+            />
+          )}
           <div className="flex flex-col gap-1">
             <span className="px-2 text-xs font-medium text-muted-foreground">
               {t("agent.routines.history")}
@@ -505,6 +544,8 @@ export function RoutineView({
             <RunHistory
               batches={batches}
               error={error}
+              routineId={routine.id}
+              tabled={(routine.output?.columns.length ?? 0) > 0}
               profileNames={profileNames}
             />
           </div>
