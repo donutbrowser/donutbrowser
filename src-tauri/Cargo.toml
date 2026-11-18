@@ -46,7 +46,8 @@ tauri-plugin-window-state = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-autostart = "2"
 log = "0.4"
-env_logger = "0.11"
+# No `regex`: a RUST_LOG `/filter` matches as a substring.
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
 
 directories = "6"
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "json", "stream", "socks", "charset", "http2", "system-proxy"] }
