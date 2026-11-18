@@ -26,7 +26,8 @@ path = "src/bin/proxy_server.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-resvg = "0.49"
+# The tray icon SVG has no text and no embedded raster images.
+resvg = { version = "0.49", default-features = false }
 
 [dependencies]
 serde_json = "1"
@@ -61,7 +62,9 @@ native-tls = "0.2"
 tokio-native-tls = "0.3"
 tokio = { version = "1", features = ["full", "sync"] }
 tokio-util = "0.7"
-sysinfo = "0.40"
+# Only the process table. The default `gpu` module adds per-process GPU work to
+# every `RefreshKind::everything()` refresh.
+sysinfo = { version = "0.40", default-features = false, features = ["system"] }
 # 0.23 turns on `simd-unsafe` by default, decoding via hand-written unsafe
 # AVX2/NEON. This crate decodes attacker-influenced input (proxy CONNECT auth,
 # extension payloads, os_crypt key blobs), and none of those paths are hot
@@ -122,8 +125,8 @@ quick-xml = { version = "0.42", features = ["serialize"] }
 boringtun = "0.7"
 smoltcp = { version = "0.14", default-features = false, features = ["std", "medium-ip", "proto-ipv4", "proto-ipv6", "socket-tcp", "socket-udp", "socket-dns"] }
 
-# Tray icon decoding (main-process system tray)
-image = "0.25"
+# PNG for the tray icon, JPEG for live previews.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 dirs = "7"
 sys-locale = "0.3"
 jsonc-parser = { version = "0.34", features = ["cst", "serde_json"] }
