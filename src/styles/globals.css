@@ -189,6 +189,10 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* React's mount point adds no box: the app lays out as the body's child. */
+  #root {
+    display: contents;
+  }
   /* The browser's own focus outline, for elements without a drawn ring: the
      full ring color (a lighter one falls under 3:1), 2px off the element. */
   :focus-visible {
