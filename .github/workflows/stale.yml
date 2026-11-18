@@ -14,11 +14,27 @@ jobs:
       pull-requests: write
 
     steps:
+      # The triage bot asked for facts and the author did not answer.
       - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          stale-issue-message: "This issue has been inactive for 30 days. Please respond to keep it open."
-          stale-pr-message: "This pull request has been inactive for 30 days. Please respond to keep it open."
+          only-issue-labels: "needs-info"
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          days-before-issue-stale: 14
+          days-before-issue-close: 7
+          stale-issue-label: "stale"
+          stale-issue-message: "The questions above have no answer after 14 days. This issue closes in 7 days without one."
+          close-issue-message: "Closed: no answer to the questions above. Answer them here and a maintainer can reopen it."
+          close-issue-reason: "not_planned"
+          exempt-issue-assignees: "zhom"
+
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          exempt-issue-labels: "needs-info"
+          stale-issue-message: "No activity for 30 days. This issue closes in 7 days unless someone comments."
+          stale-pr-message: "No activity for 30 days. This pull request closes in 7 days unless someone comments."
           stale-issue-label: "stale"
           stale-pr-label: "stale"
           days-before-stale: 30

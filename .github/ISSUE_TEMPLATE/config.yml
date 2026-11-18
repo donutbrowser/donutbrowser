@@ -1,5 +1,14 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Questions & Discussion
+  - name: Question or idea
     url: https://github.com/donutbrowser/donutbrowser/discussions
-    about: Ask questions or discuss ideas here instead of opening an issue.
+    about: Ask how to do something, or discuss an idea before you request it.
+  - name: Documentation
+    url: https://donutbrowser.com/docs
+    about: Quickstart, automation, MCP and self-hosted sync.
+  - name: Security vulnerability
+    url: https://github.com/donutbrowser/donutbrowser/security/policy
+    about: Report it in private. Never open a public issue for it.
+  - name: Account or billing
+    url: https://donutbrowser.com
+    about: Email contact@donutbrowser.com. Never post account data here.

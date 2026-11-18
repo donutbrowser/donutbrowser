@@ -1,11 +1,12 @@
 name: Feature Request
 description: Suggest a new feature
+type: Feature
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Do not include passwords, access tokens, personal information, or other secrets. Automated triage sends the issue title and body to GitHub Copilot after redacting common sensitive-data patterns.
+        Do not include passwords, access tokens, personal information, or other secrets. Automated triage sends the title and body to an AI model. It redacts common secret patterns first.
 
   - type: textarea
     id: description
