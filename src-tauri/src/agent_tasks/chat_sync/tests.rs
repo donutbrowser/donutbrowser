@@ -132,7 +132,7 @@ fn add_turn(chat: &mut Chat, text: &str, at: u64) {
 
 fn step(index: u64) -> Step {
   Step {
-    index,
+    index: Some(index),
     kind: "act".into(),
     text: format!("Clicked button number {index} on the page with a long label"),
     url: Some(format!("https://example.com/page/{index}")),

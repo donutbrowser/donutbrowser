@@ -3970,6 +3970,9 @@ pub fn run_with_builder(
         for window in _app_handle.webview_windows().into_values() {
           let _ = window.hide();
         }
+        // Before the running profiles are remembered: it closes the hidden
+        // browsers of routines.
+        tauri::async_runtime::block_on(agent_tasks::shutdown());
         autostart::remember_running_profiles();
         crate::profile::activity::close_all();
         remote_session::stop_session_events();

@@ -22,6 +22,7 @@ import {
   repeatCron,
   repeatParts,
   routineFromBatch,
+  routineFromPrompt,
   routineFromTurn,
   rowsForAttention,
   stateCounts,
@@ -97,6 +98,7 @@ test("progress, titles and credits read plainly", () => {
   assert.equal(creditsLeft({ unlimited: true }), null);
   assert.ok(isCron("0 9 * * 1-5"));
   assert.ok(!isCron("daily"));
+  assert.ok(!isCron("0 0 9 * * 1-5"), "the cloud takes five fields only");
   assert.ok(isWebUrl("https://example.com/a"));
   assert.ok(!isWebUrl("file:///etc/passwd"));
 });
@@ -298,4 +300,20 @@ test("a schedule's next run is the first time after now that it fires", () => {
     null,
   );
   assert.equal(nextRunAt(null, thursday, zone), null);
+});
+
+test("a routine from a template takes the template's name", () => {
+  const prompt =
+    "Warm up this profile for about 15 minutes. Visit popular news sites.";
+  assert.equal(
+    routineFromPrompt(prompt, ["a"], "Warm up a profile").name,
+    "Warm up a profile",
+  );
+  assert.equal(
+    routineFromPrompt(prompt, ["a"], "  ").name.startsWith(
+      "Warm up this profile",
+    ),
+    true,
+  );
+  assert.equal(routineFromPrompt(prompt, ["a"]).profileIds[0], "a");
 });

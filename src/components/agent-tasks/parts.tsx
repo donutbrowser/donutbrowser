@@ -31,6 +31,7 @@ import {
   isWebUrl,
   MAX_CONCURRENCY,
   nextRunAt,
+  routinePaused,
   STATE_FILL,
   TASK_STATUSES,
   taskState,
@@ -120,6 +121,17 @@ export function CreditsMeter({
   }
   const empty = left.left === 0;
   const spread = layout === "spread";
+  const waiting =
+    credits.freeGrant === "pending" && credits.freeGrantAt
+      ? t("agent.credits.freePending", {
+          time: new Date(credits.freeGrantAt).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+        })
+      : credits.freeGrant === "denied"
+        ? t("agent.credits.freeDenied")
+        : null;
   return (
     <div
       data-slot="agent-credits"
@@ -127,10 +139,13 @@ export function CreditsMeter({
         "flex items-center gap-2",
         spread && "justify-between gap-3",
       )}
-      title={t("agent.credits.detail", {
-        used: format(credits.used),
-        total: format(credits.allowance + credits.extra),
-      })}
+      title={
+        waiting ??
+        t("agent.credits.detail", {
+          used: format(credits.used),
+          total: format(credits.allowance + credits.extra),
+        })
+      }
     >
       <span
         className={cn(
@@ -138,7 +153,9 @@ export function CreditsMeter({
           empty ? "text-warning-text" : "text-muted-foreground",
         )}
       >
-        {t("agent.credits.left", { n: format(left.left) })}
+        {empty && waiting
+          ? waiting
+          : t("agent.credits.left", { n: format(left.left) })}
       </span>
       <span
         role="meter"
@@ -174,7 +191,10 @@ export function useNextRunWords() {
     return (routine: AgentRoutine, now: number): string => {
       if (!routine.enabled) return t("agent.chat.routineOff");
       if (!routine.schedule) return t("agent.routines.manual");
-      const next = nextRunAt(routine.schedule, new Date(now));
+      if (routinePaused(routine)) return t("agent.routines.paused");
+      const next = routine.nextRunAt
+        ? new Date(routine.nextRunAt)
+        : nextRunAt(routine.schedule, new Date(now));
       if (!next) return scheduleWords(routine.schedule);
       const today = new Date(now).toDateString() === next.toDateString();
       const when = today
@@ -188,6 +208,7 @@ export function useNextRunWords() {
 /** Task statuses, and the run statuses only the cloud reports. */
 const KNOWN_STATUSES: ReadonlySet<string> = new Set([
   ...TASK_STATUSES,
+  "pending",
   "missed",
 ]);
 

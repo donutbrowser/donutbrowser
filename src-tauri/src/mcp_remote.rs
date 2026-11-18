@@ -934,9 +934,6 @@ fn dispatch(
       let tx = tx.clone();
       tokio::spawn(async move {
         let outcome = crate::agent_tasks::run_routine_from_cloud(&params).await;
-        if let Err(e) = &outcome {
-          log::warn!("Agent routine fire refused err={e}");
-        }
         if let Some(cid) = cid {
           let _ = tx
             .send(encode(&run_routine_result(
@@ -971,9 +968,6 @@ fn dispatch(
             .cloned()
             .unwrap_or(serde_json::Value::Null);
           let outcome = crate::agent_tasks::run_routine_from_cloud(&params).await;
-          if let Err(e) = &outcome {
-            log::warn!("Agent routine fire refused err={e}");
-          }
           let _ = tx
             .send(encode(&run_routine_result(&cid, id, outcome)))
             .await;
@@ -1002,21 +996,28 @@ fn dispatch(
   }
 }
 
-/// The answer to a fired routine, as a JSON-RPC body in a result frame.
+/// The answer to a fired routine, as a JSON-RPC body in a result frame. A
+/// refused fire is not `ok`, so the cloud does not count it as running.
 fn run_routine_result(
   cid: &str,
   id: serde_json::Value,
   outcome: Result<serde_json::Value, String>,
 ) -> serde_json::Value {
-  let body = match outcome {
-    Ok(result) => serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result }),
-    Err(code) => serde_json::json!({
-      "jsonrpc": "2.0",
-      "id": id,
-      "error": { "code": -32000, "message": code },
-    }),
+  let (status, body) = match outcome {
+    Ok(result) => (
+      "ok",
+      serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+    ),
+    Err(code) => (
+      "badRequest",
+      serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": { "code": -32000, "message": code },
+      }),
+    ),
   };
-  serde_json::json!({ "t": "result", "cid": cid, "status": "ok", "payload": body })
+  serde_json::json!({ "t": "result", "cid": cid, "status": status, "payload": body })
 }
 
 fn encode(value: &serde_json::Value) -> Message {
@@ -1092,11 +1093,14 @@ mod tests {
       Err(r#"{"code":"AGENT_NOT_ENTITLED"}"#.to_string()),
     );
     assert_eq!(refused["cid"], "c9");
+    assert_eq!(refused["status"], "badRequest", "a refused fire is not ok");
     assert_eq!(refused["payload"]["id"], 4);
     assert!(refused["payload"]["error"]["message"]
       .as_str()
       .unwrap()
       .contains("AGENT_NOT_ENTITLED"));
+    let fired = run_routine_result("c1", serde_json::json!(1), Ok(serde_json::json!({})));
+    assert_eq!(fired["status"], "ok");
   }
 
   #[test]

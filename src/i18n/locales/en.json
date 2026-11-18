@@ -2971,12 +2971,13 @@
     "agentApprovalClosed": "This question is no longer open.",
     "agentBrowserUnreachable": "The browser of the profile did not answer.",
     "agentBrowserClosed": "The browser closed before the task ended.",
+    "agentTaskSilent": "The agent sent nothing for 15 minutes, so the task was ended.",
     "agentPromptEmpty": "Write a task first.",
     "agentStartUrlInvalid": "The start page must be an http or https address.",
     "agentRoutineInvalid": "The routine is not valid. Check its fields.",
     "agentRoutineNotFound": "That routine no longer exists.",
     "agentNoProfiles": "Choose at least one profile.",
-    "agentTooManyProfiles": "Too many profiles for one run. The limit is 500.",
+    "agentTooManyProfiles": "Too many profiles. The limit is {{max}}.",
     "agentTaskNotFound": "That task is no longer running.",
     "agentBatchNotFound": "That run is no longer in the list.",
     "agentActionInvalid": "The agent does not know that action.",
@@ -2991,7 +2992,13 @@
     "extensionNotFromStore": "This extension did not come from the Chrome Web Store.",
     "extensionUpdateNeedsConsent": "The new version asks for more access: {{permissions}}",
     "bookmarksFileInvalid": "Donut cannot read bookmarks from this file. Use Chrome's Bookmarks file or an exported HTML file.",
-    "previewsNotEntitled": "Live previews need the Pro plan or higher."
+    "previewsNotEntitled": "Live previews need the Pro plan or higher.",
+    "agentRoutineLimit": "You have the maximum number of routines. Delete one to add a new one.",
+    "agentScheduleTooOften": "A routine can run at most once every 5 minutes.",
+    "desktopOffline": "Donut was not open at the scheduled time.",
+    "desktopRefused": "Donut could not start this run.",
+    "runLost": "Donut stopped reporting on this run.",
+    "freeCreditsPending": "Your free credits are not ready yet. New accounts get them after a short check."
   },
   "rail": {
     "profiles": "Profiles",
@@ -4215,7 +4222,9 @@
       "unlimited": "Unlimited credits",
       "detail": "{{used}} of {{total}} credits used this period",
       "left": "{{n}} credits left",
-      "meter": "Credits left this period"
+      "meter": "Credits left this period",
+      "freePending": "Free credits arrive at {{time}}",
+      "freeDenied": "Free credits are not available on this account"
     },
     "tasks": {
       "status": {
@@ -4230,7 +4239,8 @@
         "no_credits": "Out of credits",
         "budget": "Credit cap reached",
         "missed": "Missed",
-        "unknown": "Unknown"
+        "unknown": "Unknown",
+        "pending": "Waiting"
       },
       "chooseProfiles": "Choose profiles",
       "searchProfiles": "Search profiles",
@@ -4313,7 +4323,10 @@
         "custom": "On schedule {{cron}}",
         "minutes_one": "Every minute",
         "minutes_other": "Every {{count}} minutes"
-      }
+      },
+      "paused": "Paused",
+      "pausedPlan": "The schedule is paused. Schedules need a paid plan.",
+      "pausedResume": "The schedule was paused while your plan did not include schedules."
     },
     "chat": {
       "chooseProfile": "Choose a profile",
@@ -4376,7 +4389,8 @@
         "eraseTitle": "Erase synced chats?",
         "eraseBody": "This removes them from every device. Chats on this computer stay.",
         "eraseConfirm": "Erase"
-      }
+      },
+      "fillBlank": "Replace {{blank}} with your own words. Tab goes to the next blank."
     },
     "shell": {
       "sidebar": "Chats, runs and routines",

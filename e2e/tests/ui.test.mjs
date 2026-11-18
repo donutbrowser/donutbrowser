@@ -8269,7 +8269,17 @@ test("with the agent and a Wayfern without the engine, a send says so in a toast
       "no schedule without the plan",
     );
 
-    // The send reaches the backend; an old Wayfern answers with a toast.
+    // The blank is replaced like typing does; then the send reaches the
+    // backend, and an old Wayfern answers with a toast.
+    await app.execute(
+      `const box = document.querySelector('[data-slot="chat-input"]');
+       box.setRangeText("Etsy", box.selectionStart, box.selectionEnd, "end");
+       box.dispatchEvent(new Event("input", { bubbles: true }));`,
+    );
+    const filled = en.agent.templates.items.newOrders.prompt.replace(
+      "[marketplace]",
+      "Etsy",
+    );
     await app.clickSelector('[data-slot="chat-send"]');
     await app.waitFor(
       async () =>
@@ -8282,7 +8292,7 @@ test("with the agent and a Wayfern without the engine, a send says so in a toast
       await app.execute(
         `return document.querySelector('[data-slot="chat-input"]').value;`,
       ),
-      en.agent.templates.items.newOrders.prompt,
+      filled,
       "the words stay in the box",
     );
     assert.equal(await agentCallCount(app, "create_agent_chat"), 1);
@@ -9039,6 +9049,293 @@ async function chatState(app) {
 }
 
 /** Type into the composer and press Enter, the way a person sends. */
+test("routines hold a template's blanks, fire on schedule by themselves, and explain every run", async () => {
+  await withApp(
+    "ui-agent-routine-edges",
+    async (app) => {
+      const profiles = [];
+      for (const name of ["Atlas", "Borealis", "Cirrus"]) {
+        profiles.push(await createUiProfile(app, name));
+      }
+      const ids = profiles.map((profile) => profile.id);
+      await signInWithAgent(app, scheduledAgentUser());
+      await app.waitForText("Cirrus");
+      // The account turned paid: its welcome comes first; Later closes it.
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="paid-welcome"]'));`,
+          ),
+        { description: "the paid welcome" },
+      );
+      await app.execute(
+        `[...document.querySelectorAll('[data-slot="paid-welcome"] button')]
+           .find((button) => button.innerText.trim() === arguments[0])
+           .click();`,
+        [en.paidWelcome.later],
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return !document.querySelector('[data-slot="dialog-overlay"]');`,
+          ),
+        { description: "the welcome closed" },
+      );
+      await app.execute(`document.querySelector(arguments[0]).click();`, [
+        `[aria-label="${en.rail.agent}"]`,
+      ]);
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-template"][data-template="warmUp"]'));`,
+          ),
+        { description: "the featured templates" },
+      );
+
+      // A template fills the box, selects its blank and holds the save
+      // until the blank is replaced.
+      await app.execute(
+        `document.querySelector('[data-slot="agent-template"][data-template="warmUp"]').click();`,
+      );
+      const blank =
+        en.agent.templates.items.warmUp.prompt.match(/\[[^\]]+\]/)[0];
+      const selected = () =>
+        app.execute(
+          `const box = document.querySelector('[data-slot="chat-input"]');
+           return box ? box.value.slice(box.selectionStart, box.selectionEnd) : null;`,
+        );
+      await app.waitFor(async () => (await selected()) === blank, {
+        description: "the template's blank selected",
+      });
+      assert.ok(
+        await app.execute(
+          `const box = document.querySelector('[data-slot="chat-input"]');
+           return box.scrollHeight <= box.clientHeight + 1;`,
+        ),
+        "the box shows the whole template",
+      );
+      assert.equal(
+        await app.execute(
+          `return document.querySelector('[data-slot="chat-blank-hint"]')?.innerText;`,
+        ),
+        en.agent.chat.fillBlank.replace("{{blank}}", blank),
+      );
+      assert.equal(
+        await app.execute(
+          `return document.querySelector('[data-slot="chat-composer"]').dataset.target;`,
+        ),
+        "routine",
+        "the template's schedule makes it a routine",
+      );
+      await captureBothThemes(app, "agent-template-blank");
+      await app.execute(
+        `const box = document.querySelector('[data-slot="chat-input"]');
+         box.setSelectionRange(0, 0);`,
+      );
+      await app.clickSelector('[data-slot="chat-send"]');
+      assert.deepEqual(await app.invoke("list_agent_routines"), []);
+      assert.equal(await selected(), blank, "Save selects the blank again");
+      await app.execute(
+        `const box = document.querySelector('[data-slot="chat-input"]');
+         box.setRangeText("[soon] running shoes", box.selectionStart, box.selectionEnd, "end");
+         box.dispatchEvent(new Event("input", { bubbles: true }));`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return !document.querySelector('[data-slot="chat-blank-hint"]') &&
+               document.querySelector('[data-slot="chat-send"]').disabled === false;`,
+          ),
+        { description: "the hint gone once the blank is filled" },
+      );
+      await app.clickSelector('[data-slot="chat-send"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-routine"]'));`,
+          ),
+        { description: "the saved routine" },
+      );
+      const [warmUp] = await app.invoke("list_agent_routines");
+      assert.equal(warmUp.name, en.agent.templates.items.warmUp.title);
+      assert.ok(warmUp.prompt.includes("running shoes"));
+      assert.ok(!warmUp.prompt.includes(blank));
+      assert.equal(warmUp.schedule.cron, "0 11 * * *");
+
+      // At its time the app claims the fire and runs it, without a click.
+      await app.waitFor(
+        async () => {
+          const runs = await app.invoke("list_agent_routine_runs", {
+            id: warmUp.id,
+          });
+          return runs.length === 1 && runs[0].status === "done";
+        },
+        { timeoutMs: 60_000, description: "the scheduled run done" },
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-routine-run"] button')?.disabled === false;`,
+          ),
+        { timeoutMs: 20_000, description: "the run in the history" },
+      );
+      await app.execute(
+        `document.querySelector('[data-slot="agent-routine-run"] button').click();`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-routine-run-detail"]')?.innerText.trim().length > 0;`,
+          ),
+        { description: "the run's result" },
+      );
+      assert.ok(
+        await app.execute(
+          `return document.querySelector('[data-slot="agent-run-item"]').innerText.includes(arguments[0]);`,
+          [warmUp.name],
+        ),
+        "the run is listed under its routine's name",
+      );
+      await captureBothThemes(app, "agent-routine-fired");
+
+      // A fire missed while Donut was closed, then a run that fails: the
+      // history says why for each profile.
+      const failing = await app.invoke("create_agent_routine", {
+        routine: {
+          name: "Order check",
+          prompt: "[missed] [fail] Check the newest order",
+          startUrl: null,
+          profileIds: ids,
+          schedule: null,
+          maxCreditsPerRun: null,
+          concurrency: null,
+          enabled: true,
+        },
+      });
+      await openSidebarItem(
+        app,
+        `[data-slot="agent-routine-item"][data-routine-id="${failing.id}"]`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return [...document.querySelectorAll('[data-slot="agent-routine-run"]')]
+               .filter((row) => row.innerText.includes(arguments[0])).length === 3;`,
+            [en.backendErrors.desktopOffline],
+          ),
+        { description: "three missed runs that say Donut was closed" },
+      );
+      await app.clickSelector('[data-slot="agent-routine-run-now"]');
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-batch"]')?.dataset.finished === "true";`,
+          ),
+        { timeoutMs: 60_000, description: "the failing run finished" },
+      );
+      await openSidebarItem(
+        app,
+        `[data-slot="agent-routine-item"][data-routine-id="${failing.id}"]`,
+      );
+      await app.waitFor(
+        async () => {
+          const runs = await app.invoke("list_agent_routine_runs", {
+            id: failing.id,
+          });
+          return runs.filter((run) => run.status === "failed").length === 3;
+        },
+        { description: "three failed runs in the cloud" },
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelectorAll('[data-slot="agent-routine-batch"]').length === 2 &&
+               document.querySelectorAll('[data-slot="agent-routine-run"]').length === 3;`,
+          ),
+        { description: "two batches, the newest open" },
+      );
+      await app.execute(
+        `document.querySelector('[data-slot="agent-routine-run"] button').click();`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return document.querySelector('[data-slot="agent-routine-run-detail"]')?.innerText.includes("did not load");`,
+          ),
+        { description: "the failure's reason" },
+      );
+      await captureBothThemes(app, "agent-routine-failed");
+
+      // Stopping a run that still has profiles waiting closes every run in
+      // the cloud: none stays pending.
+      const queued = await app.invoke("create_agent_routine", {
+        routine: {
+          name: "Price watch",
+          prompt: "[slow] Watch the price",
+          startUrl: null,
+          profileIds: ids,
+          schedule: null,
+          maxCreditsPerRun: null,
+          concurrency: 1,
+          enabled: true,
+        },
+      });
+      const batch = await app.invoke("run_agent_routine", { id: queued.id });
+      await app.waitFor(
+        async () =>
+          (await app.invoke("list_agent_batches")).some(
+            (item) =>
+              item.id === batch.id &&
+              item.tasks.some((task) => task.status === "running"),
+          ),
+        { timeoutMs: 30_000, description: "the first profile working" },
+      );
+      await app.invoke("stop_agent_batch", { batchId: batch.id });
+      await app.waitFor(
+        async () => {
+          const runs = await app.invoke("list_agent_routine_runs", {
+            id: queued.id,
+          });
+          return (
+            runs.length === 3 && runs.every((run) => run.status === "stopped")
+          );
+        },
+        { timeoutMs: 30_000, description: "every run stopped in the cloud" },
+      );
+
+      // A routine whose plan lost schedules says it is paused, not when it
+      // runs next.
+      const paused = await app.invoke("create_agent_routine", {
+        routine: {
+          name: "Morning check",
+          prompt: "[paused] Read the inbox",
+          startUrl: null,
+          profileIds: [ids[0]],
+          schedule: { cron: "0 9 * * *", timezone: "UTC" },
+          maxCreditsPerRun: null,
+          concurrency: null,
+          enabled: true,
+        },
+      });
+      await openSidebarItem(
+        app,
+        `[data-slot="agent-routine-item"][data-routine-id="${paused.id}"]`,
+      );
+      await app.waitFor(
+        () =>
+          app.execute(
+            `return Boolean(document.querySelector('[data-slot="agent-routine-paused"]')) &&
+               document.querySelector('[data-slot="agent-routine-item"][data-routine-id="' + arguments[0] + '"]').innerText.includes(arguments[1]);`,
+            [paused.id, en.agent.routines.paused],
+          ),
+        { description: "the paused routine" },
+      );
+      await captureBothThemes(app, "agent-routine-paused");
+    },
+    { extraEnv: { DONUT_E2E_AGENT_ENGINE: "mock" } },
+  );
+});
+
 async function sendChat(app, text) {
   await app.fillSelector('[data-slot="chat-input"]', text);
   const input = await app.execute(

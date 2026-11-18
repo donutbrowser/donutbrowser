@@ -203,11 +203,14 @@ function ChatRow({
 
 function RunRow({
   batch,
+  title,
   selected,
   now,
   onSelect,
 }: {
   batch: AgentBatch;
+  /** The routine's name for a routine's run, else the task's first words. */
+  title: string;
   selected: boolean;
   now: number;
   onSelect: () => void;
@@ -237,7 +240,7 @@ function RunRow({
           </span>
         )}
         <RowText
-          title={promptTitle(batch.prompt)}
+          title={title}
           detail={
             batch.finished ? (
               <>
@@ -350,8 +353,14 @@ export function AgentSidebar({
     closeSidebar();
   };
 
+  const routineNames = new Map(
+    routines.map((routine) => [routine.id, routine.name] as const),
+  );
+  const runTitle = (batch: AgentBatch) =>
+    (batch.routineId && routineNames.get(batch.routineId)) ||
+    promptTitle(batch.prompt);
   const liveRuns = batches.filter(
-    (batch) => !batch.finished && matches(q, batch.prompt),
+    (batch) => !batch.finished && matches(q, runTitle(batch), batch.prompt),
   );
   const liveChats = chats.filter(
     (chat) =>
@@ -391,7 +400,7 @@ export function AgentSidebar({
           item.chat.title,
           item.chat.profileName ?? profileNames.get(item.chat.profileId),
         )
-      : matches(q, item.batch.prompt),
+      : matches(q, runTitle(item.batch), item.batch.prompt),
   );
   const nothing =
     q.length > 0 &&
@@ -443,6 +452,7 @@ export function AgentSidebar({
                 <RunRow
                   key={batch.id}
                   batch={batch}
+                  title={runTitle(batch)}
                   selected={is("run", batch.id)}
                   now={now}
                   onSelect={() => {
@@ -505,6 +515,7 @@ export function AgentSidebar({
                   <RunRow
                     key={item.batch.id}
                     batch={item.batch}
+                    title={runTitle(item.batch)}
                     selected={is("run", item.batch.id)}
                     now={now}
                     onSelect={() => {

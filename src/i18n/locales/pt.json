@@ -2991,12 +2991,13 @@
     "agentApprovalClosed": "Esta pergunta não está mais aberta.",
     "agentBrowserUnreachable": "O navegador do perfil não respondeu.",
     "agentBrowserClosed": "O navegador fechou antes do fim da tarefa.",
+    "agentTaskSilent": "O agente não enviou nada por 15 minutos, então a tarefa foi encerrada.",
     "agentPromptEmpty": "Escreva uma tarefa primeiro.",
     "agentStartUrlInvalid": "A página inicial deve ser um endereço http ou https.",
     "agentRoutineInvalid": "A rotina não é válida. Verifique os campos.",
     "agentRoutineNotFound": "Essa rotina não existe mais.",
     "agentNoProfiles": "Escolha pelo menos um perfil.",
-    "agentTooManyProfiles": "Perfis demais para uma execução. O limite é 500.",
+    "agentTooManyProfiles": "Perfis demais. O limite é {{max}}.",
     "agentTaskNotFound": "Essa tarefa não está mais em execução.",
     "agentBatchNotFound": "Essa execução não está mais na lista.",
     "agentActionInvalid": "O agente não conhece essa ação.",
@@ -3011,7 +3012,13 @@
     "extensionNotFromStore": "Esta extensão não veio da Chrome Web Store.",
     "extensionUpdateNeedsConsent": "A nova versão pede mais acesso: {{permissions}}",
     "bookmarksFileInvalid": "O Donut não consegue ler favoritos deste arquivo. Use o arquivo Bookmarks do Chrome ou um arquivo HTML exportado.",
-    "previewsNotEntitled": "As pré-visualizações ao vivo precisam do plano Pro ou superior."
+    "previewsNotEntitled": "As pré-visualizações ao vivo precisam do plano Pro ou superior.",
+    "agentRoutineLimit": "Você tem o número máximo de rotinas. Exclua uma para adicionar outra.",
+    "agentScheduleTooOften": "Uma rotina pode ser executada no máximo uma vez a cada 5 minutos.",
+    "desktopOffline": "O Donut não estava aberto no horário agendado.",
+    "desktopRefused": "O Donut não conseguiu iniciar esta execução.",
+    "runLost": "O Donut parou de informar sobre esta execução.",
+    "freeCreditsPending": "Seus créditos gratuitos ainda não estão prontos. Contas novas os recebem após uma breve verificação."
   },
   "rail": {
     "profiles": "Perfis",
@@ -4263,7 +4270,9 @@
       "unlimited": "Créditos ilimitados",
       "detail": "{{used}} de {{total}} créditos usados neste período",
       "left": "{{n}} créditos restantes",
-      "meter": "Créditos restantes neste período"
+      "meter": "Créditos restantes neste período",
+      "freePending": "Os créditos gratuitos chegam às {{time}}",
+      "freeDenied": "Esta conta não tem créditos gratuitos"
     },
     "tasks": {
       "status": {
@@ -4278,7 +4287,8 @@
         "no_credits": "Sem créditos",
         "budget": "Limite de créditos atingido",
         "missed": "Perdida",
-        "unknown": "Desconhecido"
+        "unknown": "Desconhecido",
+        "pending": "Aguardando"
       },
       "chooseProfiles": "Escolher perfis",
       "searchProfiles": "Buscar perfis",
@@ -4365,7 +4375,10 @@
         "minutes_one": "A cada minuto",
         "minutes_many": "A cada {{count}} minutos",
         "minutes_other": "A cada {{count}} minutos"
-      }
+      },
+      "paused": "Pausada",
+      "pausedPlan": "O agendamento está pausado. Agendamentos exigem um plano pago.",
+      "pausedResume": "O agendamento foi pausado enquanto seu plano não incluía agendamentos."
     },
     "chat": {
       "chooseProfile": "Escolher um perfil",
@@ -4429,7 +4442,8 @@
         "eraseTitle": "Apagar os chats sincronizados?",
         "eraseBody": "Eles são removidos de todos os dispositivos. Os chats deste computador continuam.",
         "eraseConfirm": "Apagar"
-      }
+      },
+      "fillBlank": "Substitua {{blank}} pelas suas próprias palavras. Tab vai para a próxima lacuna."
     },
     "shell": {
       "sidebar": "Chats, execuções e rotinas",

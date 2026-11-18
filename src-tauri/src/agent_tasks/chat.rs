@@ -11,7 +11,7 @@
 use super::engine::{EngineError, EngineLink};
 use super::host::{self, HostCall};
 use super::model::{EngineEvent, Task, TaskStatus};
-use super::{attach, ensure_entitled, error_code, load_profile, now_ms};
+use super::{attach, ensure_entitled, error_code, load_profile, now_ms, stop_engine_task};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -28,6 +28,8 @@ const MAX_STEERS: usize = 50;
 const MAX_TITLE_CHARS: usize = 80;
 /// A step is saved with the next change at most this often.
 const STEP_SAVE_EVERY_MS: u64 = 2_000;
+/// The longest record of earlier turns a chat's new task gets.
+const MAX_HISTORY_CHARS: usize = 6_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -237,20 +239,76 @@ impl Chat {
   }
 
   /// A chat read back from disk: a turn that was running when the app quit
-  /// has stopped as far as this app knows.
-  fn settle(&mut self, now: u64) {
+  /// has stopped as far as this app knows. Returns the engine tasks of those
+  /// turns, which a browser still open may run.
+  ///
+  /// A stopped turn makes the chat just newer than the copy it was, so it
+  /// uploads, yet older than a change another device made since.
+  fn settle(&mut self, now: u64) -> Vec<String> {
+    let mut changed = false;
+    let mut stopped = Vec::new();
     for turn in &mut self.turns {
       if !turn.task.status.is_final() {
         turn.task.status = TaskStatus::Stopped;
         turn.task.approval = None;
         turn.task.finished_at.get_or_insert(now);
+        stopped.extend(turn.task.task_id.clone());
+        changed = true;
       }
       host::drop_waiting(turn);
       while turn.task.steps.len() > MAX_TURN_STEPS {
         turn.task.steps.pop_front();
       }
     }
+    if changed {
+      self.updated_at += 1;
+    }
+    stopped
   }
+}
+
+/// Earlier turns, newest last and at most `MAX_HISTORY_CHARS`, for a task
+/// that starts over in a chat: the engine lost the old one and with it the
+/// conversation.
+fn transcript(turns: &[Turn]) -> String {
+  let mut entries = Vec::new();
+  let mut room = MAX_HISTORY_CHARS;
+  for turn in turns.iter().rev() {
+    let mut entry = format!("User: {}", turn.text.trim());
+    if let Some(result) = turn
+      .task
+      .result
+      .as_deref()
+      .map(str::trim)
+      .filter(|result| !result.is_empty())
+    {
+      entry.push_str("\nAgent: ");
+      entry.push_str(result);
+    }
+    let size = entry.chars().count() + 2;
+    if size > room {
+      if entries.is_empty() {
+        entries.push(entry.chars().take(room).collect());
+      }
+      break;
+    }
+    room -= size;
+    entries.push(entry);
+  }
+  entries.reverse();
+  entries.join("\n\n")
+}
+
+/// The words a task that starts over gets: the earlier turns, then the new
+/// message.
+/// What comes before the new message in a prompt that carries the history.
+pub(super) const NEW_MESSAGE: &str = "\n\nNew message:\n\n";
+
+fn with_history(history: &str, text: &str) -> String {
+  if history.is_empty() {
+    return text.to_string();
+  }
+  format!("Earlier in this chat:\n\n{history}{NEW_MESSAGE}{text}")
 }
 
 /// What a follow-up does after the engine answered `agentMessage`.
@@ -311,10 +369,13 @@ fn save_to(dir: &Path, chat: &Chat) -> std::io::Result<()> {
   write_atomic(&path, &serde_json::to_vec(chat)?)
 }
 
-fn load_from(dir: &Path, now: u64) -> HashMap<String, Chat> {
+/// The chats in `dir`, and the engine tasks of turns stopped on reading
+/// them, by profile.
+fn load_from(dir: &Path, now: u64) -> (HashMap<String, Chat>, Vec<(String, String)>) {
   let mut chats = HashMap::new();
+  let mut orphans = Vec::new();
   let Ok(entries) = std::fs::read_dir(dir) else {
-    return chats;
+    return (chats, orphans);
   };
   let mut unreadable = 0usize;
   for entry in entries.flatten() {
@@ -327,7 +388,9 @@ fn load_from(dir: &Path, now: u64) -> HashMap<String, Chat> {
       .and_then(|bytes| serde_json::from_slice::<Chat>(&bytes).ok())
     {
       Some(mut chat) if chat_path(dir, &chat.id).as_deref() == Some(path.as_path()) => {
-        chat.settle(now);
+        for task_id in chat.settle(now) {
+          orphans.push((chat.profile_id.clone(), task_id));
+        }
         chats.insert(chat.id.clone(), chat);
       }
       _ => unreadable += 1,
@@ -336,7 +399,7 @@ fn load_from(dir: &Path, now: u64) -> HashMap<String, Chat> {
   if unreadable > 0 {
     log::warn!("Agent chats skipped unreadable={unreadable}");
   }
-  chats
+  (chats, orphans)
 }
 
 #[derive(Default)]
@@ -344,6 +407,10 @@ struct Chats {
   loaded: bool,
   chats: HashMap<String, Chat>,
   saved_at: HashMap<String, u64>,
+  /// Steers sent while a turn launched, by turn, until the engine has it.
+  waiting_steers: HashMap<String, Vec<String>>,
+  /// Engine tasks of turns stopped when the chats were read, by profile.
+  orphans: Vec<(String, String)>,
 }
 
 static CHATS: LazyLock<Mutex<Chats>> = LazyLock::new(|| Mutex::new(Chats::default()));
@@ -351,7 +418,7 @@ static CHATS: LazyLock<Mutex<Chats>> = LazyLock::new(|| Mutex::new(Chats::defaul
 fn chats() -> MutexGuard<'static, Chats> {
   let mut guard = CHATS.lock().unwrap_or_else(|p| p.into_inner());
   if !guard.loaded {
-    guard.chats = load_from(&chats_dir(), now_ms());
+    (guard.chats, guard.orphans) = load_from(&chats_dir(), now_ms());
     guard.loaded = true;
   }
   guard
@@ -413,10 +480,13 @@ fn publish(chat: &Chat) {
   );
 }
 
-/// Whether a chat other than `except` has a running turn on the profile.
+/// Whether a chat other than `except` has a turn running here on the
+/// profile. A turn another device runs holds nothing here.
 pub(super) fn busy(profile_id: &str, except: Option<&str>) -> bool {
   chats().chats.values().any(|chat| {
-    chat.profile_id == profile_id && chat.is_active() && Some(chat.id.as_str()) != except
+    chat.profile_id == profile_id
+      && Some(chat.id.as_str()) != except
+      && super::chat_sync::runs_here(chat)
   })
 }
 
@@ -452,12 +522,11 @@ pub(super) fn on_link_closed(profile_id: &str) {
   let ended: Vec<(String, Task)> = store
     .chats
     .values_mut()
-    .filter(|chat| chat.profile_id == profile_id)
+    .filter(|chat| chat.profile_id == profile_id && super::chat_sync::runs_here(chat))
     .filter_map(|chat| {
-      let turn = chat.current_mut()?;
-      if !turn.task.status.is_active() || turn.task.task_id.is_none() {
-        return None;
-      }
+      let turn = chat
+        .current_mut()
+        .filter(|turn| turn.task.task_id.is_some())?;
       turn
         .task
         .fail(crate::backend_error("AGENT_BROWSER_CLOSED"), now);
@@ -490,17 +559,20 @@ fn log_end(chat_id: &str, task: &Task) {
 /// End the current turn of a chat that did not start.
 fn fail_turn(chat_id: &str, turn_id: &str, code: String) {
   let mut store = chats();
+  store.waiting_steers.remove(turn_id);
   let Ok(chat) = store.get_mut(chat_id) else {
     return;
   };
+  let now = now_ms();
   let Some(turn) = chat.current_mut().filter(|turn| turn.id == turn_id) else {
     return;
   };
   if turn.task.status.is_final() {
     return;
   }
-  turn.task.fail(code, now_ms());
+  turn.task.fail(code, now);
   let task = turn.task.clone();
+  chat.updated_at = now;
   store.changed(chat_id, false);
   drop(store);
   log_end(chat_id, &task);
@@ -529,18 +601,24 @@ fn bind_task(chat_id: &str, turn_id: &str, task_id: &str, kind: TurnKind) -> Res
 }
 
 /// The engine took the turn: it is running unless an event moved it on.
-fn mark_running(chat_id: &str, turn_id: &str) {
+/// Returns the steers sent while it launched, to deliver now.
+fn mark_running(chat_id: &str, turn_id: &str) -> Vec<String> {
   let mut store = chats();
+  let waiting = store.waiting_steers.remove(turn_id).unwrap_or_default();
   let Ok(chat) = store.get_mut(chat_id) else {
-    return;
+    return waiting;
   };
+  let now = now_ms();
   let Some(turn) = chat.current_mut().filter(|turn| turn.id == turn_id) else {
-    return;
+    return waiting;
   };
   if turn.task.status == TaskStatus::Launching {
     turn.task.status = TaskStatus::Running;
+    turn.task.heard_at = Some(now);
+    chat.updated_at = now;
     store.changed(chat_id, false);
   }
+  waiting
 }
 
 async fn link_for(profile_id: &str, chat_id: &str) -> Result<EngineLink, String> {
@@ -563,7 +641,7 @@ fn start_params(task_id: &str, text: &str) -> Value {
 
 /// Start or continue the engine task for the current turn.
 async fn run_turn(chat_id: String, turn_id: String) {
-  let (profile_id, text, prior) = {
+  let (profile_id, text, prior, history) = {
     let store = chats();
     let Ok(chat) = store.get(&chat_id) else {
       return;
@@ -571,15 +649,15 @@ async fn run_turn(chat_id: String, turn_id: String) {
     let Some(turn) = chat.current().filter(|turn| turn.id == turn_id) else {
       return;
     };
-    let prior = chat
-      .turns
+    let earlier = &chat.turns[..chat.turns.len() - 1];
+    let prior = earlier
       .iter()
       .rev()
-      .skip(1)
       .find_map(|turn| turn.task.task_id.clone());
-    (chat.profile_id.clone(), turn.text.clone(), prior)
+    let history = prior.as_ref().map(|_| transcript(earlier));
+    (chat.profile_id.clone(), turn.text.clone(), prior, history)
   };
-  let outcome: Result<TurnKind, String> = async {
+  let outcome: Result<(TurnKind, EngineLink, String), String> = async {
     let link = link_for(&profile_id, &chat_id).await?;
     if let Some(task_id) = &prior {
       bind_task(&chat_id, &turn_id, task_id, TurnKind::FollowUp)?;
@@ -590,7 +668,7 @@ async fn run_turn(chat_id: String, turn_id: String) {
         )
         .await;
       match follow_up_plan(&reply) {
-        FollowUp::Continued => return Ok(TurnKind::FollowUp),
+        FollowUp::Continued => return Ok((TurnKind::FollowUp, link, task_id.clone())),
         FollowUp::Failed(code) => return Err(code),
         FollowUp::StartFresh => {}
       }
@@ -602,16 +680,31 @@ async fn run_turn(chat_id: String, turn_id: String) {
     };
     let task_id = uuid::Uuid::new_v4().to_string();
     bind_task(&chat_id, &turn_id, &task_id, kind)?;
-    link
-      .call("Wayfern.agentStart", start_params(&task_id, &text))
+    let prompt = with_history(history.as_deref().unwrap_or_default(), &text);
+    if let Err(e) = link
+      .call("Wayfern.agentStart", start_params(&task_id, &prompt))
       .await
-      .map_err(|e| e.code())?;
-    Ok(kind)
+    {
+      // No answer is not a no: the engine may have the task.
+      if matches!(e, EngineError::Gone(_)) {
+        tokio::spawn(stop_engine_task(link.clone(), task_id));
+      }
+      return Err(e.code());
+    }
+    Ok((kind, link, task_id))
   }
   .await;
   match outcome {
-    Ok(kind) => {
-      mark_running(&chat_id, &turn_id);
+    Ok((kind, link, task_id)) => {
+      for message in mark_running(&chat_id, &turn_id) {
+        let steer = json!({ "taskId": task_id, "action": "steer", "message": message });
+        if let Err(e) = link.call("Wayfern.agentControl", steer).await {
+          log::warn!(
+            "Agent chat steer not delivered chat={chat_id} err={}",
+            error_code(&e.code())
+          );
+        }
+      }
       log::info!(
         "Agent chat turn started chat={chat_id} profile={profile_id} kind={}",
         serde_json::to_value(kind)
@@ -701,6 +794,7 @@ fn set_turn_status(chat_id: &str, status: TaskStatus) {
   let Ok(chat) = store.get_mut(chat_id) else {
     return;
   };
+  let now = now_ms();
   let Some(turn) = chat.current_mut() else {
     return;
   };
@@ -708,11 +802,13 @@ fn set_turn_status(chat_id: &str, status: TaskStatus) {
     return;
   }
   turn.task.status = status;
+  turn.task.heard_at = Some(now);
   if status.is_final() {
     turn.task.approval = None;
-    turn.task.finished_at = Some(now_ms());
+    turn.task.finished_at = Some(now);
   }
   let task = turn.task.clone();
+  chat.updated_at = now;
   store.changed(chat_id, false);
   drop(store);
   if status.is_final() {
@@ -769,14 +865,33 @@ pub async fn send_agent_chat_message(chat_id: String, text: String) -> Result<Ch
   let running = chats().get(&chat_id)?.is_active();
   if running {
     let message = super::checked_steer(Some(text))?;
-    let (link, task_id) = running_turn(&chat_id)?;
-    link
-      .call(
-        "Wayfern.agentControl",
-        json!({ "taskId": task_id, "action": "steer", "message": message }),
-      )
-      .await
-      .map_err(|e| e.code())?;
+    // Until the engine has the turn, a steer waits for it.
+    let waiting = {
+      let mut store = chats();
+      let launching = store
+        .get(&chat_id)?
+        .current()
+        .filter(|turn| turn.task.status == TaskStatus::Launching)
+        .map(|turn| turn.id.clone());
+      if let Some(turn_id) = &launching {
+        store
+          .waiting_steers
+          .entry(turn_id.clone())
+          .or_default()
+          .push(message.clone());
+      }
+      launching.is_some()
+    };
+    if !waiting {
+      let (link, task_id) = running_turn(&chat_id)?;
+      link
+        .call(
+          "Wayfern.agentControl",
+          json!({ "taskId": task_id, "action": "steer", "message": message }),
+        )
+        .await
+        .map_err(|e| e.code())?;
+    }
     let mut store = chats();
     let chat = store.get_mut(&chat_id)?;
     let now = now_ms();
@@ -866,7 +981,7 @@ pub async fn answer_agent_chat_approval(
   let chat = store.get_mut(&chat_id)?;
   if chat
     .current_mut()
-    .is_some_and(|turn| turn.task.answered(&approval_id))
+    .is_some_and(|turn| turn.task.answered(&approval_id, now_ms()))
   {
     store.changed(&chat_id, false);
   }
@@ -904,6 +1019,51 @@ pub(super) async fn remove(chat_id: &str) -> Result<(), String> {
   Ok(())
 }
 
+/// The first link to a profile's browser after the chats were read: the
+/// engine tasks of turns stopped then are told to stop, before the link
+/// carries anything else.
+pub(super) async fn stop_orphans(profile_id: &str, link: &EngineLink) {
+  let tasks: Vec<String> = {
+    let mut store = chats();
+    let (here, rest) = std::mem::take(&mut store.orphans)
+      .into_iter()
+      .partition(|(profile, _)| profile == profile_id);
+    store.orphans = rest;
+    here.into_iter().map(|(_, task_id)| task_id).collect()
+  };
+  for task_id in tasks {
+    stop_engine_task(link.clone(), task_id).await;
+  }
+}
+
+/// The app quits: each turn running here ends as stopped. Returns the
+/// engine tasks to tell to stop.
+pub(super) fn stop_running() -> Vec<(EngineLink, String)> {
+  let turns: Vec<(String, String, Option<String>)> = {
+    let store = CHATS.lock().unwrap_or_else(|p| p.into_inner());
+    store
+      .chats
+      .values()
+      .filter(|chat| super::chat_sync::runs_here(chat))
+      .filter_map(|chat| {
+        let turn = chat.current()?;
+        Some((
+          chat.id.clone(),
+          chat.profile_id.clone(),
+          turn.task.task_id.clone(),
+        ))
+      })
+      .collect()
+  };
+  let mut engines = Vec::new();
+  for (chat_id, profile_id, task_id) in turns {
+    set_turn_status(&chat_id, TaskStatus::Stopped);
+    let link = super::open_link(&profile_id);
+    engines.extend(link.zip(task_id));
+  }
+  engines
+}
+
 /// Each chat's id, last change and whether a turn runs.
 pub(super) fn stamps() -> Vec<(String, u64, bool)> {
   chats()
@@ -937,7 +1097,7 @@ mod tests {
 
   fn step(index: u64) -> EngineEvent {
     EngineEvent::Step(Step {
-      index,
+      index: Some(index),
       kind: "act".into(),
       text: format!("step {index}"),
       url: None,
@@ -980,7 +1140,7 @@ mod tests {
     }
     let turn = chat.current().unwrap();
     assert_eq!(turn.task.steps.len(), MAX_TURN_STEPS);
-    assert_eq!(turn.task.steps.front().unwrap().index, 10);
+    assert_eq!(turn.task.steps.front().unwrap().index, Some(10));
     assert!(chat.apply("t1", finished(40), 3));
     assert_eq!(chat.current().unwrap().task.status, TaskStatus::Done);
     assert_eq!(chat.task_credits, 40);
@@ -1052,12 +1212,23 @@ mod tests {
     std::fs::write(dir.path().join("broken.json"), b"{").unwrap();
     std::fs::write(dir.path().join("note.txt"), b"x").unwrap();
 
-    let loaded = load_from(dir.path(), 50);
+    let (loaded, orphans) = load_from(dir.path(), 50);
     assert_eq!(loaded.len(), 2);
     let back = &loaded[&chat.id];
     let turn = back.current().unwrap();
     assert_eq!(turn.task.status, TaskStatus::Stopped);
     assert_eq!(turn.task.finished_at, Some(50));
+    assert_eq!(
+      back.updated_at,
+      chat.updated_at + 1,
+      "uploaded, yet older than a later change elsewhere"
+    );
+    assert_eq!(loaded[&done.id].updated_at, done.updated_at);
+    assert_eq!(
+      orphans,
+      vec![("p1".to_string(), "t1".to_string())],
+      "the engine may still run it"
+    );
     assert_eq!(turn.task.steps.len(), 1);
     assert_eq!(turn.steers[0].text, "Only direct");
     assert_eq!(back.title, "Find flights");
@@ -1082,7 +1253,7 @@ mod tests {
       dir.path().join("other.json"),
     )
     .unwrap();
-    assert!(load_from(dir.path(), 1).is_empty());
+    assert!(load_from(dir.path(), 1).0.is_empty());
   }
 
   #[test]
@@ -1106,7 +1277,7 @@ mod tests {
       .unwrap(),
     );
     save_to(dir.path(), &chat).unwrap();
-    let loaded = load_from(dir.path(), 9);
+    let (loaded, _) = load_from(dir.path(), 9);
     assert!(loaded[&chat.id].current().unwrap().host_calls.is_empty());
   }
 
@@ -1119,5 +1290,48 @@ mod tests {
     assert_eq!(summary.turns, 2);
     assert_eq!(summary.status, Some(TaskStatus::Launching));
     assert_eq!(summary.updated_at, 3);
+  }
+
+  #[test]
+  fn a_task_that_starts_over_gets_the_earlier_turns() {
+    let mut chat = started("Find flights to Lisbon");
+    chat.apply(
+      "t1",
+      EngineEvent::Finished {
+        status: TaskStatus::Done,
+        result: Some("TAP at 9:40, 120 EUR".into()),
+        error: None,
+        credits_used: 3,
+      },
+      2,
+    );
+    chat.push_turn("And the return?".into(), 3);
+    let history = transcript(&chat.turns[..1]);
+    assert_eq!(
+      history,
+      "User: Find flights to Lisbon\nAgent: TAP at 9:40, 120 EUR"
+    );
+    let prompt = with_history(&history, "And the return?");
+    assert!(prompt.starts_with("Earlier in this chat:"));
+    assert!(prompt.ends_with("New message:\n\nAnd the return?"));
+    assert_eq!(with_history("", "Hello"), "Hello");
+  }
+
+  #[test]
+  fn the_earlier_turns_are_bounded_and_the_newest_stay() {
+    let mut chat = started(&"a".repeat(4_000));
+    for (index, text) in ["b", "c"].iter().enumerate() {
+      chat.push_turn(text.repeat(2_500), 2 + index as u64);
+    }
+    let history = transcript(&chat.turns);
+    assert!(history.chars().count() <= MAX_HISTORY_CHARS);
+    assert!(history.ends_with(&"c".repeat(2_500)), "newest last");
+    assert!(!history.contains('a'), "the oldest go first");
+    let huge = started(&"z".repeat(MAX_HISTORY_CHARS * 2));
+    assert_eq!(
+      transcript(&huge.turns).chars().count(),
+      MAX_HISTORY_CHARS,
+      "one long turn is cut"
+    );
   }
 }

@@ -2971,12 +2971,13 @@
     "agentApprovalClosed": "Diese Frage ist nicht mehr offen.",
     "agentBrowserUnreachable": "Der Browser des Profils hat nicht geantwortet.",
     "agentBrowserClosed": "Der Browser wurde geschlossen, bevor die Aufgabe fertig war.",
+    "agentTaskSilent": "Der Agent hat 15 Minuten lang nichts gemeldet, daher wurde die Aufgabe beendet.",
     "agentPromptEmpty": "Schreib zuerst eine Aufgabe.",
     "agentStartUrlInvalid": "Die Startseite muss eine http- oder https-Adresse sein.",
     "agentRoutineInvalid": "Die Routine ist ungültig. Prüfe ihre Felder.",
     "agentRoutineNotFound": "Diese Routine gibt es nicht mehr.",
     "agentNoProfiles": "Wähle mindestens ein Profil.",
-    "agentTooManyProfiles": "Zu viele Profile für einen Lauf. Das Limit ist 500.",
+    "agentTooManyProfiles": "Zu viele Profile. Das Limit ist {{max}}.",
     "agentTaskNotFound": "Diese Aufgabe läuft nicht mehr.",
     "agentBatchNotFound": "Dieser Lauf ist nicht mehr in der Liste.",
     "agentActionInvalid": "Der Agent kennt diese Aktion nicht.",
@@ -2991,7 +2992,13 @@
     "extensionNotFromStore": "Diese Erweiterung stammt nicht aus dem Chrome Web Store.",
     "extensionUpdateNeedsConsent": "Die neue Version verlangt mehr Zugriff: {{permissions}}",
     "bookmarksFileInvalid": "Donut kann aus dieser Datei keine Lesezeichen lesen. Verwenden Sie die Bookmarks-Datei von Chrome oder eine exportierte HTML-Datei.",
-    "previewsNotEntitled": "Die Live-Vorschau braucht den Pro-Tarif oder höher."
+    "previewsNotEntitled": "Die Live-Vorschau braucht den Pro-Tarif oder höher.",
+    "agentRoutineLimit": "Sie haben die maximale Anzahl an Routinen. Löschen Sie eine, um eine neue hinzuzufügen.",
+    "agentScheduleTooOften": "Eine Routine kann höchstens alle 5 Minuten laufen.",
+    "desktopOffline": "Donut war zur geplanten Zeit nicht geöffnet.",
+    "desktopRefused": "Donut konnte diesen Lauf nicht starten.",
+    "runLost": "Donut hat zu diesem Lauf nichts mehr gemeldet.",
+    "freeCreditsPending": "Ihre kostenlosen Credits sind noch nicht bereit. Neue Konten erhalten sie nach einer kurzen Prüfung."
   },
   "rail": {
     "profiles": "Profile",
@@ -4215,7 +4222,9 @@
       "unlimited": "Unbegrenzte Credits",
       "detail": "{{used}} von {{total}} Credits in diesem Zeitraum verbraucht",
       "left": "{{n}} Credits übrig",
-      "meter": "Verbleibende Credits in diesem Zeitraum"
+      "meter": "Verbleibende Credits in diesem Zeitraum",
+      "freePending": "Kostenlose Credits kommen um {{time}}",
+      "freeDenied": "Für dieses Konto gibt es keine kostenlosen Credits"
     },
     "tasks": {
       "status": {
@@ -4230,7 +4239,8 @@
         "no_credits": "Keine Credits mehr",
         "budget": "Credit-Limit erreicht",
         "missed": "Verpasst",
-        "unknown": "Unbekannt"
+        "unknown": "Unbekannt",
+        "pending": "Wartet"
       },
       "chooseProfiles": "Profile wählen",
       "searchProfiles": "Profile suchen",
@@ -4313,7 +4323,10 @@
         "custom": "Nach Zeitplan {{cron}}",
         "minutes_one": "Jede Minute",
         "minutes_other": "Alle {{count}} Minuten"
-      }
+      },
+      "paused": "Pausiert",
+      "pausedPlan": "Der Zeitplan ist pausiert. Zeitpläne erfordern einen kostenpflichtigen Tarif.",
+      "pausedResume": "Der Zeitplan wurde pausiert, als Ihr Tarif keine Zeitpläne enthielt."
     },
     "chat": {
       "chooseProfile": "Profil wählen",
@@ -4376,7 +4389,8 @@
         "eraseTitle": "Synchronisierte Chats löschen?",
         "eraseBody": "Sie werden von allen Geräten entfernt. Chats auf diesem Computer bleiben.",
         "eraseConfirm": "Löschen"
-      }
+      },
+      "fillBlank": "Ersetzen Sie {{blank}} durch Ihre eigenen Worte. Tab springt zur nächsten Lücke."
     },
     "shell": {
       "sidebar": "Chats, Läufe und Routinen",

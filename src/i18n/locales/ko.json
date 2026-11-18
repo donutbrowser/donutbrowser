@@ -2971,12 +2971,13 @@
     "agentApprovalClosed": "이 질문은 더 이상 열려 있지 않습니다.",
     "agentBrowserUnreachable": "프로필의 브라우저가 응답하지 않았습니다.",
     "agentBrowserClosed": "작업이 끝나기 전에 브라우저가 닫혔습니다.",
+    "agentTaskSilent": "에이전트가 15분 동안 아무것도 보내지 않아 작업을 끝냈습니다.",
     "agentPromptEmpty": "먼저 작업을 적으세요.",
     "agentStartUrlInvalid": "시작 페이지는 http 또는 https 주소여야 합니다.",
     "agentRoutineInvalid": "루틴이 올바르지 않습니다. 항목을 확인하세요.",
     "agentRoutineNotFound": "그 루틴은 더 이상 없습니다.",
     "agentNoProfiles": "프로필을 하나 이상 선택하세요.",
-    "agentTooManyProfiles": "한 번 실행하기에 프로필이 너무 많습니다. 한도는 500개입니다.",
+    "agentTooManyProfiles": "프로필이 너무 많습니다. 한도는 {{max}}개입니다.",
     "agentTaskNotFound": "그 작업은 더 이상 실행 중이 아닙니다.",
     "agentBatchNotFound": "그 실행은 더 이상 목록에 없습니다.",
     "agentActionInvalid": "에이전트가 모르는 동작입니다.",
@@ -2991,7 +2992,13 @@
     "extensionNotFromStore": "이 확장 프로그램은 Chrome 웹 스토어에서 가져온 것이 아닙니다.",
     "extensionUpdateNeedsConsent": "새 버전이 더 많은 권한을 요청합니다: {{permissions}}",
     "bookmarksFileInvalid": "이 파일에서 북마크를 읽을 수 없습니다. Chrome의 Bookmarks 파일이나 내보낸 HTML 파일을 사용하세요.",
-    "previewsNotEntitled": "실시간 미리보기에는 Pro 이상 요금제가 필요합니다."
+    "previewsNotEntitled": "실시간 미리보기에는 Pro 이상 요금제가 필요합니다.",
+    "agentRoutineLimit": "루틴이 최대 개수입니다. 새 루틴을 추가하려면 하나를 삭제하세요.",
+    "agentScheduleTooOften": "루틴은 최대 5분에 한 번 실행할 수 있습니다.",
+    "desktopOffline": "예약된 시간에 Donut이 열려 있지 않았습니다.",
+    "desktopRefused": "Donut이 이 실행을 시작하지 못했습니다.",
+    "runLost": "Donut이 이 실행에 대한 보고를 중단했습니다.",
+    "freeCreditsPending": "무료 크레딧이 아직 준비되지 않았습니다. 새 계정은 짧은 확인 후에 받습니다."
   },
   "rail": {
     "profiles": "프로필",
@@ -4215,7 +4222,9 @@
       "unlimited": "무제한 크레딧",
       "detail": "이번 기간 {{total}} 크레딧 중 {{used}} 사용",
       "left": "{{n}} 크레딧 남음",
-      "meter": "이번 기간 남은 크레딧"
+      "meter": "이번 기간 남은 크레딧",
+      "freePending": "무료 크레딧은 {{time}}에 지급됩니다",
+      "freeDenied": "이 계정에서는 무료 크레딧을 사용할 수 없습니다"
     },
     "tasks": {
       "status": {
@@ -4230,7 +4239,8 @@
         "no_credits": "크레딧 없음",
         "budget": "크레딧 한도 도달",
         "missed": "놓침",
-        "unknown": "알 수 없음"
+        "unknown": "알 수 없음",
+        "pending": "대기 중"
       },
       "chooseProfiles": "프로필 선택",
       "searchProfiles": "프로필 검색",
@@ -4313,7 +4323,10 @@
         "custom": "일정 {{cron}}",
         "minutes_one": "매분",
         "minutes_other": "{{count}}분마다"
-      }
+      },
+      "paused": "일시 중지됨",
+      "pausedPlan": "일정이 일시 중지되었습니다. 일정을 사용하려면 유료 플랜이 필요합니다.",
+      "pausedResume": "플랜에 일정 기능이 없던 동안 일정이 일시 중지되었습니다."
     },
     "chat": {
       "chooseProfile": "프로필 선택",
@@ -4376,7 +4389,8 @@
         "eraseTitle": "동기화된 채팅을 지울까요?",
         "eraseBody": "모든 기기에서 삭제됩니다. 이 컴퓨터의 채팅은 그대로 남습니다.",
         "eraseConfirm": "지우기"
-      }
+      },
+      "fillBlank": "{{blank}}을(를) 직접 입력한 내용으로 바꾸세요. Tab 키로 다음 빈칸으로 이동합니다."
     },
     "shell": {
       "sidebar": "채팅, 실행, 루틴",

@@ -18,6 +18,8 @@ const AGENT_CODES: FailureCodes = FailureCodes {
 pub const MAX_PROMPT_CHARS: usize = 8_000;
 const MAX_NAME_CHARS: usize = 120;
 const MAX_ID_CHARS: usize = 128;
+/// The most profiles the cloud keeps on one routine.
+pub const MAX_ROUTINE_PROFILES: usize = 200;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +39,13 @@ pub struct Credits {
   /// Enterprise and service accounts.
   #[serde(default)]
   pub unlimited: bool,
+  /// A free account's monthly credits: "granted", "pending" (the account is
+  /// new and checked first) or "denied". None on paid plans.
+  #[serde(default)]
+  pub free_grant: Option<String>,
+  /// When a pending grant is expected.
+  #[serde(default)]
+  pub free_grant_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -65,6 +74,10 @@ pub struct Routine {
   pub concurrency: Option<usize>,
   #[serde(default = "enabled_by_default")]
   pub enabled: bool,
+  /// The next scheduled fire, as the cloud keeps it. None when the routine
+  /// has no schedule, is off, or was paused because its plan lapsed.
+  #[serde(default)]
+  pub next_run_at: Option<String>,
   #[serde(default)]
   pub created_at: Option<String>,
   #[serde(default)]
@@ -136,6 +149,20 @@ impl<T> Listed<T> {
   }
 }
 
+/// A scheduled fire this desktop claimed: the cloud made its batch.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Fire {
+  pub routine_id: String,
+  pub batch_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Fires {
+  #[serde(default)]
+  fires: Vec<Fire>,
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct StartedRun {
@@ -163,12 +190,29 @@ fn segment(id: &str, missing: &str) -> Result<String, String> {
   Ok(urlencoding::encode(id).into_owned())
 }
 
-fn failure(action: &str, err: BackendFailure) -> String {
+/// The cloud's own refusal codes, as the codes the app translates.
+fn app_code(code: &str) -> &str {
+  match code {
+    "ROUTINE_NOT_FOUND" => "AGENT_ROUTINE_NOT_FOUND",
+    "ROUTINE_LIMIT" => "AGENT_ROUTINE_LIMIT",
+    "ROUTINE_FIELD_INVALID" => "AGENT_ROUTINE_INVALID",
+    "SCHEDULE_INVALID" => "AGENT_SCHEDULE_INVALID",
+    "SCHEDULE_TOO_OFTEN" => "AGENT_SCHEDULE_TOO_OFTEN",
+    "AGENT_NOT_ENABLED" => "AGENT_NOT_ENTITLED",
+    "RUN_NOT_FOUND" | "RUN_FINISHED" => "AGENT_TASK_NOT_FOUND",
+    other => other,
+  }
+}
+
+fn failure(action: &str, mut err: BackendFailure) -> String {
   log::warn!(
-    "Agent cloud request failed action={action} code={} status={}",
+    "Agent cloud request failed action={action} code={} status={} field={}",
     err.code,
-    err.status
+    err.status,
+    err.params.get("field").map_or("-", String::as_str)
   );
+  err.code = app_code(&err.code).to_string();
+  err.params.remove("field");
   err.to_error_json()
 }
 
@@ -221,17 +265,24 @@ pub fn checked_draft(draft: RoutineDraft) -> Result<RoutineDraft, String> {
     return Err(crate::backend_error("AGENT_ROUTINE_INVALID"));
   }
   let (prompt, start_url) = checked_order(&draft.prompt, draft.start_url.as_deref())?;
-  if draft.profile_ids.len() > super::batch::MAX_PROFILES
-    || draft
-      .profile_ids
-      .iter()
-      .any(|id| id.trim().is_empty() || id.len() > MAX_ID_CHARS)
-  {
-    return Err(crate::backend_error("AGENT_ROUTINE_INVALID"));
+  let mut profile_ids: Vec<String> = Vec::with_capacity(draft.profile_ids.len());
+  for id in &draft.profile_ids {
+    let id = id.trim();
+    if id.is_empty() || id.len() > MAX_ID_CHARS {
+      return Err(crate::backend_error("AGENT_ROUTINE_INVALID"));
+    }
+    if !profile_ids.iter().any(|seen| seen == id) {
+      profile_ids.push(id.to_string());
+    }
+  }
+  if profile_ids.is_empty() {
+    return Err(crate::backend_error("AGENT_NO_PROFILES"));
+  }
+  if profile_ids.len() > MAX_ROUTINE_PROFILES {
+    return Err(super::too_many_profiles(MAX_ROUTINE_PROFILES));
   }
   if let Some(schedule) = &draft.schedule {
-    let fields = schedule.cron.split_whitespace().count();
-    if !(5..=6).contains(&fields) || schedule.timezone.trim().is_empty() {
+    if schedule.cron.split_whitespace().count() != 5 || schedule.timezone.trim().is_empty() {
       return Err(crate::backend_error("AGENT_SCHEDULE_INVALID"));
     }
   }
@@ -242,6 +293,7 @@ pub fn checked_draft(draft: RoutineDraft) -> Result<RoutineDraft, String> {
     name,
     prompt,
     start_url,
+    profile_ids,
     concurrency: draft
       .concurrency
       .map(|n| n.clamp(1, super::batch::MAX_CONCURRENCY)),
@@ -356,6 +408,22 @@ pub async fn delete_routine(id: &str) -> Result<(), String> {
   .map(|_| ())
 }
 
+/// Claim the due fires of this account's routines, to run them here.
+pub async fn claim_fires() -> Result<Vec<Fire>, String> {
+  #[cfg(feature = "e2e")]
+  if super::mock::active() {
+    return Ok(super::mock::claim_fires());
+  }
+  let claimed: Fires = call(
+    "claim_fires",
+    reqwest::Method::POST,
+    format!("{}/fires", base()),
+    Some(json!({})),
+  )
+  .await?;
+  Ok(claimed.fires)
+}
+
 pub async fn list_runs(routine_id: &str) -> Result<Vec<RoutineRun>, String> {
   let id = segment(routine_id, "AGENT_ROUTINE_NOT_FOUND")?;
   #[cfg(feature = "e2e")]
@@ -397,38 +465,44 @@ pub async fn start_runs(
   .await
 }
 
+/// A run report, its texts cut to what the cloud takes.
 pub fn run_patch(
   status: &str,
   summary: Option<&str>,
   credits_used: u64,
   error: Option<&str>,
 ) -> Value {
+  const MAX_SUMMARY_CHARS: usize = 10_000;
+  const MAX_ERROR_CHARS: usize = 2_000;
+  let cut = |text: &str, max: usize| text.chars().take(max).collect::<String>();
   let mut body = json!({ "status": status, "creditsUsed": credits_used });
   if let Some(summary) = summary {
-    body["summary"] = Value::from(summary);
+    body["summary"] = Value::from(cut(summary, MAX_SUMMARY_CHARS));
   }
   if let Some(error) = error {
-    body["error"] = Value::from(error);
+    body["error"] = Value::from(cut(error, MAX_ERROR_CHARS));
   }
   body
 }
 
-pub async fn report_run(run_id: &str, patch: Value) {
+/// Send one run report. The caller retries and logs a failure.
+pub async fn report_run(run_id: &str, patch: Value) -> Result<(), BackendFailure> {
   let Ok(id) = segment(run_id, "AGENT_RUN_NOT_FOUND") else {
-    return;
+    return Ok(());
   };
   #[cfg(feature = "e2e")]
   if super::mock::active() {
     super::mock::report_run(&id, patch);
-    return;
+    return Ok(());
   }
-  let _ = call::<Option<Value>>(
-    "report_run",
+  crate::cloud_api::call::<Option<Value>>(
     reqwest::Method::PATCH,
     format!("{}/runs/{id}", base()),
     Some(patch),
+    AGENT_CODES,
   )
-  .await;
+  .await
+  .map(|_| ())
 }
 
 #[cfg(test)]
@@ -545,6 +619,21 @@ mod tests {
     let credits: Credits = serde_json::from_str(r#"{"allowance":10000,"used":2500,"extra":0,"balance":7500,"periodEnd":"2026-12-01T00:00:00Z","plan":"free"}"#).unwrap();
     assert_eq!(credits.balance, 7500);
     assert!(!credits.unlimited);
+    assert_eq!(credits.free_grant, None);
+    let pending: Credits = serde_json::from_str(
+      r#"{"allowance":0,"balance":0,"plan":"free","freeGrant":"pending","freeGrantAt":"2026-11-18T12:30:00Z"}"#,
+    )
+    .unwrap();
+    assert_eq!(pending.free_grant.as_deref(), Some("pending"));
+    let fires: Fires =
+      serde_json::from_str(r#"{"fires":[{"routineId":"r","batchId":"b"}]}"#).unwrap();
+    assert_eq!(fires.fires[0].batch_id, "b");
+    let routine: Routine =
+      serde_json::from_str(r#"{"id":"r","nextRunAt":"2026-11-19T09:00:00.000Z"}"#).unwrap();
+    assert_eq!(
+      routine.next_run_at.as_deref(),
+      Some("2026-11-19T09:00:00.000Z")
+    );
   }
 
   #[test]

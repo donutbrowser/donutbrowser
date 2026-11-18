@@ -31,7 +31,7 @@ import {
   isTurnActive,
 } from "@/lib/agent-chat";
 import { MAX_PROMPT_CHARS } from "@/lib/agent-tasks";
-import { firstBlank } from "@/lib/agent-templates";
+import { nextBlank, templateBlanks } from "@/lib/agent-templates";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,12 +45,15 @@ export interface ComposerSend {
   target: ComposerTarget;
   repeat: Repeat;
   settings: RunSettings;
+  /** The template's title, as a routine's name. */
+  name: string | null;
 }
 
-/** Words and a repeat for the box, from a template. */
+/** Words, a repeat and a name for the box, from a template. */
 export interface ComposerFill {
   text: string;
   repeat: Repeat;
+  name: string;
   nonce: number;
 }
 
@@ -102,7 +105,11 @@ export function Composer({
   const [sending, setSending] = useState(false);
   const [repeat, setRepeat] = useState<Repeat>({ kind: "once" });
   const [settings, setSettings] = useState<RunSettings>(DEFAULT_RUN_SETTINGS);
+  // The blanks of the template in the box, "[site]" and the like.
+  const [blanks, setBlanks] = useState<string[]>([]);
+  const [name, setName] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const openBlanks = blanks.filter((blank) => text.includes(blank));
   const mode = composerMode(chat);
   const target: ComposerTarget = chat
     ? "chat"
@@ -110,7 +117,17 @@ export function Composer({
   const turn = chat?.turns.at(-1) ?? null;
   const running = isTurnActive(turn);
   const blocked =
-    target !== "chat" && (startUrlInvalid(settings) || repeatInvalid(repeat));
+    openBlanks.length > 0 ||
+    (target !== "chat" && (startUrlInvalid(settings) || repeatInvalid(repeat)));
+
+  const selectBlank = (from: number) => {
+    const box = ref.current;
+    const blank = box && nextBlank(box.value, openBlanks, from);
+    if (!box || !blank) return false;
+    box.focus();
+    box.setSelectionRange(blank.start, blank.end);
+    return true;
+  };
 
   const fit = useCallback(() => {
     const box = ref.current;
@@ -121,6 +138,22 @@ export function Composer({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the box follows its words
   useLayoutEffect(fit, [fit, text]);
+
+  // The box takes its width as the page settles; fit the words again then.
+  useEffect(() => {
+    const box = ref.current;
+    if (!box) return;
+    let width = box.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (box.clientWidth === width) return;
+      width = box.clientWidth;
+      fit();
+    });
+    observer.observe(box);
+    return () => {
+      observer.disconnect();
+    };
+  }, [fit]);
 
   // The page and a closing menu move the focus as they settle, after this
   // mounts; keep it here until they are done.
@@ -150,6 +183,8 @@ export function Composer({
     setFilled(fill.nonce);
     setText(fill.text);
     setRepeat(fill.repeat);
+    setBlanks(templateBlanks(fill.text));
+    setName(fill.name);
   }
   useEffect(() => {
     if (filled === null) return;
@@ -157,25 +192,42 @@ export function Composer({
     if (!box) return;
     box.focus();
     // A template's first "[site]" is for the person to fill: select it.
-    const blank = firstBlank(box.value);
+    const blank = nextBlank(box.value, templateBlanks(box.value));
     if (blank) box.setSelectionRange(blank.start, blank.end);
     else box.setSelectionRange(box.value.length, box.value.length);
   }, [filled]);
 
   const send = async () => {
     const value = text.trim();
+    if (openBlanks.length > 0) {
+      selectBlank(0);
+      return;
+    }
     if (!value || sending || disabled || blocked) return;
     setSending(true);
-    const ok = await onSend({ text: value, target, repeat, settings });
+    const ok = await onSend({ text: value, target, repeat, settings, name });
     setSending(false);
     if (ok) {
       setText("");
       setRepeat({ kind: "once" });
+      setBlanks([]);
+      setName(null);
     }
     ref.current?.focus();
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      selectBlank(event.currentTarget.selectionEnd)
+    ) {
+      event.preventDefault();
+      return;
+    }
     if (
       event.key === "Enter" &&
       !event.shiftKey &&
@@ -283,7 +335,12 @@ export function Composer({
       <Button
         type="submit"
         size="sm"
-        disabled={disabled || sending || blocked || !text.trim()}
+        disabled={
+          disabled ||
+          sending ||
+          !text.trim() ||
+          (blocked && openBlanks.length === 0)
+        }
         aria-busy={sending}
         data-slot="chat-send"
         aria-label={sendLabel}
@@ -317,12 +374,15 @@ export function Composer({
       onKeyDown={onKeyDown}
       onChange={(event) => {
         setText(event.target.value);
+        if (!event.target.value.trim()) setName(null);
       }}
       className={cn(
-        "min-w-0 flex-1 resize-none bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed",
+        "min-w-0 resize-none bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed",
+        // In the hero the box is in a column, where flex-1 would pin its
+        // height; in the dock it shares a row with the buttons.
         hero
-          ? "max-h-60 min-h-[4.5rem] px-2.5 pt-1.5 text-[15px] leading-6"
-          : "max-h-40 min-h-8 px-2 py-1 text-sm leading-6",
+          ? "max-h-60 min-h-[4.5rem] w-full px-2.5 pt-1.5 text-[15px] leading-6"
+          : "max-h-40 min-h-8 flex-1 px-2 py-1 text-sm leading-6",
       )}
     />
   );
@@ -358,15 +418,26 @@ export function Composer({
           {controls}
         </div>
       )}
-      <span
-        id={hintId}
-        className={cn(
-          "truncate px-3 text-[11px] text-muted-foreground",
-          hero ? "sr-only" : "hidden [@media(min-height:640px)]:block",
-        )}
-      >
-        {t("agent.chat.hint")}
-      </span>
+      {openBlanks.length > 0 ? (
+        <span
+          id={hintId}
+          data-slot="chat-blank-hint"
+          aria-live="polite"
+          className="truncate px-3 text-xs text-warning-text"
+        >
+          {t("agent.chat.fillBlank", { blank: openBlanks[0] })}
+        </span>
+      ) : (
+        <span
+          id={hintId}
+          className={cn(
+            "truncate px-3 text-[11px] text-muted-foreground",
+            hero ? "sr-only" : "hidden [@media(min-height:640px)]:block",
+          )}
+        >
+          {t("agent.chat.hint")}
+        </span>
+      )}
     </form>
   );
 }

@@ -286,6 +286,7 @@ export function AgentWorkspace({
     setFill({
       text: t(`agent.templates.items.${template.id}.prompt`),
       repeat: templateRepeat(template, canSchedule),
+      name: t(`agent.templates.items.${template.id}.title`),
       nonce: Date.now(),
     });
   };
@@ -322,6 +323,7 @@ export function AgentWorkspace({
     target,
     repeat,
     settings,
+    name,
   }: ComposerSend): Promise<boolean> => {
     const startUrl = settings.startUrl.trim() || null;
     const maxCredits = positiveInt(settings.maxCredits);
@@ -338,7 +340,7 @@ export function AgentWorkspace({
         );
       } else if (target === "routine") {
         const routine = await createAgentRoutine({
-          ...routineFromPrompt(text, chosen),
+          ...routineFromPrompt(text, chosen, name),
           startUrl,
           schedule: scheduleOf(repeat),
           maxCreditsPerRun: maxCredits,

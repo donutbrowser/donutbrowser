@@ -69,7 +69,10 @@ impl TaskStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Step {
-  pub index: u64,
+  /// The engine's number for the step; one it sent without a number gets
+  /// the next when the task takes it.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub index: Option<u64>,
   pub kind: String,
   pub text: String,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -139,7 +142,7 @@ impl EngineEvent {
     let task_id = params.get("taskId")?.as_str()?.to_string();
     let event = match method {
       "Wayfern.agentStep" => Self::Step(Step {
-        index: params.get("index").and_then(Value::as_u64).unwrap_or(0),
+        index: params.get("index").and_then(Value::as_u64),
         kind: match params.get("kind").and_then(Value::as_str) {
           Some(kind @ ("think" | "act" | "observe")) => kind.to_string(),
           _ => "observe".to_string(),
@@ -191,6 +194,9 @@ pub struct Task {
   /// Donut started this browser for the task, so it stops it after.
   #[serde(skip)]
   pub launched_here: bool,
+  /// When the engine or a person last moved the task on.
+  #[serde(skip)]
+  pub heard_at: Option<u64>,
 }
 
 impl Task {
@@ -209,17 +215,26 @@ impl Task {
       started_at: None,
       finished_at: None,
       launched_here: false,
+      heard_at: None,
     }
   }
 
-  /// Back to the queue for another attempt; the run record and the credits
-  /// spent so far stay.
+  /// Back to the queue for another attempt. The credits spent so far stay;
+  /// the run record does not, because the cloud has it as ended.
   pub fn requeue(&mut self) {
-    let run_id = self.run_id.take();
     let spent = self.total_credits();
     *self = Self::queued(std::mem::take(&mut self.profile_id));
-    self.run_id = run_id;
     self.credits_before = spent;
+  }
+
+  /// Since when a task the engine works on has been silent. `None` while it
+  /// has not started, or waits for a person (paused, a question).
+  pub fn silent_since(&self) -> Option<u64> {
+    if !matches!(self.status, TaskStatus::Launching | TaskStatus::Running) {
+      return None;
+    }
+    self.task_id.as_ref()?;
+    self.heard_at.or(self.started_at)
   }
 
   /// Credits of every attempt.
@@ -240,10 +255,24 @@ impl Task {
     if self.status.is_final() {
       return false;
     }
+    self.heard_at = Some(now_ms);
     match event {
-      EngineEvent::Step(step) => {
-        if self.steps.iter().any(|known| known.index == step.index) {
-          return false;
+      EngineEvent::Step(mut step) => {
+        match step.index {
+          Some(index) if self.steps.iter().any(|known| known.index == Some(index)) => {
+            return false;
+          }
+          Some(_) => {}
+          None => {
+            step.index = Some(
+              self
+                .steps
+                .iter()
+                .filter_map(|known| known.index)
+                .max()
+                .map_or(0, |last| last + 1),
+            )
+          }
         }
         if self.steps.len() >= MAX_STEPS {
           self.steps.pop_front();
@@ -281,7 +310,7 @@ impl Task {
   }
 
   /// The person answered the open approval.
-  pub fn answered(&mut self, approval_id: &str) -> bool {
+  pub fn answered(&mut self, approval_id: &str, now_ms: u64) -> bool {
     if self
       .approval
       .as_ref()
@@ -289,6 +318,7 @@ impl Task {
     {
       self.approval = None;
       self.status = TaskStatus::Running;
+      self.heard_at = Some(now_ms);
       return true;
     }
     false
@@ -343,7 +373,9 @@ mod tests {
     )
     .unwrap();
     assert_eq!(task, "t1");
-    assert!(matches!(step, EngineEvent::Step(Step { index: 2, ref kind, .. }) if kind == "act"));
+    assert!(
+      matches!(step, EngineEvent::Step(Step { index: Some(2), ref kind, .. }) if kind == "act")
+    );
     assert!(EngineEvent::parse("Wayfern.agentStep", &json!({"index": 1}), 0).is_none());
     assert!(EngineEvent::parse("Page.loadEventFired", &json!({"taskId": "t1"}), 0).is_none());
     let unknown = event(
@@ -381,8 +413,8 @@ mod tests {
       2,
     );
     assert_eq!(task.status, TaskStatus::NeedsApproval);
-    assert!(!task.answered("other"));
-    assert!(task.answered("a1"));
+    assert!(!task.answered("other", 2));
+    assert!(task.answered("a1", 2));
     assert_eq!(task.status, TaskStatus::Running);
     task.apply(
       event(
@@ -457,7 +489,7 @@ mod tests {
       );
     }
     assert_eq!(task.steps.len(), MAX_STEPS);
-    assert_eq!(task.steps.front().unwrap().index, 5);
+    assert_eq!(task.steps.front().unwrap().index, Some(5));
     assert_eq!(
       task.steps.back().unwrap().text.chars().count(),
       MAX_TEXT_CHARS
@@ -465,14 +497,53 @@ mod tests {
   }
 
   #[test]
-  fn a_retry_keeps_the_run_record_and_nothing_else() {
+  fn a_retry_keeps_only_the_profile_and_the_credits() {
     let mut task = running();
     task.run_id = Some("r1".into());
+    task.credits_used = 7;
     task.fail("AGENT_BUSY".into(), 3);
     task.requeue();
     assert_eq!(task.status, TaskStatus::Queued);
-    assert_eq!(task.run_id.as_deref(), Some("r1"));
+    assert!(task.run_id.is_none(), "the cloud has that run as ended");
     assert!(task.task_id.is_none() && task.error.is_none());
     assert_eq!(task.profile_id, "p1");
+    assert_eq!(task.total_credits(), 7);
+  }
+
+  #[test]
+  fn a_step_without_a_number_takes_the_next() {
+    let mut task = running();
+    for params in [
+      json!({"taskId": "t1", "index": 4, "text": "a"}),
+      json!({"taskId": "t1", "text": "b"}),
+      json!({"taskId": "t1", "text": "c"}),
+    ] {
+      assert!(task.apply(event("Wayfern.agentStep", params), 1));
+    }
+    let numbers: Vec<_> = task.steps.iter().map(|step| step.index).collect();
+    assert_eq!(numbers, vec![Some(4), Some(5), Some(6)]);
+    let mut fresh = running();
+    assert!(fresh.apply(
+      event("Wayfern.agentStep", json!({"taskId": "t1", "text": "x"})),
+      1
+    ));
+    assert_eq!(fresh.steps[0].index, Some(0));
+  }
+
+  #[test]
+  fn only_a_task_the_engine_works_on_can_fall_silent() {
+    let mut task = Task::queued("p1".into());
+    assert_eq!(task.silent_since(), None);
+    task.status = TaskStatus::Launching;
+    task.started_at = Some(10);
+    assert_eq!(task.silent_since(), None, "the engine has no task yet");
+    task.task_id = Some("t1".into());
+    assert_eq!(task.silent_since(), Some(10));
+    task.apply(EngineEvent::Credits(1), 20);
+    assert_eq!(task.silent_since(), Some(20));
+    task.status = TaskStatus::NeedsApproval;
+    assert_eq!(task.silent_since(), None, "a person holds it");
+    task.status = TaskStatus::Done;
+    assert_eq!(task.silent_since(), None);
   }
 }

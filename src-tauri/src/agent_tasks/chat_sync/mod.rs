@@ -103,7 +103,7 @@ pub(super) fn start(app: &tauri::AppHandle) {
 // ---- The chats on this device ----
 
 /// Whether this device runs the chat's current turn.
-fn runs_here(chat: &Chat) -> bool {
+pub(super) fn runs_here(chat: &Chat) -> bool {
   chat
     .turns
     .last()

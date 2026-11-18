@@ -88,6 +88,10 @@ export interface AgentCredits {
   periodEnd: string | null;
   plan: string | null;
   unlimited: boolean;
+  /** A free account's credits: checked first while the account is new. */
+  freeGrant: "granted" | "pending" | "denied" | null;
+  /** When a pending grant is expected. */
+  freeGrantAt: string | null;
 }
 
 export interface AgentRoutineSchedule {
@@ -108,6 +112,8 @@ export interface AgentRoutineDraft {
 
 export interface AgentRoutine extends AgentRoutineDraft {
   id: string;
+  /** The next fire, as the cloud keeps it; null when none is planned. */
+  nextRunAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -359,10 +365,9 @@ export function creditsLeft(
   return { left: Math.max(0, credits.balance), percentUsed };
 }
 
-/** Five or six cron fields. The cloud is the judge; this catches typos. */
+/** Five fields: minute, hour, day, month, weekday. The cloud takes no other. */
 export function isCron(value: string): boolean {
-  const fields = value.trim().split(/\s+/);
-  return fields.length >= 5 && fields.length <= 6;
+  return value.trim().split(/\s+/).length === 5;
 }
 
 /** One routine batch, from the runs the cloud lists per profile. */
@@ -604,13 +609,14 @@ export function routineFromBatch(batch: AgentBatch): AgentRoutineDraft {
   };
 }
 
-/** A routine named after its first line. */
+/** A routine named after its template, else its first line. */
 export function routineFromPrompt(
   prompt: string,
   profileIds: string[],
+  name: string | null = null,
 ): AgentRoutineDraft {
   return {
-    name: promptTitle(prompt, ROUTINE_NAME_CHARS),
+    name: name?.trim() || promptTitle(prompt, ROUTINE_NAME_CHARS),
     prompt: prompt.trim(),
     startUrl: null,
     profileIds,
@@ -619,6 +625,14 @@ export function routineFromPrompt(
     concurrency: null,
     enabled: true,
   };
+}
+
+/**
+ * A scheduled routine the cloud stopped firing: its plan lost schedules. It
+ * stays on and keeps its schedule, with no next fire.
+ */
+export function routinePaused(routine: AgentRoutine): boolean {
+  return routine.enabled && routine.schedule !== null && !routine.nextRunAt;
 }
 
 /** The one state a run shows as a dot: the most urgent of its tasks. */

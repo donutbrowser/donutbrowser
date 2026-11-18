@@ -31,7 +31,7 @@ import {
   isTaskActive,
   isTaskMoving,
 } from "@/lib/agent-tasks";
-import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
+import { translateBackendError } from "@/lib/backend-errors";
 import { MOTION_DURATION, MOTION_EASE_OUT } from "@/lib/motion";
 import { showErrorToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
@@ -187,9 +187,7 @@ function Outcome({ task }: { task: AgentTask }) {
       : task.status === "budget"
         ? t("agent.tasks.endedBudget")
         : task.error
-          ? parseBackendError(task.error)
-            ? translateBackendError(t, task.error)
-            : task.error
+          ? translateBackendError(t, task.error)
           : null;
   if (!reason) return null;
   return (

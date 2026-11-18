@@ -344,9 +344,7 @@ function Outcome({
     turn.status === "budget" || code === "TASK_BUDGET"
       ? t("agent.tasks.endedBudget")
       : turn.error
-        ? code
-          ? translateBackendError(t, turn.error)
-          : turn.error
+        ? translateBackendError(t, turn.error)
         : null;
   if (!reason) return null;
   return (

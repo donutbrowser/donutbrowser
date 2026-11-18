@@ -36,7 +36,7 @@ import {
   type TaskState,
   taskState,
 } from "@/lib/agent-tasks";
-import { parseBackendError, translateBackendError } from "@/lib/backend-errors";
+import { translateBackendError } from "@/lib/backend-errors";
 import { showErrorToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 
@@ -55,9 +55,7 @@ function rowLine(t: T, task: AgentTask): string {
   if (task.status === "needs_approval") return t("agent.tasks.needsYou");
   if (task.status === "done" && task.result) return task.result;
   if (task.status === "failed" && task.error) {
-    return parseBackendError(task.error)
-      ? translateBackendError(t, task.error)
-      : task.error;
+    return translateBackendError(t, task.error);
   }
   if (task.lastStep && task.status !== "queued") return task.lastStep.text;
   return t(statusLabelKey(task.status));

@@ -9,6 +9,7 @@ import {
   LuPlay,
   LuTrash2,
 } from "react-icons/lu";
+import { ChatMarkdown } from "@/components/agent-chat/markdown";
 import { useTimeFormat } from "@/components/agent-console-parts";
 import {
   PaneHeader,
@@ -39,6 +40,7 @@ import {
   groupRoutineRuns,
   hostOf,
   listAgentRoutineRuns,
+  routinePaused,
   runAgentRoutine,
   stateCounts,
   TASK_STATES,
@@ -117,6 +119,65 @@ function BatchTotals({ runs }: { runs: AgentRoutineRun[] }) {
   );
 }
 
+/** One profile's run: its state, and what it found or why it stopped. */
+function RunLine({
+  run,
+  profileNames,
+}: {
+  run: AgentRoutineRun;
+  profileNames: Map<string, string>;
+}) {
+  const { t } = useTranslation();
+  const format = useNumber();
+  const [open, setOpen] = useState(false);
+  const detail =
+    run.summary ?? (run.error && translateBackendError(t, run.error));
+  return (
+    <li data-slot="agent-routine-run" className="flex flex-col">
+      <button
+        type="button"
+        aria-expanded={detail ? open : undefined}
+        disabled={!detail}
+        onClick={() => {
+          setOpen((current) => !current);
+        }}
+        className="flex min-h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs transition-colors duration-150 hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-default disabled:hover:bg-transparent motion-reduce:transition-none"
+      >
+        <StateDot status={run.status} className="size-1.5" />
+        <span className="w-36 shrink-0 truncate text-foreground">
+          {(run.profileId && profileNames.get(run.profileId)) ??
+            t("agent.tasks.unknownProfile")}
+        </span>
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-muted-foreground",
+            open && "invisible",
+          )}
+        >
+          {detail ?? t(statusLabelKey(run.status))}
+        </span>
+        {run.creditsUsed != null && (
+          <span className="w-20 shrink-0 text-right tabular-nums text-muted-foreground">
+            {t("agent.tasks.credits", { n: format(run.creditsUsed) })}
+          </span>
+        )}
+      </button>
+      {open && detail && (
+        <div
+          data-slot="agent-routine-run-detail"
+          className="px-2 pt-1 pb-2 pl-[2.375rem]"
+        >
+          {run.summary ? (
+            <ChatMarkdown text={run.summary} className="text-xs leading-5" />
+          ) : (
+            <p className="text-xs text-destructive-text">{detail}</p>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 function BatchLine({
   batch,
   profileNames,
@@ -164,26 +225,7 @@ function BatchLine({
       {open && (
         <ul className="flex flex-col pb-1 pl-8">
           {batch.runs.map((run) => (
-            <li
-              key={run.runId}
-              data-slot="agent-routine-run"
-              className="flex h-7 items-center gap-2 px-2 text-xs"
-              title={run.summary ?? run.error ?? undefined}
-            >
-              <StateDot status={run.status} className="size-1.5" />
-              <span className="min-w-0 flex-1 truncate text-foreground">
-                {(run.profileId && profileNames.get(run.profileId)) ??
-                  t("agent.tasks.unknownProfile")}
-              </span>
-              <span className="shrink-0 text-muted-foreground">
-                {t(statusLabelKey(run.status))}
-              </span>
-              {run.creditsUsed != null && (
-                <span className="w-20 shrink-0 text-right tabular-nums text-muted-foreground">
-                  {t("agent.tasks.credits", { n: format(run.creditsUsed) })}
-                </span>
-              )}
-            </li>
+            <RunLine key={run.runId} run={run} profileNames={profileNames} />
           ))}
         </ul>
       )}
@@ -288,7 +330,13 @@ export function RoutineView({
 
   const setEnabled = (enabled: boolean) =>
     act(async () => {
-      const { id: _id, createdAt: _c, updatedAt: _u, ...draft } = routine;
+      const {
+        id: _id,
+        createdAt: _c,
+        updatedAt: _u,
+        nextRunAt: _n,
+        ...draft
+      } = routine;
       onSaved(await updateAgentRoutine(routine.id, { ...draft, enabled }));
     });
 
@@ -415,6 +463,39 @@ export function RoutineView({
                   </>
                 )}
               </p>
+              {routinePaused(routine) && (
+                <div
+                  data-slot="agent-routine-paused"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-warning-text"
+                >
+                  <span>
+                    {canSchedule
+                      ? t("agent.routines.pausedResume")
+                      : t("agent.routines.pausedPlan")}
+                  </span>
+                  {canSchedule ? (
+                    <Button
+                      variant="soft"
+                      size="sm"
+                      disabled={busy}
+                      data-slot="agent-routine-resume"
+                      className="h-7 rounded-lg text-xs"
+                      onClick={() => void setEnabled(true)}
+                    >
+                      {t("agent.tasks.resume")}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="soft"
+                      size="sm"
+                      className="h-7 rounded-lg text-xs"
+                      onClick={onUpgrade}
+                    >
+                      {t("agent.setup.planAction")}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
           <div className="flex flex-col gap-1">

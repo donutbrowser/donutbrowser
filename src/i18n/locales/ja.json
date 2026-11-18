@@ -2971,12 +2971,13 @@
     "agentApprovalClosed": "この質問はもう受け付けていません。",
     "agentBrowserUnreachable": "プロファイルのブラウザが応答しませんでした。",
     "agentBrowserClosed": "タスクの完了前にブラウザが閉じました。",
+    "agentTaskSilent": "エージェントから15分間応答がなかったため、タスクを終了しました。",
     "agentPromptEmpty": "先にタスクを書いてください。",
     "agentStartUrlInvalid": "開始ページは http または https のアドレスにしてください。",
     "agentRoutineInvalid": "ルーティンが正しくありません。各項目を確認してください。",
     "agentRoutineNotFound": "そのルーティンはもう存在しません。",
     "agentNoProfiles": "プロファイルを 1 つ以上選んでください。",
-    "agentTooManyProfiles": "1 回の実行にはプロファイルが多すぎます。上限は 500 です。",
+    "agentTooManyProfiles": "プロファイルが多すぎます。上限は {{max}} です。",
     "agentTaskNotFound": "そのタスクはもう実行されていません。",
     "agentBatchNotFound": "その実行はもう一覧にありません。",
     "agentActionInvalid": "エージェントはその操作を知りません。",
@@ -2991,7 +2992,13 @@
     "extensionNotFromStore": "この拡張機能は Chrome ウェブストアから追加されたものではありません。",
     "extensionUpdateNeedsConsent": "新しいバージョンは追加のアクセスを求めています: {{permissions}}",
     "bookmarksFileInvalid": "このファイルからブックマークを読み込めません。Chrome の Bookmarks ファイルか、書き出した HTML ファイルを使ってください。",
-    "previewsNotEntitled": "ライブプレビューには Pro 以上のプランが必要です。"
+    "previewsNotEntitled": "ライブプレビューには Pro 以上のプランが必要です。",
+    "agentRoutineLimit": "ルーティンの上限に達しています。新しく追加するには、1つ削除してください。",
+    "agentScheduleTooOften": "ルーティンは最短でも5分に1回までしか実行できません。",
+    "desktopOffline": "予定時刻に Donut が起動していませんでした。",
+    "desktopRefused": "Donut はこの実行を開始できませんでした。",
+    "runLost": "この実行について Donut からの報告が途絶えました。",
+    "freeCreditsPending": "無料クレジットはまだ準備できていません。新しいアカウントには短い確認の後で付与されます。"
   },
   "rail": {
     "profiles": "プロファイル",
@@ -4215,7 +4222,9 @@
       "unlimited": "クレジット無制限",
       "detail": "今期 {{total}} クレジット中 {{used}} を使用",
       "left": "残り {{n}} クレジット",
-      "meter": "今期の残りクレジット"
+      "meter": "今期の残りクレジット",
+      "freePending": "無料クレジットは {{time}} に付与されます",
+      "freeDenied": "このアカウントでは無料クレジットを利用できません"
     },
     "tasks": {
       "status": {
@@ -4230,7 +4239,8 @@
         "no_credits": "クレジット切れ",
         "budget": "クレジット上限に到達",
         "missed": "未実行",
-        "unknown": "不明"
+        "unknown": "不明",
+        "pending": "待機中"
       },
       "chooseProfiles": "プロファイルを選択",
       "searchProfiles": "プロファイルを検索",
@@ -4313,7 +4323,10 @@
         "custom": "スケジュール {{cron}}",
         "minutes_one": "毎分",
         "minutes_other": "{{count}} 分ごと"
-      }
+      },
+      "paused": "一時停止中",
+      "pausedPlan": "スケジュールは一時停止中です。スケジュールには有料プランが必要です。",
+      "pausedResume": "プランにスケジュールが含まれていなかった間、スケジュールは一時停止されました。"
     },
     "chat": {
       "chooseProfile": "プロファイルを選択",
@@ -4376,7 +4389,8 @@
         "eraseTitle": "同期したチャットを消去しますか？",
         "eraseBody": "すべてのデバイスから削除されます。このコンピューターのチャットは残ります。",
         "eraseConfirm": "消去"
-      }
+      },
+      "fillBlank": "{{blank}} をご自身の言葉に置き換えてください。Tab で次の空欄に移動します。"
     },
     "shell": {
       "sidebar": "チャット、実行、ルーティン",

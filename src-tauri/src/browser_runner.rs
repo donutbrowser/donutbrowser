@@ -202,13 +202,16 @@ fn log_launch_failure(profile: &BrowserProfile, err: &str, started: std::time::I
 
 /// Why this machine refuses to launch the profile locally, or `None` when it
 /// may. A Wayfern profile is never refused for the OS that created it.
+/// `PROFILE_OTHER_OS`, with the OS the profile belongs to when it is known.
 fn local_os_refusal(profile: &BrowserProfile) -> Option<String> {
-  profile.is_cross_os().then(|| {
-    format!(
-      "this profile was created on {} and cannot be launched on a different operating system",
-      profile.host_os.as_deref().unwrap_or("another OS"),
-    )
-  })
+  profile
+    .is_cross_os()
+    .then(|| match profile.host_os.as_deref() {
+      Some(os) => {
+        serde_json::json!({ "code": "PROFILE_OTHER_OS", "params": { "os": os } }).to_string()
+      }
+      None => crate::backend_error("PROFILE_OTHER_OS"),
+    })
 }
 
 pub struct BrowserRunner {
@@ -1652,11 +1655,8 @@ impl BrowserRunner {
       }
     }
 
-    if let Some(reason) = local_os_refusal(&profile) {
-      return Err(format!(
-        "Cannot open URL with profile '{}': {reason}",
-        profile.name
-      ));
+    if let Some(refusal) = local_os_refusal(&profile) {
+      return Err(refusal);
     }
 
     // Past this point a local browser is about to be launched, and until now
@@ -1976,11 +1976,8 @@ async fn launch_browser_profile_tracked(
   } = options;
   emit_launch_stage(&profile, "preparing", None);
 
-  if let Some(reason) = local_os_refusal(&profile) {
-    return Err(format!(
-      "Cannot launch profile '{}': {reason}",
-      profile.name
-    ));
+  if let Some(refusal) = local_os_refusal(&profile) {
+    return Err(refusal);
   }
 
   // Refuse a launch that would run over work a remote session has not handed
@@ -2371,12 +2368,13 @@ mod tests {
     } else {
       "windows"
     };
-    let reason = local_os_refusal(&profile_created_on("camoufox", other))
-      .expect("a profile bound to another OS must be refused");
-    assert!(
-      reason.contains(other),
-      "the reason must name the OS: {reason}"
-    );
+    let refusal: serde_json::Value = serde_json::from_str(
+      &local_os_refusal(&profile_created_on("camoufox", other))
+        .expect("a profile bound to another OS must be refused"),
+    )
+    .unwrap();
+    assert_eq!(refusal["code"], "PROFILE_OTHER_OS");
+    assert_eq!(refusal["params"]["os"], other, "the refusal names the OS");
     assert_eq!(
       local_os_refusal(&profile_created_on("camoufox", &host)),
       None

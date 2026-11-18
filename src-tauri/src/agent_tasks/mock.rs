@@ -15,6 +15,11 @@
 //! answers as a Wayfern without the method, one with `[replaced]` as an
 //! engine that no longer knows the task.
 //!
+//! Routines: a scheduled one with `[soon]` in its prompt is due a few seconds
+//! after it is saved, then a day later; `[paused]` has no next fire, as when
+//! its plan lapsed; `[missed]` starts with a fire missed while Donut was
+//! closed. A report on a finished run changes nothing, as in the cloud.
+//!
 //! A task whose start offered `host` calls the app on a `[host:...]` marker
 //! and waits for each reply: `list` reads profiles, routines and credits;
 //! `save` proposes a weekday routine on the first two profiles; `edit` turns
@@ -72,6 +77,8 @@ pub fn credits() -> Credits {
     period_end: Some("2026-12-01T00:00:00Z".to_string()),
     plan: Some("free".to_string()),
     unlimited: false,
+    free_grant: Some("granted".to_string()),
+    free_grant_at: None,
   }
 }
 
@@ -92,6 +99,7 @@ pub fn save_routine(id: Option<String>, draft: RoutineDraft) -> Routine {
   let existing = id
     .as_deref()
     .and_then(|id| list.iter().position(|r| r.id == id));
+  let next_run_at = next_fire(&draft.prompt, draft.enabled && draft.schedule.is_some());
   let routine = Routine {
     id: id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
     name: draft.name,
@@ -102,6 +110,7 @@ pub fn save_routine(id: Option<String>, draft: RoutineDraft) -> Routine {
     max_credits_per_run: draft.max_credits_per_run,
     concurrency: draft.concurrency,
     enabled: draft.enabled,
+    next_run_at,
     created_at: existing
       .and_then(|index| list[index].created_at.clone())
       .or_else(|| Some(now.clone())),
@@ -109,9 +118,67 @@ pub fn save_routine(id: Option<String>, draft: RoutineDraft) -> Routine {
   };
   match existing {
     Some(index) => list[index] = routine.clone(),
-    None => list.push(routine.clone()),
+    None => {
+      if routine.prompt.contains("[missed]") {
+        missed(&routine);
+      }
+      list.push(routine.clone());
+    }
   }
   routine
+}
+
+fn in_secs(secs: i64) -> String {
+  (chrono::Utc::now() + chrono::Duration::seconds(secs)).to_rfc3339()
+}
+
+fn next_fire(prompt: &str, scheduled: bool) -> Option<String> {
+  if !scheduled || prompt.contains("[paused]") {
+    return None;
+  }
+  Some(in_secs(if prompt.contains("[soon]") { 4 } else { 86_400 }))
+}
+
+fn missed(routine: &Routine) {
+  let batch = start_runs(&routine.id, &routine.profile_ids, None);
+  let mut runs = RUNS.lock().unwrap_or_else(|p| p.into_inner());
+  for (_, run) in runs.iter_mut() {
+    if run.batch_id.as_deref() == Some(batch.batch_id.as_str()) {
+      run.status = "missed".to_string();
+      run.error = Some("DESKTOP_OFFLINE".to_string());
+      run.finished_at = run.created_at.clone();
+    }
+  }
+}
+
+/// The due fires: each gets a pending batch, and its routine the next day.
+pub fn claim_fires() -> Vec<super::cloud::Fire> {
+  let now = chrono::Utc::now();
+  let due: Vec<Routine> = {
+    let mut list = ROUTINES.lock().unwrap_or_else(|p| p.into_inner());
+    list
+      .iter_mut()
+      .filter(|routine| routine.enabled)
+      .filter(|routine| {
+        routine
+          .next_run_at
+          .as_deref()
+          .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+          .is_some_and(|at| at <= now)
+      })
+      .map(|routine| {
+        routine.next_run_at = Some(in_secs(86_400));
+        routine.clone()
+      })
+      .collect()
+  };
+  due
+    .iter()
+    .map(|routine| super::cloud::Fire {
+      routine_id: routine.id.clone(),
+      batch_id: start_runs(&routine.id, &routine.profile_ids, None).batch_id,
+    })
+    .collect()
 }
 
 pub fn delete_routine(id: &str) -> Result<(), String> {
@@ -143,11 +210,30 @@ pub fn start_runs(
   profile_ids: &[String],
   batch_id: Option<&str>,
 ) -> StartedBatch {
+  let mut runs = RUNS.lock().unwrap_or_else(|p| p.into_inner());
+  // A claimed fire made its runs; the desktop asks for their ids.
+  if let Some(batch_id) = batch_id {
+    let made: Vec<StartedRun> = runs
+      .iter()
+      .filter(|(owner, run)| owner == routine_id && run.batch_id.as_deref() == Some(batch_id))
+      .filter_map(|(_, run)| {
+        Some(StartedRun {
+          run_id: run.run_id.clone(),
+          profile_id: run.profile_id.clone()?,
+        })
+      })
+      .collect();
+    if !made.is_empty() {
+      return StartedBatch {
+        batch_id: batch_id.to_string(),
+        runs: made,
+      };
+    }
+  }
   let batch_id = batch_id
     .map(str::to_string)
     .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
   let now = chrono::Utc::now().to_rfc3339();
-  let mut runs = RUNS.lock().unwrap_or_else(|p| p.into_inner());
   let started = profile_ids
     .iter()
     .map(|profile_id| {
@@ -158,7 +244,7 @@ pub fn start_runs(
           run_id: run_id.clone(),
           batch_id: Some(batch_id.clone()),
           profile_id: Some(profile_id.clone()),
-          status: "queued".to_string(),
+          status: "pending".to_string(),
           summary: None,
           credits_used: None,
           error: None,
@@ -180,7 +266,18 @@ pub fn start_runs(
 
 pub fn report_run(run_id: &str, patch: Value) {
   let mut runs = RUNS.lock().unwrap_or_else(|p| p.into_inner());
-  if let Some((_, run)) = runs.iter_mut().find(|(_, run)| run.run_id == run_id) {
+  const FINAL: [&str; 6] = [
+    "done",
+    "failed",
+    "stopped",
+    "no_credits",
+    "budget",
+    "missed",
+  ];
+  if let Some((_, run)) = runs
+    .iter_mut()
+    .find(|(_, run)| run.run_id == run_id && !FINAL.contains(&run.status.as_str()))
+  {
     if let Some(status) = patch.get("status").and_then(Value::as_str) {
       run.status = status.to_string();
       if status != "running" {
@@ -364,10 +461,15 @@ async fn script(profile_id: String, params: Value, mut control: mpsc::UnboundedR
     .and_then(Value::as_str)
     .unwrap_or_default()
     .to_string();
-  let prompt = params
+  // A fresh start carries the chat's earlier turns; only the new message
+  // sets the script.
+  let full = params
     .get("prompt")
     .and_then(Value::as_str)
-    .unwrap_or_default()
+    .unwrap_or_default();
+  let prompt = full
+    .rsplit_once(super::chat::NEW_MESSAGE)
+    .map_or(full, |(_, text)| text)
     .to_string();
   let start_url = params.get("startUrl").cloned().unwrap_or(Value::Null);
   let mixed = prompt

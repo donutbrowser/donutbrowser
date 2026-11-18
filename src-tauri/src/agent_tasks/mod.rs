@@ -2,7 +2,8 @@
 //! in a profile's browser. Donut is the interface only. It mints the agent
 //! token, launches the profiles, starts, steers and stops tasks over CDP,
 //! records what the engine reports, and tells the cloud how each routine run
-//! ended. No prompt is written, and no model is called, here.
+//! ended. No model is called here, and nothing is added to a prompt except a
+//! chat's earlier turns when its engine task was lost.
 //!
 //! Everything is behind the `agent` entitlement, a rollout flag the cloud sets
 //! per account on any plan. Signed out, or without it, every command refuses
@@ -17,6 +18,8 @@ pub mod host;
 #[cfg(feature = "e2e")]
 mod mock;
 mod model;
+mod reports;
+mod schedule;
 mod token;
 
 use batch::{Autonomy, Batch, Order, Tally};
@@ -38,6 +41,10 @@ const MAX_KEPT_BATCHES: usize = 30;
 const CONNECT_PATIENCE: Duration = Duration::from_secs(20);
 const TOKEN_CHECK_EVERY: Duration = Duration::from_secs(30);
 const MAX_STEER_CHARS: usize = 2_000;
+/// A task the engine says nothing about for this long has stalled.
+const SILENCE_LIMIT_MS: u64 = 15 * 60 * 1_000;
+/// How long the app waits at exit for the engines, the cloud and the browsers.
+const EXIT_PATIENCE: Duration = Duration::from_secs(5);
 
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 static TOKEN_REFRESH: crate::log_streak::Streak =
@@ -47,6 +54,7 @@ static TOKEN_REFRESH: crate::log_streak::Streak =
 pub fn init(app: &tauri::AppHandle) {
   let _ = APP.set(app.clone());
   chat_sync::start(app);
+  schedule::start();
 }
 
 #[derive(Default)]
@@ -223,18 +231,44 @@ fn locale() -> String {
     .unwrap_or_else(|| "en".to_string())
 }
 
+fn configure_params(token: &token::AgentToken) -> Value {
+  json!({
+    "apiBase": crate::cloud_auth::CLOUD_API_URL,
+    "token": token.token,
+    "locale": locale(),
+  })
+}
+
+fn open_links() -> Vec<EngineLink> {
+  let mut store = store();
+  store.links.retain(|_, link| link.is_open());
+  store.links.values().cloned().collect()
+}
+
+/// The agent token. Whoever asked, a newly minted one goes to every open
+/// engine link, so no browser keeps the old one.
+async fn agent_token() -> Result<token::AgentToken, String> {
+  let (token, minted) = token::current().await?;
+  if minted {
+    hand_out(configure_params(&token));
+  }
+  Ok(token)
+}
+
+fn hand_out(params: Value) {
+  for link in open_links() {
+    let params = params.clone();
+    tokio::spawn(async move {
+      let _ = link.call("Wayfern.agentConfigure", params).await;
+    });
+  }
+}
+
 /// Hand the current agent token to the engine.
 async fn configure(link: &EngineLink) -> Result<(), String> {
-  let (token, _) = token::current().await?;
+  let token = agent_token().await?;
   let outcome = link
-    .call(
-      "Wayfern.agentConfigure",
-      json!({
-        "apiBase": crate::cloud_auth::CLOUD_API_URL,
-        "token": token.token,
-        "locale": locale(),
-      }),
-    )
+    .call("Wayfern.agentConfigure", configure_params(&token))
     .await;
   outcome.map(|_| ()).map_err(|e| e.code())
 }
@@ -248,31 +282,21 @@ fn ensure_token_refresher() {
   tokio::spawn(async {
     loop {
       tokio::time::sleep(TOKEN_CHECK_EVERY).await;
-      let links: Vec<EngineLink> = {
-        let mut store = store();
-        store.links.retain(|_, link| link.is_open());
-        store.links.values().cloned().collect()
-      };
-      if links.is_empty() {
+      if open_links().is_empty() {
         continue;
       }
-      match token::current().await {
-        Ok((token, true)) => {
-          let params = json!({
-            "apiBase": crate::cloud_auth::CLOUD_API_URL,
-            "token": token.token,
-            "locale": locale(),
-          });
-          for link in links {
-            let _ = link.call("Wayfern.agentConfigure", params.clone()).await;
-          }
-          TOKEN_REFRESH.succeeded();
-        }
+      match agent_token().await {
         Ok(_) => TOKEN_REFRESH.succeeded(),
         Err(e) => TOKEN_REFRESH.failed(e),
       }
     }
   });
+}
+
+/// Tell an engine to drop a task Donut no longer follows.
+async fn stop_engine_task(link: EngineLink, task_id: String) {
+  let params = json!({ "taskId": task_id, "action": "stop" });
+  let _ = link.call("Wayfern.agentControl", params).await;
 }
 
 // ---- Engine events ----
@@ -341,7 +365,7 @@ pub(crate) fn on_link_closed(profile_id: &str) {
       let mut changed = false;
       for (index, task) in batch.tasks.iter_mut().enumerate() {
         if task.profile_id == profile_id && task.status.is_active() && task.task_id.is_some() {
-          task.fail("AGENT_BROWSER_CLOSED".to_string(), now);
+          task.fail(crate::backend_error("AGENT_BROWSER_CLOSED"), now);
           ended.push((batch.id.clone(), index));
           changed = true;
         }
@@ -358,49 +382,65 @@ pub(crate) fn on_link_closed(profile_id: &str) {
   chat::on_link_closed(profile_id);
 }
 
-/// A task ended: log it, tell the cloud, close a browser opened for it, and
-/// let the batch start the next one.
+/// A task ended: log it, let the batch start the next one, tell the cloud
+/// and close a browser opened for it. Called once, by whatever ended it.
 fn finalize(batch_id: &str, index: usize) {
+  if let Some(after) = end_task(batch_id, index) {
+    tokio::spawn(after);
+  }
+}
+
+/// What `finalize` does at once, and the work it leaves for after.
+fn end_task(batch_id: &str, index: usize) -> Option<impl std::future::Future<Output = ()> + Send> {
   let (task, headless, waker) = {
     let mut store = store();
     let waker = store.waker(batch_id);
-    let Some(batch) = store.batch_mut(batch_id) else {
-      return;
-    };
-    let Some(task) = batch.tasks.get(index).cloned() else {
-      return;
-    };
+    let batch = store.batch_mut(batch_id)?;
+    let task = batch.tasks.get(index).cloned()?;
     (task, batch.order.headless, waker)
   };
-  let elapsed = task
-    .started_at
-    .zip(task.finished_at)
-    .map(|(start, end)| end.saturating_sub(start))
-    .unwrap_or(0);
-  log::info!(
-    "Agent task finished profile={} task={} batch={batch_id} status={} credits={} elapsed_ms={elapsed}",
-    task.profile_id,
-    task.task_id.as_deref().unwrap_or("-"),
-    task.status.run_status(),
-    task.total_credits()
-  );
-  if let Some(run_id) = task.run_id.clone() {
-    let patch = final_report(&task);
-    tokio::spawn(async move { cloud::report_run(&run_id, patch).await });
-  }
-  if task.launched_here && headless {
-    let profile_id = task.profile_id.clone();
-    tokio::spawn(async move { stop_browser(&profile_id).await });
+  if let Some(task_id) = &task.task_id {
+    let elapsed = task
+      .started_at
+      .zip(task.finished_at)
+      .map(|(start, end)| end.saturating_sub(start))
+      .unwrap_or(0);
+    log::info!(
+      "Agent task finished profile={} task={task_id} batch={batch_id} status={} credits={} err={} elapsed_ms={elapsed}",
+      task.profile_id,
+      task.status.run_status(),
+      task.total_credits(),
+      task.error.as_deref().map_or_else(|| "-".to_string(), error_code)
+    );
   }
   waker.notify_one();
+  let report = task
+    .run_id
+    .clone()
+    .map(|run_id| (run_id, final_report(&task)));
+  let close = (task.launched_here && headless).then(|| task.profile_id.clone());
+  Some(async move {
+    let report = async {
+      if let Some((run_id, patch)) = report {
+        reports::finished(&run_id, patch).await;
+      }
+    };
+    let close = async {
+      if let Some(profile_id) = close {
+        stop_browser(&profile_id).await;
+      }
+    };
+    tokio::join!(report, close);
+  })
 }
 
-/// What the cloud records when a task ends: every attempt's credits count.
+/// What the cloud records when a task ends. A retry has a run of its own,
+/// so the credits are this attempt's.
 fn final_report(task: &Task) -> Value {
   cloud::run_patch(
     task.status.run_status(),
     task.result.as_deref(),
-    task.total_credits(),
+    task.credits_used,
     task.error.as_deref(),
   )
 }
@@ -487,8 +527,9 @@ async fn attach(
     }
     return Err(code);
   }
-  store().links.insert(profile_id, link.clone());
+  store().links.insert(profile_id.clone(), link.clone());
   ensure_token_refresher();
+  chat::stop_orphans(&profile_id, &link).await;
   Ok((link, !running))
 }
 
@@ -508,7 +549,8 @@ fn start_params(task_id: &str, order: &Order) -> Value {
 }
 
 async fn start_task(batch_id: String, index: usize, profile_id: String, order: Order) {
-  let outcome: Result<String, String> = async {
+  // The engine's task, or none when the task ended before the engine had it.
+  let outcome: Result<Option<String>, String> = async {
     let profile = load_profile(&profile_id)?;
     if profile.browser != "wayfern" {
       return Err(crate::backend_error("AGENT_UNSUPPORTED"));
@@ -527,61 +569,84 @@ async fn start_task(batch_id: String, index: usize, profile_id: String, order: O
       let stopping = batch.stopping;
       let task = &mut batch.tasks[index];
       task.launched_here = launched;
-      if stopping {
-        task.status = TaskStatus::Stopped;
-        task.finished_at = Some(now_ms());
-        return Ok(String::new());
+      if stopping || task.status.is_final() {
+        return Ok(None);
       }
       task.task_id = Some(task_id.clone());
       task.started_at = Some(now_ms());
     }
-    link
+    match link
       .call("Wayfern.agentStart", start_params(&task_id, &order))
       .await
-      .map_err(|e| e.code())?;
-    Ok(task_id)
+    {
+      Ok(_) => Ok(Some(task_id)),
+      Err(e) => {
+        // No answer is not a no: the engine may have the task.
+        if matches!(e, EngineError::Gone(_)) {
+          tokio::spawn(stop_engine_task(link.clone(), task_id));
+        }
+        Err(e.code())
+      }
+    }
   }
   .await;
 
-  let finished = {
+  enum Next {
+    Nothing,
+    Finalize,
+    Report(String, u64),
+    CloseBrowser,
+  }
+  let next = {
     let mut store = store();
     let Some(batch) = store.batch_mut(&batch_id) else {
       return;
     };
+    let headless = batch.order.headless;
     let task = &mut batch.tasks[index];
-    let finished = match &outcome {
-      Ok(task_id) if task_id.is_empty() => true,
-      Ok(task_id) => {
-        if task.status == TaskStatus::Launching {
-          task.status = TaskStatus::Running;
+    if task.status.is_final() {
+      // It ended meanwhile and was finalized then; a browser launched for it
+      // after that is still open.
+      if matches!(outcome, Ok(None)) && task.launched_here && headless {
+        Next::CloseBrowser
+      } else {
+        Next::Nothing
+      }
+    } else {
+      let next = match &outcome {
+        Ok(None) => {
+          task.status = TaskStatus::Stopped;
+          task.finished_at = Some(now_ms());
+          Next::Finalize
         }
-        log::info!("Agent task started profile={profile_id} task={task_id} batch={batch_id}");
-        // An end that came before this reply was finalized when it came.
-        false
-      }
-      Err(code) => {
-        log::warn!(
-          "Agent task did not start profile={profile_id} batch={batch_id} err={}",
-          error_code(code)
-        );
-        task.fail(code.clone(), now_ms());
-        true
-      }
-    };
-    let run = task
-      .run_id
-      .clone()
-      .filter(|_| !finished && !task.status.is_final())
-      .map(|run_id| (run_id, task.total_credits()));
-    publish(batch);
-    (finished, run)
-  };
-  match finished {
-    (true, _) => finalize(&batch_id, index),
-    (false, Some((run_id, spent))) => {
-      cloud::report_run(&run_id, cloud::run_patch("running", None, spent, None)).await;
+        Ok(Some(task_id)) => {
+          if task.status == TaskStatus::Launching {
+            task.status = TaskStatus::Running;
+          }
+          log::info!("Agent task started profile={profile_id} task={task_id} batch={batch_id}");
+          match &task.run_id {
+            Some(run_id) => Next::Report(run_id.clone(), task.credits_used),
+            None => Next::Nothing,
+          }
+        }
+        Err(code) => {
+          log::warn!(
+            "Agent task did not start profile={profile_id} batch={batch_id} err={}",
+            error_code(code)
+          );
+          task.fail(code.clone(), now_ms());
+          Next::Finalize
+        }
+      };
+      publish(batch);
+      next
     }
-    _ => {}
+  };
+  match next {
+    Next::Nothing => {}
+    Next::Finalize => finalize(&batch_id, index),
+    Next::Report(run_id, spent) => reports::running(&run_id, spent).await,
+    Next::CloseBrowser => stop_browser(&profile_id).await,
   }
 }
 
@@ -617,6 +682,7 @@ async fn drive(batch_id: String) {
   ));
   let waker = store().waker(&batch_id);
   loop {
+    end_silent(&batch_id);
     let next = {
       let mut store = store();
       let Some(batch) = store.batch_mut(&batch_id) else {
@@ -670,6 +736,44 @@ async fn drive(batch_id: String) {
   store().driving.remove(&batch_id);
 }
 
+/// End the tasks the engine has said nothing about for `SILENCE_LIMIT_MS`,
+/// so the batch can finish. Their engines are told to stop them.
+fn end_silent(batch_id: &str) {
+  let ended: Vec<(usize, Option<(EngineLink, String)>)> = {
+    let mut store = store();
+    let now = now_ms();
+    let Some(batch) = store.batch_mut(batch_id) else {
+      return;
+    };
+    let silent = batch.silent(now, SILENCE_LIMIT_MS);
+    if silent.is_empty() {
+      return;
+    }
+    let ended: Vec<(usize, String, Option<String>)> = silent
+      .into_iter()
+      .map(|index| {
+        let task = &mut batch.tasks[index];
+        task.fail(crate::backend_error("AGENT_TASK_SILENT"), now);
+        (index, task.profile_id.clone(), task.task_id.clone())
+      })
+      .collect();
+    publish(batch);
+    ended
+      .into_iter()
+      .map(|(index, profile_id, task_id)| {
+        let link = store.links.get(&profile_id).cloned();
+        (index, link.zip(task_id))
+      })
+      .collect()
+  };
+  for (index, engine) in ended {
+    if let Some((link, task_id)) = engine {
+      tokio::spawn(stop_engine_task(link, task_id));
+    }
+    finalize(batch_id, index);
+  }
+}
+
 fn ensure_driving(batch_id: &str) {
   if store().driving.insert(batch_id.to_string()) {
     tokio::spawn(drive(batch_id.to_string()));
@@ -716,9 +820,13 @@ fn checked_profiles(profile_ids: Vec<String>) -> Result<Vec<String>, String> {
     return Err(crate::backend_error("AGENT_NO_PROFILES"));
   }
   if profile_ids.len() > batch::MAX_PROFILES {
-    return Err(crate::backend_error("AGENT_TOO_MANY_PROFILES"));
+    return Err(too_many_profiles(batch::MAX_PROFILES));
   }
   Ok(profile_ids)
+}
+
+pub(crate) fn too_many_profiles(max: usize) -> String {
+  json!({ "code": "AGENT_TOO_MANY_PROFILES", "params": { "max": max.to_string() } }).to_string()
 }
 
 fn start_batch(spec: BatchSpec) -> Result<BatchView, String> {
@@ -757,15 +865,28 @@ fn start_batch(spec: BatchSpec) -> Result<BatchView, String> {
   Ok(view)
 }
 
+fn run_ids(started: cloud::StartedBatch) -> HashMap<String, String> {
+  started
+    .runs
+    .into_iter()
+    .map(|run| (run.profile_id, run.run_id))
+    .collect()
+}
+
+/// A batch of a routine, with a run in the cloud for each profile. For a
+/// scheduled fire the cloud made batch `cloud_batch_id` and its runs; else
+/// they are made here, and end as failed when the batch cannot start.
 async fn run_routine(
   routine: Routine,
   profile_ids: Option<Vec<String>>,
-  cloud_batch_id: Option<String>,
+  cloud_batch_id: Option<&str>,
 ) -> Result<BatchView, String> {
   let profile_ids = checked_profiles(profile_ids.unwrap_or_else(|| routine.profile_ids.clone()))?;
   let (prompt, start_url) = cloud::checked_order(&routine.prompt, routine.start_url.as_deref())?;
-  let started = cloud::start_runs(&routine.id, &profile_ids, cloud_batch_id.as_deref()).await?;
-  start_batch(BatchSpec {
+  let started = cloud::start_runs(&routine.id, &profile_ids, cloud_batch_id).await?;
+  let batch_id = started.batch_id.clone();
+  let runs = run_ids(started);
+  let view = start_batch(BatchSpec {
     order: Order {
       prompt,
       start_url,
@@ -776,30 +897,48 @@ async fn run_routine(
     profile_ids,
     concurrency: routine.concurrency,
     routine_id: Some(routine.id),
-    cloud_batch_id: Some(started.batch_id),
-    runs: started
-      .runs
-      .into_iter()
-      .map(|run| (run.profile_id, run.run_id))
-      .collect(),
-  })
+    cloud_batch_id: Some(batch_id),
+    runs: runs.clone(),
+  });
+  if let (Err(e), None) = (&view, cloud_batch_id) {
+    reports::fail_runs(runs.into_values(), e).await;
+  }
+  view
+}
+
+/// One scheduled fire of a routine: the cloud made batch `batch_id` with a
+/// run for each profile. A fire that cannot run ends those runs as failed,
+/// with the reason.
+pub(crate) async fn run_scheduled_fire(routine_id: &str, batch_id: &str) -> Result<Value, String> {
+  let outcome = async {
+    ensure_entitled().await?;
+    let routine = cloud::get_routine(routine_id).await?;
+    log::info!("Agent routine fired routine={routine_id} batch={batch_id}");
+    run_routine(routine, None, Some(batch_id)).await
+  }
+  .await;
+  match outcome {
+    Ok(view) => Ok(json!({ "batchId": view.id, "profiles": view.tasks.len() })),
+    Err(e) => {
+      log::warn!(
+        "Agent routine fire refused routine={routine_id} batch={batch_id} err={}",
+        error_code(&e)
+      );
+      if let Ok(started) = cloud::start_runs(routine_id, &[], Some(batch_id)).await {
+        reports::fail_runs(run_ids(started).into_values(), &e).await;
+      }
+      Err(e)
+    }
+  }
 }
 
 /// A routine the cloud fired on its schedule, over the remote bridge.
 pub(crate) async fn run_routine_from_cloud(params: &Value) -> Result<Value, String> {
-  ensure_entitled().await?;
-  let routine_id = params
-    .get("routineId")
-    .and_then(Value::as_str)
-    .ok_or_else(|| crate::backend_error("AGENT_ROUTINE_NOT_FOUND"))?;
-  let cloud_batch_id = params
-    .get("batchId")
-    .and_then(Value::as_str)
-    .map(str::to_string);
-  let routine = cloud::get_routine(routine_id).await?;
-  log::info!("Agent routine fired by the cloud routine={routine_id}");
-  let view = run_routine(routine, None, cloud_batch_id).await?;
-  Ok(json!({ "batchId": view.id, "profiles": view.tasks.len() }))
+  let field = |name: &str| params.get(name).and_then(Value::as_str);
+  let routine_id =
+    field("routineId").ok_or_else(|| crate::backend_error("AGENT_ROUTINE_NOT_FOUND"))?;
+  let batch_id = field("batchId").ok_or_else(|| crate::backend_error("AGENT_BATCH_NOT_FOUND"))?;
+  run_scheduled_fire(routine_id, batch_id).await
 }
 
 // ---- Commands ----
@@ -903,9 +1042,11 @@ fn set_status(batch_id: &str, profile_id: &str, status: TaskStatus) {
     if task.status.is_final() {
       return;
     }
+    let now = now_ms();
     task.status = status;
+    task.heard_at = Some(now);
     if status.is_final() {
-      task.finished_at = Some(now_ms());
+      task.finished_at = Some(now);
     }
     publish(batch);
     status.is_final().then_some(index)
@@ -984,7 +1125,7 @@ pub async fn answer_agent_approval(
   let mut store = store();
   if let Some(batch) = store.batch_mut(&batch_id) {
     if let Some(task) = batch.tasks.iter_mut().find(|t| t.profile_id == profile_id) {
-      if task.answered(&approval_id) {
+      if task.answered(&approval_id, now_ms()) {
         publish(batch);
       }
     }
@@ -995,19 +1136,23 @@ pub async fn answer_agent_approval(
 #[tauri::command]
 pub async fn stop_agent_batch(batch_id: String) -> Result<(), String> {
   ensure_entitled().await?;
-  let running = {
+  let (running, queued) = {
     let mut store = store();
     let batch = store
       .batch_mut(&batch_id)
       .ok_or_else(|| crate::backend_error("AGENT_BATCH_NOT_FOUND"))?;
-    let running = batch.stop_all(now_ms());
+    let stopped = batch.stop_all(now_ms());
     publish(batch);
-    running
+    stopped
   };
   log::info!(
-    "Agent batch stopping batch={batch_id} running={}",
-    running.len()
+    "Agent batch stopping batch={batch_id} running={} queued={}",
+    running.len(),
+    queued.len()
   );
+  for index in queued {
+    finalize(&batch_id, index);
+  }
   for (profile_id, _) in running {
     let batch_id = batch_id.clone();
     tokio::spawn(async move {
@@ -1023,15 +1168,41 @@ pub async fn stop_agent_batch(batch_id: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn retry_agent_batch(batch_id: String) -> Result<usize, String> {
   ensure_entitled().await?;
+  let (routine_id, failed) = {
+    let store = store();
+    let batch = store
+      .batches
+      .iter()
+      .find(|b| b.id == batch_id)
+      .ok_or_else(|| crate::backend_error("AGENT_BATCH_NOT_FOUND"))?;
+    (batch.routine_id.clone(), batch.failed_profiles())
+  };
+  // The cloud has a routine's failed runs as ended: each new attempt gets a
+  // run of its own.
+  let mut runs = match routine_id {
+    Some(routine_id) if !failed.is_empty() => {
+      run_ids(cloud::start_runs(&routine_id, &failed, None).await?)
+    }
+    _ => HashMap::new(),
+  };
   let count = {
     let mut store = store();
-    let batch = store
-      .batch_mut(&batch_id)
-      .ok_or_else(|| crate::backend_error("AGENT_BATCH_NOT_FOUND"))?;
-    let count = batch.retry_failed();
-    publish(batch);
-    count
+    store.batch_mut(&batch_id).map(|batch| {
+      let requeued = batch.retry_failed();
+      for &index in &requeued {
+        let task = &mut batch.tasks[index];
+        task.run_id = runs.remove(&task.profile_id);
+      }
+      publish(batch);
+      requeued.len()
+    })
   };
+  // Runs no task took: the batch went, or another retry took the task.
+  if !runs.is_empty() {
+    let error = crate::backend_error("AGENT_TASK_NOT_FOUND");
+    reports::fail_runs(runs.into_values(), &error).await;
+  }
+  let count = count.ok_or_else(|| crate::backend_error("AGENT_BATCH_NOT_FOUND"))?;
   if count > 0 {
     log::info!("Agent batch retrying batch={batch_id} tasks={count}");
     ensure_driving(&batch_id);
@@ -1059,7 +1230,9 @@ pub async fn dismiss_agent_batch(batch_id: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn list_agent_routines() -> Result<Vec<Routine>, String> {
   ensure_entitled().await?;
-  cloud::list_routines().await
+  let routines = cloud::list_routines().await?;
+  schedule::observe(&routines);
+  Ok(routines)
 }
 
 /// Create a routine (`id` none) or change one. Schedules need the plan.
@@ -1071,12 +1244,14 @@ async fn save_routine(id: Option<&str>, draft: RoutineDraft) -> Result<Routine, 
     Some(id) => cloud::update_routine(id, draft).await?,
     None => cloud::create_routine(draft).await?,
   };
+  schedule::changed();
   let _ = crate::events::emit_empty("agent-routines-changed");
   Ok(saved)
 }
 
 async fn remove_routine(id: &str) -> Result<(), String> {
   cloud::delete_routine(id).await?;
+  schedule::changed();
   let _ = crate::events::emit_empty("agent-routines-changed");
   Ok(())
 }
@@ -1115,26 +1290,107 @@ pub async fn run_agent_routine(
   run_routine(routine, profile_ids, None).await
 }
 
+/// The app quits: every task ends as stopped, its engine is told to stop
+/// it, the cloud hears how each routine run ended, and the browsers opened
+/// for routines close. Waits at most `EXIT_PATIENCE`.
+pub async fn shutdown() {
+  let (engines, stopped) = {
+    let mut store = store();
+    let now = now_ms();
+    let mut engines = Vec::new();
+    let mut stopped = Vec::new();
+    for batch in &mut store.batches {
+      for index in batch.end_all(now) {
+        if let Some(task_id) = &batch.tasks[index].task_id {
+          engines.push((batch.tasks[index].profile_id.clone(), task_id.clone()));
+        }
+        stopped.push((batch.id.clone(), index));
+      }
+    }
+    let engines: Vec<(EngineLink, String)> = engines
+      .into_iter()
+      .filter_map(|(profile_id, task_id)| {
+        let link = store.links.get(&profile_id).filter(|l| l.is_open())?;
+        Some((link.clone(), task_id))
+      })
+      .collect();
+    (engines, stopped)
+  };
+  let chats = chat::stop_running();
+  if stopped.is_empty() && chats.is_empty() {
+    return;
+  }
+  log::info!(
+    "Agent tasks stopping at exit tasks={} chats={}",
+    stopped.len(),
+    chats.len()
+  );
+  let mut work: Vec<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>> = Vec::new();
+  for (link, task_id) in engines.into_iter().chain(chats) {
+    work.push(Box::pin(stop_engine_task(link, task_id)));
+  }
+  for (batch_id, index) in stopped {
+    if let Some(after) = end_task(&batch_id, index) {
+      work.push(Box::pin(after));
+    }
+  }
+  if tokio::time::timeout(EXIT_PATIENCE, futures_util::future::join_all(work))
+    .await
+    .is_err()
+  {
+    log::warn!(
+      "Agent tasks stop at exit cut short elapsed_ms={}",
+      EXIT_PATIENCE.as_millis()
+    );
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
 
   #[test]
-  fn the_final_report_counts_the_credits_of_every_attempt() {
+  fn a_retry_reports_its_own_credits_on_its_own_run() {
     let mut task = Task::queued("p1".into());
     task.run_id = Some("r1".into());
     task.credits_used = 12;
     task.fail("AGENT_BUSY".into(), 1);
     task.requeue();
-    assert_eq!(task.run_id.as_deref(), Some("r1"));
+    assert!(task.run_id.is_none());
+    task.run_id = Some("r2".into());
     task.credits_used = 30;
     task.status = TaskStatus::Done;
     task.result = Some("Found it".into());
     assert_eq!(
       final_report(&task),
-      json!({ "status": "done", "creditsUsed": 42, "summary": "Found it" })
+      json!({ "status": "done", "creditsUsed": 30, "summary": "Found it" })
     );
     assert_eq!(TaskView::from(&task).credits_used, 42);
+  }
+
+  #[test]
+  fn a_run_report_fits_what_the_cloud_takes() {
+    let mut task = Task::queued("p1".into());
+    task.fail("é".repeat(4_000), 1);
+    task.result = Some("ü".repeat(12_000));
+    let patch = final_report(&task);
+    assert_eq!(patch["error"].as_str().unwrap().chars().count(), 2_000);
+    assert_eq!(patch["summary"].as_str().unwrap().chars().count(), 10_000);
+  }
+
+  #[tokio::test]
+  async fn a_new_token_reaches_every_open_link() {
+    let (first, mut first_rx) = EngineLink::channel();
+    let (second, mut second_rx) = EngineLink::channel();
+    store().links.insert("token-a".into(), first);
+    store().links.insert("token-b".into(), second);
+    hand_out(json!({ "token": "t2" }));
+    for rx in [&mut first_rx, &mut second_rx] {
+      let request = rx.recv().await.unwrap();
+      assert_eq!(request.method, "Wayfern.agentConfigure");
+      assert_eq!(request.params["token"], "t2");
+    }
+    store().links.retain(|id, _| !id.starts_with("token-"));
   }
 
   #[test]
@@ -1220,7 +1476,7 @@ mod tests {
     for index in 0..3 {
       batch.tasks[0].apply(
         EngineEvent::Step(Step {
-          index,
+          index: Some(index),
           kind: "act".into(),
           text: format!("step {index}"),
           url: None,

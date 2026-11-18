@@ -2971,12 +2971,13 @@
     "agentApprovalClosed": "Bu soru artık açık değil.",
     "agentBrowserUnreachable": "Profilin tarayıcısı yanıt vermedi.",
     "agentBrowserClosed": "Tarayıcı, görev bitmeden kapandı.",
+    "agentTaskSilent": "Ajan 15 dakika boyunca hiçbir şey göndermedi, bu yüzden görev sonlandırıldı.",
     "agentPromptEmpty": "Önce bir görev yaz.",
     "agentStartUrlInvalid": "Başlangıç sayfası bir http veya https adresi olmalı.",
     "agentRoutineInvalid": "Rutin geçerli değil. Alanlarını kontrol et.",
     "agentRoutineNotFound": "Bu rutin artık yok.",
     "agentNoProfiles": "En az bir profil seç.",
-    "agentTooManyProfiles": "Bir çalıştırma için çok fazla profil. Sınır 500.",
+    "agentTooManyProfiles": "Çok fazla profil. Sınır {{max}}.",
     "agentTaskNotFound": "Bu görev artık çalışmıyor.",
     "agentBatchNotFound": "Bu çalıştırma artık listede değil.",
     "agentActionInvalid": "Ajan bu eylemi bilmiyor.",
@@ -2991,7 +2992,13 @@
     "extensionNotFromStore": "Bu uzantı Chrome Web Mağazası'ndan gelmedi.",
     "extensionUpdateNeedsConsent": "Yeni sürüm daha fazla erişim istiyor: {{permissions}}",
     "bookmarksFileInvalid": "Donut bu dosyadan yer imlerini okuyamıyor. Chrome'un Bookmarks dosyasını veya dışa aktarılmış bir HTML dosyasını kullanın.",
-    "previewsNotEntitled": "Canlı önizlemeler için Pro veya üstü plan gerekir."
+    "previewsNotEntitled": "Canlı önizlemeler için Pro veya üstü plan gerekir.",
+    "agentRoutineLimit": "En fazla rutin sayısına ulaştınız. Yeni bir rutin eklemek için birini silin.",
+    "agentScheduleTooOften": "Bir rutin en fazla 5 dakikada bir çalışabilir.",
+    "desktopOffline": "Donut planlanan saatte açık değildi.",
+    "desktopRefused": "Donut bu çalıştırmayı başlatamadı.",
+    "runLost": "Donut bu çalıştırma hakkında bilgi göndermeyi bıraktı.",
+    "freeCreditsPending": "Ücretsiz kredileriniz henüz hazır değil. Yeni hesaplar bunları kısa bir kontrolden sonra alır."
   },
   "rail": {
     "profiles": "Profiller",
@@ -4215,7 +4222,9 @@
       "unlimited": "Sınırsız kredi",
       "detail": "Bu dönemde {{total}} kredinin {{used}} tanesi kullanıldı",
       "left": "{{n}} kredi kaldı",
-      "meter": "Bu dönemde kalan kredi"
+      "meter": "Bu dönemde kalan kredi",
+      "freePending": "Ücretsiz krediler {{time}} saatinde gelir",
+      "freeDenied": "Bu hesapta ücretsiz kredi yok"
     },
     "tasks": {
       "status": {
@@ -4230,7 +4239,8 @@
         "no_credits": "Kredi kalmadı",
         "budget": "Kredi sınırına ulaşıldı",
         "missed": "Kaçırıldı",
-        "unknown": "Bilinmiyor"
+        "unknown": "Bilinmiyor",
+        "pending": "Bekliyor"
       },
       "chooseProfiles": "Profil seç",
       "searchProfiles": "Profil ara",
@@ -4313,7 +4323,10 @@
         "custom": "Zamanlamaya göre {{cron}}",
         "minutes_one": "Her dakika",
         "minutes_other": "{{count}} dakikada bir"
-      }
+      },
+      "paused": "Duraklatıldı",
+      "pausedPlan": "Zamanlama duraklatıldı. Zamanlamalar için ücretli plan gerekir.",
+      "pausedResume": "Planınız zamanlama içermediği sırada zamanlama duraklatıldı."
     },
     "chat": {
       "chooseProfile": "Profil seçin",
@@ -4376,7 +4389,8 @@
         "eraseTitle": "Eşitlenen sohbetler silinsin mi?",
         "eraseBody": "Tüm cihazlardan kaldırılırlar. Bu bilgisayardaki sohbetler kalır.",
         "eraseConfirm": "Sil"
-      }
+      },
+      "fillBlank": "{{blank}} yerine kendi sözcüklerinizi yazın. Tab sonraki boşluğa geçer."
     },
     "shell": {
       "sidebar": "Sohbetler, çalıştırmalar ve rutinler",

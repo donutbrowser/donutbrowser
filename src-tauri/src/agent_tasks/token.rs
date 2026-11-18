@@ -3,6 +3,7 @@
 //! account's refresh token.
 
 use serde_json::Value;
+use std::future::Future;
 use std::sync::Mutex;
 
 /// Mint a new token this long before the old one expires.
@@ -15,7 +16,13 @@ pub struct AgentToken {
   pub expires_at: u64,
 }
 
-static CURRENT: Mutex<Option<AgentToken>> = Mutex::new(None);
+/// The token in use, and the turn of the one caller that mints a new one.
+struct Slot {
+  current: Mutex<Option<AgentToken>>,
+  minting: tokio::sync::Mutex<()>,
+}
+
+static SLOT: Slot = Slot::new();
 
 pub fn needs_refresh(now: u64, expires_at: u64) -> bool {
   now.saturating_add(REFRESH_MARGIN_SECS) >= expires_at
@@ -50,37 +57,70 @@ pub fn decode(body: &Value) -> Option<AgentToken> {
   })
 }
 
-fn cached(now: u64) -> Option<AgentToken> {
-  CURRENT
-    .lock()
-    .ok()?
-    .clone()
-    .filter(|token| !needs_refresh(now, token.expires_at))
+impl Slot {
+  const fn new() -> Self {
+    Self {
+      current: Mutex::new(None),
+      minting: tokio::sync::Mutex::const_new(()),
+    }
+  }
+
+  fn cached(&self, now: u64) -> Option<AgentToken> {
+    self
+      .current
+      .lock()
+      .ok()?
+      .clone()
+      .filter(|token| !needs_refresh(now, token.expires_at))
+  }
+
+  /// One caller at a time mints; a caller that waited for it takes that token.
+  async fn current<F, Fut>(
+    &self,
+    now: impl Fn() -> u64,
+    mint: F,
+  ) -> Result<(AgentToken, bool), String>
+  where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<AgentToken, String>>,
+  {
+    if let Some(token) = self.cached(now()) {
+      return Ok((token, false));
+    }
+    let _turn = self.minting.lock().await;
+    if let Some(token) = self.cached(now()) {
+      return Ok((token, false));
+    }
+    let token = mint().await?;
+    if let Ok(mut current) = self.current.lock() {
+      *current = Some(token.clone());
+    }
+    log::info!(
+      "Agent token minted expires_in_s={}",
+      token.expires_at.saturating_sub(now())
+    );
+    Ok((token, true))
+  }
+
+  fn clear(&self) {
+    if let Ok(mut current) = self.current.lock() {
+      *current = None;
+    }
+  }
 }
 
 /// A token good for at least the refresh margin, minted when needed.
-/// Returns whether it is new, so the caller can hand it to running browsers.
+/// Returns whether this call minted it, so the caller hands it to every
+/// running browser.
 pub async fn current() -> Result<(AgentToken, bool), String> {
-  let now = crate::proxy_manager::now_secs();
-  if let Some(token) = cached(now) {
-    return Ok((token, false));
-  }
-  let token = super::cloud::mint_token().await?;
-  if let Ok(mut slot) = CURRENT.lock() {
-    *slot = Some(token.clone());
-  }
-  log::info!(
-    "Agent token minted expires_in_s={}",
-    token.expires_at.saturating_sub(now)
-  );
-  Ok((token, true))
+  SLOT
+    .current(crate::proxy_manager::now_secs, super::cloud::mint_token)
+    .await
 }
 
 /// Forget the token, on sign-out or when the entitlement goes.
 pub fn clear() {
-  if let Ok(mut slot) = CURRENT.lock() {
-    *slot = None;
-  }
+  SLOT.clear();
 }
 
 #[cfg(test)]
@@ -117,5 +157,36 @@ mod tests {
     assert_eq!(good.token, "jwt");
     assert!(decode(&json!({"token": "  ", "expiresAt": 1})).is_none());
     assert!(decode(&json!({"token": "jwt"})).is_none());
+  }
+
+  #[tokio::test]
+  async fn many_callers_share_one_mint() {
+    static MINTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    static SHARED: Slot = Slot::new();
+    let callers = (0..8).map(|_| {
+      tokio::spawn(async {
+        SHARED
+          .current(
+            || 1_000,
+            || async {
+              MINTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+              tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+              Ok(AgentToken {
+                token: "jwt".into(),
+                expires_at: 10_000,
+              })
+            },
+          )
+          .await
+      })
+    });
+    let mut minted = 0;
+    for caller in callers {
+      let (token, new) = caller.await.unwrap().unwrap();
+      assert_eq!(token.token, "jwt");
+      minted += usize::from(new);
+    }
+    assert_eq!(MINTS.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(minted, 1, "only the caller that minted hands it out");
   }
 }

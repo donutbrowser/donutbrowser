@@ -2971,12 +2971,13 @@
     "agentApprovalClosed": "此问题已关闭。",
     "agentBrowserUnreachable": "配置文件的浏览器没有响应。",
     "agentBrowserClosed": "任务结束前浏览器已关闭。",
+    "agentTaskSilent": "代理 15 分钟内没有任何消息，因此任务已结束。",
     "agentPromptEmpty": "先写下任务。",
     "agentStartUrlInvalid": "起始页必须是 http 或 https 地址。",
     "agentRoutineInvalid": "例程无效。检查各字段。",
     "agentRoutineNotFound": "该例程已不存在。",
     "agentNoProfiles": "至少选择一个配置文件。",
-    "agentTooManyProfiles": "单次运行的配置文件过多。上限为 500。",
+    "agentTooManyProfiles": "配置文件过多。上限为 {{max}} 个。",
     "agentTaskNotFound": "该任务已不在运行。",
     "agentBatchNotFound": "该运行已不在列表中。",
     "agentActionInvalid": "智能体不认识该操作。",
@@ -2991,7 +2992,13 @@
     "extensionNotFromStore": "此扩展并非来自 Chrome 应用商店。",
     "extensionUpdateNeedsConsent": "新版本请求更多权限：{{permissions}}",
     "bookmarksFileInvalid": "Donut 无法从此文件读取书签。使用 Chrome 的 Bookmarks 文件或导出的 HTML 文件。",
-    "previewsNotEntitled": "实时预览需要 Pro 或更高套餐。"
+    "previewsNotEntitled": "实时预览需要 Pro 或更高套餐。",
+    "agentRoutineLimit": "例程数量已达上限。请删除一个后再添加。",
+    "agentScheduleTooOften": "例程最多每 5 分钟运行一次。",
+    "desktopOffline": "计划时间 Donut 未打开。",
+    "desktopRefused": "Donut 无法开始此次运行。",
+    "runLost": "Donut 已停止报告此次运行。",
+    "freeCreditsPending": "您的免费点数尚未就绪。新账户需经过简短检查后才能获得。"
   },
   "rail": {
     "profiles": "配置文件",
@@ -4215,7 +4222,9 @@
       "unlimited": "无限额度",
       "detail": "本周期已用 {{used}} / {{total}} 额度",
       "left": "剩余 {{n}} 额度",
-      "meter": "本周期剩余额度"
+      "meter": "本周期剩余额度",
+      "freePending": "免费点数将于 {{time}} 到账",
+      "freeDenied": "此账户无法获得免费点数"
     },
     "tasks": {
       "status": {
@@ -4230,7 +4239,8 @@
         "no_credits": "额度用完",
         "budget": "已达额度上限",
         "missed": "已错过",
-        "unknown": "未知"
+        "unknown": "未知",
+        "pending": "等待中"
       },
       "chooseProfiles": "选择配置文件",
       "searchProfiles": "搜索配置文件",
@@ -4313,7 +4323,10 @@
         "custom": "按计划 {{cron}}",
         "minutes_one": "每分钟",
         "minutes_other": "每 {{count}} 分钟"
-      }
+      },
+      "paused": "已暂停",
+      "pausedPlan": "计划已暂停。计划功能需要付费套餐。",
+      "pausedResume": "在您的套餐不含计划功能期间，此计划已暂停。"
     },
     "chat": {
       "chooseProfile": "选择配置文件",
@@ -4376,7 +4389,8 @@
         "eraseTitle": "清除已同步的对话？",
         "eraseBody": "它们会从所有设备上移除。这台电脑上的对话会保留。",
         "eraseConfirm": "清除"
-      }
+      },
+      "fillBlank": "请把 {{blank}} 替换为您自己的内容。按 Tab 跳到下一个空白处。"
     },
     "shell": {
       "sidebar": "对话、运行和例程",

@@ -115,16 +115,18 @@ impl Batch {
     self.tasks.iter().all(|t| t.status.is_final())
   }
 
-  /// Stop everything: queued tasks end here; the engine tasks returned are
-  /// told to stop and report their own end.
-  pub fn stop_all(&mut self, now_ms: u64) -> Vec<(String, String)> {
+  /// Stop everything. Returns the engine tasks to tell to stop, which
+  /// report their own end, and the queued tasks that ended here.
+  pub fn stop_all(&mut self, now_ms: u64) -> (Vec<(String, String)>, Vec<usize>) {
     self.stopping = true;
     let mut running = Vec::new();
-    for task in &mut self.tasks {
+    let mut ended = Vec::new();
+    for (index, task) in self.tasks.iter_mut().enumerate() {
       match task.status {
         TaskStatus::Queued => {
           task.status = TaskStatus::Stopped;
           task.finished_at = Some(now_ms);
+          ended.push(index);
         }
         status if status.is_active() => {
           if let Some(task_id) = &task.task_id {
@@ -134,22 +136,63 @@ impl Batch {
         _ => {}
       }
     }
-    running
+    (running, ended)
   }
 
-  /// Queue every failed task again. Returns how many.
-  pub fn retry_failed(&mut self) -> usize {
-    let mut count = 0;
-    for task in &mut self.tasks {
-      if task.status == TaskStatus::Failed {
-        task.requeue();
-        count += 1;
+  /// End every task that has not ended, without waiting for the engine.
+  /// Returns them.
+  pub fn end_all(&mut self, now_ms: u64) -> Vec<usize> {
+    self.stopping = true;
+    let mut ended = Vec::new();
+    for (index, task) in self.tasks.iter_mut().enumerate() {
+      if !task.status.is_final() {
+        task.status = TaskStatus::Stopped;
+        task.approval = None;
+        task.finished_at = Some(now_ms);
+        ended.push(index);
       }
     }
-    if count > 0 {
+    ended
+  }
+
+  /// The tasks the engine has been silent about for `limit_ms`.
+  pub fn silent(&self, now_ms: u64, limit_ms: u64) -> Vec<usize> {
+    self
+      .tasks
+      .iter()
+      .enumerate()
+      .filter(|(_, task)| {
+        task
+          .silent_since()
+          .is_some_and(|since| now_ms.saturating_sub(since) >= limit_ms)
+      })
+      .map(|(index, _)| index)
+      .collect()
+  }
+
+  /// The profiles of the failed tasks.
+  pub fn failed_profiles(&self) -> Vec<String> {
+    self
+      .tasks
+      .iter()
+      .filter(|task| task.status == TaskStatus::Failed)
+      .map(|task| task.profile_id.clone())
+      .collect()
+  }
+
+  /// Queue every failed task again. Returns them.
+  pub fn retry_failed(&mut self) -> Vec<usize> {
+    let mut requeued = Vec::new();
+    for (index, task) in self.tasks.iter_mut().enumerate() {
+      if task.status == TaskStatus::Failed {
+        task.requeue();
+        requeued.push(index);
+      }
+    }
+    if !requeued.is_empty() {
       self.stopping = false;
     }
-    count
+    requeued
   }
 
   pub fn tally(&self) -> Tally {
@@ -237,11 +280,12 @@ mod tests {
       batch.tasks[index].task_id = Some(format!("t{index}"));
       batch.tasks[index].status = TaskStatus::Running;
     }
-    let running = batch.stop_all(9);
+    let (running, ended) = batch.stop_all(9);
     assert_eq!(
       running,
       vec![("p0".into(), "t0".into()), ("p1".into(), "t1".into())]
     );
+    assert_eq!(ended, vec![2, 3], "each queued task ends and is reported");
     assert_eq!(batch.tasks[2].status, TaskStatus::Stopped);
     assert_eq!(batch.take_next(), None, "a stopping batch starts nothing");
     batch.tasks[0].status = TaskStatus::Stopped;
@@ -270,7 +314,12 @@ mod tests {
       }
     );
     batch.stopping = true;
-    assert_eq!(batch.retry_failed(), 1, "no credits is not retried blindly");
+    assert_eq!(batch.failed_profiles(), vec!["p1".to_string()]);
+    assert_eq!(
+      batch.retry_failed(),
+      vec![1],
+      "no credits is not retried blindly"
+    );
     assert!(!batch.stopping);
     assert_eq!(batch.tasks[1].status, TaskStatus::Queued);
     assert_eq!(batch.take_next(), Some(1));
@@ -283,7 +332,7 @@ mod tests {
     batch.tasks[0].credits_used = 10;
     batch.tasks[1].fail("AGENT_BUSY".into(), 1);
     batch.tasks[1].credits_used = 7;
-    assert_eq!(batch.retry_failed(), 1);
+    assert_eq!(batch.retry_failed().len(), 1);
     assert_eq!(
       batch.tasks[1].credits_used, 0,
       "the new attempt starts at zero"
@@ -296,5 +345,32 @@ mod tests {
     batch.tasks[1].credits_used = 3;
     assert_eq!(batch.tasks[1].total_credits(), 14);
     assert_eq!(batch.tally().credits_used, 24);
+  }
+
+  #[test]
+  fn a_silent_task_is_named_once_the_limit_passes() {
+    let mut batch = batch(3, 3);
+    for index in 0..3 {
+      batch.take_next();
+      batch.tasks[index].task_id = Some(format!("t{index}"));
+      batch.tasks[index].started_at = Some(0);
+      batch.tasks[index].status = TaskStatus::Running;
+    }
+    batch.tasks[1].heard_at = Some(500);
+    batch.tasks[2].status = TaskStatus::Paused;
+    assert_eq!(batch.silent(999, 1_000), Vec::<usize>::new());
+    assert_eq!(batch.silent(1_000, 1_000), vec![0]);
+    assert_eq!(batch.silent(1_500, 1_000), vec![0, 1]);
+  }
+
+  #[test]
+  fn ending_all_leaves_nothing_open() {
+    let mut batch = batch(3, 1);
+    batch.take_next();
+    batch.tasks[1].status = TaskStatus::Done;
+    assert_eq!(batch.end_all(5), vec![0, 2]);
+    assert!(batch.is_finished() && batch.stopping);
+    assert_eq!(batch.tasks[1].status, TaskStatus::Done);
+    assert_eq!(batch.end_all(6), Vec::<usize>::new());
   }
 }

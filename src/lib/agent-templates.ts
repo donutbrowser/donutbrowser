@@ -250,11 +250,35 @@ export interface AgentTemplate extends TemplateDefinition {
 /** Every template, in the order the gallery lists them. */
 export const AGENT_TEMPLATES: readonly AgentTemplate[] = CATALOG;
 
-/** Where the first blank of a prompt is, to select it; null when it has none. */
-export function firstBlank(
-  prompt: string,
+/** The blanks of a template prompt ("[site]", "[topic]"), each once. */
+export function templateBlanks(prompt: string): string[] {
+  return [...new Set(prompt.match(/\[[^\]\n]+\]/g) ?? [])];
+}
+
+/**
+ * Where the next of `blanks` is in `text`, at or after `from`, else the first
+ * one before it; null when none is left.
+ */
+export function nextBlank(
+  text: string,
+  blanks: readonly string[],
+  from = 0,
 ): { start: number; end: number } | null {
-  const start = prompt.indexOf("[");
-  const end = prompt.indexOf("]", start);
-  return start >= 0 && end > start ? { start, end: end + 1 } : null;
+  let after: { start: number; end: number } | null = null;
+  let before: { start: number; end: number } | null = null;
+  for (const blank of blanks) {
+    for (
+      let at = text.indexOf(blank);
+      at >= 0;
+      at = text.indexOf(blank, at + 1)
+    ) {
+      const hit = { start: at, end: at + blank.length };
+      if (at >= from) {
+        if (!after || at < after.start) after = hit;
+      } else if (!before || at < before.start) {
+        before = hit;
+      }
+    }
+  }
+  return after ?? before;
 }

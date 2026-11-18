@@ -1072,6 +1072,7 @@ mod tests {
       period_end: None,
       plan: None,
       unlimited: false,
+      ..Default::default()
     });
     assert_eq!(credits["balance"], 6);
     assert_eq!(credits["periodEnd"], Value::Null);

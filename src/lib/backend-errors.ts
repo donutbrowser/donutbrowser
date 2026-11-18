@@ -11,6 +11,7 @@ export type BackendErrorCode =
   | "INCORRECT_PASSWORD"
   | "LOCKED_OUT"
   | "PROFILE_NOT_FOUND"
+  | "PROFILE_OTHER_OS"
   | "PROFILE_NOT_PROTECTED"
   | "PROFILE_ALREADY_PROTECTED"
   | "PROFILE_RUNNING"
@@ -308,10 +309,18 @@ export type BackendErrorCode =
   | "AGENT_ENGINE_RESTARTED"
   | "AGENT_BROWSER_UNREACHABLE"
   | "AGENT_BROWSER_CLOSED"
+  | "AGENT_TASK_SILENT"
   | "AGENT_PROMPT_EMPTY"
   | "AGENT_START_URL_INVALID"
   | "AGENT_ROUTINE_INVALID"
   | "AGENT_ROUTINE_NOT_FOUND"
+  | "AGENT_ROUTINE_LIMIT"
+  | "AGENT_SCHEDULE_TOO_OFTEN"
+  | "AGENT_NOT_ENABLED"
+  | "DESKTOP_OFFLINE"
+  | "DESKTOP_REFUSED"
+  | "RUN_LOST"
+  | "FREE_CREDITS_PENDING"
   | "AGENT_NO_PROFILES"
   | "AGENT_TOO_MANY_PROFILES"
   | "AGENT_TASK_NOT_FOUND"
@@ -430,6 +439,8 @@ export function leaseExpiryTime(expiresAt: string | undefined): string {
  */
 export function parseBackendError(err: unknown): BackendError | null {
   const raw = err instanceof Error ? err.message : String(err);
+  // The agent engine and run reports carry a bare code ("AGENT_BUSY").
+  if (/^[A-Z][A-Z0-9_]{2,63}$/.test(raw)) return { code: raw } as BackendError;
   // Some commands still put their own context before a coded error
   // ("Failed to load VPN config: {"code":...}"); the code is what counts.
   const start = raw.startsWith("{") ? 0 : raw.indexOf('{"code":');
@@ -499,6 +510,10 @@ export function translateBackendError(t: TFunction, err: unknown): string {
     }
     case "PROFILE_NOT_FOUND":
       return t("backendErrors.profileNotFound");
+    case "PROFILE_OTHER_OS":
+      return parsed.params?.os
+        ? t("crossOs.cannotLaunch", { os: remoteOsLabel(parsed.params.os) })
+        : t("crossOs.cannotLaunchUnknown");
     case "PROFILE_NOT_PROTECTED":
       return t("backendErrors.profileNotProtected");
     case "PROFILE_ALREADY_PROTECTED":
@@ -1132,7 +1147,16 @@ export function translateBackendError(t: TFunction, err: unknown): string {
     case "AGENT_SESSION_NOT_FOUND":
       return t("backendErrors.agentSessionNotFound");
     case "AGENT_NOT_ENTITLED":
+    case "AGENT_NOT_ENABLED":
       return t("backendErrors.agentNotEntitled");
+    case "DESKTOP_OFFLINE":
+      return t("backendErrors.desktopOffline");
+    case "DESKTOP_REFUSED":
+      return t("backendErrors.desktopRefused");
+    case "RUN_LOST":
+      return t("backendErrors.runLost");
+    case "FREE_CREDITS_PENDING":
+      return t("backendErrors.freeCreditsPending");
     case "NO_CREDITS":
       return t("backendErrors.noCredits");
     case "TASK_BUDGET":
@@ -1159,6 +1183,8 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.agentBrowserUnreachable");
     case "AGENT_BROWSER_CLOSED":
       return t("backendErrors.agentBrowserClosed");
+    case "AGENT_TASK_SILENT":
+      return t("backendErrors.agentTaskSilent");
     case "AGENT_PROMPT_EMPTY":
       return t("backendErrors.agentPromptEmpty");
     case "AGENT_START_URL_INVALID":
@@ -1167,10 +1193,16 @@ export function translateBackendError(t: TFunction, err: unknown): string {
       return t("backendErrors.agentRoutineInvalid");
     case "AGENT_ROUTINE_NOT_FOUND":
       return t("backendErrors.agentRoutineNotFound");
+    case "AGENT_ROUTINE_LIMIT":
+      return t("backendErrors.agentRoutineLimit");
+    case "AGENT_SCHEDULE_TOO_OFTEN":
+      return t("backendErrors.agentScheduleTooOften");
     case "AGENT_NO_PROFILES":
       return t("backendErrors.agentNoProfiles");
     case "AGENT_TOO_MANY_PROFILES":
-      return t("backendErrors.agentTooManyProfiles");
+      return t("backendErrors.agentTooManyProfiles", {
+        max: parsed.params?.max ?? "500",
+      });
     case "AGENT_TASK_NOT_FOUND":
       return t("backendErrors.agentTaskNotFound");
     case "AGENT_BATCH_NOT_FOUND":

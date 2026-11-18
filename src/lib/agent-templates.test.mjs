@@ -6,8 +6,9 @@ import { fileURLToPath } from "node:url";
 import { cronWords, MAX_PROMPT_CHARS } from "./agent-tasks.ts";
 import {
   AGENT_TEMPLATES,
-  firstBlank,
+  nextBlank,
   TEMPLATE_CATEGORIES,
+  templateBlanks,
 } from "./agent-templates.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -94,8 +95,14 @@ test("a suggested schedule reads as words", () => {
   }
 });
 
-test("firstBlank selects the first [word]", () => {
-  assert.deepEqual(firstBlank("Open [site] and [page]"), { start: 5, end: 11 });
-  assert.equal(firstBlank("No blank here"), null);
-  assert.equal(firstBlank("Open ] then ["), null);
+test("blanks are found once each, and Tab order wraps", () => {
+  const text = "Open [site], then [page], then [site] again";
+  const blanks = templateBlanks(text);
+  assert.deepEqual(blanks, ["[site]", "[page]"]);
+  assert.deepEqual(nextBlank(text, blanks), { start: 5, end: 11 });
+  assert.deepEqual(nextBlank(text, blanks, 11), { start: 18, end: 24 });
+  assert.deepEqual(nextBlank(text, blanks, 25), { start: 31, end: 37 });
+  assert.deepEqual(nextBlank(text, blanks, 40), { start: 5, end: 11 });
+  assert.equal(nextBlank("Open example.com", blanks), null);
+  assert.deepEqual(templateBlanks("No blank here, ] then ["), []);
 });

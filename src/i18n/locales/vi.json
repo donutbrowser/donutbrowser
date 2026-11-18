@@ -2971,12 +2971,13 @@
     "agentApprovalClosed": "Câu hỏi này không còn mở.",
     "agentBrowserUnreachable": "Trình duyệt của hồ sơ không phản hồi.",
     "agentBrowserClosed": "Trình duyệt đã đóng trước khi tác vụ xong.",
+    "agentTaskSilent": "Tác nhân không gửi gì trong 15 phút nên tác vụ đã kết thúc.",
     "agentPromptEmpty": "Hãy viết một tác vụ trước.",
     "agentStartUrlInvalid": "Trang bắt đầu phải là địa chỉ http hoặc https.",
     "agentRoutineInvalid": "Quy trình không hợp lệ. Hãy kiểm tra các trường.",
     "agentRoutineNotFound": "Quy trình đó không còn nữa.",
     "agentNoProfiles": "Chọn ít nhất một hồ sơ.",
-    "agentTooManyProfiles": "Quá nhiều hồ sơ cho một lần chạy. Giới hạn là 500.",
+    "agentTooManyProfiles": "Quá nhiều hồ sơ. Giới hạn là {{max}}.",
     "agentTaskNotFound": "Tác vụ đó không còn chạy.",
     "agentBatchNotFound": "Lần chạy đó không còn trong danh sách.",
     "agentActionInvalid": "Tác tử không biết hành động đó.",
@@ -2991,7 +2992,13 @@
     "extensionNotFromStore": "Tiện ích này không đến từ Chrome Web Store.",
     "extensionUpdateNeedsConsent": "Phiên bản mới yêu cầu thêm quyền: {{permissions}}",
     "bookmarksFileInvalid": "Donut không đọc được dấu trang từ tệp này. Hãy dùng tệp Bookmarks của Chrome hoặc tệp HTML đã xuất.",
-    "previewsNotEntitled": "Xem trước trực tiếp cần gói Pro trở lên."
+    "previewsNotEntitled": "Xem trước trực tiếp cần gói Pro trở lên.",
+    "agentRoutineLimit": "Bạn đã có số quy trình tối đa. Xóa một quy trình để thêm quy trình mới.",
+    "agentScheduleTooOften": "Một quy trình chỉ có thể chạy tối đa 5 phút một lần.",
+    "desktopOffline": "Donut không mở vào thời điểm đã lên lịch.",
+    "desktopRefused": "Donut không thể bắt đầu lần chạy này.",
+    "runLost": "Donut đã ngừng báo cáo về lần chạy này.",
+    "freeCreditsPending": "Tín dụng miễn phí của bạn chưa sẵn sàng. Tài khoản mới sẽ nhận sau một bước kiểm tra ngắn."
   },
   "rail": {
     "profiles": "Profile",
@@ -4215,7 +4222,9 @@
       "unlimited": "Tín dụng không giới hạn",
       "detail": "Đã dùng {{used}} / {{total}} tín dụng trong kỳ này",
       "left": "Còn {{n}} tín dụng",
-      "meter": "Tín dụng còn lại trong kỳ này"
+      "meter": "Tín dụng còn lại trong kỳ này",
+      "freePending": "Tín dụng miễn phí sẽ có lúc {{time}}",
+      "freeDenied": "Tài khoản này không có tín dụng miễn phí"
     },
     "tasks": {
       "status": {
@@ -4230,7 +4239,8 @@
         "no_credits": "Hết tín dụng",
         "budget": "Đã chạm giới hạn tín dụng",
         "missed": "Bị lỡ",
-        "unknown": "Không rõ"
+        "unknown": "Không rõ",
+        "pending": "Đang chờ"
       },
       "chooseProfiles": "Chọn hồ sơ",
       "searchProfiles": "Tìm hồ sơ",
@@ -4313,7 +4323,10 @@
         "custom": "Theo lịch {{cron}}",
         "minutes_one": "Mỗi phút",
         "minutes_other": "Mỗi {{count}} phút"
-      }
+      },
+      "paused": "Đã tạm dừng",
+      "pausedPlan": "Lịch chạy đang tạm dừng. Lịch chạy cần gói trả phí.",
+      "pausedResume": "Lịch chạy đã tạm dừng khi gói của bạn không có lịch chạy."
     },
     "chat": {
       "chooseProfile": "Chọn hồ sơ",
@@ -4376,7 +4389,8 @@
         "eraseTitle": "Xóa các cuộc trò chuyện đã đồng bộ?",
         "eraseBody": "Chúng sẽ bị xóa khỏi mọi thiết bị. Các cuộc trò chuyện trên máy tính này vẫn giữ nguyên.",
         "eraseConfirm": "Xóa"
-      }
+      },
+      "fillBlank": "Thay {{blank}} bằng nội dung của bạn. Tab chuyển đến chỗ trống tiếp theo."
     },
     "shell": {
       "sidebar": "Trò chuyện, lượt chạy và quy trình",

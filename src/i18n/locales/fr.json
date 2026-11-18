@@ -2991,12 +2991,13 @@
     "agentApprovalClosed": "Cette question n'est plus ouverte.",
     "agentBrowserUnreachable": "Le navigateur du profil n’a pas répondu.",
     "agentBrowserClosed": "Le navigateur s’est fermé avant la fin de la tâche.",
+    "agentTaskSilent": "L’agent n’a rien envoyé pendant 15 minutes, la tâche a donc été arrêtée.",
     "agentPromptEmpty": "Écrivez d’abord une tâche.",
     "agentStartUrlInvalid": "La page de départ doit être une adresse http ou https.",
     "agentRoutineInvalid": "La routine n’est pas valide. Vérifiez ses champs.",
     "agentRoutineNotFound": "Cette routine n’existe plus.",
     "agentNoProfiles": "Choisissez au moins un profil.",
-    "agentTooManyProfiles": "Trop de profils pour une exécution. La limite est de 500.",
+    "agentTooManyProfiles": "Trop de profils. La limite est de {{max}}.",
     "agentTaskNotFound": "Cette tâche n’est plus en cours.",
     "agentBatchNotFound": "Cette exécution n’est plus dans la liste.",
     "agentActionInvalid": "L’agent ne connaît pas cette action.",
@@ -3011,7 +3012,13 @@
     "extensionNotFromStore": "Cette extension ne vient pas du Chrome Web Store.",
     "extensionUpdateNeedsConsent": "La nouvelle version demande plus d'accès : {{permissions}}",
     "bookmarksFileInvalid": "Donut ne peut pas lire de favoris dans ce fichier. Utilisez le fichier Bookmarks de Chrome ou un fichier HTML exporté.",
-    "previewsNotEntitled": "Les aperçus en direct nécessitent le forfait Pro ou supérieur."
+    "previewsNotEntitled": "Les aperçus en direct nécessitent le forfait Pro ou supérieur.",
+    "agentRoutineLimit": "Vous avez atteint le nombre maximal de routines. Supprimez-en une pour en ajouter une autre.",
+    "agentScheduleTooOften": "Une routine peut s'exécuter au plus une fois toutes les 5 minutes.",
+    "desktopOffline": "Donut n'était pas ouvert à l'heure prévue.",
+    "desktopRefused": "Donut n'a pas pu lancer cette exécution.",
+    "runLost": "Donut a cessé de rendre compte de cette exécution.",
+    "freeCreditsPending": "Vos crédits gratuits ne sont pas encore prêts. Les nouveaux comptes les reçoivent après une courte vérification."
   },
   "rail": {
     "profiles": "Profils",
@@ -4263,7 +4270,9 @@
       "unlimited": "Crédits illimités",
       "detail": "{{used}} sur {{total}} crédits utilisés sur cette période",
       "left": "{{n}} crédits restants",
-      "meter": "Crédits restants sur cette période"
+      "meter": "Crédits restants sur cette période",
+      "freePending": "Crédits gratuits disponibles à {{time}}",
+      "freeDenied": "Ce compte n'a pas de crédits gratuits"
     },
     "tasks": {
       "status": {
@@ -4278,7 +4287,8 @@
         "no_credits": "Plus de crédits",
         "budget": "Plafond de crédits atteint",
         "missed": "Manquée",
-        "unknown": "Inconnu"
+        "unknown": "Inconnu",
+        "pending": "En attente"
       },
       "chooseProfiles": "Choisir des profils",
       "searchProfiles": "Rechercher des profils",
@@ -4365,7 +4375,10 @@
         "minutes_one": "Chaque minute",
         "minutes_many": "Toutes les {{count}} minutes",
         "minutes_other": "Toutes les {{count}} minutes"
-      }
+      },
+      "paused": "En pause",
+      "pausedPlan": "La planification est en pause. Les planifications nécessitent une offre payante.",
+      "pausedResume": "La planification a été mise en pause quand votre offre n'incluait pas les planifications."
     },
     "chat": {
       "chooseProfile": "Choisir un profil",
@@ -4429,7 +4442,8 @@
         "eraseTitle": "Effacer les chats synchronisés ?",
         "eraseBody": "Ils sont supprimés de tous les appareils. Les chats de cet ordinateur restent.",
         "eraseConfirm": "Effacer"
-      }
+      },
+      "fillBlank": "Remplacez {{blank}} par vos propres mots. Tab passe au champ suivant."
     },
     "shell": {
       "sidebar": "Chats, exécutions et routines",
