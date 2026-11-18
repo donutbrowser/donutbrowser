@@ -25,6 +25,8 @@ jobs:
       js: ${{ steps.filter.outputs.js }}
       rust: ${{ steps.filter.outputs.rust }}
       deps: ${{ steps.filter.outputs.deps }}
+      ci: ${{ steps.filter.outputs.ci }}
+      sdk: ${{ steps.filter.outputs.sdk }}
     steps:
       - name: Checkout repository code
         if: github.event_name == 'pull_request'
@@ -44,6 +46,8 @@ jobs:
               echo "js=true"
               echo "rust=true"
               echo "deps=true"
+              echo "ci=true"
+              echo "sdk=true"
             } >> "$GITHUB_OUTPUT"
             exit 0
           }
@@ -51,25 +55,38 @@ jobs:
           git diff --name-only HEAD^1 HEAD > /tmp/changed.txt || all
           [ -s /tmp/changed.txt ] || all
 
-          js=false; rust=false; deps=false
+          js=false; rust=false; deps=false; ci=false; sdk=false
           while IFS= read -r file; do
             case "$file" in
               # Text and tooling the lint and test jobs never read.
               *.md|LICENSE|.github/ISSUE_TEMPLATE/*|\
-              .github/prompts/*|.github/dependabot.yml|.github/codeql/*|.github/actionlint.yaml|\
-              .github/scripts/*|.github/actions/*|_typos.toml|assets/*|flake.nix|flake.lock|\
-              packaging/*|snap/*|sdk/*|.vscode/*|.envrc|osv-scanner.toml)
+              .github/prompts/*|.github/codeql/*|.github/actions/*|_typos.toml|assets/*|\
+              flake.nix|flake.lock|packaging/*|snap/*|.vscode/*|.envrc|osv-scanner.toml)
                 ;;
-              # Workflows that are not part of this check.
+              sdk/*)
+                sdk=true ;;
+              .github/scripts/*|.github/zizmor.yml)
+                ci=true ;;
+              # Every workflow is linted. Only the ones this check calls also
+              # run the suites.
               .github/workflows/*)
+                ci=true
                 case "$file" in
                   .github/workflows/pr-checks.yml|.github/workflows/lint-js.yml|.github/workflows/lint-rs.yml)
                     js=true; rust=true ;;
+                  .github/workflows/test-sdk.yml)
+                    sdk=true ;;
                 esac
+                ;;
+              # Templates and other repository settings no job reads.
+              .github/*)
                 ;;
               # Rust only. The .mjs helpers under src-tauri are linted by biome.
               src-tauri/*.mjs)
                 js=true; rust=true ;;
+              # Workflows run this script on issue and pull request text.
+              scripts/redact-sensitive-text.mjs)
+                js=true; rust=true; ci=true ;;
               src-tauri/*|donut-sync/*)
                 rust=true ;;
               *)
@@ -86,8 +103,10 @@ jobs:
             echo "js=$js"
             echo "rust=$rust"
             echo "deps=$deps"
+            echo "ci=$ci"
+            echo "sdk=$sdk"
           } >> "$GITHUB_OUTPUT"
-          echo "Changed files: $(wc -l < /tmp/changed.txt); js=$js rust=$rust deps=$deps"
+          echo "Changed files: $(wc -l < /tmp/changed.txt); js=$js rust=$rust deps=$deps ci=$ci sdk=$sdk"
 
   lint-js:
     name: Lint JavaScript/TypeScript
@@ -102,6 +121,22 @@ jobs:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
     uses: ./.github/workflows/lint-rs.yml
+    permissions:
+      contents: read
+
+  lint-workflows:
+    name: Lint Workflows
+    needs: changes
+    if: needs.changes.outputs.ci == 'true'
+    uses: ./.github/workflows/lint-workflows.yml
+    permissions:
+      contents: read
+
+  test-sdk:
+    name: Test SDKs
+    needs: changes
+    if: needs.changes.outputs.sdk == 'true'
+    uses: ./.github/workflows/test-sdk.yml
     permissions:
       contents: read
 
@@ -130,31 +165,31 @@ jobs:
   # and a desktop session, which CI could not supply reliably. They are run
   # locally instead; see the E2E section of AGENTS.md.
 
+  # The one check to require in branch protection: it is green only when
+  # every suite the change can affect passed.
   pr-status:
     name: PR Status Check
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes, lint-js, lint-rust, security-scan]
+    needs: [changes, lint-js, lint-rust, lint-workflows, test-sdk, security-scan]
     if: always()
     steps:
       - name: Check all jobs succeeded
         env:
-          CHANGES: ${{ needs.changes.result }}
-          LINT_JS: ${{ needs.lint-js.result }}
-          LINT_RUST: ${{ needs.lint-rust.result }}
-          SECURITY_SCAN: ${{ needs.security-scan.result }}
+          NEEDS: ${{ toJSON(needs) }}
         run: |
           # `skipped` means the pull request cannot affect that suite.
-          failed=0
-          [ "$CHANGES" = "success" ] || { echo "Change detection: $CHANGES"; failed=1; }
-          for pair in "lint-js=$LINT_JS" "lint-rust=$LINT_RUST" "security-scan=$SECURITY_SCAN"; do
-            case "${pair#*=}" in
-              success|skipped) echo "${pair%%=*}: ${pair#*=}" ;;
-              *) echo "${pair%%=*}: ${pair#*=}"; failed=1 ;;
-            esac
-          done
-          if [ "$failed" -ne 0 ]; then
-            echo "One or more checks failed"
+          {
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$NEEDS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          failed=$(jq -r '
+            to_entries[]
+            | select(.value.result != "success" and (.key == "changes" or .value.result != "skipped"))
+            | "\(.key): \(.value.result)"' <<< "$NEEDS")
+          if [ -n "$failed" ]; then
+            echo "::error::Checks that did not pass: $(tr '\n' ' ' <<< "$failed")"
             exit 1
           fi
-          echo "All checks passed!"
+          echo "All checks passed"

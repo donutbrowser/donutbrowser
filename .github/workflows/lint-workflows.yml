@@ -1,0 +1,65 @@
+name: Lint Workflows
+
+# Checks the CI itself: workflow syntax and embedded shell (actionlint),
+# workflow security (zizmor, configured in .github/zizmor.yml), the shell
+# scripts workflows call, and the tests next to the workflow scripts.
+on:
+  workflow_call: {}
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/**"
+      - ".github/scripts/**"
+      - ".github/zizmor.yml"
+      - "scripts/redact-sensitive-text.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-workflows-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Workflows and their scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run actionlint
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 #v2.2.0
+        with:
+          version: 1.7.12
+
+      - name: Run shellcheck on workflow scripts
+        run: shellcheck -S warning .github/scripts/*.sh scripts/*.sh
+
+      # Fails on findings of high severity. Lower ones show in the log.
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd #v0.8.1
+        with:
+          advanced-security: false
+          annotations: true
+          min-severity: high
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 #v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      # The scripts use only the standard library, so nothing is installed.
+      - name: Test workflow scripts
+        run: |
+          shopt -s globstar nullglob
+          tests=(.github/scripts/**/*.test.mjs)
+          if [ "${#tests[@]}" -eq 0 ]; then
+            echo "No tests under .github/scripts"
+            exit 0
+          fi
+          node --test "${tests[@]}"

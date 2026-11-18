@@ -13,15 +13,9 @@ concurrency:
   group: rolling-release
   cancel-in-progress: false
 
+# Each job names what it needs above this.
 permissions:
-  contents: write
-  security-events: write
-  packages: read
-  actions: read
-
-env:
-  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+  contents: read
 
 jobs:
   security-scan:
@@ -34,6 +28,7 @@ jobs:
         --config=osv-scanner.toml
         --lockfile=pnpm-lock.yaml
         --lockfile=src-tauri/Cargo.lock
+        --lockfile=donut-sync/Cargo.lock
         ./
     permissions:
       security-events: write
@@ -106,6 +101,8 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 #v6.1.1
@@ -145,10 +142,6 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
-        # NEXT_PUBLIC_* vars are inlined at build time and must be forwarded
-        # from secrets explicitly — they are NOT inherited from the job env.
-        env:
-          NEXT_PUBLIC_TURNSTILE: ${{ secrets.NEXT_PUBLIC_TURNSTILE }}
         run: pnpm build
 
       - name: Verify frontend dist exists
@@ -252,9 +245,10 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TARGET: ${{ matrix.target }}
-          # tauri-action's inner `pnpm tauri build` re-runs beforeBuildCommand
-          # which rebuilds dist/ in a subprocess. The env var must be here too.
-          NEXT_PUBLIC_TURNSTILE: ${{ secrets.NEXT_PUBLIC_TURNSTILE }}
+          # Signs the updater artifacts. Kept on this step so that install
+          # scripts and the other steps never see the key.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: ./src-tauri
           tagName: "nightly-${{ steps.timestamp.outputs.timestamp }}"
@@ -429,8 +423,8 @@ jobs:
       - name: Update rolling nightly release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NIGHTLY_TAG: ${{ steps.tag.outputs.nightly_tag }}
         run: |
-          NIGHTLY_TAG="${{ steps.tag.outputs.nightly_tag }}"
           ASSETS_DIR="/tmp/nightly-assets"
 
           # Download all assets from the per-commit nightly release
@@ -482,6 +476,7 @@ jobs:
     needs: [update-nightly-release]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions: {}
     steps:
       - name: Trigger Cloudflare Pages deployment
         env:
@@ -493,6 +488,7 @@ jobs:
     needs: [update-nightly-release]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions: {}
     steps:
       - name: Send Discord notification
         env:

@@ -1,0 +1,67 @@
+name: Test SDKs
+
+# The Python and Node clients of the local REST API. Their tests run against
+# a fake server and need nothing from the app build.
+on:
+  workflow_call: {}
+  push:
+    branches: ["main"]
+    paths:
+      - "sdk/**"
+      - ".github/workflows/test-sdk.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-sdk-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: Node SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: sdk/node
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 #v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      # The tests import no package: Node runs the .mts files as they are.
+      - name: Run tests
+        run: npm test
+
+  python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: sdk/python
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
+
+      # The oldest version the package supports (requires-python).
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 #v7.1.0
+        with:
+          python-version: "3.10"
+
+      - name: Install the package with its test dependencies
+        run: python -m pip install --disable-pip-version-check -e ".[dev]"
+
+      - name: Run tests
+        run: python -m pytest -q

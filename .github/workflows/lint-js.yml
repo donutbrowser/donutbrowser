@@ -2,23 +2,14 @@
 
 name: Lint Node.js
 
-# Pull requests reach this through pr-checks.yml and tags through release.yml.
-# Both used to trigger it directly as well, so it ran twice for each of them.
+# Called only: pr-checks.yml runs it for pull requests and merge groups,
+# rolling-release.yml for pushes to main and release.yml for tags. A push
+# trigger of its own ran every job a second time for each push to main.
 on:
   workflow_call: {}
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
-
-concurrency:
-  # A called workflow sees its caller's `github.workflow`, so the literal
-  # prefix keeps this group apart from the caller's own. Only the standalone
-  # push to main cancels a superseded run; Rolling Release runs one at a time.
-  group: lint-js-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
 jobs:
   build:

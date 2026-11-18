@@ -17,9 +17,7 @@ concurrency:
 jobs:
   check-ai-policy:
     # Nobody is exempt: maintainers are checked like everyone else. The one
-    # exception is bot-authored pull requests (Dependabot). They never use the
-    # template, and closing them would silently stop dependency updates and
-    # break dependabot-automerge.yml.
+    # exception is bot-authored pull requests. They never use the template.
     if: >-
       github.repository == 'donutbrowser/donutbrowser' &&
       github.event.pull_request.state == 'open' &&

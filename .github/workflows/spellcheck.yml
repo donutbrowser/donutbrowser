@@ -3,10 +3,10 @@ name: Spell Check
 permissions:
   contents: read
 
+# Pushes to main reach this through rolling-release.yml and tags through
+# release.yml. A push trigger of its own ran it twice for each push to main.
 on:
   workflow_call: {}
-  push:
-    branches: ["main"]
   pull_request:
     branches: ["main"]
 
@@ -14,7 +14,7 @@ concurrency:
   # A called workflow sees its caller's `github.workflow`, so the literal
   # prefix keeps this group apart from the caller's own.
   group: spellcheck-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   RUST_BACKTRACE: 1

@@ -5,15 +5,16 @@ on:
     tags:
       - "v*"
 
+# A tag is released once. A second push of the same tag waits for the first.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Each job names what it needs above this.
 permissions:
-  contents: write
-  security-events: write
-  packages: read
-  actions: read
+  contents: read
 
 env:
-  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
   STABLE_RELEASE: "true"
 
 jobs:
@@ -97,6 +98,8 @@ jobs:
             pkg_target: "latest-win-x64"
 
     runs-on: ${{ matrix.platform }}
+    # Builds take 38 to 65 minutes; this only stops a hung runner.
+    timeout-minutes: 180
     env:
       # linuxdeploy's AppImage plugin embeds this, so AppImageUpdate and
       # similar tools update the AppImage from the latest release, and writes
@@ -104,6 +107,8 @@ jobs:
       LDAI_UPDATE_INFORMATION: ${{ matrix.appimage_arch && format('gh-releases-zsync|{0}|{1}|latest|Donut_*_{2}.AppImage.zsync', github.repository_owner, github.event.repository.name, matrix.appimage_arch) || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 #v6.1.1
@@ -114,7 +119,8 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 #v7.1.0
         with:
           node-version-file: .node-version
-          cache: "pnpm"
+          # A release takes nothing from a cache that another run can write.
+          package-manager-cache: false
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 #master
@@ -128,19 +134,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev pkg-config unzip xdg-utils
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 #v2.9.3
-        with:
-          workdir: ./src-tauri
-
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
-        # NEXT_PUBLIC_* vars are inlined at build time and must be forwarded
-        # from secrets explicitly — they are NOT inherited from the job env.
-        env:
-          NEXT_PUBLIC_TURNSTILE: ${{ secrets.NEXT_PUBLIC_TURNSTILE }}
         run: pnpm build
 
       - name: Verify frontend dist exists
@@ -191,24 +188,24 @@ jobs:
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
           P12_PASSWORD=$(openssl rand -base64 32)
 
-          echo "$APPLE_CERTIFICATE" | base64 --decode > $CERT_PATH
-          echo "$APPLE_CERTIFICATE_KEY" | base64 --decode > $KEY_PATH
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+          echo "$APPLE_CERTIFICATE_KEY" | base64 --decode > "$KEY_PATH"
 
-          openssl x509 -inform DER -in $CERT_PATH -out $PEM_PATH
-          openssl pkcs12 -export -out $P12_PATH -inkey $KEY_PATH -in $PEM_PATH -passout pass:$P12_PASSWORD
+          openssl x509 -inform DER -in "$CERT_PATH" -out "$PEM_PATH"
+          openssl pkcs12 -export -out "$P12_PATH" -inkey "$KEY_PATH" -in "$PEM_PATH" -passout "pass:$P12_PASSWORD"
 
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          security import $P12_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH login.keychain-db
+          security import "$P12_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
 
           echo "Available signing identities:"
-          security find-identity -v -p codesigning $KEYCHAIN_PATH
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
-          rm -f $CERT_PATH $KEY_PATH $PEM_PATH $P12_PATH
+          rm -f "$CERT_PATH" "$KEY_PATH" "$PEM_PATH" "$P12_PATH"
 
       - name: Set up Python for the DMG layout
         if: matrix.platform == 'macos-latest'
@@ -228,12 +225,10 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TARGET: ${{ matrix.target }}
-          # tauri-action invokes `pnpm tauri build`, which runs
-          # `beforeBuildCommand` from tauri.conf.json. That rebuilds the
-          # frontend in its own subprocess, so the env var MUST be forwarded
-          # here or the inner `next build` inlines an empty string and
-          # overwrites the dist the explicit "Build frontend" step produced.
-          NEXT_PUBLIC_TURNSTILE: ${{ secrets.NEXT_PUBLIC_TURNSTILE }}
+          # Signs the updater artifacts. Kept on this step so that install
+          # scripts and the other steps never see the key.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: ./src-tauri
           tagName: ${{ github.ref_name }}
@@ -340,8 +335,8 @@ jobs:
       - name: Clean up Apple certificate
         if: matrix.platform == 'macos-latest' && always()
         run: |
-          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
-          rm -f $RUNNER_TEMP/build_certificate.p12 || true
+          security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/build_certificate.p12" || true
 
   # The Flatpak and the Snap, repackaged from this release's .deb and attached
   # to it; checksums-with-packages then adds them to SHA256SUMS.txt.
@@ -362,14 +357,18 @@ jobs:
     if: github.repository == 'donutbrowser/donutbrowser'
     needs: [release]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
       - name: Generate and upload SHA256SUMS.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash .github/scripts/release-checksums.sh "${{ github.ref_name }}"
+          TAG: ${{ github.ref_name }}
+        run: bash .github/scripts/release-checksums.sh "$TAG"
 
   # The same sums again, now with whatever Linux packages were attached. A
   # failed Flatpak or Snap never holds them back.
@@ -377,19 +376,34 @@ jobs:
     if: ${{ !cancelled() && github.repository == 'donutbrowser/donutbrowser' && needs.checksums.result == 'success' }}
     needs: [checksums, linux-packages]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
       - name: Generate and upload SHA256SUMS.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash .github/scripts/release-checksums.sh "${{ github.ref_name }}"
+          TAG: ${{ github.ref_name }}
+        run: bash .github/scripts/release-checksums.sh "$TAG" "$RUNNER_TEMP/SHA256SUMS.txt"
+
+      # Signed build provenance for every asset in the sums file. Check one with
+      # `gh attestation verify <file> --repo donutbrowser/donutbrowser`. It runs
+      # after the upload, so a failure here never holds back the sums.
+      - name: Attest the release assets
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 #v4.2.2
+        with:
+          subject-checksums: ${{ runner.temp }}/SHA256SUMS.txt
 
   changelog:
     if: github.repository == 'donutbrowser/donutbrowser'
     needs: [release]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write
@@ -484,30 +498,28 @@ jobs:
         run: |
           VERSION="${TAG#v}"
           BASE="https://github.com/donutbrowser/donutbrowser/releases/download/${TAG}"
+          BADGE="https://img.shields.io/badge"
 
           # Generate the new install section between markers
           cat > /tmp/install-links.md << LINKS
-          ### macOS
+          <p align="center">
+            <a href="${BASE}/Donut_${VERSION}_aarch64.dmg"><img alt="Download Donut Browser ${VERSION} for macOS (Apple Silicon, DMG)" src="${BADGE}/macOS-Apple_Silicon_.dmg-1f6feb?style=for-the-badge" height="40"></a>
+            <a href="${BASE}/Donut_${VERSION}_x64-setup.exe"><img alt="Download Donut Browser ${VERSION} for Windows (x64 installer)" src="${BADGE}/Windows-x64_installer-1f6feb?style=for-the-badge" height="40"></a>
+            <a href="${BASE}/Donut_${VERSION}_amd64.deb"><img alt="Download Donut Browser ${VERSION} for Linux (x64, deb)" src="${BADGE}/Linux-x64_.deb-1f6feb?style=for-the-badge" height="40"></a>
+          </p>
 
-          [Download DMG (Apple Silicon)](${BASE}/Donut_${VERSION}_aarch64.dmg)
+          | OS | Package | x64 | ARM64 |
+          |---|---|---|---|
+          | macOS | DMG | | [Apple Silicon](${BASE}/Donut_${VERSION}_aarch64.dmg) |
+          | Windows | Installer | [setup.exe](${BASE}/Donut_${VERSION}_x64-setup.exe) | |
+          | Windows | Portable | [zip](${BASE}/Donut_${VERSION}_x64-portable.zip) | |
+          | Linux | deb | [amd64](${BASE}/Donut_${VERSION}_amd64.deb) | [arm64](${BASE}/Donut_${VERSION}_arm64.deb) |
+          | Linux | rpm | [x86_64](${BASE}/Donut-${VERSION}-1.x86_64.rpm) | [aarch64](${BASE}/Donut-${VERSION}-1.aarch64.rpm) |
+          | Linux | AppImage | [amd64](${BASE}/Donut_${VERSION}_amd64.AppImage) | [aarch64](${BASE}/Donut_${VERSION}_aarch64.AppImage) |
+          | Linux | Flatpak | [x86_64](${BASE}/Donut_${VERSION}_x86_64.flatpak) | |
+          | Linux | Snap | [amd64](${BASE}/Donut_${VERSION}_amd64.snap) | |
 
-          Or install via Homebrew:
-
-          \`\`\`bash
-          brew install --cask donut
-          \`\`\`
-
-          ### Windows
-
-          [Download Windows Installer (x64)](${BASE}/Donut_${VERSION}_x64-setup.exe) · [Portable (x64)](${BASE}/Donut_${VERSION}_x64-portable.zip)
-
-          ### Linux
-
-          | Format | x86_64 | ARM64 |
-          |---|---|---|
-          | **deb** | [Download](${BASE}/Donut_${VERSION}_amd64.deb) | [Download](${BASE}/Donut_${VERSION}_arm64.deb) |
-          | **rpm** | [Download](${BASE}/Donut-${VERSION}-1.x86_64.rpm) | [Download](${BASE}/Donut-${VERSION}-1.aarch64.rpm) |
-          | **AppImage** | [Download](${BASE}/Donut_${VERSION}_amd64.AppImage) | [Download](${BASE}/Donut_${VERSION}_aarch64.AppImage) |
+          Version ${VERSION}. Verify a download with [SHA256SUMS.txt](${BASE}/SHA256SUMS.txt).
           LINKS
 
           # Strip leading whitespace from heredoc
@@ -557,11 +569,13 @@ jobs:
     if: github.repository == 'donutbrowser/donutbrowser'
     needs: [release, changelog]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Generate changelog summary
         env:
@@ -606,6 +620,7 @@ jobs:
         run: |
           VERSION="${TAG}"
           RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${VERSION}"
+          DL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/Donut_${VERSION#v}"
           CHANGES=$(cat /tmp/discord-changes.txt)
 
           # Build JSON with jq to handle escaping
@@ -613,9 +628,9 @@ jobs:
             --arg title "Donut Browser ${VERSION} Released" \
             --arg url "$RELEASE_URL" \
             --arg changes "$CHANGES" \
-            --arg dl_mac_arm "https://github.com/'"${GITHUB_REPOSITORY}"'/releases/download/'"${VERSION}"'/Donut_'"${VERSION#v}"'_aarch64.dmg" \
-            --arg dl_win "https://github.com/'"${GITHUB_REPOSITORY}"'/releases/download/'"${VERSION}"'/Donut_'"${VERSION#v}"'_x64-setup.exe" \
-            --arg dl_linux "https://github.com/'"${GITHUB_REPOSITORY}"'/releases/download/'"${VERSION}"'/Donut_'"${VERSION#v}"'_amd64.AppImage" \
+            --arg dl_mac_arm "${DL}_aarch64.dmg" \
+            --arg dl_win "${DL}_x64-setup.exe" \
+            --arg dl_linux "${DL}_amd64.AppImage" \
             '{
               embeds: [{
                 title: $title,
@@ -635,6 +650,8 @@ jobs:
     if: github.repository == 'donutbrowser/donutbrowser'
     needs: [release]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
     steps:
       - name: Trigger Cloudflare Pages deployment
         env:
@@ -655,6 +672,7 @@ jobs:
     if: github.repository == 'donutbrowser/donutbrowser'
     needs: [release, changelog]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write
@@ -669,7 +687,6 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           VERSION="${TAG#v}"
-          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
 
           AMD64_URL="https://github.com/donutbrowser/donutbrowser/releases/download/${TAG}/Donut_${VERSION}_amd64.AppImage"
           AARCH64_URL="https://github.com/donutbrowser/donutbrowser/releases/download/${TAG}/Donut_${VERSION}_aarch64.AppImage"
@@ -684,10 +701,13 @@ jobs:
           AMD64_HASH="sha256-$(sha256sum /tmp/amd64.AppImage | awk '{print $1}' | xxd -r -p | base64 | tr -d '\n')"
           AARCH64_HASH="sha256-$(sha256sum /tmp/aarch64.AppImage | awk '{print $1}' | xxd -r -p | base64 | tr -d '\n')"
 
-          echo "AMD64_HASH=${AMD64_HASH}" >> "$GITHUB_ENV"
-          echo "AARCH64_HASH=${AARCH64_HASH}" >> "$GITHUB_ENV"
-          echo "AMD64_URL=${AMD64_URL}" >> "$GITHUB_ENV"
-          echo "AARCH64_URL=${AARCH64_URL}" >> "$GITHUB_ENV"
+          {
+            echo "VERSION=${VERSION}"
+            echo "AMD64_HASH=${AMD64_HASH}"
+            echo "AARCH64_HASH=${AARCH64_HASH}"
+            echo "AMD64_URL=${AMD64_URL}"
+            echo "AARCH64_URL=${AARCH64_URL}"
+          } >> "$GITHUB_ENV"
 
           echo "x86_64 hash: ${AMD64_HASH}"
           echo "aarch64 hash: ${AARCH64_HASH}"

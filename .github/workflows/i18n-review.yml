@@ -66,13 +66,10 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github
 
-      # RUNNER_TEMP belongs to this job alone; a fixed /tmp path does not.
-      - name: Use a private work directory
-        run: echo "I18N_REVIEW_DIR=$RUNNER_TEMP/i18n-review" >> "$GITHUB_ENV"
-
       - name: Collect changed strings
         id: collect
         env:
+          I18N_REVIEW_DIR: ${{ runner.temp }}/i18n-review
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
@@ -89,12 +86,14 @@ jobs:
         continue-on-error: true
         timeout-minutes: 10
         env:
+          I18N_REVIEW_DIR: ${{ runner.temp }}/i18n-review
           AI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node .github/scripts/i18n-review.mjs review
 
       - name: Report
         if: always() && steps.collect.outcome == 'success'
         env:
+          I18N_REVIEW_DIR: ${{ runner.temp }}/i18n-review
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -102,6 +101,8 @@ jobs:
 
       - name: Warn about strings the model did not review
         if: always()
+        env:
+          I18N_REVIEW_DIR: ${{ runner.temp }}/i18n-review
         run: |
           if [ -f "$I18N_REVIEW_DIR/ai-degraded" ]; then
             while IFS= read -r line; do

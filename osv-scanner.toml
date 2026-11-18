@@ -60,3 +60,23 @@ ignoreUntil = 2026-12-31
 id = "GHSA-qwgh-2vcv-g2f7"
 reason = "block-buffer 0.10 has no fix; axum, boringtun and tauri-codegen still require digest 0.10."
 ignoreUntil = 2026-12-31
+
+# chrono and chrono-tz are direct dependencies of the app, and utoipa's
+# `chrono` feature uses the same types. The notices cover every version, so no
+# update clears them; the way out is a move to jiff or time.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0543"
+reason = "chrono is unmaintained, all versions; no fix to update to until the app moves to another date library."
+ignoreUntil = 2027-02-28
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0555"
+reason = "chrono-tz is unmaintained, all versions; it leaves together with chrono."
+ignoreUntil = 2027-02-28
+
+# Withdrawn by its publisher as not a security issue, but still served by the
+# database. picomatch 4.0.7 is the newest release; build tooling only.
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+reason = "Withdrawn advisory; picomatch 4.0.7 is the latest release and is a build-time dependency."
+ignoreUntil = 2027-02-28

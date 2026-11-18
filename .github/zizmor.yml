@@ -1,0 +1,19 @@
+# zizmor configuration: https://docs.zizmor.sh/configuration/
+rules:
+  # Each of these workflows must comment on, label or close issues and pull
+  # requests from forks, which needs the base repository's token. All of them
+  # check out only the base branch and read the pull request as text through
+  # the API; none runs code from a fork.
+  dangerous-triggers:
+    ignore:
+      - issue-validation.yml
+      - pr-ai-policy.yml
+      - i18n-review.yml
+      - release-notes-generator.yml
+      - publish-repos.yml
+      - notify-telegram.yml
+  # The value is "$HOME/.local/bin", written to GITHUB_PATH for pip's awscli.
+  # No untrusted text reaches it.
+  github-env:
+    ignore:
+      - publish-repos.yml:57

@@ -93,9 +93,10 @@ jobs:
             xray_artifact: xray-x86_64-unknown-linux-gnu
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
         with:
           ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
           # build.rs derives BUILD_VERSION from git; a shallow clone with no tags
           # makes every published binary report `nightly-<hash>` instead of a
           # version, which is what an operator reads to tell builds apart.

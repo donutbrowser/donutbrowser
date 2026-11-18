@@ -4,7 +4,9 @@
 # against this file, so release.yml runs it as soon as the builds are up, and
 # again once the Flatpak and the Snap are attached.
 #
-#   bash .github/scripts/release-checksums.sh TAG
+#   bash .github/scripts/release-checksums.sh TAG [COPY_TO]
+#
+# COPY_TO gets a copy of the file, for the attestation step.
 #
 # Needs GH_TOKEN and GITHUB_REPOSITORY.
 set -euo pipefail
@@ -18,3 +20,6 @@ cd "$assets_dir"
 sha256sum Donut* > SHA256SUMS.txt
 cat SHA256SUMS.txt
 gh release upload "$tag" SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+if [ -n "${2:-}" ]; then
+  cp SHA256SUMS.txt "$2"
+fi
