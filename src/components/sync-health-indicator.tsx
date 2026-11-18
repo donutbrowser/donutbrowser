@@ -1,5 +1,3 @@
-"use client";
-
 import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { LuCloud, LuCloudAlert, LuCloudOff, LuRefreshCw } from "react-icons/lu";

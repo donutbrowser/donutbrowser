@@ -1,5 +1,3 @@
-"use client";
-
 import { type RowSelectionState } from "@tanstack/react-table";
 import {
   type LegacyColumnDef as ColumnDef,
@@ -975,7 +973,6 @@ export function ExtensionManagementDialog({
       const sizeClass = size === "sm" ? "size-4" : "size-5";
       if (extensionIcons[ext.id]) {
         return (
-          // biome-ignore lint/performance/noImgElement: base64 data URI icons cannot use next/image
           <img
             src={extensionIcons[ext.id]}
             alt=""

@@ -1,5 +1,3 @@
-"use client";
-
 import { type RowSelectionState } from "@tanstack/react-table";
 import {
   type LegacyColumnDef as ColumnDef,

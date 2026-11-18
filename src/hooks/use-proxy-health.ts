@@ -1,5 +1,3 @@
-"use client";
-
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 

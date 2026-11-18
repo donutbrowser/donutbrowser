@@ -1,5 +1,3 @@
-"use client";
-
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -96,7 +94,6 @@ export function ProfilePreviewsPage({
                     >
                       <span className="relative block aspect-[16/10] w-full overflow-hidden rounded-xl bg-foreground/5">
                         {preview ? (
-                          // biome-ignore lint/performance/noImgElement: base64 data URI previews cannot use next/image
                           <img
                             src={preview.image}
                             alt=""

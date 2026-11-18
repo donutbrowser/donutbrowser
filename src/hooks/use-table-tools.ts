@@ -1,5 +1,3 @@
-"use client";
-
 import type { RowData } from "@tanstack/react-table";
 import type { LegacyTable as Table } from "@tanstack/react-table/legacy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

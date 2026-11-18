@@ -1,5 +1,3 @@
-"use client";
-
 import { createContext, type ReactNode, useContext } from "react";
 
 const FieldVariantContext = createContext<"default" | "soft">("default");

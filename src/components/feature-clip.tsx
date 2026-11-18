@@ -1,5 +1,3 @@
-"use client";
-
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { AgentClipId, TipId } from "@/lib/tips";
@@ -70,7 +68,6 @@ export function FeatureClip({
       onPointerLeave={onPointerLeave}
     >
       {shown && (
-        // biome-ignore lint/performance/noImgElement: a static export serves the clips as they are
         <img
           src={`${base}-still.webp`}
           alt=""
@@ -82,7 +79,6 @@ export function FeatureClip({
       )}
       <AnimatePresence initial={false}>
         {shown && playing && !reduceMotion && (
-          // biome-ignore lint/performance/noImgElement: a static export serves the clips as they are
           <motion.img
             key={base}
             src={`${base}.webp`}

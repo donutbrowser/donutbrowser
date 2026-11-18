@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";

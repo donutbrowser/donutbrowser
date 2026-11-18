@@ -1,5 +1,3 @@
-"use client";
-
 import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuCheck, LuRepeat } from "react-icons/lu";

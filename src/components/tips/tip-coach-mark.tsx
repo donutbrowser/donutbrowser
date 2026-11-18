@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { LuEllipsis } from "react-icons/lu";

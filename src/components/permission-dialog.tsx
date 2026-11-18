@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BsCamera, BsMic } from "react-icons/bs";

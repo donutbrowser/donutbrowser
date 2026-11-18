@@ -1,5 +1,3 @@
-"use client";
-
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import * as React from "react";

@@ -1,5 +1,3 @@
-"use client";
-
 import { motion } from "motion/react";
 import { LuCheck } from "react-icons/lu";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";

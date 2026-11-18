@@ -1,5 +1,3 @@
-"use client";
-
 import Color from "color";
 import { Slider } from "radix-ui";
 import {

@@ -1,5 +1,3 @@
-"use client";
-
 import { openUrl } from "@tauri-apps/plugin-opener";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";

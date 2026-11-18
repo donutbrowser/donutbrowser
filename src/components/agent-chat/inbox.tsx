@@ -1,5 +1,3 @@
-"use client";
-
 import { useTranslation } from "react-i18next";
 import { SidebarToggle } from "@/components/agent-shell";
 import { PaneHeader } from "@/components/agent-tasks/parts";

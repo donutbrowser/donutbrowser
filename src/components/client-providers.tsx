@@ -1,5 +1,3 @@
-"use client";
-
 import { invoke } from "@tauri-apps/api/core";
 import { MotionConfig } from "motion/react";
 import { useEffect } from "react";

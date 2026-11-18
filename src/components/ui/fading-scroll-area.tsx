@@ -1,5 +1,3 @@
-"use client";
-
 import { type HTMLAttributes, useRef } from "react";
 import { useScrollFade } from "@/hooks/use-scroll-fade";
 import { cn } from "@/lib/utils";

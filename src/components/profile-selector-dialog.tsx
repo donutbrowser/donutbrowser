@@ -1,5 +1,3 @@
-"use client";
-
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

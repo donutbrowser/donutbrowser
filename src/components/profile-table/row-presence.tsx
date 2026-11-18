@@ -1,5 +1,3 @@
-"use client";
-
 import { animate, usePresence } from "motion/react";
 import * as React from "react";
 import { MOTION_EASE_OUT } from "@/lib/motion";

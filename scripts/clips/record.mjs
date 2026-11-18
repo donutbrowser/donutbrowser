@@ -73,9 +73,9 @@ function build() {
     "package.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
-    "next.config.ts",
+    "index.html",
+    "vite.config.ts",
     "tsconfig.json",
-    "postcss.config.mjs",
   ];
   if (ref) {
     const tar = execFileSync("git", ["archive", ref, "--", ...paths], {
@@ -119,9 +119,8 @@ function build() {
       stdio: ["ignore", "ignore", "inherit"],
     },
   );
-  run(path.join(app, "node_modules/.bin/next"), ["build"], {
+  run(path.join(app, "node_modules/.bin/vite"), ["build"], {
     cwd: app,
-    env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" },
     stdio: ["ignore", "ignore", "inherit"],
   });
   return path.join(app, "dist");

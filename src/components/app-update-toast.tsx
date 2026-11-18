@@ -1,5 +1,3 @@
-"use client";
-
 import { useTranslation } from "react-i18next";
 import { FaExternalLinkAlt, FaTimes } from "react-icons/fa";
 import { LuCheckCheck, LuDownload } from "react-icons/lu";

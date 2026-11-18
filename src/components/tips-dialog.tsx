@@ -1,5 +1,3 @@
-"use client";
-
 import { AnimatePresence, motion } from "motion/react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";

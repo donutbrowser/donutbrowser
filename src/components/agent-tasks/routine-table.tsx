@@ -1,5 +1,3 @@
-"use client";
-
 import { save } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";

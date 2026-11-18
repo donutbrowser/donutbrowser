@@ -1,5 +1,3 @@
-"use client";
-
 import { type HTMLMotionProps, motion, useAnimate } from "motion/react";
 import * as React from "react";
 

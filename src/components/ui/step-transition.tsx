@@ -1,5 +1,3 @@
-"use client";
-
 import { motion } from "motion/react";
 import type { Key, ReactNode } from "react";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";

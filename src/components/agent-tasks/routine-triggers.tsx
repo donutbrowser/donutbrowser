@@ -1,5 +1,3 @@
-"use client";
-
 import type { TFunction } from "i18next";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";

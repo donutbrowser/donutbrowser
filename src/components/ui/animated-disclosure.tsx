@@ -1,5 +1,3 @@
-"use client";
-
 import { motion, useReducedMotion } from "motion/react";
 import type { ComponentProps, ReactNode } from "react";
 import { useMotionAllowed } from "@/hooks/use-motion-allowed";

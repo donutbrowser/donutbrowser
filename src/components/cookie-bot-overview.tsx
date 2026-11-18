@@ -1,5 +1,3 @@
-"use client";
-
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";

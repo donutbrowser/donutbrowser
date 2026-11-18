@@ -31,6 +31,11 @@ export const MANUAL_LICENSES = [
     name: "Xray-core",
     license: "MPL-2.0",
   },
+  // Bundled from src/assets/fonts, not a package.
+  {
+    name: "Geist",
+    license: "OFL-1.1",
+  },
 ];
 
 const LEGACY_LICENSE_EXPRESSIONS = new Map([
@@ -40,8 +45,6 @@ const LEGACY_LICENSE_EXPRESSIONS = new Map([
   ["MIT/Apache-2.0", "Apache-2.0 OR MIT"],
   ["MIT OR Apache-2.0", "Apache-2.0 OR MIT"],
   ["Unlicense/MIT", "MIT OR Unlicense"],
-  // The bundled Geist fonts name their license in words.
-  ["SIL OPEN FONT LICENSE", "OFL-1.1"],
 ]);
 
 const HOST_ONLY_PNPM_NATIVE_PREFIXES = [

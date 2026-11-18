@@ -1,5 +1,3 @@
-"use client";
-
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { I18nextProvider } from "react-i18next";

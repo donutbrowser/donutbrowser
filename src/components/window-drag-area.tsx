@@ -1,5 +1,3 @@
-"use client";
-
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";

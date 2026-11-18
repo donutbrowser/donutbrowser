@@ -1,5 +1,3 @@
-"use client";
-
 import confetti from "canvas-confetti";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect } from "react";

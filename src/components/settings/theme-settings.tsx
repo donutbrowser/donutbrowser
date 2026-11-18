@@ -1,5 +1,3 @@
-"use client";
-
 import Color from "color";
 import type { CSSProperties, ReactNode } from "react";
 import { useTranslation } from "react-i18next";

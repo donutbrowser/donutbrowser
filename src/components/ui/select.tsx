@@ -1,5 +1,3 @@
-"use client";
-
 import * as SelectPrimitive from "@radix-ui/react-select";
 import type * as React from "react";
 import { LuCheck, LuChevronDown, LuChevronUp } from "react-icons/lu";

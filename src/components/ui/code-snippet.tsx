@@ -1,5 +1,3 @@
-"use client";
-
 import type { ReactNode } from "react";
 import { CopyToClipboard } from "@/components/ui/copy-to-clipboard";
 import { cn } from "@/lib/utils";

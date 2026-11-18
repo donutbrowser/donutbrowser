@@ -1,5 +1,3 @@
-"use client";
-
 import { listen } from "@tauri-apps/api/event";
 import { createContext, useContext, useEffect, useState } from "react";
 

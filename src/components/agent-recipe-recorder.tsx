@@ -1,5 +1,3 @@
-"use client";
-
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";

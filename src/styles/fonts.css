@@ -1,0 +1,23 @@
+/* Geist (OFL-1.1, src/assets/fonts/OFL.txt), bundled: the app never fetches fonts. */
+@font-face {
+  font-family: "Geist";
+  src: url("../assets/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../assets/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-geist-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-geist-mono:
+    "Geist Mono", ui-monospace, SFMono-Regular, "Roboto Mono", Menlo, Monaco,
+    "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+}

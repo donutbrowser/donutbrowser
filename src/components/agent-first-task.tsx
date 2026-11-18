@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LiveFrame, LiveLine } from "@/components/agent-chat/live-view";

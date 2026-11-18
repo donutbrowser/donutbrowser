@@ -15,9 +15,7 @@
 /e2e/app/Cargo.lock
 /e2e/.driver/
 
-# next.js
-/.next/
-/out/
+# frontend build
 /dist/
 
 # production
@@ -43,9 +41,6 @@ yarn-error.log*
 # local env files
 .env*.local
 
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
 
@@ -56,9 +51,6 @@ yarn-error.log*
 
 # env
 .env
-
-# next
-**/next-env.d.ts
 
 # claude
 .claude/

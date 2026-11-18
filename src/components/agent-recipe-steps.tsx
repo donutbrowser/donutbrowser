@@ -1,5 +1,3 @@
-"use client";
-
 import { cloneElement, useId } from "react";
 import { useTranslation } from "react-i18next";
 import { LuArrowDown, LuArrowUp, LuTrash2 } from "react-icons/lu";

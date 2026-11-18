@@ -1,5 +1,3 @@
-"use client";
-
 import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -65,7 +63,6 @@ export function LiveFrame({
       )}
     >
       {image ? (
-        // biome-ignore lint/performance/noImgElement: base64 data URI previews cannot use next/image
         <img
           src={image}
           alt=""

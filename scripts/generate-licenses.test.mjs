@@ -14,7 +14,6 @@ test("normalizes legacy dual-license metadata into SPDX expressions", () => {
     normalizeLicenseExpression("MIT/Apache-2.0"),
     "Apache-2.0 OR MIT",
   );
-  assert.equal(normalizeLicenseExpression("SIL OPEN FONT LICENSE"), "OFL-1.1");
   assert.equal(
     normalizeLicenseExpression("Apache-2.0 OR MIT"),
     "Apache-2.0 OR MIT",
@@ -153,6 +152,11 @@ test("generated inventory includes the bundled sidecar and Tauri opener", async 
   assert.ok(
     inventory.some(
       (entry) => entry.name === "Xray-core" && entry.license === "MPL-2.0",
+    ),
+  );
+  assert.ok(
+    inventory.some(
+      (entry) => entry.name === "Geist" && entry.license === "OFL-1.1",
     ),
   );
   assert.ok(

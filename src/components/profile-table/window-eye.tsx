@@ -1,5 +1,3 @@
-"use client";
-
 import { FOCUS_RING } from "@/components/ui/focus-ring";
 import { cn } from "@/lib/utils";
 

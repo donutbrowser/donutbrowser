@@ -1,5 +1,3 @@
-"use client";
-
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "motion/react";

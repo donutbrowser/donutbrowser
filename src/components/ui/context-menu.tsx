@@ -1,5 +1,3 @@
-"use client";
-
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import type * as React from "react";
 import { LuCheck, LuChevronRight } from "react-icons/lu";

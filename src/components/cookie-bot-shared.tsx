@@ -1,5 +1,3 @@
-"use client";
-
 import { invoke } from "@tauri-apps/api/core";
 import type { TFunction } from "i18next";
 import { animate, motion, useReducedMotion } from "motion/react";

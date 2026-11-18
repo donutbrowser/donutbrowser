@@ -1,17 +1,7 @@
-import i18n from "i18next";
+import i18n, { type BackendModule, type ResourceKey } from "i18next";
 import { initReactI18next } from "react-i18next";
 
-import de from "./locales/de.json";
 import en from "./locales/en.json";
-import es from "./locales/es.json";
-import fr from "./locales/fr.json";
-import ja from "./locales/ja.json";
-import ko from "./locales/ko.json";
-import pt from "./locales/pt.json";
-import ru from "./locales/ru.json";
-import tr from "./locales/tr.json";
-import vi from "./locales/vi.json";
-import zh from "./locales/zh.json";
 
 export const SUPPORTED_LANGUAGES = [
   { code: "en", name: "English", nativeName: "English" },
@@ -68,30 +58,44 @@ export function getLanguageWithFallback(systemLocale: string): string {
   return "en";
 }
 
-const resources = {
-  en: { translation: en },
-  es: { translation: es },
-  pt: { translation: pt },
-  fr: { translation: fr },
-  de: { translation: de },
-  zh: { translation: zh },
-  ja: { translation: ja },
-  ko: { translation: ko },
-  ru: { translation: ru },
-  tr: { translation: tr },
-  vi: { translation: vi },
+// English ships in the main bundle as the fallback. Every other locale is its
+// own chunk, loaded when `changeLanguage` asks for it.
+const otherLocales = import.meta.glob<ResourceKey>(
+  ["./locales/*.json", "!./locales/en.json"],
+  { import: "default" },
+);
+
+const lazyLocales: BackendModule = {
+  type: "backend",
+  callbackApi: true,
+  init() {},
+  read(language, _namespace, callback) {
+    const load = otherLocales[`./locales/${language}.json`];
+    if (!load) {
+      callback(null, {});
+      return;
+    }
+    load().then(
+      (translation) => callback(null, translation),
+      (error: Error) => callback(error, null),
+    );
+  },
 };
 
-i18n.use(initReactI18next).init({
-  resources,
-  lng: "en",
-  fallbackLng: "en",
-  interpolation: {
-    escapeValue: false,
-  },
-  react: {
-    useSuspense: false,
-  },
-});
+i18n
+  .use(lazyLocales)
+  .use(initReactI18next)
+  .init({
+    resources: { en: { translation: en } },
+    partialBundledLanguages: true,
+    lng: "en",
+    fallbackLng: "en",
+    interpolation: {
+      escapeValue: false,
+    },
+    react: {
+      useSuspense: false,
+    },
+  });
 
 export default i18n;

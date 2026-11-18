@@ -1,5 +1,3 @@
-"use client";
-
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";

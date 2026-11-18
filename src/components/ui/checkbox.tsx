@@ -1,5 +1,3 @@
-"use client";
-
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import type * as React from "react";
 import { LuCheck, LuMinus } from "react-icons/lu";

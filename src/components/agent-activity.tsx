@@ -1,5 +1,3 @@
-"use client";
-
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";

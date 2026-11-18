@@ -1,5 +1,3 @@
-"use client";
-
 import { type ReactNode, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuCheck, LuChevronsUpDown, LuSettings2 } from "react-icons/lu";

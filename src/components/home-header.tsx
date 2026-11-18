@@ -1,5 +1,3 @@
-"use client";
-
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";

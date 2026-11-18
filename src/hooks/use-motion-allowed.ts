@@ -1,5 +1,3 @@
-"use client";
-
 import { useReducedMotion } from "motion/react";
 import { useInputModality } from "@/hooks/use-input-modality";
 

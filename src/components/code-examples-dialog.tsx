@@ -1,5 +1,3 @@
-"use client";
-
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { AnimatePresence, motion } from "motion/react";
 import { type ReactNode, useId, useState } from "react";

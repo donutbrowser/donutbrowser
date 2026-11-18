@@ -1,5 +1,3 @@
-"use client";
-
 import type { RowData } from "@tanstack/react-table";
 import type {
   LegacyColumn as Column,

@@ -1,5 +1,3 @@
-"use client";
-
 import { useTranslation } from "react-i18next";
 import { OperationFlow } from "@/components/ui/operation-flow";
 import type { BrowserProfile, ExtensionGroup } from "@/types";

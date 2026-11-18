@@ -1,5 +1,3 @@
-"use client";
-
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Component, type ErrorInfo, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";

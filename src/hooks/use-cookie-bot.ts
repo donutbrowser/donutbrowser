@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback, useEffect, useId, useSyncExternalStore } from "react";
 import {
   type CookieBotSchedule,

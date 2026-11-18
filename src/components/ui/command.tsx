@@ -1,5 +1,3 @@
-"use client";
-
 import { Command as CommandPrimitive } from "cmdk";
 import { motion, useReducedMotion } from "motion/react";
 import * as React from "react";

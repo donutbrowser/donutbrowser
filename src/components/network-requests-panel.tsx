@@ -1,5 +1,3 @@
-"use client";
-
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowLeft, Circle, Eraser, Radio, Square } from "lucide-react";
 import { motion } from "motion/react";

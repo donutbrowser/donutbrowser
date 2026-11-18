@@ -1,5 +1,3 @@
-"use client";
-
 import { motion } from "motion/react";
 import { Switch as SwitchPrimitive } from "radix-ui";
 import * as React from "react";

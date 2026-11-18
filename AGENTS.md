@@ -31,8 +31,9 @@ The user is dirtycslothg. Address them as dirtycslothg.
 
 ```
 donutbrowser/
-├── src/                              # Next.js frontend
-│   ├── app/                          # App router (page.tsx, layout.tsx)
+├── src/                              # React frontend, built with Vite (index.html, vite.config.ts)
+│   ├── main.tsx                      # Entry: providers, error boundaries, root render
+│   ├── app/                          # The app shell (page.tsx)
 │   ├── components/                   # 50+ React components (dialogs, tables, UI)
 │   │   ├── table-controls.tsx         # Shared filters, sort rules, column controls, and row selection
 │   │   ├── managed-data-table.tsx     # Shared management table and keyboard navigation
@@ -45,7 +46,7 @@ donutbrowser/
 │   │   ├── agent-chat/               # Agent page: chats, composer, sidebar, templates gallery (catalog in lib/agent-templates.ts)
 │   │   └── tips/                     # Feature tips: icons and the day's coach mark
 │   ├── hooks/                        # Event-driven React hooks, table preferences, filtering, and keyboard controls
-│   ├── i18n/locales/                 # Translations (de, en, es, fr, ja, ko, pt, ru, tr, vi, zh)
+│   ├── i18n/locales/                 # Translations (de, en, es, fr, ja, ko, pt, ru, tr, vi, zh); English is bundled, the rest load on demand
 │   ├── generated/                    # Build-generated third-party license inventory
 │   ├── lib/                          # Utilities (themes, toast, browser-utils, ui-sounds, schedules, team-activity, coach-mark placement, profile-list-store, agent-templates)
 │   └── types.ts                      # Shared TypeScript interfaces
