@@ -13,7 +13,9 @@ default-run = "donutbrowser"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "donutbrowser_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Desktop only. The staticlib and cdylib that mobile needs added minutes to
+# every release build.
+crate-type = ["rlib"]
 doctest = false
 
 [[bin]]
@@ -229,7 +231,9 @@ split-debuginfo = "unpacked"
 [profile.release]
 codegen-units = 1
 opt-level = 3
-lto = "thin"
+# Fat LTO is 2.5 MB smaller than thin and builds about as fast.
+lto = "fat"
+strip = true
 # Split debuginfo on macOS for faster linking (ignored on other platforms)
 split-debuginfo = "unpacked"
 
