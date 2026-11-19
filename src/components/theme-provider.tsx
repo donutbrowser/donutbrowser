@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import {
   createContext,
   useCallback,
@@ -81,7 +82,6 @@ export function CustomThemeProvider({ children }: CustomThemeProviderProps) {
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
         const settings = await invoke<AppSettings>("get_app_settings");
         const themeValue = settings?.theme ?? "system";
 
@@ -132,7 +132,6 @@ export function CustomThemeProvider({ children }: CustomThemeProviderProps) {
     }
     const reapplyCustomTheme = async () => {
       try {
-        const { invoke } = await import("@tauri-apps/api/core");
         const settings = await invoke<AppSettings>("get_app_settings");
         if (settings?.theme === "custom" && settings.custom_theme) {
           applyThemeColors(settings.custom_theme);

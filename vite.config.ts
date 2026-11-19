@@ -47,6 +47,8 @@ export default defineConfig(({ command }) => ({
     // Flags and fonts stay files: inlined into the CSS they would be parsed at
     // startup, used or not.
     assetsInlineLimit: 0,
+    // The app ships every chunk on disk; size warnings meant for the web do not apply.
+    chunkSizeWarningLimit: 4096,
     rolldownOptions:
       command === "build"
         ? {

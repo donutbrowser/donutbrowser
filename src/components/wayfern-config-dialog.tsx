@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { SharedFingerprintConfigForm } from "@/components/shared-fingerprint-config-form";
 import {
   Dialog,
@@ -68,7 +69,6 @@ export function WayfernConfigDialog({
       try {
         JSON.parse(storedJson);
       } catch (_error) {
-        const { toast } = await import("sonner");
         toast.error(t("wayfernConfigDialog.invalidFingerprint"), {
           description: t("wayfernConfigDialog.invalidFingerprintDescription"),
         });
@@ -82,7 +82,6 @@ export function WayfernConfigDialog({
       onClose();
     } catch (error) {
       console.error("Failed to save config:", error);
-      const { toast } = await import("sonner");
       toast.error(t("wayfernConfigDialog.saveFailed"), {
         description: translateBackendError(t, error),
       });
