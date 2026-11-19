@@ -1350,6 +1350,11 @@ test("settings sections stay on one row that scrolls, drags, and follows the pag
         scroller,
       ]);
 
+    // The strip sets its fades from a ResizeObserver, a frame after the size
+    // change lays the row out again.
+    await app.waitFor(async () => (await layout()).fadeRight === "true", {
+      description: "the row's right fade after the size change",
+    });
     const start = await layout();
     assert.equal(start.rows, 1, "section badges never wrap");
     assert.ok(start.overflow > 0, "a narrow window overflows the row");

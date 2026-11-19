@@ -1494,7 +1494,11 @@ impl ProfileManager {
     profile_id: &str,
     rules: Vec<String>,
   ) -> Result<BrowserProfile, Box<dyn std::error::Error>> {
+    let rules = crate::bypass_rules::checked(rules)?;
     let mut profile = self.find_profile(profile_id)?;
+    if profile.proxy_bypass_rules == rules {
+      return Ok(profile);
+    }
 
     profile.proxy_bypass_rules = rules;
     profile.updated_at = Some(crate::proxy_manager::now_secs());
@@ -3089,7 +3093,7 @@ pub async fn update_profile_proxy_bypass_rules(
   edit_off_main_thread(move || {
     ProfileManager::instance()
       .update_profile_proxy_bypass_rules(&app_handle, &profile_id, rules)
-      .map_err(|e| format!("Failed to update proxy bypass rules: {e}"))
+      .map_err(|e| crate::wrap_backend_error(e, "Failed to update proxy bypass rules"))
   })
   .await
 }

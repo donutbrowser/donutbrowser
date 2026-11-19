@@ -5425,7 +5425,7 @@ impl McpServer {
             "proxy_bypass_rules": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Proxy bypass rules (replaces existing rules)"
+              "description": "Proxy bypass rules, replacing the current ones: a domain (its subdomains match too), '*.domain' (subdomains only), an IP address, an IP range such as '10.0.0.0/8', or a regex that must match the whole host name"
             },
             "clear_on_close": {
               "type": "boolean",
@@ -5996,7 +5996,7 @@ impl McpServer {
             "rules": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Array of bypass rules. Supports hostnames (e.g. 'example.com'), IP addresses, and regex patterns."
+              "description": "Bypass rules, replacing the current ones. 'example.com' matches the domain and its subdomains; '*.example.com' only its subdomains; an IP address; an IP range such as '10.0.0.0/8'; anything else is a regex that must match the whole host name."
             }
           },
           "required": ["profile_id", "rules"]
@@ -10865,7 +10865,7 @@ impl McpServer {
     };
 
     let profile = ProfileManager::instance()
-      .update_profile_proxy_bypass_rules(&app_handle, profile_id, rules.clone())
+      .update_profile_proxy_bypass_rules(&app_handle, profile_id, rules)
       .map_err(|e| McpError {
         code: -32000,
         message: format!("Failed to update proxy bypass rules: {e}"),
@@ -10878,7 +10878,7 @@ impl McpServer {
         "text": format!(
           "Proxy bypass rules updated for profile '{}': {} rule(s) configured",
           profile.name,
-          rules.len()
+          profile.proxy_bypass_rules.len()
         )
       }]
     }))

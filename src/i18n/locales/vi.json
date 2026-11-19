@@ -434,15 +434,10 @@
       "delete": "Xóa",
       "copyCookies": "Sao chép Cookie",
       "configure": "Cấu hình",
-      "clone": "Nhân bản hồ sơ",
-      "viewNetwork": "Xem mạng",
       "syncSettings": "Cài đặt đồng bộ",
       "assignToGroup": "Gán vào nhóm",
       "changeFingerprint": "Đổi vân tay",
-      "copyCookiesToProfile": "Sao chép Cookie sang hồ sơ",
-      "setPassword": "Đặt mật khẩu",
-      "changePassword": "Đổi mật khẩu",
-      "removePassword": "Xóa mật khẩu"
+      "copyCookiesToProfile": "Sao chép Cookie sang hồ sơ"
     },
     "synchronizer": {
       "launchWithSync": "Khởi chạy với trình đồng bộ",
@@ -1665,8 +1660,8 @@
     },
     "network": {
       "bypassRulesTitle": "Quy tắc bỏ qua proxy",
-      "bypassRulesDescription": "Các yêu cầu đến những máy chủ này kết nối trực tiếp, không qua proxy. Mỗi dòng một quy tắc: tên máy chủ, địa chỉ IP hoặc biểu thức chính quy.",
-      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
+      "bypassRulesDescription": "Các yêu cầu đến những máy chủ này kết nối trực tiếp, không qua proxy. Mỗi dòng một quy tắc: một tên miền (kèm các tên miền con), một địa chỉ IP, một dải như 10.0.0.0/8 hoặc một biểu thức chính quy cho toàn bộ tên máy chủ.",
+      "rulePlaceholder": "example.com\n10.0.0.0/8\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
       "proxyLabel": "Proxy: {{name}}"
     },
@@ -2551,25 +2546,10 @@
     }
   },
   "profilePassword": {
-    "set": {
-      "title": "Đặt mật khẩu profile",
-      "description": "Mã hóa dữ liệu trên đĩa cho {{name}}. Bạn sẽ cần mật khẩu này mỗi khi khởi chạy profile.",
-      "button": "Mã hóa profile"
-    },
     "unlock": {
       "title": "Mở khóa profile",
       "description": "Nhập mật khẩu để mở khóa {{name}}.",
       "button": "Mở khóa"
-    },
-    "change": {
-      "title": "Thay đổi mật khẩu profile",
-      "description": "Mã hóa lại {{name}} bằng mật khẩu mới.",
-      "button": "Thay đổi mật khẩu"
-    },
-    "remove": {
-      "title": "Xóa mật khẩu profile",
-      "description": "Giải mã dữ liệu trên đĩa cho {{name}}. Profile sẽ không còn được bảo vệ bằng mật khẩu.",
-      "button": "Xóa mật khẩu"
     },
     "fields": {
       "password": "Mật khẩu",
@@ -2579,7 +2559,6 @@
       "confirmPassword": "Xác nhận mật khẩu mới"
     },
     "errors": {
-      "oldPasswordRequired": "Mật khẩu hiện tại là bắt buộc",
       "passwordRequired": "Mật khẩu là bắt buộc",
       "tooShort": "Mật khẩu phải có ít nhất 8 ký tự",
       "mismatch": "Mật khẩu không khớp"
@@ -2588,10 +2567,6 @@
       "set": "Profile đã được bảo vệ bằng mật khẩu",
       "changed": "Đã thay đổi mật khẩu profile",
       "removed": "Đã xóa mật khẩu profile"
-    },
-    "warnings": {
-      "forgetWarningTitle": "Quan trọng: mật khẩu này không thể khôi phục",
-      "forgetWarningBody": "Donut Browser không thể đặt lại, khôi phục hoặc bỏ qua mật khẩu này. Nếu bạn quên, bạn sẽ mất quyền truy cập vĩnh viễn vào dữ liệu profile này."
     },
     "modes": {
       "set": "Đặt",
@@ -2866,6 +2841,7 @@
     "proxyRotationTimeout": "Nhà cung cấp không phản hồi yêu cầu đổi IP trong 30 giây.",
     "proxyRotationUnreachable": "Donut không thể truy cập liên kết đổi IP của nhà cung cấp.",
     "startUrlInvalid": "\"{{url}}\" không phải là trang web. Trang khởi động phải là địa chỉ http:// hoặc https://.",
+    "bypassRuleInvalid": "\"{{rule}}\" không phải là quy tắc bỏ qua hợp lệ. Hãy dùng một tên miền, một địa chỉ IP, một dải như 10.0.0.0/8 hoặc một biểu thức chính quy.",
     "startUrlsTooMany": "Mỗi profile có tối đa 20 trang khởi động.",
     "totpKeyInvalid": "Đây không phải khóa 2FA. Hãy dán khóa bí mật hoặc liên kết otpauth:// mà trang web hiển thị.",
     "totpLabelTooLong": "Nhãn tối đa 60 ký tự.",

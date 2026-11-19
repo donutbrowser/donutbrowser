@@ -209,6 +209,9 @@ pub struct UpdateProfileRequest {
   pub group_id: Option<String>,
   pub tags: Option<Vec<String>>,
   pub extension_group_id: Option<String>,
+  /// Hosts that connect directly, replacing the current rules: a domain (its
+  /// subdomains match too), `*.domain` (subdomains only), an IP address, an IP
+  /// range such as `10.0.0.0/8`, or a regex that must match the whole host name.
   pub proxy_bypass_rules: Option<Vec<String>>,
   /// One of "Disabled", "Regular", "Encrypted".
   pub sync_mode: Option<String>,

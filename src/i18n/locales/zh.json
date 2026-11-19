@@ -434,15 +434,10 @@
       "delete": "删除",
       "copyCookies": "复制 Cookies",
       "configure": "配置",
-      "clone": "克隆配置文件",
-      "viewNetwork": "查看网络",
       "syncSettings": "同步设置",
       "assignToGroup": "分配到组",
       "changeFingerprint": "更改指纹",
-      "copyCookiesToProfile": "复制 Cookies 到配置文件",
-      "setPassword": "设置密码",
-      "changePassword": "更改密码",
-      "removePassword": "移除密码"
+      "copyCookiesToProfile": "复制 Cookies 到配置文件"
     },
     "synchronizer": {
       "launchWithSync": "使用同步器启动",
@@ -1665,8 +1660,8 @@
     },
     "network": {
       "bypassRulesTitle": "代理绕过规则",
-      "bypassRulesDescription": "发往这些主机的请求直接连接，不经过代理。每行一条规则：主机名、IP地址或正则表达式。",
-      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
+      "bypassRulesDescription": "发往这些主机的请求直接连接，不经过代理。每行一条规则：域名（含其子域名）、IP地址、10.0.0.0/8 这样的范围，或匹配整个主机名的正则表达式。",
+      "rulePlaceholder": "example.com\n10.0.0.0/8\n.*\\.local",
       "vpnLabel": "VPN：{{name}}",
       "proxyLabel": "代理：{{name}}"
     },
@@ -2551,25 +2546,10 @@
     }
   },
   "profilePassword": {
-    "set": {
-      "title": "设置配置文件密码",
-      "description": "加密 {{name}} 的磁盘数据。每次启动配置文件时都需要输入此密码。",
-      "button": "加密配置文件"
-    },
     "unlock": {
       "title": "解锁配置文件",
       "description": "输入密码以解锁 {{name}}。",
       "button": "解锁"
-    },
-    "change": {
-      "title": "更改配置文件密码",
-      "description": "使用新密码重新加密 {{name}}。",
-      "button": "更改密码"
-    },
-    "remove": {
-      "title": "移除配置文件密码",
-      "description": "解密 {{name}} 的磁盘数据。配置文件将不再受密码保护。",
-      "button": "移除密码"
     },
     "fields": {
       "password": "密码",
@@ -2579,7 +2559,6 @@
       "confirmPassword": "确认新密码"
     },
     "errors": {
-      "oldPasswordRequired": "需要当前密码",
       "passwordRequired": "需要密码",
       "tooShort": "密码至少需要 8 个字符",
       "mismatch": "密码不匹配"
@@ -2588,10 +2567,6 @@
       "set": "配置文件现在受密码保护",
       "changed": "配置文件密码已更改",
       "removed": "配置文件密码已移除"
-    },
-    "warnings": {
-      "forgetWarningTitle": "重要:此密码无法恢复",
-      "forgetWarningBody": "Donut Browser 无法重置、恢复或绕过此密码。如果忘记,您将永久无法访问此配置文件的数据。"
     },
     "modes": {
       "set": "设置",
@@ -2866,6 +2841,7 @@
     "proxyRotationTimeout": "服务商在 30 秒内未响应更换 IP。",
     "proxyRotationUnreachable": "Donut 无法访问服务商的更换 IP 链接。",
     "startUrlInvalid": "“{{url}}”不是网页。启动页必须是 http:// 或 https:// 地址。",
+    "bypassRuleInvalid": "“{{rule}}”不是有效的绕过规则。请使用域名、IP地址、10.0.0.0/8 这样的范围或正则表达式。",
     "startUrlsTooMany": "一个配置文件最多可以有 20 个启动页。",
     "totpKeyInvalid": "这不是 2FA 密钥。粘贴网站显示的密钥或 otpauth:// 链接。",
     "totpLabelTooLong": "标签最多 60 个字符。",

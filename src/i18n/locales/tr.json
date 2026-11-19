@@ -434,15 +434,10 @@
       "delete": "Sil",
       "copyCookies": "Çerezleri Kopyala",
       "configure": "Yapılandır",
-      "clone": "Profili Klonla",
-      "viewNetwork": "Ağı Görüntüle",
       "syncSettings": "Eşitleme Ayarları",
       "assignToGroup": "Gruba Ata",
       "changeFingerprint": "Parmak İzini Değiştir",
-      "copyCookiesToProfile": "Çerezleri Profile Kopyala",
-      "setPassword": "Parola Belirle",
-      "changePassword": "Parolayı Değiştir",
-      "removePassword": "Parolayı Kaldır"
+      "copyCookiesToProfile": "Çerezleri Profile Kopyala"
     },
     "synchronizer": {
       "launchWithSync": "Eşitleyici ile Başlat",
@@ -1665,8 +1660,8 @@
     },
     "network": {
       "bypassRulesTitle": "Proxy atlama kuralları",
-      "bypassRulesDescription": "Bu ana bilgisayarlara giden istekler proxy olmadan doğrudan bağlanır. Her satıra bir kural: ana bilgisayar adı, IP adresi veya düzenli ifade.",
-      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
+      "bypassRulesDescription": "Bu ana bilgisayarlara giden istekler proxy olmadan doğrudan bağlanır. Her satıra bir kural: bir alan adı (alt alan adlarıyla birlikte), bir IP adresi, 10.0.0.0/8 gibi bir aralık veya ana bilgisayar adının tamamı için bir düzenli ifade.",
+      "rulePlaceholder": "example.com\n10.0.0.0/8\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
       "proxyLabel": "Proxy: {{name}}"
     },
@@ -2551,25 +2546,10 @@
     }
   },
   "profilePassword": {
-    "set": {
-      "title": "Profil Parolası Belirle",
-      "description": "{{name}} profilinin diskteki verilerini şifreleyin. Profili her başlattığınızda bu parolaya ihtiyacınız olacak.",
-      "button": "Profili Şifrele"
-    },
     "unlock": {
       "title": "Profilin Kilidini Aç",
       "description": "{{name}} profilinin kilidini açmak için parolayı girin.",
       "button": "Kilidi Aç"
-    },
-    "change": {
-      "title": "Profil Parolasını Değiştir",
-      "description": "{{name}} profilini yeni bir parolayla yeniden şifreleyin.",
-      "button": "Parolayı Değiştir"
-    },
-    "remove": {
-      "title": "Profil Parolasını Kaldır",
-      "description": "{{name}} profilinin diskteki verilerinin şifresini çözün. Profil artık parola korumalı olmayacak.",
-      "button": "Parolayı Kaldır"
     },
     "fields": {
       "password": "Parola",
@@ -2579,7 +2559,6 @@
       "confirmPassword": "Yeni parolayı onaylayın"
     },
     "errors": {
-      "oldPasswordRequired": "Mevcut parola zorunludur",
       "passwordRequired": "Parola zorunludur",
       "tooShort": "Parola en az 8 karakter olmalıdır",
       "mismatch": "Parolalar eşleşmiyor"
@@ -2588,10 +2567,6 @@
       "set": "Profil artık parola korumalı",
       "changed": "Profil parolası değiştirildi",
       "removed": "Profil parolası kaldırıldı"
-    },
-    "warnings": {
-      "forgetWarningTitle": "Önemli: bu parola kurtarılamaz",
-      "forgetWarningBody": "Donut Browser bu parolayı sıfırlayamaz, kurtaramaz veya atlayamaz. Unutursanız bu profilin verilerine erişimi kalıcı olarak kaybedersiniz."
     },
     "modes": {
       "set": "Belirle",
@@ -2866,6 +2841,7 @@
     "proxyRotationTimeout": "Sağlayıcı IP değişikliğine 30 saniye içinde yanıt vermedi.",
     "proxyRotationUnreachable": "Donut, sağlayıcının IP değiştirme bağlantısına ulaşamadı.",
     "startUrlInvalid": "\"{{url}}\" bir web sayfası değil. Başlangıç sayfaları http:// veya https:// adresleri olmalıdır.",
+    "bypassRuleInvalid": "\"{{rule}}\" geçerli bir atlama kuralı değil. Bir alan adı, bir IP adresi, 10.0.0.0/8 gibi bir aralık veya bir düzenli ifade kullanın.",
     "startUrlsTooMany": "Bir profilde en fazla 20 başlangıç sayfası olabilir.",
     "totpKeyInvalid": "Bu bir 2FA anahtarı değil. Sitenin gösterdiği gizli anahtarı veya otpauth:// bağlantısını yapıştırın.",
     "totpLabelTooLong": "Etiket en fazla 60 karakter olabilir.",

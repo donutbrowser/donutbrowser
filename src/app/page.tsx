@@ -6,6 +6,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -49,10 +50,7 @@ import {
 } from "@/components/pre-launch-gate-dialog";
 import { ProfilesDataTable } from "@/components/profile-data-table";
 import { ProfileGroupDragProvider } from "@/components/profile-group-drag";
-import {
-  type PasswordDialogMode,
-  ProfilePasswordDialog,
-} from "@/components/profile-password-dialog";
+import { ProfilePasswordDialog } from "@/components/profile-password-dialog";
 import { ProfilePreviewsPage } from "@/components/profile-previews-page";
 import { ProfileSelectorDialog } from "@/components/profile-selector-dialog";
 import { ProfileSyncDialog } from "@/components/profile-sync-dialog";
@@ -575,8 +573,6 @@ export default function Home() {
   const [cloneProfile, setCloneProfile] = useState<BrowserProfile | null>(null);
   const [passwordDialogProfile, setPasswordDialogProfile] =
     useState<BrowserProfile | null>(null);
-  const [passwordDialogMode, setPasswordDialogMode] =
-    useState<PasswordDialogMode>("set");
   const pendingLaunchAfterUnlockRef = useRef<BrowserProfile | null>(null);
   const [windowResizeWarningOpen, setWindowResizeWarningOpen] = useState(false);
   const windowResizeWarningResolver = useRef<
@@ -1229,37 +1225,23 @@ export default function Home() {
     }
   }, []);
 
-  const [processingUrls, setProcessingUrls] = useState<Set<string>>(new Set());
+  // A ref, not state: the handler stays the same function, so the URL
+  // listeners that call it never have to be registered again.
+  const recentUrls = useRef(new Set<string>());
 
-  const handleUrlOpen = useCallback(
-    (url: string) => {
-      // Prevent duplicate processing of the same URL
-      if (processingUrls.has(url)) {
-        console.log("URL already being processed:", url);
-        return;
-      }
+  const handleUrlOpen = useCallback((url: string) => {
+    // The same link can arrive twice at once (deep link and logo click).
+    if (recentUrls.current.has(url)) return;
+    recentUrls.current.add(url);
+    setTimeout(() => recentUrls.current.delete(url), 1000);
+    // Always ask which profile opens it; a newer link replaces a pending one.
+    setPendingUrls([{ id: Date.now().toString(), url }]);
+  }, []);
 
-      setProcessingUrls((prev) => new Set(prev).add(url));
-
-      try {
-        console.log("URL received for opening:", url);
-
-        // Always show profile selector for manual selection - never auto-open
-        // Replace any existing pending URL with the new one
-        setPendingUrls([{ id: Date.now().toString(), url }]);
-      } finally {
-        // Remove URL from processing set after a short delay to prevent rapid duplicates
-        setTimeout(() => {
-          setProcessingUrls((prev) => {
-            const next = new Set(prev);
-            next.delete(url);
-            return next;
-          });
-        }, 1000);
-      }
-    },
-    [processingUrls],
-  );
+  const offerProfileForUrl = useEffectEvent(() => {
+    showErrorToast(t("errors.noProfilesForUrl"));
+    if (!teamReadOnlyRef.current) setCreateProfileDialogOpen(true);
+  });
 
   // Auto-update functionality - use the existing hook for compatibility
   const updateNotifications = useUpdateNotifications();
@@ -1394,8 +1376,7 @@ export default function Home() {
             "Received show create profile dialog request:",
             event.payload,
           );
-          showErrorToast(t("errors.noProfilesForUrl"));
-          if (!teamReadOnlyRef.current) setCreateProfileDialogOpen(true);
+          offerProfileForUrl();
         }),
       );
 
@@ -1415,7 +1396,26 @@ export default function Home() {
       // Tear down whatever did register before the failure so nothing leaks.
       teardown();
     }
-  }, [handleUrlOpen, t]);
+  }, [handleUrlOpen]);
+
+  useEffect(() => {
+    // Registered once. Registering again on every profile change left a gap
+    // between unlisten and listen in which an opened link was lost. Guard
+    // against teardown before the async setup resolves, so nothing leaks.
+    let cleanup: (() => void) | undefined;
+    let disposed = false;
+    void listenForUrlEvents().then((cleanupFn) => {
+      if (disposed) {
+        cleanupFn?.();
+        return;
+      }
+      cleanup = cleanupFn;
+    });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [listenForUrlEvents]);
 
   const handleConfigureWayfern = useCallback((profile: BrowserProfile) => {
     setCurrentProfileForWayfernConfig(profile);
@@ -1753,7 +1753,6 @@ export default function Home() {
           });
           if (isLocked) {
             pendingLaunchAfterUnlockRef.current = profile;
-            setPasswordDialogMode("unlock");
             setPasswordDialogProfile(profile);
             return { status: "cancelled" };
           }
@@ -1994,24 +1993,6 @@ export default function Home() {
 
   const handleCloneProfile = useCallback((profile: BrowserProfile) => {
     setCloneProfile(profile);
-  }, []);
-
-  const handleSetPassword = useCallback((profile: BrowserProfile) => {
-    pendingLaunchAfterUnlockRef.current = null;
-    setPasswordDialogMode("set");
-    setPasswordDialogProfile(profile);
-  }, []);
-
-  const handleChangePassword = useCallback((profile: BrowserProfile) => {
-    pendingLaunchAfterUnlockRef.current = null;
-    setPasswordDialogMode("change");
-    setPasswordDialogProfile(profile);
-  }, []);
-
-  const handleRemovePassword = useCallback((profile: BrowserProfile) => {
-    pendingLaunchAfterUnlockRef.current = null;
-    setPasswordDialogMode("remove");
-    setPasswordDialogProfile(profile);
   }, []);
 
   // The Undo of a move to the trash.
@@ -2792,19 +2773,6 @@ export default function Home() {
   }, [t]);
 
   useEffect(() => {
-    // Listen for URL open events. Guard against the effect tearing down (or
-    // re-running) before the async listener setup resolves: if that happens,
-    // run the cleanup as soon as it's available so the listeners never leak.
-    let cleanup: (() => void) | undefined;
-    let disposed = false;
-    void listenForUrlEvents().then((cleanupFn) => {
-      if (disposed) {
-        cleanupFn?.();
-        return;
-      }
-      cleanup = cleanupFn;
-    });
-
     // Check for startup URLs (when app was launched as default browser)
     void checkCurrentUrl();
 
@@ -2829,13 +2797,10 @@ export default function Home() {
     }
 
     return () => {
-      disposed = true;
       clearInterval(updateInterval);
-      cleanup?.();
     };
   }, [
     checkForUpdates,
-    listenForUrlEvents,
     checkCurrentUrl,
     checkMissingBinaries,
     profilesLoading,
@@ -3262,9 +3227,6 @@ export default function Home() {
                     onLaunchProfile={launchProfile}
                     onKillProfile={handleKillProfile}
                     onCloneProfile={handleCloneProfile}
-                    onSetPassword={handleSetPassword}
-                    onChangePassword={handleChangePassword}
-                    onRemovePassword={handleRemovePassword}
                     onDeleteProfile={handleDeleteProfile}
                     onRenameProfile={handleRenameProfile}
                     onConfigureWayfern={handleConfigureWayfern}
@@ -3710,33 +3672,11 @@ export default function Home() {
             setPasswordDialogProfile(null);
           }}
           profile={passwordDialogProfile}
-          mode={passwordDialogMode}
-          onSuccess={(p) => {
-            // Resume pending launch after unlock.
-            if (
-              passwordDialogMode === "unlock" &&
-              pendingLaunchAfterUnlockRef.current?.id === p.id
-            ) {
+          onUnlocked={(p) => {
+            if (pendingLaunchAfterUnlockRef.current?.id === p.id) {
               const target = pendingLaunchAfterUnlockRef.current;
               pendingLaunchAfterUnlockRef.current = null;
               void launchProfile(target);
-            }
-            // On set/change/remove, the profile's encryption state changed.
-            // Push that state to the sync server immediately so other devices
-            // see the new envelope before they next pull. Skip if the profile
-            // is currently running — its files would be in flux.
-            if (
-              (passwordDialogMode === "set" ||
-                passwordDialogMode === "change" ||
-                passwordDialogMode === "remove") &&
-              !runningProfiles.has(p.id) &&
-              p.sync_mode !== "Disabled"
-            ) {
-              void invoke("request_profile_sync", { profileId: p.id }).catch(
-                (err: unknown) => {
-                  console.error("post-password sync failed", err);
-                },
-              );
             }
           }}
         />

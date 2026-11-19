@@ -2224,9 +2224,6 @@ interface ProfilesDataTableProps {
       }
     | undefined;
   onLaunchWithSync?: (profile: BrowserProfile) => void;
-  onSetPassword?: (profile: BrowserProfile) => void;
-  onChangePassword?: (profile: BrowserProfile) => void;
-  onRemovePassword?: (profile: BrowserProfile) => void;
   /**
    * When provided, the info dialog is controlled by the parent. Allows the
    * command palette in page.tsx to open the dialog directly without lifting
@@ -2305,9 +2302,6 @@ export function ProfilesDataTable({
   syncUnlocked = false,
   getProfileSyncInfo,
   onLaunchWithSync,
-  onSetPassword,
-  onChangePassword,
-  onRemovePassword,
   infoDialogProfile,
   infoOpenMethod,
   onInfoOpenMethodChange,
@@ -5028,13 +5022,6 @@ export function ProfilesDataTable({
                     profile={infoProfile}
                     storedProxies={storedProxies}
                     vpnConfigs={vpnConfigs}
-                    onOpenTrafficDialog={(profileId) => {
-                      const profile = profiles.find((p) => p.id === profileId);
-                      setTrafficDialogProfile({
-                        id: profileId,
-                        name: profile?.name,
-                      });
-                    }}
                     onOpenProfileSyncDialog={onOpenProfileSyncDialog}
                     onAssignProfilesToGroup={onAssignProfilesToGroup}
                     onConfigureWayfern={onConfigureWayfern}
@@ -5044,9 +5031,6 @@ export function ProfilesDataTable({
                     onCloneProfile={onCloneProfile}
                     onSaveAsTemplate={setTemplateProfile}
                     onLaunchWithSync={onLaunchWithSync}
-                    onSetPassword={onSetPassword}
-                    onChangePassword={onChangePassword}
-                    onRemovePassword={onRemovePassword}
                     onDeleteProfile={(profile) => {
                       setProfileForInfoDialog(null);
                       if (profile.ephemeral) setProfileToDelete(profile);

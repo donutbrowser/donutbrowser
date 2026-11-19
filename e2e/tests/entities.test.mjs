@@ -347,6 +347,11 @@ test("profile, group, proxy, tag, metadata, clone, and bulk-delete lifecycle", a
         launchHook: "file:///etc/passwd",
       });
       assert.match(invalidHook, /INVALID_LAUNCH_HOOK_URL/);
+      const invalidRule = await app.invokeError(
+        "update_profile_proxy_bypass_rules",
+        { profileId: profile.id, rules: ["localhost", "(unclosed"] },
+      );
+      assert.match(invalidRule, /BYPASS_RULE_INVALID/);
       await app.invoke("update_profile_proxy_bypass_rules", {
         profileId: profile.id,
         rules: ["localhost", "*.internal.example"],

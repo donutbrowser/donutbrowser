@@ -6994,6 +6994,15 @@ test("the profile network section saves proxy bypass rules one per line", async 
       "example.com\n192.168.1.10",
       "the field shows the rules as stored",
     );
+    await app.fillSelector(field, "example.com\nhttps://example.com/");
+    await app.clickText(en.common.buttons.save, { exact: true });
+    await app.waitForText(
+      en.backendErrors.bypassRuleInvalid.replace(
+        "{{rule}}",
+        "https://example.com/",
+      ),
+    );
+    assert.deepEqual(await stored(), ["example.com", "192.168.1.10"]);
     await app.capture("profile-bypass-rules");
     await app.clickSelector('[data-slot="profile-info-close"]');
   });

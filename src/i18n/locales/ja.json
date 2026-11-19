@@ -434,15 +434,10 @@
       "delete": "削除",
       "copyCookies": "Cookieをコピー",
       "configure": "設定",
-      "clone": "プロファイルを複製",
-      "viewNetwork": "ネットワークを表示",
       "syncSettings": "同期設定",
       "assignToGroup": "グループに割り当て",
       "changeFingerprint": "フィンガープリントを変更",
-      "copyCookiesToProfile": "Cookieをプロファイルにコピー",
-      "setPassword": "パスワードを設定",
-      "changePassword": "パスワードを変更",
-      "removePassword": "パスワードを削除"
+      "copyCookiesToProfile": "Cookieをプロファイルにコピー"
     },
     "synchronizer": {
       "launchWithSync": "シンクロナイザーで起動",
@@ -1665,8 +1660,8 @@
     },
     "network": {
       "bypassRulesTitle": "プロキシバイパスルール",
-      "bypassRulesDescription": "これらのホストへのリクエストはプロキシを使わずに直接接続します。1 行に 1 つのルール：ホスト名、IPアドレス、または正規表現。",
-      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
+      "bypassRulesDescription": "これらのホストへのリクエストはプロキシを使わずに直接接続します。1 行に 1 つのルール：ドメイン（サブドメインを含む）、IPアドレス、10.0.0.0/8 のような範囲、またはホスト名全体に一致する正規表現。",
+      "rulePlaceholder": "example.com\n10.0.0.0/8\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
       "proxyLabel": "Proxy: {{name}}"
     },
@@ -2551,25 +2546,10 @@
     }
   },
   "profilePassword": {
-    "set": {
-      "title": "プロファイルにパスワードを設定",
-      "description": "{{name}} のディスク上のデータを暗号化します。プロファイルを起動するたびにこのパスワードが必要になります。",
-      "button": "プロファイルを暗号化"
-    },
     "unlock": {
       "title": "プロファイルを解除",
       "description": "{{name}} を解除するためのパスワードを入力してください。",
       "button": "解除"
-    },
-    "change": {
-      "title": "プロファイルのパスワードを変更",
-      "description": "新しいパスワードで {{name}} を再暗号化します。",
-      "button": "パスワードを変更"
-    },
-    "remove": {
-      "title": "プロファイルのパスワードを削除",
-      "description": "{{name}} のディスク上のデータを復号します。プロファイルはパスワード保護されなくなります。",
-      "button": "パスワードを削除"
     },
     "fields": {
       "password": "パスワード",
@@ -2579,7 +2559,6 @@
       "confirmPassword": "新しいパスワード（確認）"
     },
     "errors": {
-      "oldPasswordRequired": "現在のパスワードが必要です",
       "passwordRequired": "パスワードが必要です",
       "tooShort": "パスワードは 8 文字以上必要です",
       "mismatch": "パスワードが一致しません"
@@ -2588,10 +2567,6 @@
       "set": "プロファイルがパスワードで保護されました",
       "changed": "プロファイルのパスワードを変更しました",
       "removed": "プロファイルのパスワードを削除しました"
-    },
-    "warnings": {
-      "forgetWarningTitle": "重要: このパスワードは復元できません",
-      "forgetWarningBody": "Donut Browserはこのパスワードをリセット、復元、回避することはできません。忘れた場合、このプロファイルのデータへのアクセスは永続的に失われます。"
     },
     "modes": {
       "set": "設定",
@@ -2866,6 +2841,7 @@
     "proxyRotationTimeout": "プロバイダーが 30 秒以内に IP 変更に応答しませんでした。",
     "proxyRotationUnreachable": "プロバイダーの IP 変更リンクに接続できませんでした。",
     "startUrlInvalid": "「{{url}}」はウェブページではありません。スタートページは http:// または https:// のアドレスにしてください。",
+    "bypassRuleInvalid": "「{{rule}}」は有効なバイパスルールではありません。ドメイン、IPアドレス、10.0.0.0/8 のような範囲、または正規表現を使用してください。",
     "startUrlsTooMany": "1 つのプロファイルに設定できるスタートページは 20 件までです。",
     "totpKeyInvalid": "2FA キーではありません。サイトに表示されるシークレットキーまたは otpauth:// リンクを貼り付けてください。",
     "totpLabelTooLong": "ラベルは 60 文字以内にしてください。",

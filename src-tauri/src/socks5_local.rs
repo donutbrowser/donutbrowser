@@ -19,10 +19,11 @@
 //! datagram via [`UdpRelayContext`]. Without that, QUIC and WebRTC would be an
 //! unfiltered, unmetered side channel around the TCP filter.
 
+use crate::bypass_rules::BypassMatcher;
 use crate::profile_dns::ProfileResolver;
 use crate::proxy_server::{
   connect_to_target_via_upstream, redacted_upstream, tunnel_streams, upstream_endpoint,
-  BlocklistMatcher, BypassMatcher,
+  BlocklistMatcher,
 };
 use crate::traffic_stats::{get_traffic_tracker, LiveTrafficTracker};
 use async_socks5::{AddrKind, Auth, SocksDatagram};

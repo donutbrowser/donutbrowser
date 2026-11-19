@@ -1519,7 +1519,7 @@ mod tests {
     let (proxy_port, targets) = start_ipv6_only_proxy().await;
     let resolver = tcp_resolver(dns_port);
     let upstream = format!("http://127.0.0.1:{proxy_port}");
-    let bypass = crate::proxy_server::BypassMatcher::new(&[]);
+    let bypass = crate::bypass_rules::BypassMatcher::new(&[]);
     let dial = || {
       crate::proxy_server::connect_to_target_via_upstream(
         "dual.test",

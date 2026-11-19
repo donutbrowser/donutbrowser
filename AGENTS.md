@@ -59,6 +59,7 @@ donutbrowser/
 │   │   ├── proxy_manager.rs         # Proxy lifecycle, connection testing, per-proxy check history
 │   │   ├── proxy_udp.rs             # SOCKS5 UDP ASSOCIATE probe (yes/no/unknown UDP verdict)
 │   │   ├── proxy_server.rs          # Local proxy binary (donut-proxy)
+│   │   ├── bypass_rules.rs          # Per-profile proxy bypass rules: parse, validate, match (domain, IP, range, regex)
 │   │   ├── profile_dns.rs           # Per-profile DNS server: DoH/DoT/TCP resolver the worker runs through the profile's own route
 │   │   ├── proxy_storage.rs         # Proxy config persistence (JSON files)
 │   │   ├── api_server.rs            # REST API (utoipa + axum)

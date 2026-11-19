@@ -32,7 +32,6 @@ import {
   LuRefreshCw,
   LuRoute,
   LuScrollText,
-  LuSettings,
   LuTimer,
   LuTrash2,
   LuUpload,
@@ -130,6 +129,28 @@ import type {
   WayfernConfig,
 } from "@/types";
 
+/** What the sidebar sections and the header open. They find an action by
+ * `id`, never by its translated label. */
+type ProfileActionId =
+  | "sync"
+  | "group"
+  | "fingerprint"
+  | "synchronizer"
+  | "cookiesCopy"
+  | "cookiesManage"
+  | "saveTemplate"
+  | "extension"
+  | "delete";
+
+interface ProfileAction {
+  id: ProfileActionId;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  hidden?: boolean;
+}
+
 interface ProfileInfoDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -139,7 +160,6 @@ interface ProfileInfoDialogProps {
   profile: BrowserProfile | null;
   storedProxies: StoredProxy[];
   vpnConfigs: VpnConfig[];
-  onOpenTrafficDialog?: (profileId: string) => void;
   onOpenProfileSyncDialog?: (profile: BrowserProfile) => void;
   onAssignProfilesToGroup?: (profileIds: string[]) => void;
   onConfigureWayfern?: (profile: BrowserProfile) => void;
@@ -150,9 +170,6 @@ interface ProfileInfoDialogProps {
   onSaveAsTemplate?: (profile: BrowserProfile) => void;
   onDeleteProfile?: (profile: BrowserProfile) => void;
   onLaunchWithSync?: (profile: BrowserProfile) => void;
-  onSetPassword?: (profile: BrowserProfile) => void;
-  onChangePassword?: (profile: BrowserProfile) => void;
-  onRemovePassword?: (profile: BrowserProfile) => void;
   crossOsUnlocked?: boolean;
   isRunning?: boolean;
   isDisabled?: boolean;
@@ -677,7 +694,6 @@ function ProfileInfoContents({
   handoffState,
   storedProxies,
   vpnConfigs,
-  onOpenTrafficDialog,
   onOpenProfileSyncDialog,
   onAssignProfilesToGroup,
   onConfigureWayfern,
@@ -688,9 +704,6 @@ function ProfileInfoContents({
   onSaveAsTemplate,
   onDeleteProfile,
   onLaunchWithSync,
-  onSetPassword,
-  onChangePassword,
-  onRemovePassword,
   crossOsUnlocked = false,
   isRunning = false,
   isDisabled = false,
@@ -807,34 +820,7 @@ function ProfileInfoContents({
     })();
   };
 
-  // The sidebar and the header find these actions by `id` (`findAction`). An
-  // action that no section asks for shows nowhere: put a setting in its
-  // section instead.
-  interface ActionItem {
-    // Stable, language-independent key used to map sidebar sections to actions.
-    // The sidebar must NOT match on `label` — labels are translated, so English
-    // substring matching hides sections for every non-English user.
-    id?: string;
-    icon: React.ReactNode;
-    label: string;
-    onClick: () => void;
-    disabled?: boolean;
-    destructive?: boolean;
-    proBadge?: boolean;
-    runningBadge?: boolean;
-    hidden?: boolean;
-  }
-
-  const actions: ActionItem[] = [
-    {
-      id: "network",
-      icon: <LuGlobe className="size-4" />,
-      label: t("profiles.actions.viewNetwork"),
-      onClick: () => {
-        handleAction(() => onOpenTrafficDialog?.(profile.id));
-      },
-      disabled: isCrossOs,
-    },
+  const actions: ProfileAction[] = [
     {
       id: "sync",
       icon: <LuRefreshCw className="size-4" />,
@@ -853,7 +839,6 @@ function ProfileInfoContents({
         handleAction(() => onAssignProfilesToGroup?.([profile.id]));
       },
       disabled: isDisabled,
-      runningBadge: isRunning,
     },
     {
       id: "fingerprint",
@@ -864,8 +849,6 @@ function ProfileInfoContents({
       },
       // Viewing and editing fingerprints both require an active paid plan.
       disabled: isDisabled || !crossOsUnlocked,
-      proBadge: !crossOsUnlocked,
-      runningBadge: isRunning,
       hidden: !isWayfern || !onConfigureWayfern,
     },
     {
@@ -876,7 +859,6 @@ function ProfileInfoContents({
         handleAction(() => onLaunchWithSync?.(profile));
       },
       disabled: isDisabled || isRunning || !crossOsUnlocked,
-      proBadge: !crossOsUnlocked,
       hidden: profile.browser !== "wayfern" || !onLaunchWithSync,
     },
     {
@@ -887,7 +869,6 @@ function ProfileInfoContents({
         handleAction(() => onCopyCookiesToProfile?.(profile));
       },
       disabled: isDisabled,
-      runningBadge: isRunning,
       hidden:
         !isWayfern || profile.ephemeral === true || !onCopyCookiesToProfile,
     },
@@ -899,19 +880,8 @@ function ProfileInfoContents({
         handleAction(() => onOpenCookieManagement?.(profile));
       },
       disabled: isDisabled,
-      runningBadge: isRunning,
       hidden:
         !isWayfern || profile.ephemeral === true || !onOpenCookieManagement,
-    },
-    {
-      icon: <LuSettings className="size-4" />,
-      label: t("profiles.actions.clone"),
-      onClick: () => {
-        handleAction(() => onCloneProfile?.(profile));
-      },
-      disabled: isDisabled,
-      runningBadge: isRunning,
-      hidden: profile.ephemeral === true,
     },
     {
       id: "saveTemplate",
@@ -930,42 +900,7 @@ function ProfileInfoContents({
         handleAction(() => onAssignExtensionGroup?.([profile.id]));
       },
       disabled: isDisabled,
-      runningBadge: isRunning,
       hidden: profile.ephemeral === true,
-    },
-    {
-      icon: <LuKey className="size-4" />,
-      label: t("profiles.actions.setPassword"),
-      onClick: () => {
-        handleAction(() => onSetPassword?.(profile));
-      },
-      disabled: isDisabled || isRunning,
-      runningBadge: isRunning,
-      hidden:
-        profile.password_protected === true ||
-        profile.ephemeral === true ||
-        !onSetPassword,
-    },
-    {
-      icon: <LuKey className="size-4" />,
-      label: t("profiles.actions.changePassword"),
-      onClick: () => {
-        handleAction(() => onChangePassword?.(profile));
-      },
-      disabled: isDisabled || isRunning,
-      runningBadge: isRunning,
-      hidden: profile.password_protected !== true || !onChangePassword,
-    },
-    {
-      icon: <LuLockOpen className="size-4" />,
-      label: t("profiles.actions.removePassword"),
-      onClick: () => {
-        handleAction(() => onRemovePassword?.(profile));
-      },
-      disabled: isDisabled || isRunning,
-      runningBadge: isRunning,
-      hidden: profile.password_protected !== true || !onRemovePassword,
-      destructive: true,
     },
     {
       id: "delete",
@@ -975,7 +910,6 @@ function ProfileInfoContents({
         handleAction(() => onDeleteProfile?.(profile));
       },
       disabled: isDeleteDisabled,
-      destructive: true,
     },
   ];
 
@@ -1049,16 +983,7 @@ interface ProfileInfoLayoutProps {
   canToggleRun: boolean;
   isLaunching: boolean;
   isStopping: boolean;
-  visibleActions: {
-    id?: string;
-    icon: React.ReactNode;
-    label: string;
-    onClick: () => void;
-    disabled?: boolean;
-    destructive?: boolean;
-    proBadge?: boolean;
-    runningBadge?: boolean;
-  }[];
+  visibleActions: ProfileAction[];
   t: (key: string, options?: Record<string, unknown>) => string;
 }
 
@@ -1114,7 +1039,7 @@ function ProfileInfoLayout({
   // on `label` would break for every non-English locale (the labels are
   // translated) and hide whole sections.
   const findAction = React.useCallback(
-    (id: string) => visibleActions.find((a) => a.id === id),
+    (id: ProfileActionId) => visibleActions.find((a) => a.id === id),
     [visibleActions],
   );
 

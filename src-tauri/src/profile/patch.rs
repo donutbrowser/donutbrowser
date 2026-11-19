@@ -141,13 +141,7 @@ impl ProfilePatch {
       self.webrtc_mode = Some(mode);
     }
     if let Some(rules) = self.proxy_bypass_rules.take() {
-      self.proxy_bypass_rules = Some(
-        rules
-          .into_iter()
-          .map(|rule| rule.trim().to_string())
-          .filter(|rule| !rule.is_empty())
-          .collect(),
-      );
+      self.proxy_bypass_rules = Some(crate::bypass_rules::checked(rules)?);
     }
     self.tags_add = tidy_tags(std::mem::take(&mut self.tags_add));
     self.tags_remove = tidy_tags(std::mem::take(&mut self.tags_remove));

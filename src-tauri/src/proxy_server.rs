@@ -1,3 +1,4 @@
+use crate::bypass_rules::BypassMatcher;
 use crate::proxy_storage::ProxyConfig;
 use crate::traffic_stats::{
   get_traffic_tracker, init_traffic_tracker, LiveTrafficTracker, UpstreamOutcome,
@@ -9,7 +10,6 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use regex_lite::Regex;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::io;
@@ -28,38 +28,6 @@ pub(crate) trait AsyncStream: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncStream for T {}
 pub(crate) type BoxedAsyncStream = Box<dyn AsyncStream>;
 use url::Url;
-
-enum CompiledRule {
-  Regex(Regex),
-  Exact(String),
-}
-
-#[derive(Clone)]
-pub struct BypassMatcher {
-  rules: Arc<Vec<CompiledRule>>,
-}
-
-impl BypassMatcher {
-  pub fn new(rules: &[String]) -> Self {
-    let compiled = rules
-      .iter()
-      .map(|rule| match Regex::new(rule) {
-        Ok(re) => CompiledRule::Regex(re),
-        Err(_) => CompiledRule::Exact(rule.clone()),
-      })
-      .collect();
-    Self {
-      rules: Arc::new(compiled),
-    }
-  }
-
-  pub fn should_bypass(&self, host: &str) -> bool {
-    self.rules.iter().any(|rule| match rule {
-      CompiledRule::Regex(re) => re.is_match(host),
-      CompiledRule::Exact(exact) => host == exact,
-    })
-  }
-}
 
 /// Domain names sorted and deduplicated in one byte buffer, found by binary
 /// search. Every worker loads its own copy of a list of up to ~700k names; a

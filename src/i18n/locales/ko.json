@@ -434,15 +434,10 @@
       "delete": "삭제",
       "copyCookies": "쿠키 복사",
       "configure": "구성",
-      "clone": "프로필 복제",
-      "viewNetwork": "네트워크 보기",
       "syncSettings": "동기화 설정",
       "assignToGroup": "그룹에 할당",
       "changeFingerprint": "핑거프린트 변경",
-      "copyCookiesToProfile": "프로필로 쿠키 복사",
-      "setPassword": "비밀번호 설정",
-      "changePassword": "비밀번호 변경",
-      "removePassword": "비밀번호 제거"
+      "copyCookiesToProfile": "프로필로 쿠키 복사"
     },
     "synchronizer": {
       "launchWithSync": "동기화 모드로 실행",
@@ -1665,8 +1660,8 @@
     },
     "network": {
       "bypassRulesTitle": "프록시 우회 규칙",
-      "bypassRulesDescription": "이 호스트로 가는 요청은 프록시 없이 직접 연결됩니다. 한 줄에 규칙 하나: 호스트 이름, IP 주소 또는 정규식.",
-      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
+      "bypassRulesDescription": "이 호스트로 가는 요청은 프록시 없이 직접 연결됩니다. 한 줄에 규칙 하나: 도메인(하위 도메인 포함), IP 주소, 10.0.0.0/8 같은 범위 또는 호스트 이름 전체에 맞는 정규식.",
+      "rulePlaceholder": "example.com\n10.0.0.0/8\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
       "proxyLabel": "Proxy: {{name}}"
     },
@@ -2551,25 +2546,10 @@
     }
   },
   "profilePassword": {
-    "set": {
-      "title": "프로필 비밀번호 설정",
-      "description": "{{name}}의 디스크 데이터를 암호화합니다. 프로필을 실행할 때마다 이 비밀번호가 필요합니다.",
-      "button": "프로필 암호화"
-    },
     "unlock": {
       "title": "프로필 잠금 해제",
       "description": "{{name}}의 잠금을 해제하려면 비밀번호를 입력하세요.",
       "button": "잠금 해제"
-    },
-    "change": {
-      "title": "프로필 비밀번호 변경",
-      "description": "새 비밀번호로 {{name}}을(를) 다시 암호화합니다.",
-      "button": "비밀번호 변경"
-    },
-    "remove": {
-      "title": "프로필 비밀번호 제거",
-      "description": "{{name}}의 디스크 데이터를 복호화합니다. 프로필이 더 이상 비밀번호로 보호되지 않습니다.",
-      "button": "비밀번호 제거"
     },
     "fields": {
       "password": "비밀번호",
@@ -2579,7 +2559,6 @@
       "confirmPassword": "새 비밀번호 확인"
     },
     "errors": {
-      "oldPasswordRequired": "현재 비밀번호는 필수입니다",
       "passwordRequired": "비밀번호는 필수입니다",
       "tooShort": "비밀번호는 8자 이상이어야 합니다",
       "mismatch": "비밀번호가 일치하지 않습니다"
@@ -2588,10 +2567,6 @@
       "set": "프로필이 이제 비밀번호로 보호됩니다",
       "changed": "프로필 비밀번호가 변경되었습니다",
       "removed": "프로필 비밀번호가 제거되었습니다"
-    },
-    "warnings": {
-      "forgetWarningTitle": "중요: 이 비밀번호는 복구할 수 없습니다",
-      "forgetWarningBody": "Donut Browser는 이 비밀번호를 재설정, 복구 또는 우회할 수 없습니다. 잊어버리면 이 프로필의 데이터에 영구적으로 액세스할 수 없게 됩니다."
     },
     "modes": {
       "set": "설정",
@@ -2866,6 +2841,7 @@
     "proxyRotationTimeout": "공급자가 30초 안에 IP 변경에 응답하지 않았습니다.",
     "proxyRotationUnreachable": "공급자의 IP 변경 링크에 연결할 수 없습니다.",
     "startUrlInvalid": "\"{{url}}\"은(는) 웹 페이지가 아닙니다. 시작 페이지는 http:// 또는 https:// 주소여야 합니다.",
+    "bypassRuleInvalid": "\"{{rule}}\"은(는) 올바른 우회 규칙이 아닙니다. 도메인, IP 주소, 10.0.0.0/8 같은 범위 또는 정규식을 사용하세요.",
     "startUrlsTooMany": "프로필 하나에 시작 페이지는 최대 20개까지 가능합니다.",
     "totpKeyInvalid": "2FA 키가 아닙니다. 사이트에 표시된 비밀 키나 otpauth:// 링크를 붙여 넣으세요.",
     "totpLabelTooLong": "라벨은 최대 60자까지 가능합니다.",

@@ -434,15 +434,10 @@
       "delete": "Delete",
       "copyCookies": "Copy Cookies",
       "configure": "Configure",
-      "clone": "Clone Profile",
-      "viewNetwork": "View Network",
       "syncSettings": "Sync Settings",
       "assignToGroup": "Assign to Group",
       "changeFingerprint": "Change Fingerprint",
-      "copyCookiesToProfile": "Copy Cookies to Profile",
-      "setPassword": "Set Password",
-      "changePassword": "Change Password",
-      "removePassword": "Remove Password"
+      "copyCookiesToProfile": "Copy Cookies to Profile"
     },
     "synchronizer": {
       "launchWithSync": "Launch with Synchronizer",
@@ -1665,8 +1660,8 @@
     },
     "network": {
       "bypassRulesTitle": "Proxy bypass rules",
-      "bypassRulesDescription": "Requests to these hosts connect directly, without the proxy. One rule per line: a hostname, an IP address or a regex.",
-      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
+      "bypassRulesDescription": "Requests to these hosts connect directly, without the proxy. One rule per line: a domain (with its subdomains), an IP address, a range such as 10.0.0.0/8, or a regex for the whole host name.",
+      "rulePlaceholder": "example.com\n10.0.0.0/8\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
       "proxyLabel": "Proxy: {{name}}"
     },
@@ -2551,25 +2546,10 @@
     }
   },
   "profilePassword": {
-    "set": {
-      "title": "Set Profile Password",
-      "description": "Encrypt the on-disk data for {{name}}. You will need this password every time you launch the profile.",
-      "button": "Encrypt Profile"
-    },
     "unlock": {
       "title": "Unlock Profile",
       "description": "Enter the password to unlock {{name}}.",
       "button": "Unlock"
-    },
-    "change": {
-      "title": "Change Profile Password",
-      "description": "Re-encrypt {{name}} with a new password.",
-      "button": "Change Password"
-    },
-    "remove": {
-      "title": "Remove Profile Password",
-      "description": "Decrypt the on-disk data for {{name}}. The profile will no longer be password protected.",
-      "button": "Remove Password"
     },
     "fields": {
       "password": "Password",
@@ -2579,7 +2559,6 @@
       "confirmPassword": "Confirm new password"
     },
     "errors": {
-      "oldPasswordRequired": "Current password is required",
       "passwordRequired": "Password is required",
       "tooShort": "Password must be at least 8 characters",
       "mismatch": "Passwords do not match"
@@ -2588,10 +2567,6 @@
       "set": "Profile is now password protected",
       "changed": "Profile password changed",
       "removed": "Profile password removed"
-    },
-    "warnings": {
-      "forgetWarningTitle": "Important: this password is not recoverable",
-      "forgetWarningBody": "Donut Browser cannot reset, recover, or bypass this password. If you forget it, you will permanently lose access to this profile's data."
     },
     "modes": {
       "set": "Set",
@@ -2866,6 +2841,7 @@
     "proxyRotationTimeout": "The provider did not answer the IP change within 30 seconds.",
     "proxyRotationUnreachable": "Donut could not reach the provider's change IP link.",
     "startUrlInvalid": "\"{{url}}\" is not a web page. Start pages must be http:// or https:// addresses.",
+    "bypassRuleInvalid": "\"{{rule}}\" is not a valid bypass rule. Use a domain, an IP address, a range such as 10.0.0.0/8, or a regex.",
     "startUrlsTooMany": "A profile can have at most 20 start pages.",
     "totpKeyInvalid": "This is not a 2FA key. Paste the secret key or the otpauth:// link that the site shows.",
     "totpLabelTooLong": "A label can have at most 60 characters.",

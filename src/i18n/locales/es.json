@@ -435,15 +435,10 @@
       "delete": "Eliminar",
       "copyCookies": "Copiar Cookies",
       "configure": "Configurar",
-      "clone": "Clonar perfil",
-      "viewNetwork": "Ver Red",
       "syncSettings": "Configuración de Sincronización",
       "assignToGroup": "Asignar a Grupo",
       "changeFingerprint": "Cambiar Huella Digital",
-      "copyCookiesToProfile": "Copiar Cookies al Perfil",
-      "setPassword": "Establecer Contraseña",
-      "changePassword": "Cambiar Contraseña",
-      "removePassword": "Quitar Contraseña"
+      "copyCookiesToProfile": "Copiar Cookies al Perfil"
     },
     "synchronizer": {
       "launchWithSync": "Lanzar con Sincronizador",
@@ -1676,8 +1671,8 @@
     },
     "network": {
       "bypassRulesTitle": "Reglas de omisión de proxy",
-      "bypassRulesDescription": "Las solicitudes a estos hosts se conectan directamente, sin el proxy. Una regla por línea: un nombre de host, una dirección IP o una expresión regular.",
-      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
+      "bypassRulesDescription": "Las solicitudes a estos hosts se conectan directamente, sin el proxy. Una regla por línea: un dominio (con sus subdominios), una dirección IP, un rango como 10.0.0.0/8 o una expresión regular para todo el nombre de host.",
+      "rulePlaceholder": "example.com\n10.0.0.0/8\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
       "proxyLabel": "Proxy: {{name}}"
     },
@@ -2570,25 +2565,10 @@
     }
   },
   "profilePassword": {
-    "set": {
-      "title": "Establecer Contraseña del Perfil",
-      "description": "Cifra los datos en disco de {{name}}. Necesitarás esta contraseña cada vez que abras el perfil.",
-      "button": "Cifrar Perfil"
-    },
     "unlock": {
       "title": "Desbloquear Perfil",
       "description": "Introduce la contraseña para desbloquear {{name}}.",
       "button": "Desbloquear"
-    },
-    "change": {
-      "title": "Cambiar Contraseña del Perfil",
-      "description": "Vuelve a cifrar {{name}} con una nueva contraseña.",
-      "button": "Cambiar Contraseña"
-    },
-    "remove": {
-      "title": "Quitar Contraseña del Perfil",
-      "description": "Descifra los datos en disco de {{name}}. El perfil dejará de estar protegido por contraseña.",
-      "button": "Quitar Contraseña"
     },
     "fields": {
       "password": "Contraseña",
@@ -2598,7 +2578,6 @@
       "confirmPassword": "Confirmar nueva contraseña"
     },
     "errors": {
-      "oldPasswordRequired": "Se requiere la contraseña actual",
       "passwordRequired": "Se requiere la contraseña",
       "tooShort": "La contraseña debe tener al menos 8 caracteres",
       "mismatch": "Las contraseñas no coinciden"
@@ -2607,10 +2586,6 @@
       "set": "El perfil ahora está protegido por contraseña",
       "changed": "Contraseña del perfil cambiada",
       "removed": "Contraseña del perfil eliminada"
-    },
-    "warnings": {
-      "forgetWarningTitle": "Importante: esta contraseña no se puede recuperar",
-      "forgetWarningBody": "Donut Browser no puede restablecer, recuperar ni omitir esta contraseña. Si la olvidas, perderás permanentemente el acceso a los datos de este perfil."
     },
     "modes": {
       "set": "Establecer",
@@ -2885,6 +2860,7 @@
     "proxyRotationTimeout": "El proveedor no respondió al cambio de IP en 30 segundos.",
     "proxyRotationUnreachable": "Donut no pudo acceder al enlace para cambiar IP del proveedor.",
     "startUrlInvalid": "«{{url}}» no es una página web. Las páginas de inicio deben ser direcciones http:// o https://.",
+    "bypassRuleInvalid": "«{{rule}}» no es una regla de omisión válida. Usa un dominio, una dirección IP, un rango como 10.0.0.0/8 o una expresión regular.",
     "startUrlsTooMany": "Un perfil puede tener como máximo 20 páginas de inicio.",
     "totpKeyInvalid": "Esto no es una clave 2FA. Pega la clave secreta o el enlace otpauth:// que muestra el sitio.",
     "totpLabelTooLong": "Una etiqueta puede tener como máximo 60 caracteres.",
