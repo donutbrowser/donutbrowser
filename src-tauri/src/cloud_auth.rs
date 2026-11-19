@@ -444,6 +444,9 @@ pub struct CloudAuthManager {
   /// device rule, until a token is acquired again. The engine reports a
   /// missing token as a plan problem; this is what lets MCP say the real one.
   wayfern_device_refusal: std::sync::Mutex<Option<String>>,
+  /// One replacement at a time for a token the browsers report refused, so a
+  /// refusal that every running browser logs costs one new token.
+  wayfern_token_renewal: Mutex<()>,
 }
 
 /// Tell what depends on the team seat that the signed-in account changed.
@@ -475,6 +478,7 @@ impl CloudAuthManager {
       wayfern_token: Mutex::new(None),
       wayfern_token_minted_at: std::sync::Mutex::new(None),
       wayfern_device_refusal: std::sync::Mutex::new(None),
+      wayfern_token_renewal: Mutex::new(()),
     }
   }
 
@@ -749,6 +753,9 @@ impl CloudAuthManager {
         wait.as_secs()
       ));
     }
+    // Held until the new refresh token is stored. It is read under the lock,
+    // so it is the newest one on disk.
+    let _other_processes = Self::lock_refresh_across_processes().await;
     let refresh_token =
       Self::load_refresh_token()?.ok_or_else(|| "No refresh token stored".to_string())?;
 
@@ -785,6 +792,41 @@ impl CloudAuthManager {
 
     log::debug!("Access token refreshed");
     Ok(())
+  }
+
+  /// Lock the refresh-token rotation against the other Donut processes on this
+  /// data directory, such as a version an update left running. Each rotation
+  /// revokes the token it was given, and the server reads a token older than
+  /// the previous rotation as stolen: it signs the account out everywhere and
+  /// revokes every Wayfern token. None after 30 seconds or on an I/O error;
+  /// the rotation then goes ahead unlocked.
+  async fn lock_refresh_across_processes() -> Option<fs::File> {
+    let path = Self::get_settings_dir().join("cloud_refresh.lock");
+    let locked = tokio::task::spawn_blocking(move || {
+      let file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&path)
+        .map_err(|e| e.to_string())?;
+      let deadline = Instant::now() + Duration::from_secs(30);
+      loop {
+        match file.try_lock() {
+          Ok(()) => return Ok(file),
+          Err(fs::TryLockError::WouldBlock) if Instant::now() < deadline => {
+            std::thread::sleep(Duration::from_millis(100));
+          }
+          Err(fs::TryLockError::WouldBlock) => return Err("held for 30s".to_string()),
+          Err(fs::TryLockError::Error(e)) => return Err(e.to_string()),
+        }
+      }
+    })
+    .await
+    .map_err(|e| e.to_string())
+    .and_then(|locked| locked);
+    locked
+      .inspect_err(|e| log::warn!("Token refresh not locked against other processes err=\"{e}\""))
+      .ok()
   }
 
   fn refresh_deferral(&self) -> Option<Duration> {
@@ -1786,16 +1828,44 @@ impl CloudAuthManager {
     }
   }
 
-  /// Whether the cached Wayfern token is old enough to replace, by the clock on
-  /// the wall: a computer that slept through the night kept the app's timers
-  /// still while the server's day ran out.
-  fn wayfern_token_due(&self, now: u64) -> bool {
+  /// When the cached Wayfern token was minted, unix seconds.
+  fn wayfern_token_minted_at(&self) -> Option<u64> {
     self
       .wayfern_token_minted_at
       .lock()
       .ok()
       .and_then(|minted_at| *minted_at)
+  }
+
+  /// Whether the cached Wayfern token is old enough to replace, by the clock on
+  /// the wall: a computer that slept through the night kept the app's timers
+  /// still while the server's day ran out.
+  fn wayfern_token_due(&self, now: u64) -> bool {
+    self
+      .wayfern_token_minted_at()
       .is_some_and(|minted_at| wayfern_token_stale(minted_at, now))
+  }
+
+  /// Replace a Wayfern token a browser reports refused, while new launches
+  /// still get it. The server revokes a token on a sign-out or a plan change,
+  /// and the cached copy does not know. Every browser launched with a refused
+  /// token tells the engine the account has no plan, and the engine then
+  /// limits all browsers on this machine to the free number.
+  pub async fn renew_refused_wayfern_token(&self, refused: &str) {
+    let _one_at_a_time = self.wayfern_token_renewal.lock().await;
+    if self.wayfern_token.lock().await.as_deref() != Some(refused) {
+      return;
+    }
+    let renewable = self
+      .wayfern_token_minted_at()
+      .is_none_or(|minted_at| wayfern_token_renewable(minted_at, crate::proxy_manager::now_secs()));
+    if !renewable {
+      return;
+    }
+    match self.request_wayfern_token().await {
+      Ok(()) => log::info!("Wayfern token replaced after a browser was refused its plan"),
+      Err(e) => log::warn!("Wayfern token not replaced after a browser refusal err=\"{e}\""),
+    }
   }
 
   /// A fresh Wayfern token after the engine refused the cached one for a
@@ -2156,6 +2226,15 @@ const WAYFERN_TOKEN_REFRESH_SECS: u64 = 10 * 60 * 60;
 
 fn wayfern_token_stale(minted_at: u64, now: u64) -> bool {
   now.saturating_sub(minted_at) >= WAYFERN_TOKEN_REFRESH_SECS
+}
+
+/// How old a refused Wayfern token must be before a refusal replaces it. A
+/// refusal a new token cannot fix, such as the server's verify throttle, then
+/// costs one token in this time, not one per browser report.
+const WAYFERN_TOKEN_RENEWAL_SECS: u64 = 10 * 60;
+
+fn wayfern_token_renewable(minted_at: u64, now: u64) -> bool {
+  now.saturating_sub(minted_at) >= WAYFERN_TOKEN_RENEWAL_SECS
 }
 
 #[tauri::command]
@@ -2696,6 +2775,35 @@ mod tests {
     ));
     // A night asleep counts: the server's day ran on.
     assert!(wayfern_token_stale(minted, minted + 20 * 60 * 60));
+  }
+
+  #[test]
+  fn a_refused_wayfern_token_is_replaced_at_most_once_in_ten_minutes() {
+    let minted = 1_800_000_000;
+    assert!(!wayfern_token_renewable(minted, minted));
+    assert!(!wayfern_token_renewable(
+      minted,
+      minted + WAYFERN_TOKEN_RENEWAL_SECS - 1
+    ));
+    assert!(wayfern_token_renewable(
+      minted,
+      minted + WAYFERN_TOKEN_RENEWAL_SECS
+    ));
+  }
+
+  #[test]
+  fn a_refresh_reads_the_refresh_token_under_the_cross_process_lock() {
+    let source = include_str!("cloud_auth.rs");
+    let body = source
+      .split("async fn refresh_while_locked(&self)")
+      .nth(1)
+      .expect("refresh_while_locked must exist");
+    let body = &body[..body.find("\n  }").unwrap_or(body.len())];
+    let locked = body
+      .find("lock_refresh_across_processes()")
+      .expect("the rotation must lock out other processes");
+    assert!(locked < body.find("load_refresh_token()").unwrap());
+    assert!(locked < body.find("store_refresh_token(").unwrap());
   }
 
   #[test]

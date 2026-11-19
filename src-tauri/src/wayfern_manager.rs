@@ -1093,6 +1093,13 @@ fn browser_line_level(line: &str) -> Option<log::Level> {
   None
 }
 
+/// Whether a browser line says the engine holds no plan for the browser's
+/// token: the server denied the token, or the launch met the browser cap that
+/// a denied token sets for every browser on the machine.
+fn says_plan_refused(line: &str) -> bool {
+  line.contains("VerifyTokenForPlan: plan=free ") || line.contains("Wayfern instance limit reached")
+}
+
 /// One `os_crypt` line per profile a minute: a browser that cannot open its
 /// key says so for every cookie.
 static OS_CRYPT_LINES: crate::log_streak::Throttle =
@@ -1100,8 +1107,14 @@ static OS_CRYPT_LINES: crate::log_streak::Throttle =
 
 /// Keep reading the browser's stderr for its lifetime, keeping only what it
 /// says about Wayfern. Reading it all is what keeps the pipe from filling.
-/// `owner` is `key=value` text naming whose browser this is.
-fn tap_browser_stderr(stderr: tokio::process::ChildStderr, tap: BrowserLogTap, owner: String) {
+/// `owner` is `key=value` text naming whose browser this is, and `token` the
+/// Wayfern token it was launched with: a refusal of it gets a new one.
+fn tap_browser_stderr(
+  stderr: tokio::process::ChildStderr,
+  tap: BrowserLogTap,
+  owner: String,
+  token: Option<String>,
+) {
   tauri::async_runtime::spawn(async move {
     use tokio::io::{AsyncBufReadExt, BufReader};
     let mut lines = BufReader::new(stderr).lines();
@@ -1109,6 +1122,13 @@ fn tap_browser_stderr(stderr: tokio::process::ChildStderr, tap: BrowserLogTap, o
       let Some(level) = browser_line_level(&line) else {
         continue;
       };
+      if let Some(refused) = token.clone().filter(|_| says_plan_refused(&line)) {
+        tauri::async_runtime::spawn(async move {
+          crate::cloud_auth::CLOUD_AUTH
+            .renew_refused_wayfern_token(&refused)
+            .await;
+        });
+      }
       let text = crate::log_redaction::text(&line);
       if level == log::Level::Warn {
         let key = owner.split_whitespace().next().unwrap_or_default();
@@ -1245,7 +1265,12 @@ impl HeadlessWayfern {
     };
     let log = BrowserLogTap::default();
     if let Some(stderr) = child.stderr.take() {
-      tap_browser_stderr(stderr, log.clone(), label.to_string());
+      tap_browser_stderr(
+        stderr,
+        log.clone(),
+        label.to_string(),
+        token.map(str::to_string),
+      );
     }
 
     let mut session = Self {
@@ -3652,6 +3677,7 @@ impl WayfernManager {
           profile.id,
           process_id.unwrap_or_default()
         ),
+        wayfern_token.clone(),
       );
     }
 
@@ -4795,6 +4821,23 @@ mod tests {
       browser_line_level("[1:2:INFO:visited.cc:1] https://example.com"),
       None
     );
+  }
+
+  #[test]
+  fn a_denied_token_and_the_cap_it_sets_read_as_a_plan_refusal() {
+    use super::{browser_line_level, says_plan_refused};
+    let denied = "[1:2:1119/1:INFO:wayfern_handler.cc:7] WayfernHandler::VerifyTokenForPlan: plan=free (expires in 120s)";
+    let capped = "Wayfern instance limit reached: 4 browsers are already running on this plan.";
+    for line in [denied, capped] {
+      assert!(browser_line_level(line).is_some(), "{line}");
+      assert!(says_plan_refused(line), "{line}");
+    }
+    assert!(!says_plan_refused(
+      "[1:2:1119/1:INFO:wayfern_handler.cc:7] WayfernHandler::VerifyTokenForPlan: plan=pro (expires in 43200s)"
+    ));
+    assert!(!says_plan_refused(
+      "[1:2:1119/1:INFO:wayfern_handler.cc:7] Wayfern entitlement cache: using signed response (expires in 300s)"
+    ));
   }
 
   #[test]
