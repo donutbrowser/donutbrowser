@@ -20,10 +20,10 @@ ignoreUntil = 2026-12-31
 # The rest are RUSTSEC unmaintained notices, not exploitable defects. None has a
 # fixed version to move to, and all are transitive.
 
-# paste <- utoipa-axum, and <- rav1e/pulp in the image decoding stack.
+# paste <- winfsp (the Windows RAM volume).
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0436"
-reason = "Unmaintained crate, no fix published; transitive through utoipa-axum and the image codecs."
+reason = "Unmaintained crate, no fix published; transitive through winfsp."
 ignoreUntil = 2026-12-31
 
 # proc-macro-error <- Linux-only build dependencies under Tauri.
