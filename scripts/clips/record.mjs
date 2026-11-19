@@ -5,6 +5,7 @@
 //   pnpm clips groups vpn       only these clips
 //   --theme=dark                one theme
 //   --no-build                  reuse the last static build
+//   --measure                   run each setup and print the zoom, record nothing
 //   --ref=HEAD                  build a commit instead of the working tree
 //   --work=DIR                  scratch folder (default: system temp)
 //
@@ -24,6 +25,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
 const OUT = path.join(ROOT, "public/clips");
 const FPS = 24;
+// A clip never shows the app smaller than life: text that is 12 px in the
+// app is at least 12 px in the 800 px frame, which a tip shows at 512 px.
+const MIN_ZOOM = 1;
 const THEMES = ["dark", "light"];
 
 const args = process.argv.slice(2);
@@ -251,6 +255,7 @@ function encode({ frames: captured, clip, name }) {
 }
 
 const encodeOnly = args.includes("--encode-only");
+const measureOnly = args.includes("--measure");
 const dist =
   encodeOnly || args.includes("--no-build")
     ? path.join(work, "app/dist")
@@ -301,6 +306,12 @@ async function record(clip, name, theme) {
   let recorded = 0;
   try {
     if (clip.setup) await clip.setup(take);
+    if (measureOnly) return take.zoom;
+    if (take.zoom < MIN_ZOOM) {
+      throw new Error(
+        `zoom ${take.zoom.toFixed(2)} is under ${MIN_ZOOM}: the app shows smaller than life. Narrow the viewport or the frame`,
+      );
+    }
     await take.start();
     try {
       await clip.run(take);
@@ -343,6 +354,13 @@ try {
               ),
             )
           : await record(clip, name, theme);
+        if (measureOnly) {
+          console.log(
+            `${name}: zoom ${frames.toFixed(2)}${frames < MIN_ZOOM ? " UNDER" : ""}`,
+          );
+          if (frames < MIN_ZOOM) failed.push(name);
+          continue;
+        }
       } catch (error) {
         failed.push(name);
         console.log(`${name}: FAILED ${String(error.message).split("\n")[0]}`);

@@ -68,6 +68,8 @@ export class Take {
       height: viewport.height,
     });
     this.cam = new Track(full);
+    /** The smallest zoom the camera has asked for: output over app pixels. */
+    this.zoom = output.width / full.w;
     this.cursor = new Track({
       x: viewport.width * 0.62,
       y: viewport.height * 0.7,
@@ -141,7 +143,11 @@ export class Take {
         height: Math.max(rect.y + rect.height, other.y + other.height) - y,
       };
     }
-    this.cam.go(this.now(), dur, this.fit(rect, { pad, width }), mixRect);
+    const to = this.fit(rect, { pad, width });
+    this.zoom = dur
+      ? Math.min(this.zoom, this.output.width / to.w)
+      : this.output.width / to.w;
+    this.cam.go(this.now(), dur, to, mixRect);
   }
 
   async point(target, { at = [0.5, 0.5] } = {}) {

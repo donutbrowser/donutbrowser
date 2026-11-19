@@ -7,6 +7,9 @@
 // animated WebP pays for in full.
 
 const SMALL = { width: 680, height: 420 };
+// The agent's pages fill a wide window. In a narrow one the page beside the
+// sidebar is about 560 px, so the frame shows it larger than life.
+const AGENT_PAGE = { width: 840, height: 520 };
 
 const row = (page, name) => page.locator("tbody tr", { hasText: name }).first();
 const nameCell = (page, name) =>
@@ -72,6 +75,25 @@ const topOfWindow = (take) => ({
   width: take.viewport.width,
   height: take.viewport.width / take.aspect,
 });
+
+/**
+ * The agent's page beside its sidebar, at the clip's aspect: from its top,
+ * or from `from`, moved down by `shift`, when the page is taller than the
+ * frame.
+ */
+async function agentPage(take, from, shift = 0) {
+  const pane = await take.page
+    .locator('[data-slot="agent-chat"]')
+    .boundingBox();
+  const gutter = 14;
+  const width = pane.width + gutter * 2;
+  return {
+    x: pane.x - gutter,
+    y: from ? (await from.boundingBox()).y - gutter + shift : pane.y,
+    width,
+    height: width / take.aspect,
+  };
+}
 
 /** The smallest box that holds every box given. */
 function union(...boxes) {
@@ -1175,10 +1197,10 @@ export const CLIPS = {
   },
   "agent-chat": {
     length: 7000,
-    fps: 18,
+    fps: 14,
     fade: 600,
-    poster: 0.55,
-    viewport: { width: 1280, height: 640 },
+    poster: 0.5,
+    viewport: AGENT_PAGE,
     demo: { agentPlan: true },
     async setup(take) {
       const { page } = take;
@@ -1186,13 +1208,16 @@ export const CLIPS = {
       await page
         .locator('[data-slot="chat-list-item"][data-chat-id="chat-comments"]')
         .click();
-      await page.locator('[data-slot="agent-live-view"]').waitFor();
+      await page.locator('[data-slot="agent-live-strip"]').waitFor();
       await page.waitForTimeout(900);
-      await take.camera(topOfWindow(take), { dur: 0, pad: 0 });
+      await take.camera(await agentPage(take), { dur: 0, pad: 0 });
       const live = await page
-        .locator('[data-slot="agent-live-view"]')
+        .locator('[data-slot="agent-live-strip"]')
         .boundingBox();
-      take.state.rest = { x: live.x - 90, y: live.y + live.height * 0.75 };
+      take.state.rest = {
+        x: live.x + live.width * 0.8,
+        y: live.y + live.height + 150,
+      };
       await take.place(take.state.rest);
     },
     async run(take) {
@@ -1201,9 +1226,9 @@ export const CLIPS = {
         window.__agentDemo.play({ every: 950, run: false }),
       );
       await take.wait(2400);
-      await take.move(page.locator('[data-slot="agent-live-view"]'), {
+      await take.move(page.locator('[data-slot="agent-live-strip"]'), {
         dur: 800,
-        at: [0.5, 0.45],
+        at: [0.12, 0.6],
       });
       await take.wait(2600);
       await take.move(take.state.rest, { dur: 700, hover: false });
@@ -1214,7 +1239,7 @@ export const CLIPS = {
     fps: 18,
     fade: 500,
     poster: 0.5,
-    viewport: { width: 1180, height: 640 },
+    viewport: AGENT_PAGE,
     demo: { agentPlan: true },
     async setup(take) {
       const { page } = take;
@@ -1224,16 +1249,19 @@ export const CLIPS = {
         .click();
       await page.locator('[data-slot="agent-run-pane"]').waitFor();
       await page.waitForTimeout(900);
-      await take.camera(page.locator('[data-slot="agent-run-pane"]'), {
-        dur: 0,
-        pad: 8,
-      });
-      const pane = await page
-        .locator('[data-slot="agent-run-pane"]')
-        .boundingBox();
+      const frame = await agentPage(
+        take,
+        page
+          .locator('[data-slot="agent-run-pane"]')
+          .getByText(/finished/)
+          .first(),
+        // Below the summary line, so the captions of the tiles fit.
+        28,
+      );
+      await take.camera(frame, { dur: 0, pad: 0 });
       take.state.rest = {
-        x: pane.x + pane.width * 0.8,
-        y: pane.y + pane.height * 0.85,
+        x: frame.x + frame.width * 0.5,
+        y: frame.y + frame.height * 0.9,
       };
       await take.place(take.state.rest);
     },
@@ -1243,7 +1271,7 @@ export const CLIPS = {
         window.__agentDemo.play({ every: 800, chat: false }),
       );
       await take.wait(1800);
-      await take.move(page.locator('[data-slot="agent-batch-tile"]').nth(3), {
+      await take.move(page.locator('[data-slot="agent-batch-tile"]').nth(1), {
         dur: 800,
       });
       await take.wait(2400);
@@ -1255,7 +1283,7 @@ export const CLIPS = {
     fps: 18,
     fade: 500,
     poster: 0.6,
-    viewport: { width: 1180, height: 640 },
+    viewport: AGENT_PAGE,
     demo: { agentPlan: true },
     async setup(take) {
       const { page } = take;
@@ -1267,20 +1295,26 @@ export const CLIPS = {
         .click();
       await page.locator('[data-slot="agent-routine-batch"]').nth(2).waitFor();
       await page.waitForTimeout(900);
-      await take.camera(page.locator('[data-slot="agent-routine"]'), {
+      // Only the run with a failure opens in the take.
+      const batches = page.locator(
+        '[data-slot="agent-routine-batch"] > button',
+      );
+      await batches.first().click();
+      await page.waitForTimeout(600);
+      const runs = page
+        .locator('[data-slot="agent-routine"]')
+        .getByText("Runs", { exact: true });
+      await take.camera(await agentPage(take, runs), {
         dur: 0,
-        pad: 8,
+        pad: 0,
       });
-      const box = await page
-        .locator('[data-slot="agent-routine-batch"] > button')
-        .nth(2)
-        .boundingBox();
+      const box = await batches.nth(2).boundingBox();
       take.state.rest = { x: box.x + box.width * 0.6, y: box.y + 90 };
       await take.place(take.state.rest);
     },
     async run(take) {
       const { page } = take;
-      // The newest run is open; the one with a failure opens and closes.
+      // The run with a failure opens and closes.
       const toggle = page
         .locator('[data-slot="agent-routine-batch"] > button')
         .nth(2);
@@ -1297,7 +1331,7 @@ export const CLIPS = {
     fps: 18,
     fade: 500,
     poster: 0.25,
-    viewport: { width: 1180, height: 640 },
+    viewport: AGENT_PAGE,
     demo: { agentPlan: true },
     async setup(take) {
       const { page } = take;
@@ -1305,10 +1339,7 @@ export const CLIPS = {
       await page.locator('[data-slot="agent-templates-open"]').click();
       await page.locator('[data-slot="agent-templates"]').waitFor();
       await page.waitForTimeout(900);
-      await take.camera(page.locator('[data-slot="agent-templates"]'), {
-        dur: 0,
-        pad: 8,
-      });
+      await take.camera(await agentPage(take), { dur: 0, pad: 0 });
       const search = await page
         .locator('[data-slot="agent-templates-search"]')
         .boundingBox();

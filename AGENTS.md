@@ -421,6 +421,11 @@ flow (what to show when) is `src/hooks/use-tips.ts`. State (`tips_auto_show`,
   frame) and loops cleanly: it ends where it started, or crossfades back.
   Animated WebP plays in WKWebView, WebKitGTK without GStreamer codecs, and
   WebView2. Keep a clip near 250 KB.
+- A clip never shows the app smaller than life: the recorder refuses a take
+  whose zoom (the 800 px frame over the app pixels it holds) is under 1.
+  `pnpm clips --measure` prints the zoom of each clip and records nothing. A
+  page made for a wide window is recorded in a narrow one and framed on its
+  content (`agentPage` in `clips.mjs`), never shrunk to fit.
 - Clips are decorative and never hide the copy. Under reduced motion only the
   still shows. The coach mark plays its clip for a few loops and then rests
   on the still, so the main page does not animate all day; a return to the
