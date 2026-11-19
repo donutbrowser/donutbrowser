@@ -27,14 +27,12 @@ import {
   LuLink,
   LuLock,
   LuLockOpen,
-  LuPlus,
   LuPuzzle,
   LuRefreshCcwDot,
   LuRefreshCw,
+  LuRoute,
   LuScrollText,
   LuSettings,
-  LuShield,
-  LuShieldCheck,
   LuTimer,
   LuTrash2,
   LuUpload,
@@ -101,7 +99,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -117,12 +114,11 @@ import { useMotionAllowed } from "@/hooks/use-motion-allowed";
 import { confirmLeave, useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { translateBackendError } from "@/lib/backend-errors";
 import { getProfileIcon, getProfileNativeOs } from "@/lib/browser-utils";
-import { DNS_BLOCKLIST_LEVELS } from "@/lib/dns-blocklist-levels";
+import { linesFromText } from "@/lib/lines";
 import { MOTION_DURATION, MOTION_EASE_OUT, MOTION_SPRING } from "@/lib/motion";
 import { rotateProxyIps } from "@/lib/proxy-rotation";
 import { formatDuration, formatTimeAgo } from "@/lib/relative-time";
 import type { RemoteHandoffState } from "@/lib/remote-sessions";
-import { startPagesFromText } from "@/lib/start-pages";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { playUiSound } from "@/lib/ui-sounds";
 import { cn } from "@/lib/utils";
@@ -150,9 +146,6 @@ interface ProfileInfoDialogProps {
   onCopyCookiesToProfile?: (profile: BrowserProfile) => void;
   onOpenCookieManagement?: (profile: BrowserProfile) => void;
   onAssignExtensionGroup?: (profileIds: string[]) => void;
-  onOpenBypassRules?: (profile: BrowserProfile) => void;
-  onOpenDnsBlocklist?: (profile: BrowserProfile) => void;
-  onOpenLaunchHook?: (profile: BrowserProfile) => void;
   onCloneProfile?: (profile: BrowserProfile) => void;
   onSaveAsTemplate?: (profile: BrowserProfile) => void;
   onDeleteProfile?: (profile: BrowserProfile) => void;
@@ -691,9 +684,6 @@ function ProfileInfoContents({
   onCopyCookiesToProfile,
   onOpenCookieManagement,
   onAssignExtensionGroup,
-  onOpenBypassRules,
-  onOpenDnsBlocklist,
-  onOpenLaunchHook,
   onCloneProfile,
   onSaveAsTemplate,
   onDeleteProfile,
@@ -817,13 +807,9 @@ function ProfileInfoContents({
     })();
   };
 
-  // Items in the settings tab `actions` list MUST only open another dialog
-  // (or trigger a navigation/action that closes this one). Do NOT put inline
-  // settings UI — inputs, toggles, save buttons — directly in this dialog's
-  // settings tab. Each setting belongs in its own focused dialog (see
-  // `ProfileLaunchHookDialog`, `ProfileBypassRulesDialog`,
-  // `ProfileDnsBlocklistDialog` for the pattern). The settings tab is purely
-  // a navigation hub.
+  // The sidebar and the header find these actions by `id` (`findAction`). An
+  // action that no section asks for shows nowhere: put a setting in its
+  // section instead.
   interface ActionItem {
     // Stable, language-independent key used to map sidebar sections to actions.
     // The sidebar must NOT match on `label` — labels are translated, so English
@@ -946,29 +932,6 @@ function ProfileInfoContents({
       disabled: isDisabled,
       runningBadge: isRunning,
       hidden: profile.ephemeral === true,
-    },
-    {
-      icon: <LuShieldCheck className="size-4" />,
-      label: t("profileInfo.network.bypassRulesTitle"),
-      onClick: () => {
-        handleAction(() => onOpenBypassRules?.(profile));
-      },
-    },
-    {
-      icon: <LuShield className="size-4" />,
-      label: t("dnsBlocklist.title"),
-      onClick: () => {
-        handleAction(() => onOpenDnsBlocklist?.(profile));
-      },
-    },
-    {
-      id: "hook",
-      icon: <LuLink className="size-4" />,
-      label: t("profiles.actions.launchHook"),
-      onClick: () => {
-        handleAction(() => onOpenLaunchHook?.(profile));
-      },
-      hidden: !onOpenLaunchHook,
     },
     {
       icon: <LuKey className="size-4" />,
@@ -1589,21 +1552,54 @@ function ProfileInfoLayout({
             )}
 
             {section === "network" && (
-              <NetworkSectionInline
-                profile={profile}
-                storedProxies={storedProxies}
-                vpnConfigs={vpnConfigs}
-                isDisabled={isDisabled}
-                t={t}
-              />
+              <div className="flex flex-col gap-8">
+                <NetworkSectionInline
+                  profile={profile}
+                  storedProxies={storedProxies}
+                  vpnConfigs={vpnConfigs}
+                  isDisabled={isDisabled}
+                  t={t}
+                />
+                <LineListEditor
+                  id="bypass-rules"
+                  profileId={profile.id}
+                  lines={profile.proxy_bypass_rules ?? []}
+                  icon={<LuRoute className="size-4" />}
+                  title={t("profileInfo.network.bypassRulesTitle")}
+                  description={t("profileInfo.network.bypassRulesDescription")}
+                  placeholder={t("profileInfo.network.rulePlaceholder")}
+                  isDisabled={isDisabled}
+                  onSave={async (rules) =>
+                    (
+                      await invoke<BrowserProfile>(
+                        "update_profile_proxy_bypass_rules",
+                        { profileId: profile.id, rules },
+                      )
+                    ).proxy_bypass_rules ?? []
+                  }
+                />
+              </div>
             )}
 
             {section === "launch" && (
               <div className="flex flex-col gap-8">
-                <StartPagesEditor
-                  profile={profile}
+                <LineListEditor
+                  id="start-pages"
+                  profileId={profile.id}
+                  lines={profile.start_urls ?? []}
+                  icon={<LuHouse className="size-4" />}
+                  title={t("profileInfo.sections.startPages")}
+                  description={t("startPages.description")}
+                  placeholder={t("startPages.placeholder")}
                   isDisabled={isDisabled}
-                  t={t}
+                  onSave={async (startUrls) =>
+                    (
+                      await invoke<BrowserProfile>(
+                        "update_profile_start_urls",
+                        { profileId: profile.id, startUrls },
+                      )
+                    ).start_urls ?? []
+                  }
                 />
                 {showExtensions &&
                   (isEphemeral ? (
@@ -1858,46 +1854,53 @@ function LaunchHookEditor({
   );
 }
 
-function StartPagesEditor({
-  profile,
+/// A list edited one item per line, saved with the draft save bar.
+function LineListEditor({
+  id,
+  profileId,
+  lines,
+  icon,
+  title,
+  description,
+  placeholder,
   isDisabled,
-  t,
+  onSave,
 }: {
-  profile: BrowserProfile;
+  id: string;
+  profileId: string;
+  lines: string[];
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  placeholder: string;
   isDisabled: boolean;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  /** Saves the items and returns them as stored. */
+  onSave: (lines: string[]) => Promise<string[]>;
 }) {
-  const { t: tFn } = useTranslation();
-  const stored = (profile.start_urls ?? []).join("\n");
+  const { t } = useTranslation();
+  const stored = lines.join("\n");
   const [savedValue, setSavedValue] = React.useState(stored);
   const [value, setValue] = React.useState(stored);
   const [isSaving, setIsSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const { saved, flash, clear } = useSavedFlash();
-  const dirty = value.trim() !== savedValue;
+  const dirty = linesFromText(value).join("\n") !== savedValue;
 
   React.useEffect(() => {
     setSavedValue(stored);
   }, [stored]);
 
-  const save = async (): Promise<boolean> => {
+  const submit = async (): Promise<boolean> => {
     setIsSaving(true);
     setError(null);
     try {
-      const updated = await invoke<BrowserProfile>(
-        "update_profile_start_urls",
-        {
-          profileId: profile.id,
-          startUrls: startPagesFromText(value),
-        },
-      );
-      const next = (updated.start_urls ?? []).join("\n");
+      const next = (await onSave(linesFromText(value))).join("\n");
       setSavedValue(next);
       setValue(next);
       flash();
       return true;
     } catch (e) {
-      setError(translateBackendError(tFn, e));
+      setError(translateBackendError(t, e));
       return false;
     } finally {
       setIsSaving(false);
@@ -1909,32 +1912,27 @@ function StartPagesEditor({
     setError(null);
   };
 
-  useUnsavedChanges(`profile-info:${profile.id}:start-pages`, {
+  useUnsavedChanges(`profile-info:${profileId}:${id}`, {
     dirty,
-    save,
+    save: submit,
     discard,
-    label: t("profileInfo.sections.startPages"),
+    label: title,
   });
 
   return (
     <div className="flex flex-col gap-3">
-      <SectionHeader
-        icon={<LuHouse className="size-4" />}
-        title={t("profileInfo.sections.startPages")}
-      />
-      <p className="text-xs text-muted-foreground">
-        {t("startPages.description")}
-      </p>
+      <SectionHeader icon={icon} title={title} />
+      <p className="text-xs text-muted-foreground">{description}</p>
       <Textarea
-        data-slot="profile-start-pages-input"
-        aria-label={t("profileInfo.sections.startPages")}
+        data-slot={`profile-${id}-input`}
+        aria-label={title}
         value={value}
         onChange={(e) => {
           setValue(e.target.value);
           setError(null);
           clear();
         }}
-        placeholder={t("startPages.placeholder")}
+        placeholder={placeholder}
         rows={5}
         spellCheck={false}
         disabled={isDisabled || isSaving}
@@ -1946,7 +1944,7 @@ function StartPagesEditor({
         saved={saved}
         error={error}
         disabled={isDisabled}
-        onSave={() => void save()}
+        onSave={() => void submit()}
         onDiscard={discard}
       />
     </div>
@@ -3292,311 +3290,5 @@ function SecuritySectionInline({
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-interface ProfileLaunchHookDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  profileId: string | null;
-  currentLaunchHook: string | null;
-}
-
-export function ProfileLaunchHookDialog({
-  isOpen,
-  onClose,
-  profileId,
-  currentLaunchHook,
-}: ProfileLaunchHookDialogProps) {
-  const { t } = useTranslation();
-  const [value, setValue] = React.useState(currentLaunchHook ?? "");
-  const [isSaving, setIsSaving] = React.useState(false);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      setValue(currentLaunchHook ?? "");
-    }
-  }, [isOpen, currentLaunchHook]);
-
-  const trimmed = value.trim();
-  const saved = currentLaunchHook ?? "";
-  const isDirty = trimmed !== saved;
-
-  const handleSave = async () => {
-    if (!profileId) return;
-    setIsSaving(true);
-    try {
-      await invoke("update_profile_launch_hook", {
-        profileId,
-        launchHook: trimmed || null,
-      });
-      onClose();
-    } catch (err) {
-      showErrorToast(translateBackendError(t, err));
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("profileInfo.launchHook.title")}</DialogTitle>
-        </DialogHeader>
-        <p className="text-xs text-muted-foreground">
-          {t("profileInfo.launchHook.description")}
-        </p>
-        <Input
-          value={value}
-          aria-label={t("profileInfo.launchHook.label")}
-          onChange={(e) => {
-            setValue(e.target.value);
-          }}
-          placeholder={t("profileInfo.launchHook.placeholder")}
-          disabled={isSaving}
-        />
-        <DialogFooter>
-          <Button
-            onClick={() => void handleSave()}
-            disabled={isSaving || !isDirty}
-            className="w-full"
-          >
-            {t("common.buttons.save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-interface ProfileDnsBlocklistDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  profileId: string | null;
-  currentLevel: string | null;
-}
-
-export function ProfileDnsBlocklistDialog({
-  isOpen,
-  onClose,
-  profileId,
-  currentLevel,
-}: ProfileDnsBlocklistDialogProps) {
-  const { t } = useTranslation();
-  const [level, setLevel] = React.useState(currentLevel ?? "");
-  const [isSaving, setIsSaving] = React.useState(false);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      setLevel(currentLevel ?? "");
-    }
-  }, [isOpen, currentLevel]);
-
-  const handleSave = async () => {
-    if (!profileId) return;
-    setIsSaving(true);
-    try {
-      await invoke("update_profile_dns_blocklist", {
-        profileId,
-        dnsBlocklist: level || null,
-      });
-      onClose();
-    } catch (err) {
-      showErrorToast(translateBackendError(t, err));
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const options = [
-    { value: "", label: t("dnsBlocklist.none") },
-    ...DNS_BLOCKLIST_LEVELS.map((l) => ({
-      value: l.value as string,
-      label: t(l.labelKey),
-    })),
-  ];
-
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xs">
-        <DialogHeader>
-          <DialogTitle>{t("dnsBlocklist.title")}</DialogTitle>
-        </DialogHeader>
-        <p className="text-xs text-muted-foreground">
-          {t("dnsBlocklist.settingsDescription")}{" "}
-          <a
-            href="https://github.com/hagezi/dns-blocklists"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-text hover:underline"
-          >
-            {t("common.buttons.moreInfo")}
-          </a>
-        </p>
-        <div className="space-y-1">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={level === option.value}
-              onClick={() => setLevel(option.value)}
-              className={cn(
-                "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors",
-                FOCUS_RING,
-                level === option.value
-                  ? "border-primary/30 bg-primary/10 text-primary-text"
-                  : "border-transparent hover:bg-foreground/5",
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        <Button
-          onClick={() => void handleSave()}
-          disabled={isSaving || level === (currentLevel ?? "")}
-          className="w-full"
-        >
-          {t("common.buttons.save")}
-        </Button>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-interface ProfileBypassRulesDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  profileId: string | null;
-  initialRules?: string[];
-}
-
-export function ProfileBypassRulesDialog({
-  isOpen,
-  onClose,
-  profileId,
-  initialRules,
-}: ProfileBypassRulesDialogProps) {
-  const { t } = useTranslation();
-  const [bypassRules, setBypassRules] = React.useState<string[]>([]);
-  const [newRule, setNewRule] = React.useState("");
-
-  React.useEffect(() => {
-    if (isOpen) {
-      setBypassRules(initialRules ?? []);
-      setNewRule("");
-    }
-  }, [isOpen, initialRules]);
-
-  // Shown at once, and put back when the save fails.
-  const updateBypassRules = async (rules: string[]) => {
-    if (!profileId) return;
-    const previous = bypassRules;
-    setBypassRules(rules);
-    try {
-      await invoke("update_profile_proxy_bypass_rules", {
-        profileId,
-        rules,
-      });
-    } catch (err) {
-      setBypassRules(previous);
-      showErrorToast(translateBackendError(t, err));
-    }
-  };
-
-  const handleAddRule = () => {
-    const trimmed = newRule.trim();
-    if (!trimmed || bypassRules.includes(trimmed)) return;
-    const updated = [...bypassRules, trimmed];
-    setNewRule("");
-    void updateBypassRules(updated);
-  };
-
-  const handleRemoveRule = (rule: string) => {
-    void updateBypassRules(bypassRules.filter((r) => r !== rule));
-  };
-
-  return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-lg">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>{t("profileInfo.network.bypassRulesTitle")}</DialogTitle>
-        </DialogHeader>
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="flex flex-col gap-3 py-2">
-            <p className="text-sm text-muted-foreground">
-              {t("profileInfo.network.bypassRulesDescription")}
-            </p>
-            <div className="flex gap-2">
-              <Input
-                value={newRule}
-                aria-label={t("profileInfo.network.rulePlaceholder")}
-                onChange={(e) => {
-                  setNewRule(e.target.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleAddRule();
-                }}
-                placeholder={t("profileInfo.network.rulePlaceholder")}
-                className="flex-1 text-sm"
-              />
-              <Button
-                size="sm"
-                onClick={handleAddRule}
-                disabled={!newRule.trim()}
-              >
-                <LuPlus className="mr-1 size-4" />
-                {t("profileInfo.network.addRule")}
-              </Button>
-            </div>
-            {bypassRules.length === 0 ? (
-              <p className="py-2 text-sm text-muted-foreground">
-                {t("profileInfo.network.noRules")}
-              </p>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {bypassRules.map((rule) => (
-                  <div
-                    key={rule}
-                    className="flex items-center justify-between gap-2 rounded-md bg-foreground/5 px-3 py-1.5 text-sm"
-                  >
-                    <span className="truncate font-mono text-xs">{rule}</span>
-                    <button
-                      type="button"
-                      aria-label={t("profileInfo.network.removeRule", {
-                        rule,
-                      })}
-                      onClick={() => {
-                        handleRemoveRule(rule);
-                      }}
-                      className={cn(
-                        "shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-destructive-text",
-                        FOCUS_RING,
-                      )}
-                    >
-                      <LuX className="size-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {t("profileInfo.network.ruleTypes")}
-            </p>
-          </div>
-        </ScrollArea>
-        <DialogFooter className="shrink-0">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.buttons.close")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

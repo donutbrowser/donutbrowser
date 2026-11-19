@@ -27,7 +27,6 @@
       "export": "Xuất",
       "refresh": "Làm mới",
       "loading": "Đang tải...",
-      "moreInfo": "Thêm thông tin",
       "downloading": "Đang tải xuống...",
       "minimize": "Thu nhỏ",
       "saving": "Đang lưu…",
@@ -441,7 +440,6 @@
       "assignToGroup": "Gán vào nhóm",
       "changeFingerprint": "Đổi vân tay",
       "copyCookiesToProfile": "Sao chép Cookie sang hồ sơ",
-      "launchHook": "URL Hook khởi chạy",
       "setPassword": "Đặt mật khẩu",
       "changePassword": "Đổi mật khẩu",
       "removePassword": "Xóa mật khẩu"
@@ -1666,22 +1664,13 @@
       "unknown": "Không rõ"
     },
     "network": {
-      "bypassRules": "Quy tắc bỏ qua proxy",
       "bypassRulesTitle": "Quy tắc bỏ qua proxy",
-      "bypassRulesDescription": "Yêu cầu khớp với các quy tắc này sẽ kết nối trực tiếp, bỏ qua proxy.",
-      "addRule": "Thêm quy tắc",
-      "rulePlaceholder": "ví dụ: example.com, 192.168.1.*, .*\\.local",
-      "noRules": "Chưa cấu hình quy tắc bỏ qua nào.",
-      "ruleTypes": "Hỗ trợ tên máy chủ, địa chỉ IP và biểu thức chính quy.",
+      "bypassRulesDescription": "Các yêu cầu đến những máy chủ này kết nối trực tiếp, không qua proxy. Mỗi dòng một quy tắc: tên máy chủ, địa chỉ IP hoặc biểu thức chính quy.",
+      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}",
-      "removeRule": "Xóa {{rule}}"
+      "proxyLabel": "Proxy: {{name}}"
     },
     "launchHook": {
-      "title": "URL hook khởi chạy",
-      "label": "URL hook khởi chạy",
-      "description": "Donut Browser sẽ gửi yêu cầu GET đến URL này mỗi khi profile được khởi chạy.",
-      "placeholder": "https://example.com/hooks/profile-launch",
       "invalidUrlHint": "Nhập URL http:// hoặc https:// hợp lệ."
     },
     "actions": {

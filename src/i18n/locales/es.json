@@ -27,7 +27,6 @@
       "export": "Exportar",
       "refresh": "Actualizar",
       "loading": "Cargando...",
-      "moreInfo": "Más información",
       "downloading": "Descargando...",
       "minimize": "Minimizar",
       "saving": "Guardando…",
@@ -442,7 +441,6 @@
       "assignToGroup": "Asignar a Grupo",
       "changeFingerprint": "Cambiar Huella Digital",
       "copyCookiesToProfile": "Copiar Cookies al Perfil",
-      "launchHook": "URL del hook de inicio",
       "setPassword": "Establecer Contraseña",
       "changePassword": "Cambiar Contraseña",
       "removePassword": "Quitar Contraseña"
@@ -1677,22 +1675,13 @@
       "unknown": "Desconocido"
     },
     "network": {
-      "bypassRules": "Reglas de Omisión de Proxy",
       "bypassRulesTitle": "Reglas de omisión de proxy",
-      "bypassRulesDescription": "Las solicitudes que coincidan con estas reglas se conectarán directamente, omitiendo el proxy.",
-      "addRule": "Agregar regla",
-      "rulePlaceholder": "ej. example.com, 192.168.1.*, .*\\.local",
-      "noRules": "No hay reglas de omisión configuradas.",
-      "ruleTypes": "Soporta nombres de host, direcciones IP y patrones regex.",
+      "bypassRulesDescription": "Las solicitudes a estos hosts se conectan directamente, sin el proxy. Una regla por línea: un nombre de host, una dirección IP o una expresión regular.",
+      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}",
-      "removeRule": "Quitar {{rule}}"
+      "proxyLabel": "Proxy: {{name}}"
     },
     "launchHook": {
-      "title": "URL del hook de inicio",
-      "label": "URL del hook de inicio",
-      "description": "Donut Browser enviará una solicitud GET a esta URL cada vez que se inicie el perfil.",
-      "placeholder": "https://example.com/hooks/profile-launch",
       "invalidUrlHint": "Introduce una URL válida http:// o https://."
     },
     "actions": {

@@ -27,7 +27,6 @@
       "export": "导出",
       "refresh": "刷新",
       "loading": "加载中...",
-      "moreInfo": "了解更多",
       "downloading": "下载中...",
       "minimize": "最小化",
       "saving": "正在保存…",
@@ -441,7 +440,6 @@
       "assignToGroup": "分配到组",
       "changeFingerprint": "更改指纹",
       "copyCookiesToProfile": "复制 Cookies 到配置文件",
-      "launchHook": "启动钩子 URL",
       "setPassword": "设置密码",
       "changePassword": "更改密码",
       "removePassword": "移除密码"
@@ -1666,22 +1664,13 @@
       "unknown": "未知"
     },
     "network": {
-      "bypassRules": "代理绕过规则",
       "bypassRulesTitle": "代理绕过规则",
-      "bypassRulesDescription": "匹配这些规则的请求将直接连接，绕过代理。",
-      "addRule": "添加规则",
-      "rulePlaceholder": "例如 example.com, 192.168.1.*, .*\\.local",
-      "noRules": "未配置绕过规则。",
-      "ruleTypes": "支持主机名、IP地址和正则表达式模式。",
+      "bypassRulesDescription": "发往这些主机的请求直接连接，不经过代理。每行一条规则：主机名、IP地址或正则表达式。",
+      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
       "vpnLabel": "VPN：{{name}}",
-      "proxyLabel": "代理：{{name}}",
-      "removeRule": "移除 {{rule}}"
+      "proxyLabel": "代理：{{name}}"
     },
     "launchHook": {
-      "title": "启动钩子 URL",
-      "label": "启动钩子 URL",
-      "description": "每次启动配置文件时，Donut Browser 都会向此 URL 发送一个 GET 请求。",
-      "placeholder": "https://example.com/hooks/profile-launch",
       "invalidUrlHint": "输入有效的 http:// 或 https:// URL。"
     },
     "actions": {

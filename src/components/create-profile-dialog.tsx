@@ -98,8 +98,8 @@ import { useVpnEvents } from "@/hooks/use-vpn-events";
 import { translateBackendError } from "@/lib/backend-errors";
 import { getOSDisplayName, getOSIcon } from "@/lib/browser-utils";
 import { DNS_BLOCKLIST_LEVELS } from "@/lib/dns-blocklist-levels";
+import { linesFromText } from "@/lib/lines";
 import { MOTION_DURATION, MOTION_EASE_OUT, MOTION_SPRING } from "@/lib/motion";
-import { startPagesFromText } from "@/lib/start-pages";
 import { notifySystem } from "@/lib/system-notify";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
@@ -492,7 +492,7 @@ export function CreateProfileDialog({
       extension_group_id: selectedExtensionGroupId ?? null,
       dns_blocklist: dnsBlocklist || null,
       dns_server: dnsServer.trim() || null,
-      start_urls: startPagesFromText(startPages),
+      start_urls: linesFromText(startPages),
       launch_hook: launchHook.trim() || null,
       ephemeral,
       wayfern_config: wayfernConfig,
@@ -669,7 +669,7 @@ export function CreateProfileDialog({
         ephemeral,
         dnsBlocklist: dnsBlocklist || undefined,
         dnsServer: dnsServer.trim() || undefined,
-        startUrls: startPagesFromText(startPages),
+        startUrls: linesFromText(startPages),
         launchHook: launchHook.trim() || undefined,
         password: enablePassword && !ephemeral ? password : undefined,
       });

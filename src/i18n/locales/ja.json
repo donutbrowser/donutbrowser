@@ -27,7 +27,6 @@
       "export": "エクスポート",
       "refresh": "更新",
       "loading": "読み込み中...",
-      "moreInfo": "詳細",
       "downloading": "ダウンロード中...",
       "minimize": "最小化",
       "saving": "保存中…",
@@ -441,7 +440,6 @@
       "assignToGroup": "グループに割り当て",
       "changeFingerprint": "フィンガープリントを変更",
       "copyCookiesToProfile": "Cookieをプロファイルにコピー",
-      "launchHook": "起動フックURL",
       "setPassword": "パスワードを設定",
       "changePassword": "パスワードを変更",
       "removePassword": "パスワードを削除"
@@ -1666,22 +1664,13 @@
       "unknown": "不明"
     },
     "network": {
-      "bypassRules": "プロキシバイパスルール",
       "bypassRulesTitle": "プロキシバイパスルール",
-      "bypassRulesDescription": "これらのルールに一致するリクエストは、プロキシをバイパスして直接接続します。",
-      "addRule": "ルールを追加",
-      "rulePlaceholder": "例: example.com, 192.168.1.*, .*\\.local",
-      "noRules": "バイパスルールは設定されていません。",
-      "ruleTypes": "ホスト名、IPアドレス、正規表現パターンをサポートしています。",
+      "bypassRulesDescription": "これらのホストへのリクエストはプロキシを使わずに直接接続します。1 行に 1 つのルール：ホスト名、IPアドレス、または正規表現。",
+      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}",
-      "removeRule": "{{rule}} を削除"
+      "proxyLabel": "Proxy: {{name}}"
     },
     "launchHook": {
-      "title": "起動フックURL",
-      "label": "起動フックURL",
-      "description": "プロファイルが起動するたびに、このURLにGETリクエストが送信されます。",
-      "placeholder": "https://example.com/hooks/profile-launch",
       "invalidUrlHint": "有効な http:// または https:// URL を入力してください。"
     },
     "actions": {

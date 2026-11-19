@@ -25,7 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { translateBackendError } from "@/lib/backend-errors";
 import { DNS_BLOCKLIST_LEVELS } from "@/lib/dns-blocklist-levels";
-import { startPagesFromText } from "@/lib/start-pages";
+import { linesFromText } from "@/lib/lines";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import { cn } from "@/lib/utils";
 import type { ProfileStatus } from "@/types";
@@ -37,6 +37,7 @@ type Field =
   | "note"
   | "dnsBlocklist"
   | "dnsServer"
+  | "bypassRules"
   | "startPages"
   | "clearOnClose"
   | "webrtc"
@@ -127,6 +128,7 @@ export function BulkEditDialog({
   const [dnsBlocklist, setDnsBlocklist] = React.useState<string>(NONE);
   const [dnsServer, setDnsServer] = React.useState("");
   const [dnsServerValid, setDnsServerValid] = React.useState(true);
+  const [bypassRules, setBypassRules] = React.useState("");
   const [startPages, setStartPages] = React.useState("");
   const [clearOnClose, setClearOnClose] = React.useState(false);
   const [webrtc, setWebrtc] = React.useState("auto");
@@ -145,6 +147,7 @@ export function BulkEditDialog({
     setNote("");
     setDnsBlocklist(NONE);
     setDnsServer("");
+    setBypassRules("");
     setStartPages("");
     setClearOnClose(false);
     setWebrtc("auto");
@@ -173,7 +176,9 @@ export function BulkEditDialog({
     if (has("dnsBlocklist"))
       patch.dns_blocklist = dnsBlocklist === NONE ? null : dnsBlocklist;
     if (has("dnsServer")) patch.dns_server = dnsServer.trim() || null;
-    if (has("startPages")) patch.start_urls = startPagesFromText(startPages);
+    if (has("bypassRules"))
+      patch.proxy_bypass_rules = linesFromText(bypassRules);
+    if (has("startPages")) patch.start_urls = linesFromText(startPages);
     if (has("clearOnClose")) patch.clear_on_close = clearOnClose;
     if (has("webrtc")) patch.webrtc_mode = webrtc;
     if (has("blockImages")) patch.block_images = blockImages;
@@ -306,6 +311,23 @@ export function BulkEditDialog({
               value={dnsServer}
               onChange={setDnsServer}
               onValidityChange={setDnsServerValid}
+            />
+          </Row>
+          <Row
+            field="bypassRules"
+            label={t("profileInfo.network.bypassRulesTitle")}
+            enabled={has("bypassRules")}
+            onToggle={toggle}
+          >
+            <Textarea
+              variant="soft"
+              aria-label={t("profileInfo.network.bypassRulesTitle")}
+              value={bypassRules}
+              onChange={(event) => setBypassRules(event.target.value)}
+              placeholder={t("profileInfo.network.rulePlaceholder")}
+              rows={3}
+              spellCheck={false}
+              className="font-mono text-xs"
             />
           </Row>
           <Row

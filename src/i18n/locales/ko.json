@@ -27,7 +27,6 @@
       "export": "내보내기",
       "refresh": "새로 고침",
       "loading": "불러오는 중...",
-      "moreInfo": "자세히",
       "downloading": "다운로드 중...",
       "minimize": "최소화",
       "saving": "저장 중…",
@@ -441,7 +440,6 @@
       "assignToGroup": "그룹에 할당",
       "changeFingerprint": "핑거프린트 변경",
       "copyCookiesToProfile": "프로필로 쿠키 복사",
-      "launchHook": "실행 후크 URL",
       "setPassword": "비밀번호 설정",
       "changePassword": "비밀번호 변경",
       "removePassword": "비밀번호 제거"
@@ -1666,22 +1664,13 @@
       "unknown": "알 수 없음"
     },
     "network": {
-      "bypassRules": "프록시 우회 규칙",
       "bypassRulesTitle": "프록시 우회 규칙",
-      "bypassRulesDescription": "이 규칙과 일치하는 요청은 프록시를 우회하여 직접 연결됩니다.",
-      "addRule": "규칙 추가",
-      "rulePlaceholder": "예: example.com, 192.168.1.*, .*\\.local",
-      "noRules": "구성된 우회 규칙이 없습니다.",
-      "ruleTypes": "호스트 이름, IP 주소 및 정규식 패턴을 지원합니다.",
+      "bypassRulesDescription": "이 호스트로 가는 요청은 프록시 없이 직접 연결됩니다. 한 줄에 규칙 하나: 호스트 이름, IP 주소 또는 정규식.",
+      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}",
-      "removeRule": "{{rule}} 제거"
+      "proxyLabel": "Proxy: {{name}}"
     },
     "launchHook": {
-      "title": "실행 후크 URL",
-      "label": "실행 후크 URL",
-      "description": "Donut Browser는 프로필이 실행될 때마다 이 URL로 GET 요청을 보냅니다.",
-      "placeholder": "https://example.com/hooks/profile-launch",
       "invalidUrlHint": "유효한 http:// 또는 https:// URL을 입력하세요."
     },
     "actions": {

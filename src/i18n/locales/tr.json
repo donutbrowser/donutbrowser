@@ -27,7 +27,6 @@
       "export": "Dışa Aktar",
       "refresh": "Yenile",
       "loading": "Yükleniyor...",
-      "moreInfo": "Daha fazla bilgi",
       "downloading": "İndiriliyor...",
       "minimize": "Küçült",
       "saving": "Kaydediliyor…",
@@ -441,7 +440,6 @@
       "assignToGroup": "Gruba Ata",
       "changeFingerprint": "Parmak İzini Değiştir",
       "copyCookiesToProfile": "Çerezleri Profile Kopyala",
-      "launchHook": "Başlatma Kancası URL'si",
       "setPassword": "Parola Belirle",
       "changePassword": "Parolayı Değiştir",
       "removePassword": "Parolayı Kaldır"
@@ -1666,22 +1664,13 @@
       "unknown": "Bilinmiyor"
     },
     "network": {
-      "bypassRules": "Proxy Atlama Kuralları",
       "bypassRulesTitle": "Proxy atlama kuralları",
-      "bypassRulesDescription": "Bu kurallarla eşleşen istekler, proxy'yi atlayarak doğrudan bağlanır.",
-      "addRule": "Kural ekle",
-      "rulePlaceholder": "örn. example.com, 192.168.1.*, .*\\.local",
-      "noRules": "Yapılandırılmış atlama kuralı yok.",
-      "ruleTypes": "Alan adları, IP adresleri ve regex desenleri desteklenir.",
+      "bypassRulesDescription": "Bu ana bilgisayarlara giden istekler proxy olmadan doğrudan bağlanır. Her satıra bir kural: ana bilgisayar adı, IP adresi veya düzenli ifade.",
+      "rulePlaceholder": "example.com\n192.168.1.10\n.*\\.local",
       "vpnLabel": "VPN: {{name}}",
-      "proxyLabel": "Proxy: {{name}}",
-      "removeRule": "{{rule}} kuralını kaldır"
+      "proxyLabel": "Proxy: {{name}}"
     },
     "launchHook": {
-      "title": "Başlatma kancası URL'si",
-      "label": "Başlatma kancası URL'si",
-      "description": "Donut Browser, profil her başlatıldığında bu URL'ye bir GET isteği gönderir.",
-      "placeholder": "https://example.com/hooks/profile-launch",
       "invalidUrlHint": "Geçerli bir http:// veya https:// URL'si girin."
     },
     "actions": {

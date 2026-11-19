@@ -69,12 +69,7 @@ import {
   useProfileGroupDrag,
 } from "@/components/profile-group-drag";
 import { ProfileHandoffStatus } from "@/components/profile-handoff-status";
-import {
-  ProfileBypassRulesDialog,
-  ProfileDnsBlocklistDialog,
-  ProfileInfoDialog,
-  ProfileLaunchHookDialog,
-} from "@/components/profile-info-dialog";
+import { ProfileInfoDialog } from "@/components/profile-info-dialog";
 import {
   ProfileStatusChip,
   ProfileStatusesDialog,
@@ -324,11 +319,8 @@ interface TableMeta {
   profileStatuses: ProfileStatus[];
   onManageStatuses: () => void;
 
-  // Click handlers for inline Ext / DNS cell editing
+  // Click handler for inline Ext cell editing
   onAssignExtensionGroup?: (profileIds: string[]) => void;
-  setDnsBlocklistProfile: React.Dispatch<
-    React.SetStateAction<BrowserProfile | null>
-  >;
 
   // Selection helpers
 
@@ -2404,15 +2396,9 @@ export function ProfilesDataTable({
       setProfileForInfoDialog(null);
     }
   }, [allProfiles, profileForInfoDialog, setProfileForInfoDialog]);
-  const [bypassRulesProfile, setBypassRulesProfile] =
-    React.useState<BrowserProfile | null>(null);
   const [statusesDialogOpen, setStatusesDialogOpen] = React.useState(false);
   const [bulkEditOpen, setBulkEditOpen] = React.useState(false);
   const [templateProfile, setTemplateProfile] =
-    React.useState<BrowserProfile | null>(null);
-  const [dnsBlocklistProfile, setDnsBlocklistProfile] =
-    React.useState<BrowserProfile | null>(null);
-  const [launchHookProfile, setLaunchHookProfile] =
     React.useState<BrowserProfile | null>(null);
   const [launchingProfiles, setLaunchingProfiles] = React.useState<Set<string>>(
     new Set(),
@@ -3159,7 +3145,6 @@ export function ProfilesDataTable({
       // Extension groups
       extensionGroups,
       onAssignExtensionGroup,
-      setDnsBlocklistProfile,
 
       profileStatuses,
       onManageStatuses: () => setStatusesDialogOpen(true),
@@ -5056,15 +5041,6 @@ export function ProfilesDataTable({
                     onCopyCookiesToProfile={onCopyCookiesToProfile}
                     onOpenCookieManagement={onOpenCookieManagement}
                     onAssignExtensionGroup={onAssignExtensionGroup}
-                    onOpenBypassRules={(profile) => {
-                      setBypassRulesProfile(profile);
-                    }}
-                    onOpenDnsBlocklist={(profile) => {
-                      setDnsBlocklistProfile(profile);
-                    }}
-                    onOpenLaunchHook={(profile) => {
-                      setLaunchHookProfile(profile);
-                    }}
                     onCloneProfile={onCloneProfile}
                     onSaveAsTemplate={setTemplateProfile}
                     onLaunchWithSync={onLaunchWithSync}
@@ -5255,14 +5231,6 @@ export function ProfilesDataTable({
           />
         </React.Suspense>
       )}
-      <ProfileBypassRulesDialog
-        isOpen={bypassRulesProfile !== null}
-        onClose={() => {
-          setBypassRulesProfile(null);
-        }}
-        profileId={bypassRulesProfile?.id ?? null}
-        initialRules={bypassRulesProfile?.proxy_bypass_rules ?? []}
-      />
       <SaveTemplateDialog
         profile={templateProfile}
         onClose={() => setTemplateProfile(null)}
@@ -5278,22 +5246,6 @@ export function ProfilesDataTable({
         onClose={() => setStatusesDialogOpen(false)}
         statuses={profileStatuses}
         profiles={allProfiles}
-      />
-      <ProfileDnsBlocklistDialog
-        isOpen={dnsBlocklistProfile !== null}
-        onClose={() => {
-          setDnsBlocklistProfile(null);
-        }}
-        profileId={dnsBlocklistProfile?.id ?? null}
-        currentLevel={dnsBlocklistProfile?.dns_blocklist ?? null}
-      />
-      <ProfileLaunchHookDialog
-        isOpen={launchHookProfile !== null}
-        onClose={() => {
-          setLaunchHookProfile(null);
-        }}
-        profileId={launchHookProfile?.id ?? null}
-        currentLaunchHook={launchHookProfile?.launch_hook ?? null}
       />
       {botScheduleDialog && (
         <CookieBotEnrolDialog

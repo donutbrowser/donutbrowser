@@ -5007,6 +5007,11 @@ test("bulk edit opens from the action bar and changes only the ticked rows", asy
       await app.clickSelector("#bulk-edit-tagsAdd");
       await app.fillSelector('[data-field="tagsAdd"] input', "ui-bulk, shop");
       assert.equal(await applyDisabled(), false);
+      await app.clickSelector("#bulk-edit-bypassRules");
+      await app.fillSelector(
+        '[data-field="bypassRules"] textarea',
+        "example.com\n.*\\.local",
+      );
       await app.capture("bulk-edit-dialog");
       await app.clickSelector('[data-slot="bulk-edit-apply"]');
 
@@ -5018,6 +5023,14 @@ test("bulk edit opens from the action bar and changes only the ticked rows", asy
               profile.tags.includes("shop"),
           ),
         { description: "tags on every selected profile" },
+      );
+      assert.ok(
+        (await app.invoke("list_browser_profiles")).every(
+          (profile) =>
+            JSON.stringify(profile.proxy_bypass_rules) ===
+            JSON.stringify(["example.com", ".*\\.local"]),
+        ),
+        "bypass rules on every selected profile",
       );
       await app.waitFor(
         async () => !(await app.visibleTextIncludes(en.bulkEdit.title)),
@@ -6946,6 +6959,42 @@ test("the start pages section saves one page per line and reports a bad page", a
       { description: "the saved start pages" },
     );
     await app.capture("profile-start-pages");
+    await app.clickSelector('[data-slot="profile-info-close"]');
+  });
+});
+
+test("the profile network section saves proxy bypass rules one per line", async () => {
+  await withApp("ui-bypass-rules", async (app) => {
+    const profile = await createUiProfile(app, "Profile Bypass Rules");
+    await app.waitForText(profile.name);
+    const stored = async () =>
+      (await app.invoke("list_browser_profiles")).find(
+        (item) => item.id === profile.id,
+      ).proxy_bypass_rules ?? [];
+    await app.clickSelector(
+      `[data-slot="profile-inspect-trigger"][data-profile-id="${profile.id}"]`,
+    );
+    await app.clickSelector(
+      '[data-slot="profile-info-section"][data-section="network"]',
+    );
+    await app.waitForText(en.profileInfo.network.bypassRulesDescription);
+    const field = '[data-slot="profile-bypass-rules-input"]';
+    await app.fillSelector(field, "example.com\n\n  192.168.1.10  \n");
+    await app.clickText(en.common.buttons.save, { exact: true });
+    await app.waitFor(
+      async () =>
+        JSON.stringify(await stored()) ===
+        JSON.stringify(["example.com", "192.168.1.10"]),
+      { description: "the saved bypass rules" },
+    );
+    assert.equal(
+      await app.execute("return document.querySelector(arguments[0]).value;", [
+        field,
+      ]),
+      "example.com\n192.168.1.10",
+      "the field shows the rules as stored",
+    );
+    await app.capture("profile-bypass-rules");
     await app.clickSelector('[data-slot="profile-info-close"]');
   });
 });
