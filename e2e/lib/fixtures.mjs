@@ -848,7 +848,8 @@ export function mcpFormsPage() {
 /**
  * Native dialogs a site opens: an inline Save link that answers with a
  * validation alert, a confirm, a prompt, and a field typed into later from a
- * background tab. `?alert-on-load` opens an alert while the page loads.
+ * background tab. An Actions menu closes when the page loses focus, as many
+ * sites' menus do. `?alert-on-load` opens an alert while the page loads.
  */
 export function mcpDialogsPage() {
   return `<!doctype html>
@@ -867,6 +868,10 @@ export function mcpDialogsPage() {
     <div class="row"><button id="delete" type="button">Delete</button></div>
     <div class="row"><button id="rename" type="button">Rename</button></div>
     <div class="row"><label for="later">Later</label> <input id="later" name="later"></div>
+    <div class="row">
+      <button id="actions" type="button" aria-haspopup="menu" aria-expanded="false">Actions</button>
+      <div id="actions-menu" role="menu" hidden><button id="edit" type="button" role="menuitem">Edit</button></div>
+    </div>
     <script>
       (() => {
         document.getElementById("save").addEventListener("click", (event) => {
@@ -879,6 +884,20 @@ export function mcpDialogsPage() {
         });
         document.getElementById("rename").addEventListener("click", () => {
           document.body.dataset.renamed = String(prompt("New name?", "Ann"));
+        });
+        const actions = document.getElementById("actions");
+        const menu = document.getElementById("actions-menu");
+        const setOpen = (open) => {
+          actions.setAttribute("aria-expanded", String(open));
+          menu.hidden = !open;
+        };
+        actions.addEventListener("click", () => {
+          setOpen(actions.getAttribute("aria-expanded") !== "true");
+        });
+        window.addEventListener("blur", () => setOpen(false));
+        document.getElementById("edit").addEventListener("click", () => {
+          document.body.dataset.menu = "edit";
+          setOpen(false);
         });
         const later = document.getElementById("later");
         later.addEventListener("keydown", () => {

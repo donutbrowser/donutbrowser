@@ -2166,6 +2166,32 @@ test("MCP answers native dialogs and types into a background tab", async (t) => 
       "typed behind",
     );
 
+    // A menu that closes when its page loses focus stays open after the click
+    // that opened it: the page keeps its focus between the agent's commands.
+    await tool("click_locator", {
+      locator: { role: "button", name: "Actions" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    assert.equal(
+      (
+        await toolJson("evaluate_javascript", {
+          expression: "document.querySelector('#actions').ariaExpanded",
+        })
+      ).value,
+      "true",
+    );
+    await tool("click_locator", {
+      locator: { role: "menuitem", name: "Edit" },
+    });
+    assert.equal(
+      (
+        await toolJson("evaluate_javascript", {
+          expression: "document.body.dataset.menu",
+        })
+      ).value,
+      "edit",
+    );
+
     // A tab that opens an alert while it loads, before anything watched it.
     // A browser that announces an open dialog to a new watcher shows it; an
     // older one answers nothing until a navigation ends the dialog.

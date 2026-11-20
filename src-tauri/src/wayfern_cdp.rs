@@ -19,7 +19,7 @@
 //! [`Engine::for_version`], read from the profile at the point of use, and the
 //! pre-152 fallbacks live with the tools that own them.
 
-use crate::cdp_target::{CdpConnection, CdpError, CdpTarget};
+use crate::cdp_target::{self, CdpError, CdpTarget, PooledConnection};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
@@ -595,28 +595,24 @@ pub struct PickedElement {
 
 /// One open page session, with command ids handed out in order.
 ///
-/// [`CdpConnection`] leaves id allocation to its caller because the one-shot
-/// runners in `cdp_target` never send more than three commands. A gesture here
-/// sends five or more on one socket, and a reply matched to the wrong id is a
-/// silent wrong answer, so the ids are owned in one place.
+/// A gesture sends five or more commands on one socket, and a reply matched to
+/// the wrong id is a silent wrong answer, so the socket hands out the ids. On
+/// this computer the socket is the page's pooled one ([`cdp_target::lease`]):
+/// the page stays the one the agent drives between its commands.
 pub struct WayfernSession {
-  connection: CdpConnection,
-  next_id: u64,
+  socket: PooledConnection,
 }
 
 impl WayfernSession {
   /// Open a page session on `target`.
   pub async fn open(target: &CdpTarget) -> Result<Self, WayfernError> {
     Ok(Self {
-      connection: target.connect().await?,
-      next_id: 1,
+      socket: cdp_target::lease(target).await?,
     })
   }
 
   fn allocate_id(&mut self) -> u64 {
-    let id = self.next_id;
-    self.next_id += 1;
-    id
+    self.socket.allocate_id()
   }
 
   /// Send `method` without waiting for its reply: for a command that only
@@ -625,7 +621,11 @@ impl WayfernSession {
   /// message that is not awaited.
   pub async fn send(&mut self, method: &str, params: Value) -> Result<u64, WayfernError> {
     let id = self.allocate_id();
-    self.connection.send_command(id, method, params).await?;
+    self
+      .socket
+      .connection
+      .send_command(id, method, params)
+      .await?;
     Ok(id)
   }
 
@@ -644,8 +644,12 @@ impl WayfernSession {
     timeout: Duration,
   ) -> Result<Value, WayfernError> {
     let id = self.allocate_id();
-    self.connection.send_command(id, method, params).await?;
-    Ok(self.connection.await_reply(id, timeout).await?)
+    self
+      .socket
+      .connection
+      .send_command(id, method, params)
+      .await?;
+    Ok(self.socket.connection.await_reply(id, timeout).await?)
   }
 
   /// Send an action that may navigate (a click), then wait as long as the
@@ -667,7 +671,11 @@ impl WayfernSession {
       .ok()
       .and_then(|tree| main_frame_of(&tree));
     let id = self.allocate_id();
-    self.connection.send_command(id, method, params).await?;
+    self
+      .socket
+      .connection
+      .send_command(id, method, params)
+      .await?;
 
     let deadline = tokio::time::Instant::now() + timeout;
     let mut watch = NavigationWatch::new(main_frame, false);
@@ -679,7 +687,9 @@ impl WayfernSession {
         break;
       }
       let text =
-        match tokio::time::timeout_at(watch.wake_at(deadline), self.connection.next_text()).await {
+        match tokio::time::timeout_at(watch.wake_at(deadline), self.socket.connection.next_text())
+          .await
+        {
           Ok(Some(Ok(text))) => text,
           Ok(Some(Err(e))) => {
             if reply.is_none() {
@@ -691,6 +701,7 @@ impl WayfernSession {
             if reply.is_none() {
               return Err(
                 self
+                  .socket
                   .connection
                   .closed_error("no response received from CDP")
                   .into(),
@@ -705,7 +716,7 @@ impl WayfernSession {
       let message: Value = serde_json::from_str(&text).unwrap_or_default();
       if message.get("id") == Some(&Value::from(id)) {
         if let Some(error) = message.get("error") {
-          return Err(self.connection.reply_error(error).into());
+          return Err(self.socket.connection.reply_error(error).into());
         }
         reply = Some(
           message
@@ -743,12 +754,13 @@ impl WayfernSession {
       if remaining.is_zero() {
         return Ok(None);
       }
-      let text = match tokio::time::timeout(remaining, self.connection.next_text()).await {
+      let text = match tokio::time::timeout(remaining, self.socket.connection.next_text()).await {
         Ok(Some(Ok(text))) => text,
         Ok(Some(Err(e))) => return Err(e.into()),
         Ok(None) => {
           return Err(
             self
+              .socket
               .connection
               .closed_error("the browser closed the session while an event was awaited")
               .into(),
@@ -770,9 +782,9 @@ impl WayfernSession {
     }
   }
 
-  /// Hang up politely.
+  /// Done with the session: the socket goes back to the pool, or hangs up.
   pub async fn close(self) {
-    self.connection.close().await;
+    cdp_target::give_back(self.socket).await;
   }
 }
 

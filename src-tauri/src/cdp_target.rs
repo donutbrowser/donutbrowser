@@ -417,6 +417,12 @@ pub struct CdpConnection {
   page: Option<String>,
   /// The page's dialog state, when [`crate::page_dialog`] watches the page.
   dialog: Option<tokio::sync::watch::Receiver<crate::page_dialog::PageState>>,
+  /// Whether every command sent left nothing on the session that a later
+  /// command on this socket could trip on ([`leaves_no_state`]).
+  stateless: bool,
+  /// When this socket last sent a command that makes Wayfern hold the page
+  /// as the one an agent drives ([`drives_page`]).
+  drove_at: Option<tokio::time::Instant>,
 }
 
 /// How long a reply may still take once a dialog is open on the page. The
@@ -443,6 +449,38 @@ impl CdpConnection {
       closed: None,
       page: None,
       dialog: None,
+      stateless: true,
+      drove_at: None,
+    }
+  }
+
+  /// Note what sending `method` does to this socket's session.
+  fn note(&mut self, method: &str) {
+    if !leaves_no_state(method) {
+      self.stateless = false;
+    }
+    if drives_page(method) {
+      self.drove_at = Some(tokio::time::Instant::now());
+    }
+  }
+
+  /// Whether the next command to the page may use this socket.
+  fn fit_for_pool(&self) -> bool {
+    self.stateless && self.closed.is_none()
+  }
+
+  /// Drop what arrived while the socket sat in the pool: late replies to
+  /// commands an earlier caller gave up on, and events. False when the peer
+  /// hung up meanwhile.
+  fn drain(&mut self) -> bool {
+    use futures_util::stream::StreamExt;
+    use futures_util::FutureExt;
+    loop {
+      match self.stream.next().now_or_never() {
+        None => return true,
+        Some(Some(Ok(Message::Close(_)) | Err(_)) | None) => return false,
+        Some(Some(Ok(_))) => {}
+      }
     }
   }
 
@@ -494,6 +532,7 @@ impl CdpConnection {
     params: Value,
   ) -> Result<(), CdpError> {
     self.refuse_during_dialog(method)?;
+    self.note(method);
     let frame = cdp_frame(self.cdp_session.as_deref(), id, method, params);
     self.send_frame(frame).await
   }
@@ -509,6 +548,10 @@ impl CdpConnection {
   ) -> Result<(), CdpError> {
     if session.is_none() {
       self.refuse_during_dialog(method)?;
+      self.note(method);
+    } else {
+      // Another target's session lives on this socket now.
+      self.stateless = false;
     }
     self
       .send_frame(cdp_frame(session, id, method, params))
@@ -725,46 +768,44 @@ impl CdpConnection {
 /// to watch the load.
 const SETUP_REPLY_WAIT: Duration = Duration::from_secs(5);
 
-/// Ids used by the one-shot command runners below.
+/// A page socket kept open between commands, for the next one to the same
+/// page.
 ///
-/// A caller never picks these, so they are stated once here rather than being
-/// re-derived at each call site.
-const RUN_PAGE_ENABLE_ID: u64 = 1;
-const RUN_COMMAND_ID: u64 = 2;
-const RUN_PAGE_DISABLE_ID: u64 = 3;
-const RUN_FRAME_TREE_ID: u64 = 4;
-
-/// The attach handshake and the commands after it share one socket, so a
-/// handshake reply carrying a command's id would be handed back as that
-/// command's result. Checked at compile time because the failure it prevents is
-/// silent: the wrong reply is still a well-formed reply.
-const _: () = {
-  assert!(HANDSHAKE_GET_TARGETS_ID != HANDSHAKE_ATTACH_ID);
-  assert!(HANDSHAKE_GET_TARGETS_ID != RUN_PAGE_ENABLE_ID);
-  assert!(HANDSHAKE_GET_TARGETS_ID != RUN_COMMAND_ID);
-  assert!(HANDSHAKE_GET_TARGETS_ID != RUN_PAGE_DISABLE_ID);
-  assert!(HANDSHAKE_ATTACH_ID != RUN_PAGE_ENABLE_ID);
-  assert!(HANDSHAKE_ATTACH_ID != RUN_COMMAND_ID);
-  assert!(HANDSHAKE_ATTACH_ID != RUN_PAGE_DISABLE_ID);
-  assert!(HANDSHAKE_GET_TARGETS_ID != RUN_FRAME_TREE_ID);
-  assert!(HANDSHAKE_ATTACH_ID != RUN_FRAME_TREE_ID);
-};
-
-/// Run one command on a fresh connection and hand back its result.
-/// A socket kept open after a one-shot command, for the next one to the same
-/// page. Dialing costs little on this computer, but a remote session pays a
-/// relay dial and a page attach each time.
-struct PooledConnection {
-  connection: CdpConnection,
+/// Wayfern keeps a page an agent acts on a foreground page, visible and
+/// focused, while the CDP session that acted on it last is open. When that
+/// session closes, the page gets a real tab switch's events: blur, then hidden.
+/// A socket per command released the page after every click, and a menu that
+/// closes on blur closed as soon as the click that opened it returned. So the
+/// commands to a page on this computer go through one socket, kept until
+/// [`POOL_IDLE`] passes with no command. A cloud session's one-shot commands
+/// share one too: each new socket costs it a relay dial and a page attach.
+pub(crate) struct PooledConnection {
+  pub(crate) connection: CdpConnection,
+  /// Ids only grow on a socket, so a late reply to an earlier command never
+  /// matches a later one.
   next_id: u64,
+  /// The pool slot this socket goes back to, or `None` when it closes after
+  /// use.
+  key: Option<String>,
   last_used: tokio::time::Instant,
 }
 
-/// How long an unused socket is kept.
-const POOL_IDLE: Duration = Duration::from_secs(30);
-/// The first command id on a pooled socket, apart from the fixed ids the
-/// one-shot helpers use, so a late reply never matches a new command.
+impl PooledConnection {
+  pub(crate) fn allocate_id(&mut self) -> u64 {
+    let id = self.next_id;
+    self.next_id += 1;
+    id
+  }
+}
+
+/// How long a page stays the agent's after its last command.
+const POOL_IDLE: Duration = Duration::from_secs(60);
+/// The first command id on a socket, far below the attach handshake's.
 const POOL_FIRST_ID: u64 = 1_000;
+
+/// Tests run each case on a runtime of its own, and a socket kept from one is
+/// dead in the next, so the pool only serves the app's one runtime.
+const POOLING: bool = !cfg!(test);
 
 static POOL: std::sync::LazyLock<
   tokio::sync::Mutex<std::collections::HashMap<String, PooledConnection>>,
@@ -805,6 +846,73 @@ fn not_delivered(error: &CdpError) -> bool {
   }
 }
 
+/// Whether `method` leaves nothing on its CDP session that a later command on
+/// the same socket could trip on. Events it turns on are dropped when the
+/// socket is next taken from the pool. A socket that sent anything else
+/// (request interception, emulation, input capture, auto-attach) is closed
+/// after use, which ends its session and everything set on it.
+fn leaves_no_state(method: &str) -> bool {
+  method.starts_with("Vellum.")
+    || matches!(
+      method,
+      "Runtime.evaluate"
+        | "Runtime.callFunctionOn"
+        | "Runtime.getProperties"
+        | "Runtime.releaseObject"
+        | "Runtime.releaseObjectGroup"
+        | "Input.dispatchMouseEvent"
+        | "Input.dispatchKeyEvent"
+        | "Input.insertText"
+        | "Page.enable"
+        | "Page.disable"
+        | "Page.navigate"
+        | "Page.reload"
+        | "Page.getFrameTree"
+        | "Page.getLayoutMetrics"
+        | "Page.captureScreenshot"
+        | "Page.getNavigationHistory"
+        | "Page.navigateToHistoryEntry"
+        | "Page.handleJavaScriptDialog"
+        | "Page.bringToFront"
+        | "DOM.getDocument"
+        | "DOM.disable"
+        | "DOM.querySelector"
+        | "DOM.resolveNode"
+        | "DOM.describeNode"
+        | "DOM.getContentQuads"
+        | "DOM.scrollIntoViewIfNeeded"
+        | "DOM.getNodeForLocation"
+        | "DOM.setFileInputFiles"
+        | "Accessibility.getPartialAXTree"
+        | "Wayfern.resolveLocator"
+        | "Wayfern.capturePagePerception"
+        | "Wayfern.extractStructured"
+        | "Wayfern.getDownloads"
+        | "Wayfern.confirmDownload"
+        | "Storage.getCookies"
+        | "Storage.setCookies"
+        | "Target.getTargets"
+        | "Target.attachToTarget"
+        | "Browser.getVersion"
+    )
+}
+
+/// Whether Wayfern counts `method` as acting on the page, which makes the
+/// page the one an agent drives until the session that sent it closes.
+fn drives_page(method: &str) -> bool {
+  method.starts_with("Input.")
+    || method.starts_with("Vellum.")
+    || matches!(
+      method,
+      "Page.navigate"
+        | "Page.navigateToHistoryEntry"
+        | "Page.reload"
+        | "Runtime.callFunctionOn"
+        | "Runtime.evaluate"
+        | "Wayfern.extractStructured"
+    )
+}
+
 /// How a browser refuses a command to a page session that has ended.
 const SESSION_GONE: &str = "Session with given id not found";
 
@@ -817,41 +925,131 @@ fn reusable(result: &Result<Value, CdpError>) -> bool {
   }
 }
 
-async fn give_back(key: String, pooled: PooledConnection) {
-  let mut pool = POOL.lock().await;
-  pool.retain(|_, kept| kept.last_used.elapsed() < POOL_IDLE);
-  if let Some(extra) = pool.insert(key, pooled) {
-    drop(pool);
+/// A new socket to `target` that goes back to the pool slot `key` after use.
+async fn dial_pooled(
+  target: &CdpTarget,
+  key: Option<String>,
+) -> Result<PooledConnection, CdpError> {
+  Ok(PooledConnection {
+    connection: target.connect().await?,
+    next_id: POOL_FIRST_ID,
+    key,
+    last_used: tokio::time::Instant::now(),
+  })
+}
+
+/// The socket kept for `target`, when its peer is still there.
+async fn take_pooled(target: &CdpTarget) -> Option<PooledConnection> {
+  if !POOLING {
+    return None;
+  }
+  let mut kept = POOL.lock().await.remove(&target.pool_key())?;
+  if kept.last_used.elapsed() < POOL_IDLE && kept.connection.drain() {
+    target.watch_dialogs(&mut kept.connection);
+    return Some(kept);
+  }
+  kept.connection.close().await;
+  None
+}
+
+/// A socket to the page `target` names, for a caller that sends several
+/// commands: the page's pooled socket on this computer, so the page stays the
+/// one the agent drives, or a new one. A cloud session's page can move to
+/// another tab while a socket sits in the pool, so its socket is new each
+/// time.
+pub(crate) async fn lease(target: &CdpTarget) -> Result<PooledConnection, CdpError> {
+  if target.is_remote() {
+    return dial_pooled(target, None).await;
+  }
+  match take_pooled(target).await {
+    Some(kept) => Ok(kept),
+    None => dial_pooled(target, Some(target.pool_key())).await,
+  }
+}
+
+/// Keep `pooled` for the next command to its page, or close it when it has no
+/// slot, its peer hung up, or it changed its session in a way the next command
+/// could trip on.
+pub(crate) async fn give_back(mut pooled: PooledConnection) {
+  let key = match pooled.key.clone() {
+    Some(key) if POOLING && pooled.connection.fit_for_pool() => key,
+    _ => {
+      pooled.connection.close().await;
+      return;
+    }
+  };
+  pooled.last_used = tokio::time::Instant::now();
+  let extra = {
+    let mut pool = POOL.lock().await;
+    let extra = match pool.remove(&key) {
+      // Two sockets to one page: the one that acted on it last holds it, and
+      // closing that one would release the page.
+      Some(kept) if kept.connection.drove_at > pooled.connection.drove_at => {
+        pool.insert(key, kept);
+        Some(pooled)
+      }
+      kept => {
+        pool.insert(key, pooled);
+        kept
+      }
+    };
+    if !SWEEPING.swap(true, std::sync::atomic::Ordering::Relaxed) {
+      tokio::spawn(close_idle_sockets());
+    }
+    extra
+  };
+  if let Some(extra) = extra {
     extra.connection.close().await;
   }
 }
 
+/// Whether [`close_idle_sockets`] runs. Read and written under the pool's
+/// lock.
+static SWEEPING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Close each pooled socket once it sat unused for [`POOL_IDLE`], so the page
+/// it held goes back to what its window shows. Runs while the pool holds a
+/// socket.
+async fn close_idle_sockets() {
+  loop {
+    let (idle, next) = {
+      let mut pool = POOL.lock().await;
+      let now = tokio::time::Instant::now();
+      let keys: Vec<String> = pool
+        .iter()
+        .filter(|(_, kept)| now >= kept.last_used + POOL_IDLE)
+        .map(|(key, _)| key.clone())
+        .collect();
+      let idle: Vec<PooledConnection> = keys.iter().filter_map(|key| pool.remove(key)).collect();
+      let next = pool.values().map(|kept| kept.last_used + POOL_IDLE).min();
+      if next.is_none() {
+        SWEEPING.store(false, std::sync::atomic::Ordering::Relaxed);
+      }
+      (idle, next)
+    };
+    for socket in idle {
+      socket.connection.close().await;
+    }
+    match next {
+      Some(at) => tokio::time::sleep_until(at).await,
+      None => return,
+    }
+  }
+}
+
+/// Run one command and hand back its result.
 pub async fn run_command(
   target: &CdpTarget,
   method: &str,
   params: Value,
 ) -> Result<Value, CdpError> {
-  let key = target.pool_key();
-  // Tests run each case on a runtime of its own, and a socket kept from one
-  // is dead in the next, so the pool only serves the app's one runtime.
-  let kept = if cfg!(test) {
-    None
-  } else {
-    POOL
-      .lock()
-      .await
-      .remove(&key)
-      .filter(|kept| kept.last_used.elapsed() < POOL_IDLE)
-  };
-  if let Some(mut pooled) = kept {
-    pooled.next_id += 1;
+  if let Some(mut pooled) = take_pooled(target).await {
+    let id = pooled.allocate_id();
     // A bound on the whole call, the send included: a socket that stopped
     // being driven must fail the command, never hang it.
     let result = tokio::time::timeout(
       COMMAND_TIMEOUT + Duration::from_secs(5),
-      pooled
-        .connection
-        .call(pooled.next_id, method, params.clone()),
+      pooled.connection.call(id, method, params.clone()),
     )
     .await
     .unwrap_or_else(|_| {
@@ -864,29 +1062,26 @@ pub async fn run_command(
         log::debug!("Pooled CDP socket was closed, dialing again method={method}");
       }
       _ => {
-        if reusable(&result) {
-          pooled.last_used = tokio::time::Instant::now();
-          give_back(key, pooled).await;
-        } else {
-          pooled.connection.close().await;
-        }
+        settle(pooled, &result).await;
         return result;
       }
     }
   }
-  let mut pooled = PooledConnection {
-    connection: target.connect().await?,
-    next_id: POOL_FIRST_ID,
-    last_used: tokio::time::Instant::now(),
-  };
-  let result = pooled.connection.call(pooled.next_id, method, params).await;
-  if reusable(&result) && !cfg!(test) {
-    pooled.last_used = tokio::time::Instant::now();
-    give_back(key, pooled).await;
+  let mut pooled = dial_pooled(target, Some(target.pool_key())).await?;
+  let id = pooled.allocate_id();
+  let result = pooled.connection.call(id, method, params).await;
+  settle(pooled, &result).await;
+  result
+}
+
+/// Pool a one-shot command's socket, or close it when `result` says it is
+/// unfit for the next command.
+async fn settle(pooled: PooledConnection, result: &Result<Value, CdpError>) {
+  if reusable(result) {
+    give_back(pooled).await;
   } else {
     pooled.connection.close().await;
   }
-  result
 }
 
 /// Run one command, then wait for the page to finish loading.
@@ -904,19 +1099,21 @@ pub async fn run_command_awaiting_load(
   expect_navigation: bool,
 ) -> Result<Value, CdpError> {
   use crate::navigation_watch::{main_frame_of, NavigationWatch};
-  let mut connection = target.connect().await?;
+  let mut socket = lease(target).await?;
+  let enable_id = socket.allocate_id();
+  let frame_tree_id = socket.allocate_id();
+  let command_id = socket.allocate_id();
+  let disable_id = socket.allocate_id();
+  let connection = &mut socket.connection;
 
   // Page events have to be on before the command runs, or `loadEventFired`
   // for a fast navigation is missed and the wait runs to its full timeout.
   // A page that answers nothing (a dialog no watch saw holds it) still takes a
   // navigation, which ends the dialog, so its answer is not required.
   connection
-    .send_command(RUN_PAGE_ENABLE_ID, "Page.enable", serde_json::json!({}))
+    .send_command(enable_id, "Page.enable", serde_json::json!({}))
     .await?;
-  match connection
-    .await_reply(RUN_PAGE_ENABLE_ID, SETUP_REPLY_WAIT)
-    .await
-  {
+  match connection.await_reply(enable_id, SETUP_REPLY_WAIT).await {
     Err(CdpError::Transport(message)) if message.starts_with("timed out") => {
       log::debug!("Page.enable unanswered, sending {method} anyway");
     }
@@ -925,20 +1122,14 @@ pub async fn run_command_awaiting_load(
     }
   }
   connection
-    .send_command(
-      RUN_FRAME_TREE_ID,
-      "Page.getFrameTree",
-      serde_json::json!({}),
-    )
+    .send_command(frame_tree_id, "Page.getFrameTree", serde_json::json!({}))
     .await?;
   let main_frame = connection
-    .await_reply(RUN_FRAME_TREE_ID, SETUP_REPLY_WAIT)
+    .await_reply(frame_tree_id, SETUP_REPLY_WAIT)
     .await
     .ok()
     .and_then(|tree| main_frame_of(&tree));
-  connection
-    .send_command(RUN_COMMAND_ID, method, params)
-    .await?;
+  connection.send_command(command_id, method, params).await?;
 
   let mut command_result = None;
   let mut failure = None;
@@ -972,7 +1163,7 @@ pub async fn run_command_awaiting_load(
 
     let response: Value = serde_json::from_str(&text).unwrap_or_default();
 
-    if response.get("id") == Some(&Value::from(RUN_COMMAND_ID)) {
+    if response.get("id") == Some(&Value::from(command_id)) {
       if let Some(error) = response.get("error") {
         failure = Some(connection.reply_error(error));
         break;
@@ -993,11 +1184,17 @@ pub async fn run_command_awaiting_load(
     }
   }
 
-  let _ = connection
-    .send_command(RUN_PAGE_DISABLE_ID, "Page.disable", serde_json::json!({}))
-    .await;
+  // Awaited, so the events sent before it are read here and not by the next
+  // user of the socket.
+  if connection
+    .send_command(disable_id, "Page.disable", serde_json::json!({}))
+    .await
+    .is_ok()
+  {
+    let _ = connection.await_reply(disable_id, SETUP_REPLY_WAIT).await;
+  }
   let closed = connection.closed_error("no response received from CDP");
-  connection.close().await;
+  give_back(socket).await;
 
   if let Some(error) = failure {
     return Err(error);
@@ -1049,13 +1246,19 @@ impl CdpTarget {
     self.connect_with(false).await
   }
 
+  /// Follow the dialog state of the page `connection` talks to, as the page's
+  /// watch reports it now: a watch can start, or start again, after the
+  /// socket was opened.
+  fn watch_dialogs(&self, connection: &mut CdpConnection) {
+    connection.dialog = crate::page_dialog::state_of(&self.page_key(connection.page.as_deref()));
+  }
+
   async fn connect_with(&self, attach: bool) -> Result<CdpConnection, CdpError> {
     let mut attempt = 0u32;
     loop {
       let error = match self.connect_once(attach).await {
         Ok(mut connection) => {
-          connection.dialog =
-            crate::page_dialog::state_of(&self.page_key(connection.page.as_deref()));
+          self.watch_dialogs(&mut connection);
           return Ok(connection);
         }
         Err(e) => e,
@@ -1847,6 +2050,53 @@ mod tests {
       matches!(error, CdpError::NotDrivable(_)),
       "expected NotDrivable, got {error:?}"
     );
+  }
+
+  #[tokio::test]
+  async fn a_kept_socket_drops_late_replies_and_only_a_stateless_one_is_kept() {
+    let (ws_url, _server) = fake_relay(RelayBehaviour::Cooperative).await;
+    let mut connection = CdpTarget::Local { ws_url }.connect().await.unwrap();
+    // A reply nobody waits for any more, as after a command that timed out.
+    connection
+      .send_command(1, "Runtime.evaluate", serde_json::json!({}))
+      .await
+      .unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(connection.drain());
+    assert!(
+      connection
+        .await_reply(1, Duration::from_millis(200))
+        .await
+        .is_err(),
+      "the late reply is dropped"
+    );
+    assert!(connection.fit_for_pool());
+    assert!(connection.drove_at.is_some(), "a script acts on the page");
+    connection
+      .send_command(2, "Fetch.enable", serde_json::json!({}))
+      .await
+      .unwrap();
+    assert!(
+      !connection.fit_for_pool(),
+      "request interception stays on the session"
+    );
+  }
+
+  #[tokio::test]
+  async fn a_kept_socket_whose_browser_hung_up_is_not_reused() {
+    let (ws_url, server) = fake_relay(RelayBehaviour::DropBeforeNavigateReply).await;
+    let mut connection = CdpTarget::Local { ws_url }.connect().await.unwrap();
+    connection
+      .send_command(
+        1,
+        "Page.navigate",
+        serde_json::json!({ "url": "about:blank" }),
+      )
+      .await
+      .unwrap();
+    server.await.unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!connection.drain());
   }
 
   #[tokio::test]
