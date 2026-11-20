@@ -4071,6 +4071,24 @@ pub async fn resume_profile_sync(
   apply_profile_sync_mode(app_handle, profile_id, mode, true).await
 }
 
+/// Another device reads the mode and the salt from the synced metadata, which
+/// uploads only when its `updated_at` is newer than the cloud copy's. Without
+/// the bump, the files go up encrypted under metadata that says Regular.
+fn switch_sync_mode(profile: &mut BrowserProfile, mode: SyncMode) {
+  let mut changed = profile.sync_mode != mode;
+  if mode == SyncMode::Encrypted && profile.encryption_salt.is_none() {
+    profile.encryption_salt = Some(encryption::generate_salt());
+    changed = true;
+  }
+  if changed {
+    // Strictly newer than the copy last synced, even within the same second
+    // or under a clock behind the other device's.
+    let edited = crate::proxy_manager::now_secs().max(profile.updated_at.unwrap_or(0) + 1);
+    profile.updated_at = Some(edited);
+  }
+  profile.sync_mode = mode;
+}
+
 async fn apply_profile_sync_mode(
   app_handle: tauri::AppHandle,
   profile_id: String,
@@ -4137,14 +4155,8 @@ async fn apply_profile_sync_mode(
     }
   }
 
-  // If switching to Encrypted, verify password is set and generate salt
-  if new_mode == SyncMode::Encrypted {
-    if !encryption::has_e2e_password() {
-      return Err(crate::backend_error("NO_E2E_PASSWORD_SET"));
-    }
-    if profile.encryption_salt.is_none() {
-      profile.encryption_salt = Some(encryption::generate_salt());
-    }
+  if new_mode == SyncMode::Encrypted && !encryption::has_e2e_password() {
+    return Err(crate::backend_error("NO_E2E_PASSWORD_SET"));
   }
 
   // If switching between Regular<->Encrypted, delete remote manifest to force full re-upload
@@ -4188,7 +4200,7 @@ async fn apply_profile_sync_mode(
     }
   }
 
-  profile.sync_mode = new_mode;
+  switch_sync_mode(&mut profile, new_mode);
 
   profile_manager
     .save_profile(&profile)
@@ -5834,6 +5846,60 @@ mod tests {
 
       assert_eq!(stored(&local).proxy_id.as_deref(), Some(PROXY));
       assert_eq!(reconciled.proxy_id.as_deref(), Some(PROXY));
+    }
+
+    #[tokio::test]
+    async fn a_switch_to_encrypted_publishes_the_mode_and_salt() {
+      let _dirs = isolated();
+      let synced = saved(200, None);
+      let mut local = synced.clone();
+      switch_sync_mode(&mut local, SyncMode::Encrypted);
+      ProfileManager::instance().save_profile(&local).unwrap();
+      let server = MockServer::start().await;
+      let engine = remote(
+        &server,
+        &synced,
+        200,
+        ResponseTemplate::new(200).set_body_bytes(uploaded(&synced)),
+      )
+      .await;
+      Mock::given(method("POST"))
+        .and(path("/v1/objects/presign-upload"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+          "url": format!("{}/bucket/upload", server.uri()),
+          "expiresAt": "2099-01-01T00:00:00Z",
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+      Mock::given(method("PUT"))
+        .and(path("/bucket/upload"))
+        .and(body_partial_json(json!({
+          "sync_mode": "Encrypted",
+          "encryption_salt": local.encryption_salt,
+        })))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+      engine.reconcile_profile_metadata(&local).await.unwrap();
+
+      assert!(local.encryption_salt.is_some());
+      assert!(local.updated_at > synced.updated_at);
+    }
+
+    #[test]
+    fn the_same_mode_again_is_not_an_edit() {
+      let mut profile = BrowserProfile {
+        sync_mode: SyncMode::Encrypted,
+        encryption_salt: Some("salt".to_string()),
+        updated_at: Some(200),
+        ..BrowserProfile::default()
+      };
+      switch_sync_mode(&mut profile, SyncMode::Encrypted);
+      assert_eq!(profile.updated_at, Some(200));
+      assert_eq!(profile.encryption_salt.as_deref(), Some("salt"));
     }
 
     #[tokio::test]

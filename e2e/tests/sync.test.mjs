@@ -804,6 +804,50 @@ test("global config sealing and encrypted profile sync reject a wrong password, 
       profileId: encryptedProfile.id,
     });
 
+    // Synced as Regular first, so the cloud holds metadata that says Regular
+    // when the switch to Encrypted comes.
+    const switchedProfile = await createProfile(source, "Switched Profile");
+    const switchedData = path.join(
+      source.dataRoot,
+      "data",
+      "profiles",
+      switchedProfile.id,
+      "profile",
+    );
+    await mkdir(switchedData, { recursive: true });
+    await writeFile(
+      path.join(switchedData, "Local State"),
+      "SWITCHED-PROFILE-MARKER",
+    );
+    const switchedPrefix = `profiles/${switchedProfile.id}/`;
+    const switchedFileKey = `${switchedPrefix}files/profile/Local State`;
+    const switchedUploaded = async () => {
+      const keys = (await listRemote(switchedPrefix)).map((item) => item.key);
+      return (
+        keys.includes(`${switchedPrefix}manifest.json`) &&
+        keys.includes(`${switchedPrefix}metadata.json`) &&
+        keys.includes(switchedFileKey)
+      );
+    };
+    await source.invoke("set_profile_sync_mode", {
+      profileId: switchedProfile.id,
+      syncMode: "Regular",
+    });
+    await waitFor(source, switchedUploaded, "profile synced as Regular");
+    await source.invoke("set_profile_sync_mode", {
+      profileId: switchedProfile.id,
+      syncMode: "Encrypted",
+    });
+    await waitFor(
+      source,
+      async () =>
+        (await switchedUploaded()) &&
+        !(await downloadRemote(switchedFileKey)).includes(
+          Buffer.from("SWITCHED-PROFILE-MARKER"),
+        ),
+      "profile switched to Encrypted uploaded again",
+    );
+
     const proxyKey = `proxies/${sealedProxy.id}.json`;
     const profileMetadataKey = `profiles/${encryptedProfile.id}/metadata.json`;
     const profileFileKey = `profiles/${encryptedProfile.id}/files/profile/Local State`;
@@ -883,6 +927,22 @@ test("global config sealing and encrypted profile sync reject a wrong password, 
           "SECRET-PROFILE-MARKER",
         ),
       "correct password decrypts profile browser file",
+    );
+    const switchedFile = path.join(
+      receiver.dataRoot,
+      "data",
+      "profiles",
+      switchedProfile.id,
+      "profile",
+      "Local State",
+    );
+    await waitFor(
+      receiver,
+      async () =>
+        (await readFile(switchedFile, "utf8").catch(() => "")).includes(
+          "SWITCHED-PROFILE-MARKER",
+        ),
+      "a profile switched from Regular to Encrypted downloads on another device",
     );
 
     const emptyProfile = await createProfile(source, "Encrypted Empty Profile");
@@ -1003,6 +1063,10 @@ test("global config sealing and encrypted profile sync reject a wrong password, 
     });
     await source.invoke("set_profile_sync_mode", {
       profileId: emptyProfile.id,
+      syncMode: "Disabled",
+    });
+    await source.invoke("set_profile_sync_mode", {
+      profileId: switchedProfile.id,
       syncMode: "Disabled",
     });
     await source.invoke("delete_e2e_password");
