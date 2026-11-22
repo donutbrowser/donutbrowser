@@ -20,8 +20,9 @@
 //! reachable at all) and before the local proxy starts or the browser spawns.
 //! `get_profile_pre_launch_checks` is the cheap half the UI calls first, so a
 //! profile whose exit is already known blocks without starting a single
-//! worker. Its one network use is a route check of at most four seconds,
-//! skipped when a recent result exists.
+//! worker. Its one network use is a route check, skipped when a recent result
+//! exists: four seconds for the proxy or VPN server to answer, then at most
+//! ten for a request through a proxy.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

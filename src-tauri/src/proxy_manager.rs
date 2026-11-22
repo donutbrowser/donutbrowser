@@ -3076,8 +3076,13 @@ pub static PROXY_MANAGER: std::sync::LazyLock<ProxyManager> =
 
 /// A check result this recent stands in for a live check before a launch.
 pub const ROUTE_CHECK_FRESH_SECS: u64 = 120;
-/// The live pre-launch check never holds a launch longer than this.
-pub const ROUTE_CHECK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+/// How long a proxy or VPN server may take to answer the pre-launch check
+/// before the check says it does not answer.
+const ROUTE_CHECK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+/// How long the request through a proxy that answered may take. A slower one
+/// gives no verdict: a residential exit, or a certificate lookup on Windows,
+/// can take longer than this while the proxy works.
+const ROUTE_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// A profile route the pre-launch check could not get through.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -3117,9 +3122,8 @@ fn verdict_from_cached_check(result: &ProxyCheckResult, now: u64) -> Option<Opti
 }
 
 /// Whether the profile's proxy or VPN route answers, before a launch. Takes
-/// a recent result when there is one, else checks live within
-/// `ROUTE_CHECK_TIMEOUT`. `None` when the route answered or cannot be judged
-/// from here: the launch decides those.
+/// a recent result when there is one, else checks live. `None` when the route
+/// answered or cannot be judged from here: the launch decides those.
 pub async fn check_route_before_launch(
   proxy_id: Option<&str>,
   vpn_id: Option<&str>,
@@ -3226,12 +3230,7 @@ async fn probe_proxy_route(proxy_id: &str) -> Option<String> {
     if config.protocol() == crate::xray::XrayProtocol::Hysteria2 {
       return None;
     }
-    let dial = tokio::net::TcpStream::connect((config.address.as_str(), config.port));
-    return match tokio::time::timeout(ROUTE_CHECK_TIMEOUT, dial).await {
-      Ok(Ok(_)) => None,
-      Ok(Err(e)) => Some(route_failure_code(&e.to_string()).to_string()),
-      Err(_) => Some("PROXY_UPSTREAM_TIMEOUT".to_string()),
-    };
+    return dial_proxy_server(&config.address, config.port).await;
   }
   if settings.host.is_empty() || settings.port == 0 {
     return None;
@@ -3240,11 +3239,44 @@ async fn probe_proxy_route(proxy_id: &str) -> Option<String> {
   if !crate::proxy_storage::reqwest_can_proxy(&url) {
     return None;
   }
-  let proxy = reqwest::Proxy::all(&url).ok()?;
+  probe_through_proxy(
+    crate::proxy_storage::bare_host(&settings.host),
+    settings.port,
+    &url,
+    ROUTE_REQUEST_TIMEOUT,
+  )
+  .await
+}
+
+/// A connection to a proxy's server. The failure code when the server does
+/// not take it within `ROUTE_CHECK_TIMEOUT`.
+async fn dial_proxy_server(host: &str, port: u16) -> Option<String> {
+  let dial = tokio::net::TcpStream::connect((host, port));
+  match tokio::time::timeout(ROUTE_CHECK_TIMEOUT, dial).await {
+    Ok(Ok(_)) => None,
+    Ok(Err(e)) => Some(route_failure_code(&e.to_string()).to_string()),
+    Err(_) => Some("PROXY_UPSTREAM_TIMEOUT".to_string()),
+  }
+}
+
+/// A request through the proxy at `url`, whose server is `host:port`. A server
+/// that takes no connection does not answer. Through one that does, a refusal
+/// (credentials, payment, the destination) is a failure, and a request still
+/// running after `request_timeout` is no verdict.
+async fn probe_through_proxy(
+  host: &str,
+  port: u16,
+  url: &str,
+  request_timeout: std::time::Duration,
+) -> Option<String> {
+  if let Some(failure) = dial_proxy_server(host, port).await {
+    return Some(failure);
+  }
+  let proxy = reqwest::Proxy::all(url).ok()?;
   let client = reqwest::Client::builder()
     .no_proxy()
     .proxy(proxy)
-    .timeout(ROUTE_CHECK_TIMEOUT)
+    .timeout(request_timeout)
     .build()
     .ok()?;
   // Any answer from the site proves the route; only a failure to get one
@@ -3255,7 +3287,13 @@ async fn probe_proxy_route(proxy_id: &str) -> Option<String> {
     .await
   {
     Ok(_) => None,
-    Err(e) if e.is_timeout() => Some("PROXY_UPSTREAM_TIMEOUT".to_string()),
+    Err(e) if e.is_timeout() => {
+      log::debug!(
+        "Route check request slow, the launch decides timeout_ms={}",
+        request_timeout.as_millis()
+      );
+      None
+    }
     Err(e) => {
       let detail = format!("{e:?}");
       Some(route_failure_code(&detail).to_string())
@@ -3569,6 +3607,76 @@ mod route_check_tests {
   async fn a_profile_with_no_route_is_never_checked() {
     assert_eq!(check_route_before_launch(None, None).await, None);
     assert_eq!(check_route_before_launch(Some(""), Some("")).await, None);
+  }
+
+  /// A SOCKS5 server on this computer that runs `serve` on each connection.
+  async fn socks_server<F, Fut>(serve: F) -> u16
+  where
+    F: Fn(tokio::net::TcpStream) -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+  {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+      while let Ok((socket, _)) = listener.accept().await {
+        tokio::spawn(serve(socket));
+      }
+    });
+    port
+  }
+
+  const SLOW_REQUEST: std::time::Duration = std::time::Duration::from_millis(300);
+
+  #[tokio::test]
+  async fn a_slow_request_through_a_proxy_that_answered_gives_no_verdict() {
+    // The server takes the connection and says nothing yet, as a residential
+    // gateway does while it picks an exit.
+    let port = socks_server(|socket| async move {
+      tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+      drop(socket);
+    })
+    .await;
+    let url = format!("socks5h://127.0.0.1:{port}");
+    assert_eq!(
+      probe_through_proxy("127.0.0.1", port, &url, SLOW_REQUEST).await,
+      None
+    );
+  }
+
+  #[tokio::test]
+  async fn a_proxy_server_that_takes_no_connection_fails_the_check() {
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+      .unwrap()
+      .local_addr()
+      .unwrap()
+      .port();
+    let url = format!("socks5h://127.0.0.1:{port}");
+    assert_eq!(
+      probe_through_proxy("127.0.0.1", port, &url, SLOW_REQUEST)
+        .await
+        .as_deref(),
+      Some("PROXY_UPSTREAM_UNREACHABLE")
+    );
+  }
+
+  #[tokio::test]
+  async fn a_proxy_that_refuses_the_credentials_fails_the_check() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let port = socks_server(|mut socket| async move {
+      let mut buf = [0u8; 512];
+      let _ = socket.read(&mut buf).await;
+      let _ = socket.write_all(&[0x05, 0x02]).await;
+      let _ = socket.read(&mut buf).await;
+      let _ = socket.write_all(&[0x01, 0x01]).await;
+    })
+    .await;
+    let url = format!("socks5h://user:wrong@127.0.0.1:{port}");
+    assert_eq!(
+      probe_through_proxy("127.0.0.1", port, &url, SLOW_REQUEST)
+        .await
+        .as_deref(),
+      Some("PROXY_AUTH_FAILED")
+    );
   }
 }
 
