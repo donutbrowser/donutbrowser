@@ -45,10 +45,8 @@ jobs:
           ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
           AUTHOR_ASSOCIATION: ${{ github.event.issue.author_association }}
         run: |
-          TRIAGE_DIR="$RUNNER_TEMP/triage"
-          echo "TRIAGE_DIR=$TRIAGE_DIR" >> "$GITHUB_ENV"
-          mkdir -m 700 "$TRIAGE_DIR"
-          printf '%s' "$ISSUE_LABELS" > "$TRIAGE_DIR/labels.json"
+          mkdir -m 700 "$RUNNER_TEMP/triage"
+          printf '%s' "$ISSUE_LABELS" > "$RUNNER_TEMP/triage/labels.json"
 
           # The issues API also lists pull requests; they do not count.
           earlier=$(gh api -X GET "repos/$GITHUB_REPOSITORY/issues" \
@@ -78,7 +76,7 @@ jobs:
             gh api -X GET "repos/$GITHUB_REPOSITORY/issues" \
               -f state=closed -f sort=updated -f since="$since" -F per_page=50 || echo '[]'
           } | jq -s 'add | map(select(.pull_request | not) | {number, title, state})' \
-            > "$TRIAGE_DIR/candidates.json"
+            > "$RUNNER_TEMP/triage/candidates.json"
 
       - name: Build the prompt
         env:
@@ -93,11 +91,11 @@ jobs:
         run: |
           # Fail-open: an outage or an answer that is not JSON must never close
           # or delete an issue. It is recorded and turns the run red below.
-          if ! bash .github/scripts/ai-infer.sh "$TRIAGE_DIR/system.txt" "$TRIAGE_DIR/user.txt" "$TRIAGE_DIR/raw.txt"; then
-            echo "the model call failed" >> "$TRIAGE_DIR/degraded"
-          elif ! python3 .github/scripts/extract-json.py "$TRIAGE_DIR/raw.txt" "$TRIAGE_DIR/result.json"; then
-            echo "the model returned output that was not JSON" >> "$TRIAGE_DIR/degraded"
-            rm -f "$TRIAGE_DIR/result.json"
+          if ! bash .github/scripts/ai-infer.sh "$RUNNER_TEMP/triage/system.txt" "$RUNNER_TEMP/triage/user.txt" "$RUNNER_TEMP/triage/raw.txt"; then
+            echo "the model call failed" >> "$RUNNER_TEMP/triage/degraded"
+          elif ! python3 .github/scripts/extract-json.py "$RUNNER_TEMP/triage/raw.txt" "$RUNNER_TEMP/triage/result.json"; then
+            echo "the model returned output that was not JSON" >> "$RUNNER_TEMP/triage/degraded"
+            rm -f "$RUNNER_TEMP/triage/result.json"
           fi
 
       - name: Decide
@@ -135,14 +133,14 @@ jobs:
         if: steps.decide.outputs.has_comment == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$TRIAGE_DIR/comment.md"
+        run: gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/triage/comment.md"
 
       - name: Close an issue nobody can act on
         if: steps.decide.outputs.action == 'close'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$TRIAGE_DIR/close.md"
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/triage/close.md"
           gh issue close "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --reason "not planned"
 
       # Only a repository admin can delete an issue, and the workflow token
@@ -161,13 +159,13 @@ jobs:
           # author's text, so workflow commands are off while it prints.
           stop_token="issue-quote-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')"
           echo "::stop-commands::$stop_token"
-          echo "Deleting #$ISSUE_NUMBER by $ISSUE_AUTHOR for: $(cat "$TRIAGE_DIR/insult-quote.txt")"
+          echo "Deleting #$ISSUE_NUMBER by $ISSUE_AUTHOR for: $(cat "$RUNNER_TEMP/triage/insult-quote.txt")"
           echo "::$stop_token::"
 
           if [ -n "$ADMIN_TOKEN" ] && GH_TOKEN="$ADMIN_TOKEN" gh issue delete "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --yes; then
             exit 0
           fi
-          echo "could not delete insulting issue #$ISSUE_NUMBER (is ISSUE_ADMIN_TOKEN set and valid?); it was closed and locked instead" >> "$TRIAGE_DIR/degraded"
+          echo "could not delete insulting issue #$ISSUE_NUMBER (is ISSUE_ADMIN_TOKEN set and valid?); it was closed and locked instead" >> "$RUNNER_TEMP/triage/degraded"
           gh issue close "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --reason "not planned"
           gh issue lock "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --reason too_heated
 
@@ -177,9 +175,9 @@ jobs:
       - name: Fail if triage did not do its job
         if: always()
         run: |
-          if [ -f "$TRIAGE_DIR/degraded" ]; then
+          if [ -f "$RUNNER_TEMP/triage/degraded" ]; then
             echo "::error::Triage degraded and its result was not verified:"
-            sed 's/^/  - /' "$TRIAGE_DIR/degraded"
+            sed 's/^/  - /' "$RUNNER_TEMP/triage/degraded"
             exit 1
           fi
 

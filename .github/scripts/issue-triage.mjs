@@ -400,8 +400,8 @@ function candidateList(file, issueNumber) {
 function main() {
   // The job's private RUNNER_TEMP folder; the shared /tmp is open to every
   // process on the runner.
-  const dir = process.env.TRIAGE_DIR;
-  if (!dir) throw new Error("TRIAGE_DIR is not set");
+  if (!process.env.RUNNER_TEMP) throw new Error("RUNNER_TEMP is not set");
+  const dir = path.join(process.env.RUNNER_TEMP, "triage");
   const file = (name) => path.join(dir, name);
   const issueNumber = Number(process.env.ISSUE_NUMBER || 0);
   const command = process.argv[2];
