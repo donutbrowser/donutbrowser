@@ -199,9 +199,9 @@
         # hash here, the launcher falls back to the binary in node_modules.
         tsrsVersion = (builtins.fromJSON (builtins.readFile ./package.json)).devDependencies.tsrs;
         tsrsHashes = {
-          "0.20.1-ts7.1.0-beta" = {
-            x86_64-linux = "sha512-DoqErlQkQioKYunFyl6nUXWR1kjerqoRV56dggx7qMKvauSZMGkjBQ2Za4tmnISIn4BiJBOyZa/SYc0wfnxDpA==";
-            aarch64-linux = "sha512-AEj++EKJ+ZlRLWdFtYopctph5klOpUtZ+ehiezsrgMr/GP118E0H+5ux1vg1FM20jbAipNxecPg/311MOzN/fw==";
+          "7.1.0-beta.tsrs4" = {
+            x86_64-linux = "sha512-TQeiFbrxowI26YDaUojRfV7DhDKjXlPWtz9DopyGtufFoKsv2efIzUiEAA8IVw689nUoi0CVl0aWTWio49lWMg==";
+            aarch64-linux = "sha512-4RGERFCpPayJ74T2eA+ky3VdIS0r1BezKIclqGWRTx/RXnj9H/1NbtEt0aKhj3TrTMPDmInlPiCwRJUv7M9kFA==";
           };
         };
         tsrsHash = (tsrsHashes.${tsrsVersion} or { }).${system} or null;

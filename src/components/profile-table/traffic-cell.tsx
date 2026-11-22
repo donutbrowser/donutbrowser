@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { TFunction } from "i18next";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -112,10 +113,7 @@ function CountingBandwidth({ value }: { value: number }) {
 }
 
 /** What a health entry means, in the person's language. */
-export function proxyHealthLabel(
-  t: (key: string, options?: Record<string, unknown>) => string,
-  health: ProxyHealth,
-): string {
+export function proxyHealthLabel(t: TFunction, health: ProxyHealth): string {
   if (health.code) {
     return translateBackendError(
       t as never,

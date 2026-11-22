@@ -4,6 +4,7 @@ import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { hideOthers } from "aria-hidden";
 import Color from "color";
+import type { TFunction } from "i18next";
 import { motion } from "motion/react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { DismissableLayer, FocusGuards, FocusScope } from "radix-ui/internal";
@@ -290,7 +291,7 @@ function LocalDataTransferCard({
   t,
 }: {
   profileId: string;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   type Snapshot = {
     total_bytes_sent: number;
@@ -984,7 +985,7 @@ interface ProfileInfoLayoutProps {
   isLaunching: boolean;
   isStopping: boolean;
   visibleActions: ProfileAction[];
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }
 
 type ProfileSection =
@@ -1690,7 +1691,7 @@ function LaunchHookEditor({
   t,
 }: {
   profile: BrowserProfile;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   const { t: tFn } = useTranslation();
   const [savedValue, setSavedValue] = React.useState(profile.launch_hook ?? "");
@@ -1887,7 +1888,7 @@ function SyncSectionInline({
   syncMode: string;
   syncStatus: { status: string; error?: string } | undefined;
   isDisabled: boolean;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -1979,7 +1980,7 @@ function NetworkSectionInline({
   storedProxies: StoredProxy[];
   vpnConfigs: VpnConfig[];
   isDisabled: boolean;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -2221,7 +2222,7 @@ function EphemeralSectionNotice({
 }: {
   title: string;
   description: string;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-lg bg-foreground/5 p-6 text-center">
@@ -2244,7 +2245,7 @@ function ExtensionsSectionInline({
 }: {
   profile: BrowserProfile;
   isDisabled: boolean;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   type ExtensionGroupOption = { id: string; name: string };
   const [groups, setGroups] = React.useState<ExtensionGroupOption[]>([]);
@@ -2360,7 +2361,7 @@ function CookiesSectionInline({
   isDisabled: boolean;
   onCopyCookies?: () => void;
   onImportCookies?: () => void;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   type CookieStats = {
     profile_id: string;
@@ -2574,7 +2575,7 @@ function StorageStateBlock({
 }: {
   profile: BrowserProfile;
   isDisabled: boolean;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   const [stats, setStats] = React.useState<{
     origins: number;
@@ -2738,7 +2739,7 @@ function FingerprintSectionInline({
   profile: BrowserProfile;
   isDisabled: boolean;
   crossOsUnlocked: boolean;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   const initial = JSON.stringify(profile.wayfern_config ?? {});
   const [wayfernConfig, setWayfernConfig] = React.useState<WayfernConfig>(
@@ -2889,7 +2890,7 @@ function SecuritySectionInline({
   isRunning: boolean;
   canLock: boolean;
   onLock: () => void;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
 }) {
   // Mode is implied by current state: unprotected → "set"; protected →
   // "change" by default, with a "remove" alternative.

@@ -1,9 +1,5 @@
 [
   {
-    "name": "@babel/runtime",
-    "license": "MIT"
-  },
-  {
     "name": "@floating-ui/core",
     "license": "MIT"
   },
@@ -3328,6 +3324,10 @@
     "license": "MIT"
   },
   {
+    "name": "zbus_utils",
+    "license": "MIT"
+  },
+  {
     "name": "zcheapstr",
     "license": "MIT"
   },
@@ -3377,6 +3377,10 @@
   },
   {
     "name": "zmij",
+    "license": "MIT"
+  },
+  {
+    "name": "zruntime",
     "license": "MIT"
   },
   {

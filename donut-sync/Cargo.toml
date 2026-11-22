@@ -19,7 +19,7 @@ strip = true
 [dependencies]
 async-trait = "0.1.92"
 base64 = "0.23.1"
-bytes = "1.12.1"
+bytes = "1.12.2"
 dotenvy = "0.15.7"
 futures-util = "0.3.34"
 hex = "0.4.3"
@@ -29,7 +29,7 @@ httpdate = "1.0.3"
 hyper = { version = "1.12.0", features = ["server", "http1"] }
 hyper-util = { version = "0.1.21", features = ["tokio", "server", "http1", "server-graceful"] }
 md-5 = "0.11.0"
-rand = "0.10.3"
+rand = "0.10.4"
 regex-lite = "0.1.9"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider", "stream"] }
 ring = "0.17.14"
@@ -40,8 +40,8 @@ serde_json = { version = "1.0.154", features = ["preserve_order"] }
 sha2 = "0.11.1"
 socket2 = "0.6.5"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "signal", "time", "sync", "fs"] }
-url = "2.5.8"
-uuid = { version = "1.29.0", features = ["v4"] }
+url = "2.5.9"
+uuid = { version = "1.29.3", features = ["v4"] }
 
 [dev-dependencies]
 tokio = { version = "1.54.1", features = ["test-util"] }

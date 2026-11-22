@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import type { TFunction } from "i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuChevronRight, LuFileArchive, LuFolder } from "react-icons/lu";
@@ -143,10 +144,7 @@ function mergeImportResults(
 }
 
 /** One line for the outcome: the toast, the heading and the system notice. */
-function importSummary(
-  t: (key: string, options?: Record<string, unknown>) => string,
-  result: ProfileImportBatchResult,
-): string {
+function importSummary(t: TFunction, result: ProfileImportBatchResult): string {
   if (result.cancelled) {
     return t("importProfile.cancelledSummary", {
       imported: result.imported_count,

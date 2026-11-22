@@ -15,6 +15,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
+import type { TFunction } from "i18next";
 import { AnimatePresence, motion } from "motion/react";
 import type { Dispatch, SetStateAction } from "react";
 import * as React from "react";
@@ -247,7 +248,7 @@ declare module "@tanstack/table-core" {
 // Stable table meta type to pass volatile state/handlers into TanStack Table without
 // causing column definitions to be recreated on every render.
 interface TableMeta {
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: TFunction;
   /** Decorative motion may run (pointer user, no reduced motion). */
   motionAllowed: boolean;
   /** Profile id -> raw error of its last failed launch. */
@@ -585,7 +586,7 @@ function getProfileSyncStatusDot(
     | "error"
     | "disabled"
     | undefined,
-  t: (key: string, options?: Record<string, unknown>) => string,
+  t: TFunction,
   errorMessage?: string,
 ): SyncStatusDot | null {
   const encrypted = profile.sync_mode === "Encrypted";

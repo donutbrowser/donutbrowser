@@ -29,7 +29,7 @@ path = "src/bin/proxy_server.rs"
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 # The tray icon SVG has no text and no embedded raster images.
-resvg = { version = "0.49", default-features = false }
+resvg = { version = "0.50", default-features = false }
 
 [dependencies]
 serde_json = "1"
@@ -93,7 +93,7 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 axum = { version = "0.8.9", features = ["ws"] }
 tower-http = { version = "0.7", features = ["cors"] }
-rand = "0.10.3"
+rand = "0.10.4"
 utoipa = { version = "6", features = ["axum_extras", "chrono"] }
 utoipa-axum = "0.3"
 argon2 = "0.6"
@@ -115,13 +115,13 @@ async-socks5 = "0.6"
 
 # Wayfern CDP integration
 tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
-rusqlite = { version = "0.41", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 yaml-rust2 = { version = "0.13", default-features = false }
 thiserror = "2.0"
 regex-lite = "0.1"
 tempfile = "3"
 dunce = "1"
-maxminddb = "0.32"
+maxminddb = "0.33"
 quick-xml = { version = "0.42", features = ["serialize"] }
 
 # VPN support
@@ -137,7 +137,7 @@ toml_edit = "0.25"
 rusty-leveldb = "4.0.2"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", features = ["signal", "process"] }
+nix = { version = "0.32", features = ["signal", "process"] }
 
 # Reading the desktop's titlebar button layout for the in-app window controls.
 [target.'cfg(target_os = "linux")'.dependencies]
