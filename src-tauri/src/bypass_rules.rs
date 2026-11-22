@@ -114,7 +114,7 @@ fn in_range(ip: IpAddr, network: IpAddr, prefix: u8) -> bool {
 /// Trims the rules and drops blank lines and repeats. Refuses a rule that is
 /// not a host name, an IP address, an IP range or a regex.
 pub fn checked(rules: Vec<String>) -> Result<Vec<String>, String> {
-  let mut kept: Vec<String> = Vec::with_capacity(rules.len());
+  let mut kept: Vec<String> = Vec::new();
   for rule in rules {
     let rule = rule.trim();
     if rule.is_empty() || kept.iter().any(|known| known == rule) {

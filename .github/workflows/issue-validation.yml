@@ -30,7 +30,6 @@ jobs:
       contents: read
       issues: write
     env:
-      TRIAGE_DIR: /tmp/triage
       ISSUE_NUMBER: ${{ github.event.issue.number }}
     steps:
       - name: Checkout repository
@@ -46,7 +45,9 @@ jobs:
           ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
           AUTHOR_ASSOCIATION: ${{ github.event.issue.author_association }}
         run: |
-          mkdir -p "$TRIAGE_DIR"
+          TRIAGE_DIR="$RUNNER_TEMP/triage"
+          echo "TRIAGE_DIR=$TRIAGE_DIR" >> "$GITHUB_ENV"
+          mkdir -m 700 "$TRIAGE_DIR"
           printf '%s' "$ISSUE_LABELS" > "$TRIAGE_DIR/labels.json"
 
           # The issues API also lists pull requests; they do not count.
@@ -102,7 +103,6 @@ jobs:
       - name: Decide
         id: decide
         env:
-          ISSUE_LABELS_FILE: /tmp/triage/labels.json
           FIRST_TIME: ${{ steps.facts.outputs.first_time }}
           MAINTAINER: ${{ steps.facts.outputs.maintainer }}
         run: node .github/scripts/issue-triage.mjs decide
@@ -406,7 +406,7 @@ jobs:
           persist-credentials: false
 
       - name: Run opencode
-        uses: anomalyco/opencode/github@68bc26b7da1990ce10ffecfbc1e09eb13aa5d824 #v2.1.4
+        uses: anomalyco/opencode/github@c0ad18b402eb2827fc1ee71c171b1177b3fc02d1 # v2.3.2
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}

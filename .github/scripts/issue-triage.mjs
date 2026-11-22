@@ -398,7 +398,10 @@ function candidateList(file, issueNumber) {
 }
 
 function main() {
-  const dir = process.env.TRIAGE_DIR || "/tmp/triage";
+  // The job's private RUNNER_TEMP folder; the shared /tmp is open to every
+  // process on the runner.
+  const dir = process.env.TRIAGE_DIR;
+  if (!dir) throw new Error("TRIAGE_DIR is not set");
   const file = (name) => path.join(dir, name);
   const issueNumber = Number(process.env.ISSUE_NUMBER || 0);
   const command = process.argv[2];
@@ -433,7 +436,7 @@ function main() {
       facts: readJson(file("facts.json"), null),
       issueText: fs.readFileSync(file("issue-text.txt"), "utf8"),
       candidates: candidateList(file("candidates.json"), issueNumber),
-      labels: readJson(process.env.ISSUE_LABELS_FILE || "", []),
+      labels: readJson(file("labels.json"), []),
       firstTime: process.env.FIRST_TIME === "true",
       maintainer: process.env.MAINTAINER === "true",
     });
