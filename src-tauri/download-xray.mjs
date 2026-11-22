@@ -83,18 +83,31 @@ export function xrayDownloadUrl(assetName) {
 // command text rather than binding them to $args, so the script ran with a
 // null -LiteralPath. Handing the paths over as environment variables binds
 // them for real and sidesteps quoting of Windows paths and spaces.
+//
+// A PowerShell 7 parent (the default shell on Windows runners) hands its own
+// module folders down in PSModulePath. Windows PowerShell then loads
+// PowerShell 7's Archive module, whose Expand-Archive fails on .NET Framework
+// ("Cannot find an overload for ExtractToDirectory"), so the child gets
+// Windows PowerShell's module folder only.
 export function windowsExtractionInvocation(archive, destinationDir) {
   return {
     args: [
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      "Expand-Archive -LiteralPath $env:DONUT_XRAY_ARCHIVE -DestinationPath $env:DONUT_XRAY_DESTINATION -Force",
+      "Expand-Archive -LiteralPath $env:DONUT_ZIP_ARCHIVE -DestinationPath $env:DONUT_ZIP_DESTINATION -Force",
     ],
     env: {
       ...process.env,
-      DONUT_XRAY_ARCHIVE: archive,
-      DONUT_XRAY_DESTINATION: destinationDir,
+      PSModulePath: join(
+        process.env.SystemRoot ?? "C:\\Windows",
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
+        "Modules",
+      ),
+      DONUT_ZIP_ARCHIVE: archive,
+      DONUT_ZIP_DESTINATION: destinationDir,
     },
   };
 }

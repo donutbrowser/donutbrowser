@@ -109,16 +109,19 @@ test("binds Windows extraction paths that PowerShell can actually read", () => {
   const script = args.at(-1);
   assert.equal(args.at(-2), "-Command");
   assert.doesNotMatch(script, /\$args/);
-  assert.match(script, /-LiteralPath \$env:DONUT_XRAY_ARCHIVE\b/);
-  assert.match(script, /-DestinationPath \$env:DONUT_XRAY_DESTINATION\b/);
+  assert.match(script, /-LiteralPath \$env:DONUT_ZIP_ARCHIVE\b/);
+  assert.match(script, /-DestinationPath \$env:DONUT_ZIP_DESTINATION\b/);
   assert.equal(
-    env.DONUT_XRAY_ARCHIVE,
+    env.DONUT_ZIP_ARCHIVE,
     "C:\\Users\\runner\\AppData\\Local\\Temp\\donut xray\\Xray-windows-64.zip",
   );
   assert.equal(
-    env.DONUT_XRAY_DESTINATION,
+    env.DONUT_ZIP_DESTINATION,
     "C:\\Users\\runner\\AppData\\Local\\Temp\\donut xray",
   );
+  // PowerShell 7's module folders from a pwsh parent break Expand-Archive.
+  assert.match(env.PSModulePath, /WindowsPowerShell[\\/]v1\.0[\\/]Modules$/);
+  assert.doesNotMatch(env.PSModulePath, /;/);
 });
 
 test("rejects an unsupported target before downloading", async () => {

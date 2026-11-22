@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, renameSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { windowsExtractionInvocation } from "../src-tauri/download-xray.mjs";
 
 // Pinned so a fresh rclone release cannot change what CI runs underneath us.
 export const RCLONE_VERSION = "v1.76.0";
@@ -25,29 +26,16 @@ function rcloneAsset() {
   throw new Error(`Unsupported platform: ${platform}-${os.arch()}`);
 }
 
-// Mirrors src-tauri/download-xray.mjs: PowerShell owns zip extraction on
-// Windows, `unzip` everywhere else. Both are present on every runner these
-// harnesses target.
+// PowerShell owns zip extraction on Windows, `unzip` everywhere else. Both
+// are present on every runner these harnesses target.
 function extractZip(archive, destinationDir) {
+  const windows = windowsExtractionInvocation(archive, destinationDir);
   const result =
     os.platform() === "win32"
-      ? spawnSync(
-          "powershell",
-          [
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "Expand-Archive -LiteralPath $env:DONUT_RCLONE_ARCHIVE -DestinationPath $env:DONUT_RCLONE_DESTINATION -Force",
-          ],
-          {
-            stdio: "inherit",
-            env: {
-              ...process.env,
-              DONUT_RCLONE_ARCHIVE: archive,
-              DONUT_RCLONE_DESTINATION: destinationDir,
-            },
-          },
-        )
+      ? spawnSync("powershell", windows.args, {
+          stdio: "inherit",
+          env: windows.env,
+        })
       : spawnSync(
           "unzip",
           ["-qq", "-j", "-o", archive, "*/rclone", "-d", destinationDir],
